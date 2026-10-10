@@ -1,8 +1,9 @@
+import { integrationAdminService } from '@navet/app/services/integration-admin.service';
 import { integrationStore } from '@navet/app/stores/integration-store';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { renderHookWithProviders, renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
-import { act, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderCard, useCardIsUnavailable } from '../card-renderer';
 
@@ -34,8 +35,66 @@ vi.mock('@navet/app/features/vacuum', () => ({
 
 describe('card availability lookup', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
     await resetAppStores();
   });
+
+  // Keep: unavailable cards must expose recovery without enabling device controls.
+  it('opens integration recovery from the unavailable card surface', async () => {
+    vi.spyOn(integrationAdminService, 'canReloadEntityIntegration').mockReturnValue(true);
+    const reload = vi.spyOn(integrationAdminService, 'reloadEntityIntegration').mockResolvedValue();
+    const card = renderCard({
+      device: {
+        id: 'home_assistant:light.kitchen',
+        name: 'Kitchen',
+        type: 'lights',
+        state: 'unavailable',
+      },
+      size: 'small',
+      handleSizeChange: () => undefined,
+      isEditMode: false,
+    });
+    if (!card) throw new Error('Expected an unavailable light card');
+    renderWithProviders(card);
+    expect((await screen.findByTestId('light-card')).closest('[inert]')).not.toBeNull();
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'More actions' }), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: 'mouse',
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Reload integration' }));
+    expect(await screen.findByRole('alertdialog', { name: 'Reload integration?' })).toBeVisible();
+    expect(reload).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Reload integration' }));
+    });
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledWith('home_assistant:light.kitchen'));
+  });
+
+  it.each([
+    { available: false, isEditMode: false },
+    { available: true, isEditMode: true },
+  ])(
+    'does not expose recovery for an unsupported session or in edit mode: %j',
+    async ({ available, isEditMode }) => {
+      vi.spyOn(integrationAdminService, 'canReloadEntityIntegration').mockReturnValue(available);
+      const card = renderCard({
+        device: {
+          id: 'home_assistant:light.kitchen',
+          name: 'Kitchen',
+          type: 'lights',
+          state: 'unavailable',
+        },
+        size: 'tiny',
+        handleSizeChange: () => undefined,
+        isEditMode,
+      });
+      if (!card) throw new Error('Expected an unavailable light card');
+      renderWithProviders(card);
+      await screen.findByText('Unavailable');
+      expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
+    }
+  );
 
   it('does not rerender for unrelated provider entity updates', () => {
     integrationStore.setState({

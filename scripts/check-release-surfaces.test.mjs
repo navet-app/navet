@@ -3,6 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { readYaml } from './release-surfaces.mjs';
 
 const fixtures = [];
 afterEach(() => {
@@ -34,6 +35,18 @@ function fixture({ addonVersion = '0.17.2', addonNotes = '0.17.2', docVersion = 
 }
 
 describe('release surface validation', () => {
+  // Keep: arbitrary YAML keys are data, including names inherited by ordinary objects.
+  it('reads prototype-related metadata keys without changing the record prototype', () => {
+    const root = mkdtempSync(join(tmpdir(), 'navet-release-yaml-'));
+    fixtures.push(root);
+    const file = join(root, 'metadata.yaml');
+    writeFileSync(file, '__proto__: injected\nconstructor: custom\nversion: 0.17.1\n');
+    const metadata = readYaml(file);
+    expect(Object.getPrototypeOf(metadata)).toBeNull();
+    expect(metadata.__proto__).toBe('injected');
+    expect(metadata.constructor).toBe('custom');
+    expect(metadata.version).toBe('0.17.1');
+  });
   it('accepts published add-on metadata ahead of the source line', () => {
     expect(fixture()().status).toBe(0);
   });

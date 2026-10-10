@@ -8,6 +8,7 @@ import {
   callHomeAssistantService,
   createHomeAssistantArea,
   deleteHomeAssistantArea,
+  getHomeAssistantConnection,
   getHomeAssistantEntityRegistry,
   getHomeAssistantStoreState,
   renameHomeAssistantArea,
@@ -38,9 +39,20 @@ export const homeAssistantAdminFeatureService: ProviderAdminFeatureService & {
     if (!entryId) throw new Error('Integration reload is unavailable for this entity or session');
     const pending = pendingReloads.get(entryId);
     if (pending) return pending;
-    const request = callHomeAssistantService('homeassistant', 'reload_config_entry', {
-      entry_id: entryId,
-    });
+    const connection = getHomeAssistantConnection();
+    if (!connection) throw new Error('Home Assistant is not connected');
+    const request = (async () => {
+      await callHomeAssistantService('homeassistant', 'reload_config_entry', {
+        entry_id: entryId,
+      });
+      // The service discards async_reload's result, including failed unloads.
+      const result = await connection.sendMessagePromise<{
+        config_entry: { state: string };
+      }>({ type: 'config_entries/get_single', entry_id: entryId });
+      if (result.config_entry?.state !== 'loaded') {
+        throw new Error('Integration reload did not complete successfully');
+      }
+    })();
     pendingReloads.set(entryId, request);
     try {
       await request;

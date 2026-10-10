@@ -5,12 +5,15 @@ const mocks = vi.hoisted(() => ({
   callService: vi.fn(),
   getRegistry: vi.fn(),
   getState: vi.fn(),
+  getConnection: vi.fn(),
+  sendMessage: vi.fn(),
 }));
 vi.mock('./homeassistant-service-bridge', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./homeassistant-service-bridge')>()),
   callHomeAssistantService: mocks.callService,
   getHomeAssistantEntityRegistry: mocks.getRegistry,
   getHomeAssistantStoreState: mocks.getState,
+  getHomeAssistantConnection: mocks.getConnection,
 }));
 
 import { homeAssistantAdminFeatureService as service } from './homeassistant-admin-feature.service';
@@ -22,6 +25,8 @@ describe('Home Assistant integration reload', () => {
     mocks.getState.mockReturnValue({ connected: true, user: { is_admin: true } });
     mocks.getRegistry.mockReturnValue([integrationReloadFixture.registryEntry]);
     mocks.callService.mockResolvedValue(undefined);
+    mocks.getConnection.mockReturnValue({ sendMessagePromise: mocks.sendMessage });
+    mocks.sendMessage.mockResolvedValue({ config_entry: integrationReloadFixture.configEntry });
   });
 
   it('reloads exactly the entry behind an unavailable entity using its native registry ID', async () => {
@@ -37,6 +42,38 @@ describe('Home Assistant integration reload', () => {
       'reload_config_entry',
       { entry_id: integrationReloadFixture.registryEntry.config_entry_id }
     );
+    expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith({
+      type: 'config_entries/get_single',
+      entry_id: integrationReloadFixture.configEntry.entry_id,
+    });
+  });
+
+  it.each(['failed_unload', 'setup_error', 'setup_retry', 'not_loaded', 'setup_in_progress'])(
+    'rejects a completed service call when the entry is %s',
+    async (state) => {
+      mocks.sendMessage.mockResolvedValue({
+        config_entry: { ...integrationReloadFixture.configEntry, state },
+      });
+      await expect(service.reloadEntityIntegration('light.kitchen')).rejects.toThrow(
+        'did not complete successfully'
+      );
+      expect(mocks.callService).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('reports a verification failure and permits retry', async () => {
+    mocks.sendMessage.mockRejectedValueOnce(new Error('Connection lost'));
+    await expect(service.reloadEntityIntegration('light.kitchen')).rejects.toThrow(
+      'Connection lost'
+    );
+    await expect(service.reloadEntityIntegration('light.kitchen')).resolves.toBeUndefined();
+    expect(mocks.callService).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects when the session has no message connection', async () => {
+    mocks.getConnection.mockReturnValue(null);
+    await expect(service.reloadEntityIntegration('light.kitchen')).rejects.toThrow('not connected');
+    expect(mocks.callService).not.toHaveBeenCalled();
   });
 
   it.each([

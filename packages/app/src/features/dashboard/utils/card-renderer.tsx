@@ -1,3 +1,4 @@
+import { CardDialogOverflowMenu } from '@navet/app/components/patterns/card-dialog-overflow-menu';
 import { CardErrorBoundary } from '@navet/app/components/shared/card-error-boundary';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { getBaseCardRadiusClassName } from '@navet/app/components/system/tokens';
@@ -17,6 +18,8 @@ import type { SensorReading } from '@navet/app/features/sensors/components/senso
 import type { VacuumStatus } from '@navet/app/features/vacuum/components/vacuum/vacuum-utils';
 import { isLawnMowerEntityId } from '@navet/app/features/vacuum/components/vacuum/vacuum-utils';
 import { useI18n, useIntegrationStore } from '@navet/app/hooks';
+import { useEntityIntegrationReload } from '@navet/app/hooks/use-entity-integration-reload';
+import { useTheme } from '@navet/app/hooks/use-theme';
 import type { IntegrationStore } from '@navet/app/stores/integration-store';
 import { integrationSelectors, settingsSelectors } from '@navet/app/stores/selectors';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
@@ -283,6 +286,56 @@ export function useCardIsUnavailable(
   return useIntegrationStore(selectUnavailable, Object.is);
 }
 
+function UnavailableEntityOverlay({
+  entityId,
+  size,
+  isEditMode,
+  shouldReducePaintEffects,
+}: {
+  entityId?: string;
+  size: CardSize;
+  isEditMode: boolean;
+  shouldReducePaintEffects: boolean;
+}) {
+  const { t } = useI18n();
+  const { theme } = useTheme();
+  const recovery = useEntityIntegrationReload(entityId);
+  const showRecovery = !isEditMode && recovery.available;
+  const isTinyAvailabilityCard = size === 'tiny';
+  const isCompactAvailabilityCard = isTinyAvailabilityCard || size === 'extra-small';
+  return (
+    <>
+      {showRecovery ? (
+        <div className="absolute right-1 top-1 z-40">
+          <CardDialogOverflowMenu
+            theme={theme}
+            sections={[]}
+            onSectionChange={() => undefined}
+            entityId={entityId}
+          />
+        </div>
+      ) : null}
+      <div
+        className={`pointer-events-none absolute inset-0 z-30 flex justify-center ${
+          showRecovery && isTinyAvailabilityCard ? 'items-end pb-2' : 'items-center'
+        }`}
+      >
+        <div
+          className={`inline-flex max-w-[calc(100%-1rem)] items-center justify-center truncate rounded-full border border-white/12 bg-black/45 font-semibold text-white/92 ${
+            isTinyAvailabilityCard
+              ? 'px-1.5 py-0.5 text-[10px] leading-none tracking-[0.02em]'
+              : isCompactAvailabilityCard
+                ? 'px-2 py-0.5 text-[11px] leading-none tracking-[0.04em]'
+                : 'px-2.5 py-1 text-xs tracking-[0.06em] uppercase'
+          } ${shouldReducePaintEffects ? '' : 'backdrop-blur-md'}`}
+        >
+          {t('camera.status.unavailable')}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function EntityAvailabilityFrame({
   device,
   isEditMode,
@@ -294,13 +347,10 @@ function EntityAvailabilityFrame({
   size: CardSize;
   children: ReactNode;
 }) {
-  const { t } = useI18n();
   const effectsQuality = useSettingsStore(settingsSelectors.effectsQuality);
   const lowPowerMode = useSettingsStore(settingsSelectors.lowPowerMode);
   const currentProviderId = useIntegrationStore(integrationSelectors.currentProviderId);
   const shouldReducePaintEffects = resolveEffectsQuality(effectsQuality, lowPowerMode) !== 'high';
-  const isTinyAvailabilityCard = size === 'tiny';
-  const isCompactAvailabilityCard = isTinyAvailabilityCard || size === 'extra-small';
   const entityIdsKey = JSON.stringify(
     (() => {
       const sourceIds = device.sourceIds;
@@ -328,6 +378,7 @@ function EntityAvailabilityFrame({
   return (
     <div className="relative h-full w-full overflow-hidden rounded-3xl">
       <div
+        inert={!isEditMode}
         className={`pointer-events-none h-full w-full opacity-45 ${
           shouldReducePaintEffects ? '' : 'saturate-50'
         }`}
@@ -342,19 +393,12 @@ function EntityAvailabilityFrame({
       {!isEditMode ? (
         <div className="pointer-events-auto absolute inset-0 z-20 rounded-[inherit]" />
       ) : null}
-      <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
-        <div
-          className={`inline-flex max-w-[calc(100%-1rem)] items-center justify-center truncate rounded-full border border-white/12 bg-black/45 font-semibold text-white/92 ${
-            isTinyAvailabilityCard
-              ? 'px-1.5 py-0.5 text-[10px] leading-none tracking-[0.02em]'
-              : isCompactAvailabilityCard
-                ? 'px-2 py-0.5 text-[11px] leading-none tracking-[0.04em]'
-                : 'px-2.5 py-1 text-xs tracking-[0.06em] uppercase'
-          } ${shouldReducePaintEffects ? '' : 'backdrop-blur-md'}`}
-        >
-          {t('camera.status.unavailable')}
-        </div>
-      </div>
+      <UnavailableEntityOverlay
+        entityId={entityIds.length === 1 ? entityIds[0] : undefined}
+        size={size}
+        isEditMode={isEditMode}
+        shouldReducePaintEffects={shouldReducePaintEffects}
+      />
     </div>
   );
 }

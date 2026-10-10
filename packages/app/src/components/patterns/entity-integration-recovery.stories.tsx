@@ -1,7 +1,15 @@
 import { Button } from '@navet/app/components/primitives/button';
 import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
+import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import { renderCard } from '@navet/app/features/dashboard/utils/card-renderer';
 import { useTheme } from '@navet/app/hooks';
+import {
+  createPreviewLightEntity,
+  createPreviewStoryScenario,
+  replacePreviewEntity,
+} from '@navet/app/preview/runtime';
 import { integrationAdminService } from '@navet/app/services/integration-admin.service';
+import { EntityCardStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Sliders } from 'lucide-react';
 import { useState } from 'react';
@@ -108,4 +116,45 @@ export const Unsupported: Story = {
       page.queryByRole('menuitem', { name: 'Reload integration' })
     ).not.toBeInTheDocument();
   },
+};
+
+function UnavailableCardStory({ size }: { size: CardSize }) {
+  return (
+    <EntityCardStoryFrame size={size}>
+      {renderCard({
+        device: { id: ENTITY_ID, name: 'Kitchen light', type: 'lights', state: 'unavailable' },
+        size,
+        handleSizeChange: () => undefined,
+        isEditMode: false,
+      })}
+    </EntityCardStoryFrame>
+  );
+}
+
+export const UnavailableCard: Story = {
+  render: () => <UnavailableCardStory size="small" />,
+  parameters: {
+    previewRuntime: {
+      scenario: replacePreviewEntity(createPreviewStoryScenario(), {
+        ...createPreviewLightEntity('light.kitchen'),
+        primaryState: 'unavailable',
+        availability: 'unavailable',
+        attributes: { value: 'unavailable' },
+      }),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(await page.findByText('Unavailable')).toBeVisible();
+    await userEvent.click(page.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(await page.findByRole('menuitem', { name: 'Reload integration' }));
+    await expect(
+      await page.findByRole('alertdialog', { name: 'Reload integration?' })
+    ).toBeVisible();
+  },
+};
+
+export const UnavailableTinyCard: Story = {
+  ...UnavailableCard,
+  render: () => <UnavailableCardStory size="tiny" />,
 };
