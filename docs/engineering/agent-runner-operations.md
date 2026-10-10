@@ -74,8 +74,9 @@ unresolved Codex review threads authored by `chatgpt-codex-connector[bot]`. It s
 links and IDs to the existing delivery task once, without creating a new task or making a public
 claim. The delivery task verifies each finding against the current PR head, fixes only valid issues,
 runs focused checks, and reports the current-head evidence with any remaining findings. Authorized
-review-thread replies use the maintainer's authenticated GitHub CLI or API. Resolving review
-conversations and merging remain with the maintainer. If a finding needs a product or architecture
+review-thread replies and resolution use the maintainer's authenticated GitHub CLI or API.
+The delivery task resolves verified fixes promptly under the [delivery review policy](agentic-development.md#pull-request-delivery).
+Merging remains with the maintainer. If a finding needs a product or architecture
 decision, the task asks the maintainer instead of guessing. The runner does not dispatch comments
 on unrelated PRs, and review feedback never authorizes a merge.
 
