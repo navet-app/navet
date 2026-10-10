@@ -69,6 +69,7 @@ an optional availability subscription and an execution method. Unknown support s
 until the owning provider confirms it. Home Assistant resolves ownership from the live entity
 registry, watches entity-registry and config-entry changes, and rechecks unload support before
 execution. Subscriptions release their cache and backend listeners when the last consumer leaves.
+Home Assistant shares one config-entry stream and cache across watched entities in each session.
 
 Keeping these services out of `NavetProviderContract` prevents the base contract from growing into
 a mirror of Home Assistant. Shared feature UI asks the app/runtime seam for an optional service and

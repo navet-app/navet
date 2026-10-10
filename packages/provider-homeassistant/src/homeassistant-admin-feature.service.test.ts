@@ -149,6 +149,108 @@ describe('Home Assistant integration reload', () => {
     expect(storeListeners.size).toBe(0);
   });
 
+  it('shares config-entry subscriptions across different unavailable entities and fans out updates', async () => {
+    mocks.liveRegistry.mockReturnValue([
+      integrationReloadFixture.registryEntry,
+      { ...integrationReloadFixture.registryEntry, entity_id: 'light.bedroom' },
+    ]);
+    await watchAvailability();
+    cleanups.push(service.subscribeEntityIntegrationReload('light.bedroom', () => {}));
+    await vi.waitFor(() => expect(service.canReloadEntityIntegration('light.bedroom')).toBe(true));
+    expect(
+      mocks.subscribeMessage.mock.calls.filter(
+        ([, message]) => message.type === 'config_entries/subscribe'
+      )
+    ).toHaveLength(1);
+    events['config_entries/subscribe']([
+      {
+        type: 'updated',
+        entry: { ...integrationReloadFixture.configEntry, supports_unload: false },
+      },
+    ]);
+    expect(service.canReloadEntityIntegration('light.kitchen')).toBe(false);
+    expect(service.canReloadEntityIntegration('light.bedroom')).toBe(false);
+    cleanups.pop()?.();
+    expect(backendCleanups.every((cleanup) => cleanup.mock.calls.length === 0)).toBe(true);
+    cleanups.pop()?.();
+    expect(backendCleanups.every((cleanup) => cleanup.mock.calls.length === 1)).toBe(true);
+  });
+
+  it('hydrates support from the shared initial snapshot and only notifies entities affected by an update', async () => {
+    const bedroomEntryId = '01J7Q8TYE0CNCSBWQ6GHEVQ1Z2';
+    mocks.liveRegistry.mockReturnValue([
+      integrationReloadFixture.registryEntry,
+      {
+        ...integrationReloadFixture.registryEntry,
+        entity_id: 'light.bedroom',
+        config_entry_id: bedroomEntryId,
+      },
+    ]);
+    const subscribe = mocks.subscribeMessage.getMockImplementation();
+    if (!subscribe) throw new Error('Missing subscription fixture');
+    mocks.subscribeMessage.mockImplementation(async (listener, message) => {
+      const cleanup = await subscribe(listener, message);
+      if (message.type === 'config_entries/subscribe') {
+        listener([
+          { type: null, entry: integrationReloadFixture.configEntry },
+          {
+            type: null,
+            entry: {
+              ...integrationReloadFixture.configEntry,
+              entry_id: bedroomEntryId,
+              supports_unload: false,
+            },
+          },
+        ]);
+      }
+      return cleanup;
+    });
+    const kitchenChanged = vi.fn();
+    const bedroomChanged = vi.fn();
+    cleanups.push(service.subscribeEntityIntegrationReload('light.kitchen', kitchenChanged));
+    cleanups.push(service.subscribeEntityIntegrationReload('light.bedroom', bedroomChanged));
+    await vi.waitFor(() => expect(service.canReloadEntityIntegration('light.kitchen')).toBe(true));
+    await vi.waitFor(() => expect(bedroomChanged).toHaveBeenCalled());
+    expect(service.canReloadEntityIntegration('light.bedroom')).toBe(false);
+    expect(
+      mocks.sendMessage.mock.calls.every(
+        ([message]) => message.type === 'config/entity_registry/get'
+      )
+    ).toBe(true);
+    kitchenChanged.mockClear();
+    bedroomChanged.mockClear();
+    events['config_entries/subscribe']([
+      {
+        type: 'updated',
+        entry: { ...integrationReloadFixture.configEntry, entry_id: bedroomEntryId },
+      },
+    ]);
+    expect(service.canReloadEntityIntegration('light.bedroom')).toBe(true);
+    expect(kitchenChanged).not.toHaveBeenCalled();
+    expect(bedroomChanged).toHaveBeenCalledOnce();
+  });
+
+  it('replaces the shared subscriptions and cache on connection change and ignores old events', async () => {
+    await watchAvailability();
+    const oldConfigEvents = events['config_entries/subscribe'];
+    const oldCleanups = [...backendCleanups];
+    mocks.getConnection.mockReturnValue({
+      sendMessagePromise: mocks.sendMessage,
+      subscribeMessage: mocks.subscribeMessage,
+    });
+    for (const listener of storeListeners) listener();
+    expect(oldCleanups.every((cleanup) => cleanup.mock.calls.length === 1)).toBe(true);
+    expect(service.canReloadEntityIntegration('light.kitchen')).toBe(false);
+    await vi.waitFor(() => expect(service.canReloadEntityIntegration('light.kitchen')).toBe(true));
+    expect(
+      mocks.subscribeMessage.mock.calls.filter(
+        ([, message]) => message.type === 'config_entries/subscribe'
+      )
+    ).toHaveLength(2);
+    oldConfigEvents([{ type: 'removed', entry: integrationReloadFixture.configEntry }]);
+    expect(service.canReloadEntityIntegration('light.kitchen')).toBe(true);
+  });
+
   it('clears cached support on permission loss and refreshes it when permission returns', async () => {
     await watchAvailability();
     mocks.getState.mockReturnValue({ connected: true, user: { is_admin: false } });
