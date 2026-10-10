@@ -42,6 +42,12 @@ export const homeAssistantAdminFeatureService: ProviderAdminFeatureService & {
     const connection = getHomeAssistantConnection();
     if (!connection) throw new Error('Home Assistant is not connected');
     const request = (async () => {
+      const entry = await connection.sendMessagePromise<{
+        config_entry: { supports_unload?: boolean | null };
+      }>({ type: 'config_entries/get_single', entry_id: entryId });
+      if (entry.config_entry?.supports_unload !== true) {
+        throw new Error('Integration does not support reload');
+      }
       await callHomeAssistantService('homeassistant', 'reload_config_entry', {
         entry_id: entryId,
       });

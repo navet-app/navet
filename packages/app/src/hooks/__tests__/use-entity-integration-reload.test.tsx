@@ -9,6 +9,14 @@ import { useEntityIntegrationReload } from '../use-entity-integration-reload';
 describe('integration reload availability subscriptions', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it.each(['hubitat', 'smartthings'])(
+    'renders unavailable recovery for catalog-only %s',
+    (providerId) => {
+      const { result } = renderHook(() => useEntityIntegrationReload(`${providerId}:lamp`));
+      expect(result.current.available).toBe(false);
+    }
+  );
+
   it('reacts to provider-only permission and registry updates without a merged dashboard update', () => {
     let available = false;
     const listeners = new Set<() => void>();

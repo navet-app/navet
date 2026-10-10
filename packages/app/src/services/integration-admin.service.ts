@@ -6,6 +6,7 @@ import {
 } from '@navet/app/provider-runtime-registry';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
+import { isImplementedIntegrationProviderId } from '@navet/core/integration-providers';
 import type {
   PlatformRoomMutationPlan,
   PlatformRoomMutationResult,
@@ -93,17 +94,19 @@ export const integrationAdminService: ProviderAdminFeatureService & {
   reloadEntityIntegration: (entityId: string) => Promise<void>;
 } = {
   canReloadEntityIntegration: (entityId) => {
-    const service = getProviderRuntimeRegistration(
-      resolveEntityProviderId(entityId)
-    ).adminFeatureService;
+    const providerId = resolveEntityProviderId(entityId);
+    if (!isImplementedIntegrationProviderId(providerId)) return false;
+    const service = getProviderRuntimeRegistration(providerId).adminFeatureService;
     return Boolean(
       service?.reloadEntityIntegration && service.canReloadEntityIntegration?.(entityId)
     );
   },
   reloadEntityIntegration: async (entityId) => {
-    const service = getProviderRuntimeRegistration(
-      resolveEntityProviderId(entityId)
-    ).adminFeatureService;
+    const providerId = resolveEntityProviderId(entityId);
+    if (!isImplementedIntegrationProviderId(providerId)) {
+      throw new Error('Integration reload is unavailable for this entity or session');
+    }
+    const service = getProviderRuntimeRegistration(providerId).adminFeatureService;
     if (!service?.reloadEntityIntegration || !service.canReloadEntityIntegration?.(entityId)) {
       throw new Error('Integration reload is unavailable for this entity or session');
     }

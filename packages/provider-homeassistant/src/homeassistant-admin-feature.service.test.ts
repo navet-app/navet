@@ -42,11 +42,25 @@ describe('Home Assistant integration reload', () => {
       'reload_config_entry',
       { entry_id: integrationReloadFixture.registryEntry.config_entry_id }
     );
-    expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith({
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mocks.sendMessage).toHaveBeenCalledWith({
       type: 'config_entries/get_single',
       entry_id: integrationReloadFixture.configEntry.entry_id,
     });
   });
+
+  it.each([false, null, undefined])(
+    'rejects unload support %s before calling the reload service',
+    async (supportsUnload) => {
+      mocks.sendMessage.mockResolvedValue({
+        config_entry: { ...integrationReloadFixture.configEntry, supports_unload: supportsUnload },
+      });
+      await expect(service.reloadEntityIntegration('light.kitchen')).rejects.toThrow(
+        'does not support reload'
+      );
+      expect(mocks.callService).not.toHaveBeenCalled();
+    }
+  );
 
   it.each(['failed_unload', 'setup_error', 'setup_retry', 'not_loaded', 'setup_in_progress'])(
     'rejects a completed service call when the entry is %s',
@@ -62,12 +76,22 @@ describe('Home Assistant integration reload', () => {
   );
 
   it('reports a verification failure and permits retry', async () => {
-    mocks.sendMessage.mockRejectedValueOnce(new Error('Connection lost'));
+    mocks.sendMessage
+      .mockResolvedValueOnce({ config_entry: integrationReloadFixture.configEntry })
+      .mockRejectedValueOnce(new Error('Connection lost'));
     await expect(service.reloadEntityIntegration('light.kitchen')).rejects.toThrow(
       'Connection lost'
     );
     await expect(service.reloadEntityIntegration('light.kitchen')).resolves.toBeUndefined();
     expect(mocks.callService).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not dispatch reload when the unload support lookup fails', async () => {
+    mocks.sendMessage.mockRejectedValueOnce(new Error('Connection lost'));
+    await expect(service.reloadEntityIntegration('light.kitchen')).rejects.toThrow(
+      'Connection lost'
+    );
+    expect(mocks.callService).not.toHaveBeenCalled();
   });
 
   it('rejects when the session has no message connection', async () => {
@@ -123,7 +147,7 @@ describe('Home Assistant integration reload', () => {
     const first = service.reloadEntityIntegration('light.kitchen');
     const second = service.reloadEntityIntegration('home_assistant:light.kitchen');
     const results = Promise.allSettled([first, second]);
-    expect(mocks.callService).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mocks.callService).toHaveBeenCalledTimes(1));
     rejectRequest(new Error('Connection lost'));
     expect((await results).map((result) => result.status)).toEqual(['rejected', 'rejected']);
     await service.reloadEntityIntegration('light.kitchen');

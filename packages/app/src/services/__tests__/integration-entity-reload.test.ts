@@ -35,6 +35,19 @@ describe('integration reload routing', () => {
     );
   });
 
+  it.each(['hubitat', 'smartthings'])(
+    'does not look up a runtime for catalog-only %s',
+    async (providerId) => {
+      const lookup = vi.spyOn(runtime, 'getProviderRuntimeRegistration');
+      const id = `${providerId}:lamp`;
+      expect(integrationAdminService.canReloadEntityIntegration(id)).toBe(false);
+      await expect(integrationAdminService.reloadEntityIntegration(id)).rejects.toThrow(
+        'unavailable'
+      );
+      expect(lookup).not.toHaveBeenCalled();
+    }
+  );
+
   it('rechecks entity availability before dispatch and propagates backend failures', async () => {
     const registration = runtime.getProviderRuntimeRegistration('home_assistant');
     const available = vi.fn(() => false);
