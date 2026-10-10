@@ -2,12 +2,41 @@ import * as contracts from '@navet/app/provider-contract-registry';
 import { integrationAdminService } from '@navet/app/services/integration-admin.service';
 import { integrationStore } from '@navet/app/stores/integration-store';
 import { act, renderHook } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEntityIntegrationReload } from '../use-entity-integration-reload';
 
 // Keep: administrative availability must update even when normalized dashboard data stays equal.
 describe('integration reload availability subscriptions', () => {
   afterEach(() => vi.restoreAllMocks());
+  beforeEach(() => {
+    vi.spyOn(integrationAdminService, 'subscribeEntityIntegrationReload').mockReturnValue(() => {});
+  });
+
+  it('updates and unsubscribes when live reload support changes', () => {
+    let available = false;
+    let notify = () => {};
+    const unsubscribe = vi.fn();
+    vi.mocked(integrationAdminService.subscribeEntityIntegrationReload).mockImplementation(
+      (_entityId, listener) => {
+        notify = listener;
+        return unsubscribe;
+      }
+    );
+    vi.spyOn(integrationAdminService, 'canReloadEntityIntegration').mockImplementation(
+      () => available
+    );
+    const { result, unmount } = renderHook(() =>
+      useEntityIntegrationReload('home_assistant:light.kitchen')
+    );
+    expect(result.current.available).toBe(false);
+    act(() => {
+      available = true;
+      notify();
+    });
+    expect(result.current.available).toBe(true);
+    unmount();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
 
   it.each(['hubitat', 'smartthings'])(
     'renders unavailable recovery for catalog-only %s',

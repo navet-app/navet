@@ -182,6 +182,8 @@ export interface ProviderRoomAdminFeatureService {
 export interface ProviderAdminFeatureService extends ProviderRoomAdminFeatureService {
   /** Whether this session can reload the integration behind this entity, regardless of its state. */
   canReloadEntityIntegration?: (entityId: string) => boolean;
+  /** Watches live integration reload support; unknown support remains unavailable. */
+  subscribeEntityIntegrationReload?: (entityId: string, listener: () => void) => () => void;
   /** Reloads the owning integration; completion does not establish entity recovery. */
   reloadEntityIntegration?: (entityId: string) => Promise<void>;
   /**

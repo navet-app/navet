@@ -64,6 +64,12 @@ runtime access.
 History services can declare entity-level availability through `supportsEntityHistory`. Shared
 history routing skips unsupported entities while preserving failures from supported requests.
 
+Administrative services expose entity integration reload through an availability predicate,
+an optional availability subscription and an execution method. Unknown support stays unavailable
+until the owning provider confirms it. Home Assistant resolves ownership from the live entity
+registry, watches entity-registry and config-entry changes, and rechecks unload support before
+execution. Subscriptions release their cache and backend listeners when the last consumer leaves.
+
 Keeping these services out of `NavetProviderContract` prevents the base contract from growing into
 a mirror of Home Assistant. Shared feature UI asks the app/runtime seam for an optional service and
 must handle its absence.

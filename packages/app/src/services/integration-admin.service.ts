@@ -91,8 +91,18 @@ function requireRoomReferenceProvider(
 
 export const integrationAdminService: ProviderAdminFeatureService & {
   canReloadEntityIntegration: (entityId: string) => boolean;
+  subscribeEntityIntegrationReload: (entityId: string, listener: () => void) => () => void;
   reloadEntityIntegration: (entityId: string) => Promise<void>;
 } = {
+  subscribeEntityIntegrationReload: (entityId, listener) => {
+    const providerId = resolveEntityProviderId(entityId);
+    if (!isImplementedIntegrationProviderId(providerId)) return () => {};
+    return (
+      getProviderRuntimeRegistration(
+        providerId
+      ).adminFeatureService?.subscribeEntityIntegrationReload?.(entityId, listener) ?? (() => {})
+    );
+  },
   canReloadEntityIntegration: (entityId) => {
     const providerId = resolveEntityProviderId(entityId);
     if (!isImplementedIntegrationProviderId(providerId)) return false;

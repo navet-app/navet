@@ -12,6 +12,9 @@ export function useEntityIntegrationReload(entityId?: string) {
   const subscribe = useCallback(
     (listener: () => void) => {
       const unsubscribeDashboard = integrationStore.subscribe(listener);
+      const unsubscribeRecovery = entityId
+        ? integrationAdminService.subscribeEntityIntegrationReload?.(entityId, listener)
+        : undefined;
       // The merged dashboard can suppress registry-only and permission-only changes.
       const unsubscribeProvider =
         entityId && isImplementedIntegrationProviderId(providerId)
@@ -19,6 +22,7 @@ export function useEntityIntegrationReload(entityId?: string) {
           : undefined;
       return () => {
         unsubscribeDashboard();
+        unsubscribeRecovery?.();
         unsubscribeProvider?.();
       };
     },

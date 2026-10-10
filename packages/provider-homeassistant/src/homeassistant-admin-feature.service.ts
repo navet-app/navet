@@ -1,52 +1,52 @@
-import { getProviderNativeId, parseProviderScopedId } from '@navet/core/ids';
+import { getProviderNativeId } from '@navet/core/ids';
+import type { PlatformMessageClient } from '@navet/core/provider-feature-models';
 import type { ProviderAdminFeatureService } from '@navet/core/provider-feature-services';
 import {
   createPlatformRoomReference,
   parsePlatformRoomReference,
 } from '@navet/core/provider-room-management';
 import {
+  canReloadEntityIntegration,
+  isReloadConnectionCurrent,
+  resolveReloadEntryId,
+  subscribeEntityIntegrationReload,
+} from './homeassistant-integration-reload-availability';
+import {
   callHomeAssistantService,
   createHomeAssistantArea,
   deleteHomeAssistantArea,
-  getHomeAssistantConnection,
-  getHomeAssistantEntityRegistry,
-  getHomeAssistantStoreState,
   renameHomeAssistantArea,
   updateHomeAssistantEntityArea,
   updateHomeAssistantEntityName,
 } from './homeassistant-service-bridge';
 
-function getReloadEntryId(entityId: string): string | null {
-  const scopedId = parseProviderScopedId(entityId);
-  if (scopedId && scopedId.providerId !== 'home_assistant') return null;
-  const state = getHomeAssistantStoreState();
-  if (!state.connected || state.user?.is_admin !== true) return null;
-  const entry = getHomeAssistantEntityRegistry().find(
-    (entry) => entry.entity_id === getProviderNativeId(entityId)
-  );
-  return entry?.config_entry_id || null;
-}
-
-const pendingReloads = new Map<string, Promise<void>>();
+const pendingReloadsByConnection = new WeakMap<PlatformMessageClient, Map<string, Promise<void>>>();
 
 export const homeAssistantAdminFeatureService: ProviderAdminFeatureService & {
   canReloadEntityIntegration: (entityId: string) => boolean;
+  subscribeEntityIntegrationReload: (entityId: string, listener: () => void) => () => void;
   reloadEntityIntegration: (entityId: string) => Promise<void>;
 } = {
-  canReloadEntityIntegration: (entityId) => getReloadEntryId(entityId) !== null,
+  canReloadEntityIntegration,
+  subscribeEntityIntegrationReload,
   reloadEntityIntegration: async (entityId) => {
-    const entryId = getReloadEntryId(entityId);
-    if (!entryId) throw new Error('Integration reload is unavailable for this entity or session');
+    const { connection, entryId } = await resolveReloadEntryId(entityId);
+    let pendingReloads = pendingReloadsByConnection.get(connection);
+    if (!pendingReloads) {
+      pendingReloads = new Map();
+      pendingReloadsByConnection.set(connection, pendingReloads);
+    }
     const pending = pendingReloads.get(entryId);
     if (pending) return pending;
-    const connection = getHomeAssistantConnection();
-    if (!connection) throw new Error('Home Assistant is not connected');
     const request = (async () => {
       const entry = await connection.sendMessagePromise<{
         config_entry: { supports_unload?: boolean | null };
       }>({ type: 'config_entries/get_single', entry_id: entryId });
       if (entry.config_entry?.supports_unload !== true) {
         throw new Error('Integration does not support reload');
+      }
+      if (!isReloadConnectionCurrent(entityId, connection)) {
+        throw new Error('Integration reload is unavailable for this entity or session');
       }
       await callHomeAssistantService('homeassistant', 'reload_config_entry', {
         entry_id: entryId,
@@ -55,7 +55,10 @@ export const homeAssistantAdminFeatureService: ProviderAdminFeatureService & {
       const result = await connection.sendMessagePromise<{
         config_entry: { state: string };
       }>({ type: 'config_entries/get_single', entry_id: entryId });
-      if (result.config_entry?.state !== 'loaded') {
+      if (
+        !isReloadConnectionCurrent(entityId, connection) ||
+        result.config_entry?.state !== 'loaded'
+      ) {
         throw new Error('Integration reload did not complete successfully');
       }
     })();
