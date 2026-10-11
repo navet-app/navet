@@ -342,6 +342,7 @@ function isProductionTsx(file) {
   return (
     normalized.endsWith('.tsx') &&
     !normalized.endsWith('.stories.tsx') &&
+    !normalized.endsWith('.story-fixtures.tsx') &&
     !normalized.endsWith('.test.tsx') &&
     !skippedPathParts.some((part) => normalized.includes(part))
   );
@@ -432,6 +433,7 @@ function isProductionSemanticFile(file) {
   return (
     (normalized.endsWith('.ts') || normalized.endsWith('.tsx')) &&
     !normalized.endsWith('.stories.tsx') &&
+    !normalized.endsWith('.story-fixtures.tsx') &&
     !normalized.includes('.test.') &&
     !semanticSkippedPathParts.some((part) => normalized.includes(part))
   );
