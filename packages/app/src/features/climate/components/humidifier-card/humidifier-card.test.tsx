@@ -85,7 +85,8 @@ describe('HumidifierCard', () => {
     expect(screen.getAllByText('Drying to 51%').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Customize' })).not.toBeInTheDocument();
     expect(screen.queryByText('Card color')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Basement Dehumidifier' }));
     expect(dispatchEntityCommandMock).toHaveBeenCalledWith(

@@ -1,5 +1,4 @@
 import { dispatchEntityCommand } from '@navet/app/commands';
-import { CardDialogHeader } from '@navet/app/components/patterns';
 import { CardActionRow, CardActionRowGroup } from '@navet/app/components/patterns/card-action-row';
 import { BaseCardDialog, RotaryKnob } from '@navet/app/components/primitives';
 import { EntityCardHeader } from '@navet/app/components/primitives/entity-card-header';
@@ -8,7 +7,6 @@ import { RoundControlButton } from '@navet/app/components/primitives/round-contr
 import { getCardActionControlSizes } from '@navet/app/components/shared/card-action-control-sizes';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
-import { CustomScrollbar } from '@navet/app/components/shared/device-editor';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { useEntityCardInteractionController } from '@navet/app/components/shared/entity-card-interaction-controller';
 import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
@@ -17,7 +15,6 @@ import {
   getCardStateSurfaceStyleTokens,
   getCardStateSurfaceTokens,
 } from '@navet/app/components/shared/theme/card-state-surface-tokens';
-import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { CardWrapper } from '@navet/app/components/ui/card-wrapper';
 import { useSwitchCardAppearance } from '@navet/app/features/lighting/components/use-switch-card-appearance';
 import {
@@ -28,7 +25,17 @@ import {
 } from '@navet/app/hooks';
 import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
-import { Droplets, Home, Leaf, Minus, MoonStar, Plus, ThermometerSun, Wind } from 'lucide-react';
+import {
+  Droplets,
+  Home,
+  Leaf,
+  Minus,
+  MoonStar,
+  Plus,
+  Sliders,
+  ThermometerSun,
+  Wind,
+} from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 interface HumidifierCardProps {
@@ -167,17 +174,32 @@ function getHumidifierCardColors(
       };
 }
 
-function getHumidifierDialogSurfaceClassName(
+function getHumidifierDialogSurface(
   isOn: boolean,
-  deviceClass: string | undefined
-): string {
+  deviceClass: string | undefined,
+  theme: 'light' | 'dark' | 'glass' | 'black'
+): { panel: string; border: string } {
+  if (theme === 'light') {
+    const colors = getHumidifierCardColors(isOn, deviceClass, theme);
+    return { panel: `bg-gradient-to-br ${colors.gradient}`, border: colors.border };
+  }
+
   if (!isOn) {
-    return 'from-zinc-900 to-zinc-950 border-white/10 bg-zinc-950';
+    return {
+      panel: 'bg-gradient-to-br from-zinc-900 to-zinc-950 bg-zinc-950',
+      border: 'border-white/10',
+    };
   }
 
   return deviceClass === 'dehumidifier'
-    ? 'from-teal-950 to-cyan-950 border-teal-700/45 bg-teal-950'
-    : 'from-sky-950 to-blue-950 border-sky-700/45 bg-sky-950';
+    ? {
+        panel: 'bg-gradient-to-br from-teal-950 to-cyan-950 bg-teal-950',
+        border: 'border-teal-700/45',
+      }
+    : {
+        panel: 'bg-gradient-to-br from-sky-950 to-blue-950 bg-sky-950',
+        border: 'border-sky-700/45',
+      };
 }
 
 function getHumidityCardTone(
@@ -463,7 +485,7 @@ function HumidifierDialogGauge({
   onTargetHumidityCommit: (value: number) => void;
 }) {
   return (
-    <div className="relative h-[10.5rem] w-full overflow-visible">
+    <div className="relative h-[17rem] w-full overflow-hidden">
       <div
         className="pointer-events-none absolute right-[-8.5rem] top-1/2 h-[18rem] w-[18rem] -translate-y-1/2 rounded-full blur-3xl"
         style={{
@@ -476,7 +498,7 @@ function HumidifierDialogGauge({
           background: `linear-gradient(90deg, transparent 0%, ${accentColor}2f 42%, ${accentColor}55 100%)`,
         }}
       />
-      <div className="absolute bottom-0 left-0 z-[2] inline-flex max-w-[43%] flex-col px-8 pb-12">
+      <div className="absolute bottom-0 left-0 z-[2] inline-flex max-w-[55%] flex-col px-6 pb-12 max-sm:px-3.5">
         <div
           className="text-3xl font-bold leading-none"
           style={{
@@ -531,7 +553,7 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
   availableModes,
   currentHumidity,
   statusLabel,
-  surfaceClassName,
+  contentSurface,
   accentColor,
   glowClassName,
   readableTokens,
@@ -553,7 +575,7 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
   availableModes: string[];
   currentHumidity: number;
   statusLabel: string;
-  surfaceClassName: string;
+  contentSurface: { panel: string; border: string };
   accentColor: string;
   glowClassName: string;
   readableTokens: {
@@ -566,104 +588,68 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
 }) {
   const { theme } = useTheme();
   const { t } = useI18n();
-  const surface = getThemeSurfaceTokens(theme);
-  const contentInsetClassName = 'px-6 max-sm:px-3.5';
-
-  return (
-    <BaseCardDialog
-      variant="modal"
-      titleInContent
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      title={name}
-      description={entityType}
-      theme={theme}
-      disableOpenAutoFocus
-      overlayClassName={`animate-in fade-in ${surface.dialogBackdrop}`}
-      contentClassName={`fixed top-1/2 left-1/2 z-50 h-auto max-h-[85vh] w-[90vw] max-w-[30rem] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border shadow-2xl animate-in fade-in zoom-in duration-200 bg-gradient-to-br ${surfaceClassName}`}
-      bodyPadding={false}
-    >
-      {isOn ? (
-        <>
-          <div
-            className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[78%]"
-            style={{
-              background: `radial-gradient(ellipse at 100% 43%, ${accentColor}70 0%, ${accentColor}33 32%, transparent 74%)`,
-            }}
-          />
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 z-0 h-40"
-            style={{
-              background: `linear-gradient(180deg, ${accentColor}22 0%, transparent 100%)`,
-            }}
-          />
-        </>
-      ) : null}
-      <CustomScrollbar isOn={isOn} className="relative z-10">
-        <div className="pt-6 pb-6 max-sm:pt-2 max-sm:pb-3">
-          <div className={contentInsetClassName}>
-            <CardDialogHeader title={name} description={entityType} entityId={entityId} />
-          </div>
-          <div className="relative z-0 mt-1">
-            <div className="-mt-8">
-              <HumidifierDialogGauge
-                id={`${entityId}-dialog`}
-                isOn={isOn}
+  const controls = (
+    <div className="relative -mx-6 max-sm:-mx-3.5">
+      <HumidifierDialogGauge
+        id={`${entityId}-dialog`}
+        isOn={isOn}
+        targetHumidity={targetHumidity}
+        currentHumidity={currentHumidity}
+        minHumidity={minHumidity}
+        maxHumidity={maxHumidity}
+        step={step}
+        accentColor={accentColor}
+        glowClassName={glowClassName}
+        readableTokens={readableTokens}
+        helperText={statusLabel}
+        onTargetHumidityChange={onTargetHumidityChange}
+        onTargetHumidityCommit={onTargetHumidityCommit}
+      />
+      <div className="relative z-10 -mt-6 px-6 max-sm:px-3.5">
+        <CardActionRow
+          theme={theme}
+          size="medium"
+          leftContent={
+            <div className="flex flex-wrap items-center gap-2">
+              <HumidifierHumidityControls
                 targetHumidity={targetHumidity}
-                currentHumidity={currentHumidity}
                 minHumidity={minHumidity}
                 maxHumidity={maxHumidity}
                 step={step}
-                accentColor={accentColor}
-                glowClassName={glowClassName}
-                readableTokens={readableTokens}
-                helperText={statusLabel}
-                onTargetHumidityChange={onTargetHumidityChange}
-                onTargetHumidityCommit={onTargetHumidityCommit}
-              />
-            </div>
-            <div className={`relative z-10 -mt-6 space-y-4 ${contentInsetClassName}`}>
-              <CardActionRow
-                theme={theme}
+                isOn={isOn}
                 size="medium"
-                leftContent={
-                  <div className="flex items-center gap-2">
-                    <HumidifierHumidityControls
-                      targetHumidity={targetHumidity}
-                      minHumidity={minHumidity}
-                      maxHumidity={maxHumidity}
-                      step={step}
-                      isOn={isOn}
-                      size="medium"
-                      onCommit={onTargetHumidityCommit}
-                    />
-                    <HumidifierModeControls
-                      availableModes={availableModes}
-                      currentMode={mode}
-                      isOn={isOn}
-                      size="medium"
-                      onModeChange={onModeChange}
-                    />
-                  </div>
-                }
+                onCommit={onTargetHumidityCommit}
+              />
+              <HumidifierModeControls
+                availableModes={availableModes}
+                currentMode={mode}
+                isOn={isOn}
+                size="medium"
+                onModeChange={onModeChange}
               />
             </div>
-          </div>
+          }
+        />
+      </div>
+    </div>
+  );
 
-          <div className={contentInsetClassName}>
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={() => onOpenChange(false)}
-                className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/12"
-              >
-                {t('common.done')}
-              </button>
-            </div>
-          </div>
-        </div>
-      </CustomScrollbar>
-    </BaseCardDialog>
+  return (
+    <BaseCardDialog
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      title={name}
+      entityId={entityId}
+      description={entityType}
+      theme={theme}
+      navigation="overflow"
+      height="capped"
+      disableOpenAutoFocus
+      contentSurface={contentSurface}
+      contentClassName="max-w-[30rem]"
+      bodyClassName="px-6 pt-0 pb-6 max-sm:px-3.5 max-sm:pt-0 max-sm:pb-3"
+      tabs={[{ key: 'controls', label: t('common.controls'), icon: Sliders, content: controls }]}
+    />
   );
 });
 
@@ -1040,7 +1026,7 @@ export const HumidifierCard = memo(function HumidifierCard({
         mode={mode}
         availableModes={resolvedAvailableModes}
         statusLabel={statusLabel}
-        surfaceClassName={getHumidifierDialogSurfaceClassName(isOn, deviceClass)}
+        contentSurface={getHumidifierDialogSurface(isOn, deviceClass, theme)}
         accentColor={humidityAccentColor}
         glowClassName={glowClassName}
         readableTokens={readableTokens}

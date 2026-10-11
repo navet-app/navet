@@ -3,6 +3,7 @@ import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { EntityCardStoryFrame, noopCardSizeChange } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps } from 'react';
+import { expect, within } from 'storybook/test';
 
 function HumidifierCardStory(args: Omit<ComponentProps<typeof HumidifierCard>, 'onSizeChange'>) {
   return (
@@ -100,5 +101,39 @@ export const Dehumidifier: Story = {
 export const Docs: Story = {
   parameters: {
     docsOnly: true,
+  },
+};
+
+export const DialogControls: Story = {
+  ...Dehumidifier,
+  play: async ({ canvas, userEvent }) => {
+    const open = canvas.getByRole('button', { name: 'Open settings for Basement Dehumidifier' });
+    await userEvent.click(open);
+    const dialog = within(await within(document.body).findByRole('dialog'));
+    await expect(dialog.queryByText('humidifier.basement')).not.toBeInTheDocument();
+    const more = dialog.getByRole('button', { name: 'More actions' });
+    await userEvent.click(more);
+    await expect(within(document.body).getByText('humidifier.basement')).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+    const slider = dialog.getByRole('slider', { name: 'Target humidity' });
+    slider.focus();
+    await userEvent.keyboard('{ArrowUp}');
+    await expect(slider).toHaveAttribute('aria-valuenow', '53');
+    for (const label of ['Close', 'Done']) {
+      const current = within(await within(document.body).findByRole('dialog'));
+      const button = current
+        .getAllByRole('button', { name: label })
+        .find((element) => element.getBoundingClientRect().width > 0);
+      if (!button) throw new Error(`No visible ${label} button`);
+      const bounds = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height / 2
+      );
+      await expect(button.contains(hit)).toBe(true);
+      await userEvent.click(button);
+      await expect(within(document.body).queryByRole('dialog')).not.toBeInTheDocument();
+      if (label === 'Close') await userEvent.click(open);
+    }
   },
 };
