@@ -320,6 +320,7 @@ describe('Home Assistant registry freshness', () => {
     ) as HomeAssistantPanelHass['callWS'];
     homeAssistantService.setPanelHass(panel.hass);
     await homeAssistantService.loadRegistries();
+    await vi.advanceTimersByTimeAsync(100);
     expect(homeAssistantService.getAutomationCategories()).toEqual([
       { category_id: 'routine', name: 'Morning' },
     ]);
