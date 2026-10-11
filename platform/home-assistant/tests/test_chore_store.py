@@ -451,6 +451,55 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             "2026-10-25T03:00:00.000Z", "2026-10-25T05:00:00.000Z",
         ])
 
+    async def test_vacation_replacement_supersedes_at_its_actual_date(self):
+        data = chores._empty_data()
+        data["participantsById"] = {"manager": _participant(),
+            "child": {**_participant("child"), "pausedAt": "2026-08-05T00:00:00.000Z",
+                "resumeAt": "2026-08-12T00:00:00.000Z"}}
+        definition = {"id": "dishes", "assignment": {"mode": "rotation"},
+            "schedule": {"frequency": "weekly", "timeZone": "Europe/Stockholm"}}
+        data["definitionsById"] = {"dishes": definition}
+        previous = {"id": "previous", "definitionId": "dishes",
+            "scheduledAt": "2026-08-03T16:00:00.000Z", "dueAt": "2026-08-03T19:00:00.000Z",
+            "assigneeIds": ["manager"], "assignmentSlot": "manager", "status": "available"}
+        original = {**previous, "id": "vacation-next", "assigneeIds": ["child"],
+            "assignmentSlot": "child", "scheduledAt": "2026-08-10T16:00:00.000Z",
+            "dueAt": "2026-08-10T19:00:00.000Z"}
+        data["occurrencesById"] = {previous["id"]: previous, original["id"]: original}
+        moved, _events = chores._vacation_reschedule(data, {
+            "actorParticipantId": "manager", "participantId": "child",
+            "occurrenceIds": [original["id"]], "startDate": "2026-08-13",
+        }, "2026-08-06T08:00:00.000Z", "move-next")
+        replacement = next(item for item in moved["occurrencesById"].values()
+            if item.get("carriedForwardFrom") == original["id"])
+        for now in [original["scheduledAt"], "2026-08-13T15:59:59.000Z"]:
+            self.assertIsNone(chores._superseding_occurrence(previous, definition,
+                moved["occurrencesById"], now))
+        self.assertEqual(chores._superseding_occurrence(previous, definition,
+            moved["occurrencesById"], replacement["scheduledAt"]), replacement)
+        del moved["occurrencesById"][original["id"]]
+        self.assertEqual(chores._superseding_occurrence(previous, definition,
+            moved["occurrencesById"], replacement["scheduledAt"]), replacement)
+
+    async def test_automatic_carried_work_is_not_a_calendar_boundary(self):
+        definition = {"schedule": {"frequency": "weekly"}, "assignment": {"mode": "rotation"}}
+        previous = {"id": "previous", "definitionId": "dishes", "assignmentSlot": "manager",
+            "scheduledAt": "2026-08-10T16:00:00.000Z", "status": "available"}
+        carried = {**previous, "id": "carried", "assignmentSlot": "carry:older-missed",
+            "carriedForwardFrom": "older-missed", "scheduledAt": "2026-08-11T16:00:00.000Z",
+            "status": "skipped", "carriedForwardTo": "moved-carry"}
+        moved = {**carried, "id": "moved-carry", "status": "available",
+            "carriedForwardFrom": carried["id"], "scheduledAt": "2026-08-13T16:00:00.000Z"}
+        moved.pop("carriedForwardTo")
+        occurrences = {item["id"]: item for item in [previous, carried, moved]}
+        self.assertIsNone(chores._superseding_occurrence(previous, definition,
+            occurrences, moved["scheduledAt"]))
+        calendar_skip = {**moved, "id": "calendar-skip", "assignmentSlot": "manager", "status": "skipped"}
+        calendar_skip.pop("carriedForwardFrom")
+        occurrences[calendar_skip["id"]] = calendar_skip
+        self.assertEqual(chores._superseding_occurrence(previous, definition,
+            occurrences, calendar_skip["scheduledAt"]), calendar_skip)
+
     async def test_vacation_reschedule_keeps_claimed_work(self):
         data = chores._empty_data()
         data["participantsById"] = {"manager": _participant(),
@@ -911,6 +960,36 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             "action": {"type": "definition_create", "actorParticipantId": "manager", "definition": definition}}, "ha-user-1")
         await self.authority.async_tick()
         return definition
+
+    async def _assert_started_interval_survives_edit(self, change):
+        definition = await self._seed_outstanding_interval(everyone=True)
+        original = next(item for item in self.authority.data["occurrencesById"].values() if item["assigneeIds"] == ["manager"])
+        await self.authority.async_command({"commandId": "complete-anchor", "baseRevision": self.authority.revision,
+            "action": {"type": "occurrence_action", "occurrenceId": original["id"], "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
+        outstanding = copy.deepcopy([item for item in self.authority.data["occurrencesById"].values() if not item.get("completedAt")])
+        self.assertEqual(len(outstanding), 2)
+        self.assertTrue(any(item["scheduledAt"] == "2026-10-25T10:00:00.000Z" for item in outstanding))
+        chores._now = lambda: datetime(2026, 10, 26, 10, 0, tzinfo=timezone.utc)
+        edited = copy.deepcopy(definition)
+        if change == "interval":
+            edited["schedule"]["intervalDays"] = 7
+        elif change == "time":
+            edited["schedule"]["time"] = "11:00"
+        else:
+            edited["assignment"]["participantIds"] = ["other", "manager"]
+        await self.authority.async_command({"commandId": "edit-repeat", "baseRevision": self.authority.revision,
+            "action": {"type": "definition_update", "actorParticipantId": "manager", "definition": edited}}, "ha-user-1")
+        await self.authority.async_tick()
+        self.assertEqual({item["id"]: item for item in self.authority.data["occurrencesById"].values() if not item.get("completedAt")}, {item["id"]: item for item in outstanding})
+
+    async def test_started_after_completion_interval_survives_interval_edit(self):
+        await self._assert_started_interval_survives_edit("interval")
+
+    async def test_started_after_completion_interval_survives_time_edit(self):
+        await self._assert_started_interval_survives_edit("time")
+
+    async def test_started_after_completion_interval_survives_assignment_edit(self):
+        await self._assert_started_interval_survives_edit("assignment")
 
     async def test_old_after_completion_stays_actionable_and_survives_done_and_restart(self):
         await self._seed_outstanding_interval()

@@ -1266,11 +1266,7 @@ export function materializeChoreOccurrences(
         );
       });
     }
-    const outstanding = getOutstandingChoreOccurrence(
-      definition,
-      existingOccurrences,
-      latestCompletedAt
-    );
+    const outstanding = getOutstandingChoreOccurrence(definition, existingOccurrences);
     if (outstanding) return [outstanding];
   }
 

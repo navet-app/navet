@@ -3,8 +3,7 @@ import type { ChoreDefinition, ChoreOccurrence } from './chores';
 /** An unfinished completion-based interval remains the same piece of work. */
 export function getOutstandingChoreOccurrence(
   definition: ChoreDefinition,
-  occurrences: Record<string, ChoreOccurrence>,
-  latestCompletedAt?: string
+  occurrences: Record<string, ChoreOccurrence>
 ): ChoreOccurrence | undefined {
   return Object.values(occurrences)
     .filter(
@@ -12,8 +11,7 @@ export function getOutstandingChoreOccurrence(
         item.definitionId === definition.id &&
         !item.completedAt &&
         !item.carriedForwardTo &&
-        ['available', 'claimed', 'missed'].includes(item.status) &&
-        (!latestCompletedAt || item.scheduledAt <= latestCompletedAt)
+        ['available', 'claimed', 'missed'].includes(item.status)
     )
     .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))[0];
 }
@@ -60,7 +58,9 @@ export function getSupersedingChoreOccurrence(
     .filter(
       (next) =>
         next.definitionId === occurrence.definitionId &&
-        !next.carriedForwardFrom &&
+        !next.carriedForwardTo &&
+        // Vacation moves retain the calendar slot; automatic carry-forward is the same work.
+        (!next.carriedForwardFrom || !next.assignmentSlot.startsWith('carry:')) &&
         next.scheduledAt > occurrence.scheduledAt &&
         next.scheduledAt <= timestamp &&
         (definition.assignment.mode !== 'everyone' ||

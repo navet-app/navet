@@ -827,7 +827,10 @@ def _superseding_occurrence(item, definition, occurrences, timestamp):
         return None
     candidates = [next_item for next_item in occurrences.values()
         if next_item.get("definitionId") == item["definitionId"]
-        and not next_item.get("carriedForwardFrom")
+        and not next_item.get("carriedForwardTo")
+        # Vacation moves keep their calendar slot; automatic carry-forward is the same work.
+        and (not next_item.get("carriedForwardFrom")
+            or not next_item.get("assignmentSlot", "").startswith("carry:"))
         and item["scheduledAt"] < next_item["scheduledAt"] <= timestamp
         and (definition.get("assignment", {}).get("mode") != "everyone"
             or next_item.get("assignmentSlot") == item.get("assignmentSlot"))]
@@ -864,12 +867,9 @@ def _materialize(data: dict[str, Any], range_start: str, range_end: str, timesta
                 additions.extend(events)
             continue
         if schedule.get("frequency") == "after_completion":
-            completed_at = max((item.get("completedAt", "") for item in occurrences.values()
-                if item.get("definitionId") == definition["id"]), default="")
             outstanding = [item for item in occurrences.values()
                 if item.get("definitionId") == definition["id"] and not item.get("completedAt")
-                and not item.get("carriedForwardTo") and item.get("status") in {"available", "claimed", "missed"}
-                and (not completed_at or item["scheduledAt"] <= completed_at)]
+                and not item.get("carriedForwardTo") and item.get("status") in {"available", "claimed", "missed"}]
             if outstanding:
                 recurrence_ids.add(min(outstanding, key=lambda item: item["scheduledAt"])["id"])
                 continue

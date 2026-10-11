@@ -1208,7 +1208,7 @@ function materializeDefinition(definition, participantsById, rangeStart, rangeEn
       }
       return personal;
     }
-    const outstanding = choreRecurrencePolicy.getOutstandingChoreOccurrence(definition, existing, latestCompletedAt);
+    const outstanding = choreRecurrencePolicy.getOutstandingChoreOccurrence(definition, existing);
     if (outstanding) return [outstanding];
   }
   const completionCountsByParticipant = Object.create(null);
