@@ -98,7 +98,8 @@ function isMissedScheduledHistory(
   return (
     occurrence.status === 'missed' &&
     Boolean(
-      occurrence.supersededAt ||
+      occurrence.carriedForwardTo ||
+        occurrence.supersededAt ||
         getSupersedingChoreOccurrence(
           occurrence,
           definition,

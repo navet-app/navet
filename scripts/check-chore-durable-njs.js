@@ -320,4 +320,16 @@ paths['/data/navet-chore-workspace.json'] = JSON.stringify(Object.assign({}, doc
 const offsetScheduled = request('GET', '/__navet_chores__/workspace');
 assert(offsetScheduled.status === 200 && offsetScheduled.body.data.occurrencesById[offsetOriginal.id].status === 'missed', 'Native scheduler marks reassigned original work missed at its offset successor boundary');
 assert(offsetScheduled.body.data.occurrencesById[offsetOriginal.id].supersededAt === offsetOwnBoundary.scheduledAt, 'Native scheduler retains exact original offset boundary in history');
+// A restarted VM must accept the actual offset marker from both durable copies.
+paths['/data/navet-chore-workspace.json'] = JSON.stringify(offsetScheduled.body);
+paths['/data/navet-chore-workspace.last-good.json'] = JSON.stringify(offsetScheduled.body);
+const offsetRestart = request('GET', '/__navet_chores__/workspace');
+assert(offsetRestart.status === 200 && offsetRestart.body.data.occurrencesById[offsetOriginal.id].supersededAt === offsetOwnBoundary.scheduledAt, 'Restart accepts offset supersession in both primary and last-good snapshots');
+const offsetPersisted = request('POST', '/__navet_chores__/commands', { commandId: 'native-offset-persist', baseRevision: offsetRestart.body.revision, action: { type: 'experience_points_adjust', actorParticipantId: 'manager', participantId: 'manager', pointsDelta: 1 } });
+assert(offsetPersisted.status === 200, 'Offset-marked workspace accepts a durable mutation');
+const offsetPersistedRead = request('GET', '/__navet_chores__/workspace');
+assert(offsetPersistedRead.status === 200 && offsetPersistedRead.body.revision === offsetPersisted.body.revision && offsetPersistedRead.body.data.occurrencesById[offsetOriginal.id].supersededAt === offsetOwnBoundary.scheduledAt, 'Persisted offset marker survives the next read without recovery');
+paths['/data/navet-chore-workspace.json'] = '{broken';
+const offsetBackupRead = request('GET', '/__navet_chores__/workspace');
+assert(offsetBackupRead.status === 200 && offsetBackupRead.body.data.occurrencesById[offsetOriginal.id].supersededAt === offsetOwnBoundary.scheduledAt, 'Offset-marked last-good snapshot restores corrupted primary');
 print('Passed native NJS chore recurrence assertions');
