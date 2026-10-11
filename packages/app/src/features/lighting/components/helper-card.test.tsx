@@ -1,5 +1,6 @@
 import { dispatchEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { renderCard } from '@navet/app/features/dashboard/utils/card-renderer';
+import { integrationStore } from '@navet/app/stores/integration-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
@@ -295,6 +296,100 @@ describe('helper controls', () => {
       'homey'
     );
   });
+  it.each([
+    ['session', 'accepted', true],
+    ['session', 'rejected', true],
+    ['connection', 'accepted', true],
+    ['connection', 'rejected', true],
+    ['session', 'accepted', false],
+    ['session', 'rejected', false],
+  ] as const)(
+    'resets the same helper on %s replacement and ignores its late %s write with provider hint %s',
+    async (change, outcome, hinted) => {
+      let finishOld = () => {};
+      dispatch.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            finishOld = () =>
+              outcome === 'accepted'
+                ? resolve({ accepted: true, requiresEventConfirmation: false })
+                : reject(new Error('Previous household failed'));
+          })
+      );
+      const helper = {
+        helperType: 'number' as const,
+        value: 21,
+        writable: true,
+        min: 15,
+        max: 30,
+        step: 1,
+      };
+      const props = {
+        id: 'homey:number.target',
+        providerId: hinted ? ('homey' as const) : undefined,
+        name: 'Target',
+      };
+      if (!hinted) {
+        integrationStore.setState({
+          providerEntitiesByProviderId: {
+            homey: {
+              [props.id]: {
+                id: props.id,
+                canonicalId: props.id,
+                externalId: 'number.target',
+                providerId: 'homey',
+                type: 'helper',
+                name: props.name,
+                primaryState: 21,
+                availability: 'available',
+                attributes: helper,
+                capabilities: ['number_value'],
+              },
+            },
+          },
+        });
+      }
+      const view = renderWithProviders(<HelperValueControl {...props} helper={helper} />);
+      fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '23' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(screen.getByRole('spinbutton')).toBeDisabled();
+      act(() => {
+        if (change === 'session') {
+          integrationStore
+            .getState()
+            .setProviderSessions({ homey: { providerId: 'homey', connected: true } });
+        } else {
+          const runtime = integrationStore.getState().providerRuntime;
+          integrationStore.setState({
+            providerRuntime: {
+              ...runtime,
+              homey: { ...runtime.homey, connected: !runtime.homey.connected },
+            },
+          });
+        }
+      });
+      view.rerender(<HelperValueControl {...props} helper={{ ...helper, value: 18 }} />);
+      expect(screen.getByRole('spinbutton')).toHaveValue(18);
+      expect(screen.getByRole('spinbutton')).toBeEnabled();
+      expect(screen.queryByText('Updating…')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '19' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      });
+      await act(async () => {
+        finishOld();
+      });
+      expect(screen.getByRole('spinbutton')).toHaveValue(19);
+      expect(screen.getByRole('spinbutton')).toBeDisabled();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(dispatch).toHaveBeenLastCalledWith(
+        { type: 'set_number_value', entityId: props.id, value: 19 },
+        'homey'
+      );
+      view.rerender(<HelperValueControl {...props} helper={{ ...helper, value: 19 }} />);
+      expect(screen.getByRole('spinbutton')).toBeEnabled();
+    }
+  );
   it('sends a bounded number to its owning adapter and keeps the live value while pending', async () => {
     renderWithProviders(
       <HelperValueControl

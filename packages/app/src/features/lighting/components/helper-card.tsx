@@ -9,7 +9,9 @@ import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
+import { useIntegrationStore } from '@navet/app/hooks/use-integration-store';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
+import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
 import { type NavetHelperState, readNavetHelperState } from '@navet/core/helper-state';
 import type { NavetUiCommand } from '@navet/core/types';
 import { Sliders } from 'lucide-react';
@@ -53,10 +55,24 @@ type HelperValueControlProps = {
 };
 
 export function HelperValueControl(props: HelperValueControlProps) {
+  const entity = useProviderEntityModel(props.id);
+  const providerId =
+    props.providerId ?? entity?.providerId ?? parseProviderScopedId(props.id)?.providerId;
+  const session = useIntegrationStore((store) =>
+    providerId ? store.providerSessions[providerId] : undefined
+  );
+  const connected = useIntegrationStore((store) =>
+    providerId ? store.providerRuntime[providerId]?.connected : undefined
+  );
+  const lifecycle = useRef({ session, connected, revision: 0 });
+  if (lifecycle.current.session !== session || lifecycle.current.connected !== connected) {
+    lifecycle.current = { session, connected, revision: lifecycle.current.revision + 1 };
+  }
   return (
     <HelperValueControlContent
-      key={`${props.providerId ?? ''}:${props.id}:${props.helper.helperType}`}
+      key={`${providerId ?? ''}:${props.id}:${props.helper.helperType}:${lifecycle.current.revision}`}
       {...props}
+      providerId={providerId}
     />
   );
 }
