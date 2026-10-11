@@ -5,8 +5,9 @@ export function retainChoreSupersession(
   occurrences: Record<string, ChoreOccurrence>,
   definitions: Record<string, ChoreDefinition>,
   timestamp: string,
-  activities: readonly ChoreActivity[] = []
+  activities?: readonly ChoreActivity[]
 ): Record<string, ChoreOccurrence> {
+  const events = activities ?? [];
   let result = occurrences;
   const items = Object.values(occurrences);
   for (let index = 0; index < items.length; index += 1) {
@@ -15,7 +16,7 @@ export function retainChoreSupersession(
     const definition = definitions[item.definitionId];
     const next =
       definition && getSupersedingChoreOccurrence(item, definition, occurrences, timestamp);
-    const event = activities.find(
+    const event = events.find(
       (activity) =>
         activity.occurrenceId === item.id &&
         activity.type === 'missed' &&
