@@ -27,10 +27,10 @@ vi.mock('@navet/app/features/security', () => ({
   ),
 }));
 
-vi.mock('@navet/app/features/lighting', () => ({
+vi.mock('@navet/app/features/lighting', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@navet/app/features/lighting')>()),
   LightCard: ({ id }: { id: string }) => <div data-testid="light-card">{id}</div>,
   FanCard: () => null,
-  SwitchCard: () => null,
 }));
 
 vi.mock('@navet/app/features/vacuum', () => ({
@@ -501,7 +501,7 @@ describe('card availability lookup', () => {
   });
 });
 
-// Keep: actual lazy household cards must preserve explicit source ownership at dashboard composition.
+// Rewrite: exercise canonical card actions while preserving source ownership and capability checks.
 describe('household controls dashboard renderer', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
@@ -540,7 +540,7 @@ describe('household controls dashboard renderer', () => {
       key: 'remotes',
       attributes: { isOn: false },
       capabilities: ['toggle'],
-      action: 'Turn on Household remote',
+      action: 'Toggle Household remote',
       command: 'turn_on',
     },
   ] as const;
@@ -617,11 +617,8 @@ describe('household controls dashboard renderer', () => {
     async (testCase) => {
       const { device, entity } = install(testCase);
       renderWithProviders(card(testCase, device));
-      if (testCase.domain === 'timer' || testCase.domain === 'counter') {
-        fireEvent.click(await screen.findByRole('button', { name: entity.name }));
-        await screen.findByRole('dialog', { name: entity.name });
-      }
       fireEvent.click(await screen.findByRole('button', { name: testCase.action }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       await vi.waitFor(() =>
         expect(householdDispatch).toHaveBeenCalledWith(
           expect.objectContaining({ type: testCase.command, entityId: entity.id }),
@@ -635,13 +632,18 @@ describe('household controls dashboard renderer', () => {
     const { device, entity } = install(testCase, 'available', false);
     renderWithProviders(card(testCase, device));
     if (testCase.domain === 'timer' || testCase.domain === 'counter') {
-      fireEvent.click(await screen.findByRole('button', { name: entity.name }));
+      expect(await screen.findByRole('button', { name: testCase.action })).toBeDisabled();
+      fireEvent.click(
+        (await screen.findAllByRole('button', { name: `Open settings for ${entity.name}` }))[0]
+      );
       const dialog = await screen.findByRole('dialog', { name: entity.name });
       expect(
         within(dialog).getByRole('button', {
           name: testCase.domain === 'timer' ? 'Start' : 'Reset',
         })
       ).toBeDisabled();
+    } else if (testCase.domain === 'remote') {
+      expect(await screen.findByRole('button', { name: testCase.action })).toBeDisabled();
     } else {
       await screen.findByText(entity.name);
       expect(screen.queryByRole('button', { name: testCase.action })).not.toBeInTheDocument();
