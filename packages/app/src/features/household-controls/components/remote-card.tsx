@@ -141,7 +141,7 @@ function RemoteCardContent({
                 <div className={`space-y-4 ${surface.textPrimary}`}>
                   <p>{label}</p>
                   {supported ? (
-                    <Button disabled={!canToggle || action.pending} onClick={toggle}>
+                    <Button disabled={!canToggle || isEditMode || action.pending} onClick={toggle}>
                       {t(state?.isOn ? 'remote.turnOff' : 'remote.turnOn', { name })}
                     </Button>
                   ) : null}

@@ -1,3 +1,4 @@
+import { dispatchEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { integrationStore } from '@navet/app/stores/integration-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
@@ -232,6 +233,18 @@ describe('normalized valve controls', () => {
 });
 
 describe('normalized remote on/off controls', () => {
+  it('disables live remote actions in the edit-dock dialog instead of offering a no-op', () => {
+    install('remote', { isOn: false }, ['toggle']);
+    renderWithProviders(
+      <RemoteCard {...props} id="homey:remote.living" name="Living remote" isEditMode />
+    );
+    act(() => dispatchEditModeSettingsRequest('homey:remote.living'));
+    const dialog = within(screen.getByRole('dialog', { name: 'Living remote' }));
+    const button = dialog.getByRole('button', { name: 'Turn on Living remote' });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
   it('keeps live off until confirmation and routes on/off to its owner', async () => {
     install('remote', { isOn: false }, ['toggle']);
     renderWithProviders(<RemoteCard {...props} id="homey:remote.living" name="Living remote" />);
