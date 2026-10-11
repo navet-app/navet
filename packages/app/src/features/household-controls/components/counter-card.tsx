@@ -7,6 +7,7 @@ import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
+import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import { type NavetCounterState, readNavetCounterState } from '@navet/core/household-device-state';
 import type { IntegrationProviderId } from '@navet/core/integration-providers';
 import { Hash, Minus, Plus, RotateCcw } from 'lucide-react';
@@ -19,7 +20,8 @@ export function CounterControls(props: {
   counter: NavetCounterState;
   unavailable?: boolean;
 }) {
-  return <CounterControlsContent key={`${props.providerId}:${props.id}`} {...props} />;
+  const { key } = useProviderControlSession(props.id, props.providerId);
+  return <CounterControlsContent key={key} {...props} />;
 }
 function CounterControlsContent({
   id,

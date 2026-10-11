@@ -7,6 +7,7 @@ import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
+import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import { type NavetTimerState, readNavetTimerState } from '@navet/core/household-device-state';
 import type { IntegrationProviderId } from '@navet/core/integration-providers';
 import { Pause, Play, Timer } from 'lucide-react';
@@ -40,7 +41,8 @@ export function TimerControls(props: {
   timer: NavetTimerState;
   unavailable?: boolean;
 }) {
-  return <TimerControlsContent key={`${props.providerId}:${props.id}`} {...props} />;
+  const { key } = useProviderControlSession(props.id, props.providerId);
+  return <TimerControlsContent key={key} {...props} />;
 }
 function TimerControlsContent({
   id,

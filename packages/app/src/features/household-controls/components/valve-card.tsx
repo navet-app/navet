@@ -8,6 +8,7 @@ import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mo
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { CoverControlButton } from '@navet/app/features/security/components/cover-card/cover-control-button';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
+import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import type { NavetCapabilityId } from '@navet/core/capabilities';
 import { type NavetValveState, readNavetValveState } from '@navet/core/household-device-state';
 import type { IntegrationProviderId } from '@navet/core/integration-providers';
@@ -88,9 +89,10 @@ export function ValveControlPanel({
   capabilities: readonly NavetCapabilityId[];
   action?: ReturnType<typeof useValveControls>;
 }) {
+  const { key } = useProviderControlSession(id, providerId);
   return (
     <ValveControlPanelContent
-      key={`${providerId}:${id}`}
+      key={key}
       {...{ id, name, providerId, state, capabilities, action }}
     />
   );
@@ -222,7 +224,8 @@ export function ValveCard(props: {
   size: CardSize;
   isEditMode: boolean;
 }) {
-  return <ValveCardContent key={`${props.providerId}:${props.id}`} {...props} />;
+  const { key } = useProviderControlSession(props.id, props.providerId);
+  return <ValveCardContent key={key} {...props} />;
 }
 
 function ValveCardContent({
