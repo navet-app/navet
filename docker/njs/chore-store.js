@@ -990,7 +990,7 @@ function runWorkspaceScheduler(data, timestamp) {
     }
   }
 
-  if (activities.length === 0 && reminderItems.length === 0) {
+  if (activities.length === 0 && reminderItems.length === 0 && retainedOccurrences === data.occurrencesById) {
     return { activities, outboxItems: reminderItems, data };
   }
   return {
