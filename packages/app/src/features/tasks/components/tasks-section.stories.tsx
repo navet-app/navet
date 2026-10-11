@@ -1,10 +1,12 @@
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { createPreviewStoryScenario } from '@navet/app/preview/runtime';
+import { getIntegrationProviderAdapter } from '@navet/app/services/integration-registry.service';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { type ThemeMode, useThemeStore } from '@navet/app/stores/theme-store';
+import type { ProviderTodoListFeatureService } from '@navet/core/provider-feature-services';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { useEffect } from 'react';
-import { expect, within } from 'storybook/test';
+import { useEffect, useState } from 'react';
+import { expect, waitFor, within } from 'storybook/test';
 import { TasksSection } from './tasks-section';
 
 type TasksStoryMode = 'default' | 'empty' | 'many' | 'reconnecting' | 'low-power';
@@ -12,11 +14,42 @@ type TasksStoryMode = 'default' | 'empty' | 'many' | 'reconnecting' | 'low-power
 function TasksSectionStory({
   mode = 'default',
   theme = 'glass',
+  withListsWorkspace = false,
 }: {
   mode?: TasksStoryMode;
   theme?: ThemeMode;
+  withListsWorkspace?: boolean;
 }) {
   const surface = getThemeSurfaceTokens(theme);
+  const [ready, setReady] = useState(!withListsWorkspace);
+  useEffect(() => {
+    if (!withListsWorkspace) return;
+    const adapter = getIntegrationProviderAdapter('home_assistant');
+    const previous = adapter.todoListFeatureService;
+    const readonly = async () => {
+      throw new Error('This fixture only advertises list navigation');
+    };
+    const service: ProviderTodoListFeatureService = {
+      getLists: async () => [],
+      subscribeLists: async (listener) => {
+        listener([]);
+        return () => {};
+      },
+      getItems: async () => [],
+      subscribeItems: async (_listId, listener) => {
+        listener([]);
+        return () => {};
+      },
+      addItem: readonly,
+      updateItem: readonly,
+      removeItem: readonly,
+    };
+    adapter.todoListFeatureService = service;
+    setReady(true);
+    return () => {
+      adapter.todoListFeatureService = previous;
+    };
+  }, [withListsWorkspace]);
 
   useEffect(() => {
     const previousSettingsState = useSettingsStore.getState();
@@ -44,8 +77,11 @@ function TasksSectionStory({
   }, [mode, theme]);
 
   return (
-    <div className={`h-full min-w-0 overflow-x-hidden overflow-y-auto p-3 md:p-6 ${surface.appBg}`}>
-      <TasksSection />
+    <div
+      className={`h-full min-w-0 overflow-x-hidden overflow-y-auto p-3 md:p-6 ${surface.appBg}`}
+      style={withListsWorkspace ? { height: 420 } : undefined}
+    >
+      {ready ? <TasksSection /> : null}
     </div>
   );
 }
@@ -243,7 +279,7 @@ export const ScriptsList: Story = {
   },
   play: async ({ canvas, userEvent, step }) => {
     await step('opens the scripts list without per-item type tags', async () => {
-      await userEvent.click(canvas.getByRole('button', { name: /scripts/i }));
+      await userEvent.click(canvas.getByRole('button', { name: /quick actions/i }));
       await expect(canvas.getByText('Feed Mowgli')).toBeInTheDocument();
       await expect(canvas.getByText('Stop all music')).toBeInTheDocument();
       await expect(canvas.getByRole('button', { name: 'Run Feed Mowgli' })).toBeInTheDocument();
@@ -283,7 +319,28 @@ export const Reconnecting: Story = {
 };
 
 export const ManyRoutines: Story = {
-  args: { mode: 'many' },
+  args: { mode: 'many', withListsWorkspace: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const navigation = await canvas.findByRole('navigation', { name: 'Tasks workspace' });
+    const workspace = navigation.parentElement;
+    const routines = await canvas.findByRole('main');
+    await waitFor(() => expect(routines.scrollHeight).toBeGreaterThan(routines.clientHeight));
+    const scrollers: HTMLElement[] = [];
+    for (let element: HTMLElement | null = routines; element; element = element.parentElement) {
+      if (
+        element.scrollHeight > element.clientHeight + 1 &&
+        ['auto', 'scroll'].includes(getComputedStyle(element).overflowY)
+      )
+        scrollers.push(element);
+      if (element === workspace) break;
+    }
+    await expect(scrollers).toHaveLength(1);
+    const navigationTop = navigation.getBoundingClientRect().top;
+    routines.scrollTop = routines.scrollHeight;
+    await expect(routines.scrollTop).toBeGreaterThan(0);
+    await expect(navigation.getBoundingClientRect().top).toBe(navigationTop);
+  },
   parameters: {
     previewRuntime: {
       scenario: {

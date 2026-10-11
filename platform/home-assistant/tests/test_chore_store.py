@@ -1150,6 +1150,43 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
     async def test_ten_year_completion_persists_and_reloads_next_date(self):
         await self._assert_completion_interval(3650, "2036-10-01T16:00:00.000Z")
 
+    async def test_once_none_policy_becomes_missed_at_grace_and_stays_completable(self):
+        fixed_now = datetime(2026, 10, 11, 10, 0, tzinfo=timezone.utc)
+        original_now = chores._now
+        chores._now = lambda: fixed_now
+        self.addCleanup(setattr, chores, "_now", original_now)
+        await self._create_manager()
+        definition = {
+            "id": "one-time", "title": "One-time chore", "enabled": True,
+            "assignment": {"mode": "person", "participantIds": ["manager"]},
+            "schedule": {"frequency": "once", "date": "2026-10-11", "time": "10:00", "timeZone": "UTC"},
+            "dueWindowMinutes": 60, "missedPolicy": {"graceMinutes": 15, "action": "none"},
+            "approval": {"required": False, "approverIds": []},
+            "createdAt": "2026-10-11T10:00:00.000Z", "updatedAt": "2026-10-11T10:00:00.000Z",
+        }
+        await self.authority.async_command({"commandId": "one-time-create", "baseRevision": self.authority.revision,
+            "action": {"type": "definition_create", "actorParticipantId": "manager", "definition": definition}}, "ha-user-1")
+        await self.authority.async_tick()
+        occurrence_id = next(iter(self.authority.data["occurrencesById"]))
+        fixed_now = datetime(2026, 10, 11, 11, 14, tzinfo=timezone.utc)
+        await self.authority.async_tick()
+        self.assertEqual(self.authority.data["occurrencesById"][occurrence_id]["status"], "available")
+        fixed_now = datetime(2026, 10, 11, 11, 15, tzinfo=timezone.utc)
+        await self.authority.async_tick()
+        missed = self.authority.data["occurrencesById"][occurrence_id]
+        self.assertEqual(missed["status"], "missed")
+        self.assertEqual(missed["missedAt"], "2026-10-11T11:15:00.000Z")
+        self.assertNotIn("supersededAt", missed)
+        self.assertNotIn("carriedForwardTo", missed)
+        await self.authority.async_tick()
+        self.assertEqual(sum(item["type"] == "missed" and item.get("occurrenceId") == occurrence_id for item in self.authority.data["activity"]), 1)
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        self.assertEqual(restarted.data["occurrencesById"][occurrence_id], missed)
+        result = await restarted.async_command({"commandId": "complete-one-time-missed", "baseRevision": restarted.revision,
+            "action": {"type": "occurrence_action", "occurrenceId": occurrence_id, "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
+        self.assertEqual(result["data"]["occurrencesById"][occurrence_id]["status"], "done")
+
     async def test_missed_policy_carries_forward_once(self):
         fixed_now = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
         original_now = chores._now
