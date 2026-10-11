@@ -23,9 +23,9 @@ export function getHomeAssistantHouseholdCommandRoute(
         if (!state.canStart) return unsupported();
         if (
           command.durationSeconds !== undefined &&
-          (!Number.isSafeInteger(command.durationSeconds) || command.durationSeconds < 0)
+          (!Number.isSafeInteger(command.durationSeconds) || command.durationSeconds <= 0)
         )
-          throw new Error('Timer duration must be a nonnegative whole number of seconds');
+          throw new Error('Timer duration must be a positive whole number of seconds');
         return {
           domain,
           service: 'start',

@@ -57,10 +57,12 @@ function TimerControlsContent({
   const { theme } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
   const inputId = useId();
-  const [duration, setDuration] = useState(() => String(timer.durationSeconds ?? ''));
+  const [duration, setDuration] = useState(() =>
+    timer.durationSeconds ? String(timer.durationSeconds) : ''
+  );
   const dirty = useRef(false);
   useEffect(() => {
-    if (!dirty.current) setDuration(String(timer.durationSeconds ?? ''));
+    if (!dirty.current) setDuration(timer.durationSeconds ? String(timer.durationSeconds) : '');
   }, [timer.durationSeconds]);
   const operation = useDeviceCommand({
     entityId: id,
@@ -68,6 +70,8 @@ function TimerControlsContent({
     stateKey: JSON.stringify([timer.phase, timer.finishesAt]),
   });
   const disabled = unavailable || operation.pending;
+  const validDuration =
+    duration === '' || (Number.isSafeInteger(Number(duration)) && Number(duration) > 0);
   const remaining = formatRemaining(useTimerRemaining(timer));
   const phase =
     timer.phase === 'unknown' ? t('providerDetails.unknown') : t(`timer.${timer.phase}`);
@@ -75,10 +79,10 @@ function TimerControlsContent({
     event.preventDefault();
     if (disabled || !timer.canStart) return;
     const seconds = duration === '' ? undefined : Number(duration);
-    if (seconds !== undefined && (!Number.isSafeInteger(seconds) || seconds < 0)) return;
+    if (seconds !== undefined && (!Number.isSafeInteger(seconds) || seconds <= 0)) return;
     const previousFinish = timer.finishesAt;
     const immediateFinish =
-      (seconds === undefined || seconds === 0) &&
+      seconds === undefined &&
       timer.durationSeconds === 0 &&
       (timer.remainingSeconds === null || timer.remainingSeconds === 0);
     void operation.execute(
@@ -108,7 +112,7 @@ function TimerControlsContent({
         <Input
           id={inputId}
           type="number"
-          min={0}
+          min={1}
           step={1}
           value={duration}
           disabled={disabled || !timer.canStart}
@@ -121,7 +125,7 @@ function TimerControlsContent({
           <Button
             type="submit"
             leading={<Play className="h-4 w-4" />}
-            disabled={disabled || !timer.canStart}
+            disabled={disabled || !timer.canStart || !validDuration}
           >
             {t('timer.start')}
           </Button>

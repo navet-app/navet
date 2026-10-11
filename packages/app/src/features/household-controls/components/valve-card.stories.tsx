@@ -76,7 +76,27 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
-export const Tiny: Story = { args: { size: 'tiny' } };
+export const Tiny: Story = {
+  args: { size: 'tiny' },
+  play: async ({ canvasElement }) => {
+    const trigger = within(canvasElement).getByRole('button', {
+      name: 'Controls for Garden water valve, 0%, Closed',
+    });
+    await expect(within(canvasElement).getByText('Garden', { exact: true })).toBeVisible();
+    await expect(within(canvasElement).queryByText('0%', { exact: true })).not.toBeInTheDocument();
+    await expect(
+      within(canvasElement)
+        .getByRole('heading', { name: 'Garden water valve' })
+        .getBoundingClientRect().bottom
+    ).toBeLessThanOrEqual(trigger.getBoundingClientRect().bottom);
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+    await expect(within(document.body).getByRole('dialog')).toBeVisible();
+    await expect(
+      within(document.body).getByRole('spinbutton', { name: 'Position for Garden water valve' })
+    ).toBeEnabled();
+  },
+};
 export const Medium: Story = {
   args: { size: 'medium', name: 'Garden irrigation and greenhouse supply valve' },
 };

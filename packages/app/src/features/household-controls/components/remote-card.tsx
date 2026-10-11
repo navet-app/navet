@@ -96,6 +96,15 @@ function RemoteCardContent({
         size={size}
         title={name}
         subtitle={room}
+        interactive={size === 'tiny' && !isEditMode}
+        role={size === 'tiny' && !isEditMode ? 'button' : undefined}
+        tabIndex={size === 'tiny' && !isEditMode ? 0 : undefined}
+        aria-label={
+          size === 'tiny' ? `${t('providerDetails.controls', { name })}, ${label}` : undefined
+        }
+        onClick={() => {
+          if (size === 'tiny' && !isEditMode) setDialog(true);
+        }}
         isActive={available && state?.isOn === true}
         headerTrailing={compact ? power : undefined}
         actionRow={
@@ -115,14 +124,16 @@ function RemoteCardContent({
               }
         }
       >
-        <CardMetric
-          value={label}
-          theme={theme}
-          isActive={false}
-          accentClassName="text-current"
-          valueClassName={compact ? 'text-sm font-semibold' : undefined}
-        />
-        {status}
+        {size !== 'tiny' ? (
+          <CardMetric
+            value={label}
+            theme={theme}
+            isActive={false}
+            accentClassName="text-current"
+            valueClassName={compact ? 'text-sm font-semibold' : undefined}
+          />
+        ) : null}
+        <div className={size === 'tiny' ? 'sr-only' : undefined}>{status}</div>
       </BaseCard>
       {dialog ? (
         <BaseCardDialog

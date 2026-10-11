@@ -70,7 +70,25 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
 export const On: Story = { args: { isOn: true } };
-export const Tiny: Story = { args: { size: 'tiny' } };
+export const Tiny: Story = {
+  args: { size: 'tiny' },
+  play: async ({ canvasElement }) => {
+    const trigger = within(canvasElement).getByRole('button', {
+      name: 'Controls for Living room remote, Off',
+    });
+    await expect(within(canvasElement).getByText('Living room', { exact: true })).toBeVisible();
+    await expect(within(canvasElement).queryByText('Off', { exact: true })).not.toBeInTheDocument();
+    await expect(
+      within(canvasElement)
+        .getByRole('heading', { name: 'Living room remote' })
+        .getBoundingClientRect().bottom
+    ).toBeLessThanOrEqual(trigger.getBoundingClientRect().bottom);
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+    const dialog = within(await within(document.body).findByRole('dialog'));
+    await expect(dialog.getByRole('button', { name: 'Turn on Living room remote' })).toBeEnabled();
+  },
+};
 export const Medium: Story = {
   args: { size: 'medium', name: 'Living room entertainment cabinet remote control' },
 };

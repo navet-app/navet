@@ -7,6 +7,10 @@ const SEARCH_DEVICE_KEYS = [
   'climate',
   'hvac',
   'switches',
+  'timers',
+  'counters',
+  'valves',
+  'remotes',
   'covers',
   'locks',
   'media',
@@ -34,6 +38,10 @@ const {
     weather: [],
     switches: [],
     helpers: [],
+    timers: [],
+    counters: [],
+    valves: [],
+    remotes: [],
     covers: [],
     locks: [],
     scenes: [],
@@ -48,6 +56,10 @@ const {
     ...emptyDeviceCollection,
     lights: [{ id: 'light.kitchen_pendant', name: 'Kitchen pendant', room: 'Kitchen' }],
     sensors: [{ id: 'sensor.outdoor_temperature', name: 'Outdoor temperature', room: 'Garden' }],
+    timers: [{ id: 'homey:tea', name: 'Steeping', room: 'Pantry' }],
+    counters: [{ id: 'homey:visits', name: 'Visits', room: 'Workshop' }],
+    valves: [{ id: 'homey:irrigation', name: 'Water supply', room: 'Greenhouse' }],
+    remotes: [{ id: 'homey:television', name: 'Television', room: 'Cinema' }],
   };
   const searchState = {
     searchQuery: '',
@@ -86,6 +98,20 @@ vi.mock('@navet/app/hooks', () => ({
 }));
 
 describe('useHeaderSearch', () => {
+  it.each([
+    ['homey:tea', 'Steeping', 'Pantry', 'timer'],
+    ['homey:visits', 'Visits', 'Workshop', 'counter'],
+    ['homey:irrigation', 'Water supply', 'Greenhouse', 'valve'],
+    ['homey:television', 'Television', 'Cinema', 'remote'],
+  ])('finds %s by name, room, domain and provider identity', async (id, name, room, domain) => {
+    const { result, rerender } = renderHook(() => useHeaderSearch());
+    for (const query of [name, room, domain, id]) {
+      act(() => result.current.handleSearchChange(query));
+      rerender();
+      await waitFor(() => expect(setFilteredDeviceIdsMock).toHaveBeenLastCalledWith([id]));
+    }
+  });
+
   beforeEach(() => {
     useDeviceCollectionsByKeysMock.mockClear();
     setFilteredDeviceIdsMock.mockClear();

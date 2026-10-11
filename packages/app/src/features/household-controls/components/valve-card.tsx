@@ -251,6 +251,7 @@ function ValveCardContent({
   const compact = size === 'tiny' || size === 'extra-small';
   const unavailable = entity?.availability !== 'available';
   const label = unavailable ? t('common.unavailable') : t(`valve.state.${state.phase}`);
+  const value = !unavailable && state.position !== null ? `${state.position}%` : label;
   const settings = (
     <CardSettingsActionButton
       theme={theme}
@@ -266,6 +267,17 @@ function ValveCardContent({
         size={size}
         title={name}
         subtitle={room}
+        interactive={size === 'tiny' && !isEditMode}
+        role={size === 'tiny' && !isEditMode ? 'button' : undefined}
+        tabIndex={size === 'tiny' && !isEditMode ? 0 : undefined}
+        aria-label={
+          size === 'tiny'
+            ? `${t('providerDetails.controls', { name })}, ${value}${value === label ? '' : `, ${label}`}`
+            : undefined
+        }
+        onClick={() => {
+          if (size === 'tiny' && !isEditMode) setDialog(true);
+        }}
         isActive={!unavailable && (state.phase === 'open' || state.phase === 'opening')}
         headerTrailing={compact ? settings : undefined}
         actionRow={
@@ -331,15 +343,19 @@ function ValveCardContent({
               }
         }
       >
-        <CardMetric
-          value={!unavailable && state.position !== null ? `${state.position}%` : label}
-          label={!unavailable && state.position !== null ? label : undefined}
-          theme={theme}
-          isActive={false}
-          accentClassName="text-current"
-          valueClassName={compact ? 'text-sm font-semibold' : undefined}
-        />
-        <ValveStatus pending={action.pending} error={action.error} />
+        {size !== 'tiny' ? (
+          <CardMetric
+            value={value}
+            label={!unavailable && state.position !== null ? label : undefined}
+            theme={theme}
+            isActive={false}
+            accentClassName="text-current"
+            valueClassName={compact ? 'text-sm font-semibold' : undefined}
+          />
+        ) : null}
+        <div className={size === 'tiny' ? 'sr-only' : undefined}>
+          <ValveStatus pending={action.pending} error={action.error} />
+        </div>
       </BaseCard>
       {dialog ? (
         <BaseCardDialog

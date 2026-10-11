@@ -1,6 +1,6 @@
 import { dispatchEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { renderWithProviders } from '@navet/app/test/render';
-import { act, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { CounterCard } from './counter-card';
 import { RemoteCard } from './remote-card';
@@ -15,6 +15,25 @@ const cards = [
 ] as const;
 
 describe('household card settings and identity context', () => {
+  it.each(cards.slice(2))(
+    'opens $type Tiny controls from its card surface and preserves the edit-mode guard',
+    ({ type, Card }) => {
+      const props = {
+        id: `home_assistant:${type}.kitchen`,
+        name: 'Kitchen control',
+        room: 'Kitchen',
+        providerId: 'home_assistant' as const,
+        size: 'tiny' as const,
+      };
+      const view = renderWithProviders(<Card {...props} isEditMode />);
+      expect(
+        screen.queryByRole('button', { name: /Controls for Kitchen control/ })
+      ).not.toBeInTheDocument();
+      view.rerender(<Card {...props} isEditMode={false} />);
+      fireEvent.click(screen.getByRole('button', { name: /Controls for Kitchen control/ }));
+      expect(screen.getByRole('dialog', { name: 'Kitchen control' })).toBeInTheDocument();
+    }
+  );
   it.each(cards)('opens only the matching $type edit-mode settings request', ({ type, Card }) => {
     const id = `home_assistant:${type}.kitchen`;
     renderWithProviders(

@@ -123,7 +123,7 @@ describe('household controls adapter boundary', () => {
       canFinish: false,
     });
   });
-  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
     'rejects invalid timer duration %s',
     (durationSeconds) => {
       expect(() =>

@@ -60,7 +60,7 @@ describe('timer and counter household controls', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Increase' })).toBeEnabled());
     expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled();
   });
-  it('accepts an immediately finished zero-duration timer without waiting for a transient active echo', async () => {
+  it('starts a configured zero-duration timer using its default without waiting for a transient active echo', async () => {
     const zero = {
       ...timer,
       phase: 'idle' as const,
@@ -76,11 +76,32 @@ describe('timer and counter household controls', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Start' }));
     expect(dispatch).toHaveBeenCalledWith(
-      { type: 'timer_start', entityId: 'home_assistant:timer.zero', durationSeconds: 0 },
+      { type: 'timer_start', entityId: 'home_assistant:timer.zero' },
       'home_assistant'
     );
     await waitFor(() => expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled());
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+  it('blocks an explicit zero override while empty duration starts the native default', async () => {
+    renderWithProviders(
+      <TimerControls id="home_assistant:timer.tea" providerId="home_assistant" timer={timer} />
+    );
+    const duration = screen.getByLabelText('Duration (seconds)');
+    expect(duration).toHaveAttribute('min', '1');
+    fireEvent.change(duration, { target: { value: '0' } });
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+    const form = duration.closest('form');
+    if (!form) throw new Error('Timer duration must remain inside its form');
+    fireEvent.submit(form);
+    expect(dispatch).not.toHaveBeenCalled();
+    fireEvent.change(duration, { target: { value: '' } });
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    expect(dispatch).toHaveBeenCalledWith(
+      { type: 'timer_start', entityId: 'home_assistant:timer.tea' },
+      'home_assistant'
+    );
+    await act(async () => {});
   });
   it('counts down from the backend finish instant and freezes the paused remaining value', () => {
     vi.useFakeTimers();

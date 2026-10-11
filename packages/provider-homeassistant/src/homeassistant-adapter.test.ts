@@ -248,6 +248,26 @@ describe('homeassistant-adapter', () => {
       });
     }
   );
+  it('rejects explicit zero timer duration before transport but retains the default start', async () => {
+    const adapter = createHomeAssistantContractAdapter();
+    await expect(
+      adapter.execute({
+        type: 'timer_start',
+        entityId: 'home_assistant:timer.household',
+        durationSeconds: 0,
+      })
+    ).rejects.toThrow();
+    expect(callHomeAssistantServiceMock).not.toHaveBeenCalled();
+    await expect(
+      adapter.execute({ type: 'timer_start', entityId: 'home_assistant:timer.household' })
+    ).resolves.toMatchObject({ accepted: true });
+    expect(callHomeAssistantServiceMock).toHaveBeenCalledWith(
+      'timer',
+      'start',
+      {},
+      { entityId: 'timer.household' }
+    );
+  });
   it('rejects wrong-owner and incompatible household commands without service writes', async () => {
     const adapter = createHomeAssistantContractAdapter();
     await expect(
