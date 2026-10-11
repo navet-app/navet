@@ -10,6 +10,7 @@ import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import { type NavetCounterState, readNavetCounterState } from '@navet/core/household-device-state';
 import type { IntegrationProviderId } from '@navet/core/integration-providers';
+import type { NavetEntity } from '@navet/core/types';
 import { Hash, Minus, Plus, RotateCcw } from 'lucide-react';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import { useDeviceCommand } from '../hooks/use-device-command';
@@ -19,6 +20,7 @@ export function CounterControls(props: {
   providerId: IntegrationProviderId;
   counter: NavetCounterState;
   unavailable?: boolean;
+  availability?: NavetEntity['availability'];
 }) {
   const { key } = useProviderControlSession(props.id, props.providerId);
   return <CounterControlsContent key={key} {...props} />;
@@ -28,11 +30,13 @@ function CounterControlsContent({
   providerId,
   counter,
   unavailable = false,
+  availability,
 }: {
   id: string;
   providerId: IntegrationProviderId;
   counter: NavetCounterState;
   unavailable?: boolean;
+  availability?: NavetEntity['availability'];
 }) {
   const { t } = useI18n();
   const { theme } = useTheme();
@@ -171,7 +175,11 @@ function CounterControlsContent({
           </Button>
         </form>
       ) : null}
-      {unavailable ? <p role="status">{t('common.unavailable')}</p> : null}
+      {unavailable ? (
+        <p role="status">
+          {t(availability === 'unknown' ? 'providerDetails.unknown' : 'common.unavailable')}
+        </p>
+      ) : null}
       {operation.pending ? (
         <p role="status" className={surface.textSecondary}>
           {t('helpers.updating')}
@@ -236,7 +244,11 @@ export function CounterCard({
             !entity
               ? t('common.loading')
               : unavailable
-                ? t('common.unavailable')
+                ? t(
+                    entity.availability === 'unknown'
+                      ? 'providerDetails.unknown'
+                      : 'common.unavailable'
+                  )
                 : (counter.value ?? t('providerDetails.unknown'))
           }
           theme={theme}
@@ -264,6 +276,7 @@ export function CounterCard({
                   providerId={providerId}
                   counter={counter}
                   unavailable={!entity || unavailable}
+                  availability={entity?.availability}
                 />
               ),
             },

@@ -1,7 +1,10 @@
 import { dispatchEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import { integrationStore } from '@navet/app/stores/integration-store';
 import { renderWithProviders } from '@navet/app/test/render';
-import { act, fireEvent, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { resetAppStores } from '@navet/app/test/store-reset';
+import type { NavetEntity } from '@navet/core/types';
+import { act, fireEvent, screen, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { CounterCard } from './counter-card';
 import { RemoteCard } from './remote-card';
 import { TimerCard } from './timer-card';
@@ -14,7 +17,62 @@ const cards = [
   { type: 'remote', Card: RemoteCard },
 ] as const;
 
+beforeEach(async () => {
+  await resetAppStores();
+});
+
 describe('household card settings and identity context', () => {
+  it.each(
+    cards.flatMap((card) =>
+      (['unknown', 'unavailable'] as const).map((availability) => ({ ...card, availability }))
+    )
+  )('preserves $availability status and disables $type actions', ({ type, Card, availability }) => {
+    const id = `home_assistant:${type}.kitchen`;
+    const entity: NavetEntity = {
+      id,
+      canonicalId: id,
+      externalId: `${type}.kitchen`,
+      providerId: 'home_assistant',
+      name: 'Kitchen control',
+      type,
+      primaryState: null,
+      availability,
+      attributes: { phase: 'unknown', value: null, position: null, isOn: null },
+      capabilities: ['timer_start', 'counter_increment', 'valve_open', 'toggle'],
+    };
+    act(() =>
+      integrationStore.setState({
+        providerEntitiesByProviderId: { home_assistant: { [id]: entity } },
+      })
+    );
+    renderWithProviders(
+      <Card
+        id={id}
+        name="Kitchen control"
+        providerId="home_assistant"
+        size="small"
+        isEditMode={false}
+      />
+    );
+    const label = availability === 'unknown' ? 'Unknown' : 'Unavailable';
+    const wrongLabel = availability === 'unknown' ? 'Unavailable' : 'Unknown';
+    expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    expect(screen.queryByText(wrongLabel)).not.toBeInTheDocument();
+    const trigger =
+      type === 'timer' || type === 'counter' ? 'Kitchen control' : 'Controls for Kitchen control';
+    fireEvent.click(screen.getByRole('button', { name: trigger }));
+    const dialog = within(screen.getByRole('dialog'));
+    const actionName = {
+      timer: 'Start',
+      counter: 'Increase',
+      valve: 'Open',
+      remote: 'Turn on Kitchen control',
+    }[type];
+    expect(dialog.getByRole('button', { name: actionName })).toBeDisabled();
+    if (availability === 'unknown')
+      expect(dialog.queryByText('Unavailable')).not.toBeInTheDocument();
+  });
+
   it.each(cards.slice(2))(
     'opens $type Tiny controls from its card surface and preserves the edit-mode guard',
     ({ type, Card }) => {

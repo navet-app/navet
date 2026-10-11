@@ -10,6 +10,7 @@ import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import { type NavetTimerState, readNavetTimerState } from '@navet/core/household-device-state';
 import type { IntegrationProviderId } from '@navet/core/integration-providers';
+import type { NavetEntity } from '@navet/core/types';
 import { Pause, Play, Timer } from 'lucide-react';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import { useDeviceCommand } from '../hooks/use-device-command';
@@ -40,6 +41,7 @@ export function TimerControls(props: {
   providerId: IntegrationProviderId;
   timer: NavetTimerState;
   unavailable?: boolean;
+  availability?: NavetEntity['availability'];
 }) {
   const { key } = useProviderControlSession(props.id, props.providerId);
   return <TimerControlsContent key={key} {...props} />;
@@ -49,11 +51,13 @@ function TimerControlsContent({
   providerId,
   timer,
   unavailable = false,
+  availability,
 }: {
   id: string;
   providerId: IntegrationProviderId;
   timer: NavetTimerState;
   unavailable?: boolean;
+  availability?: NavetEntity['availability'];
 }) {
   const { t } = useI18n();
   const { theme } = useTheme();
@@ -190,7 +194,11 @@ function TimerControlsContent({
           ) : null}
         </div>
       </form>
-      {unavailable ? <p role="status">{t('common.unavailable')}</p> : null}
+      {unavailable ? (
+        <p role="status">
+          {t(availability === 'unknown' ? 'providerDetails.unknown' : 'common.unavailable')}
+        </p>
+      ) : null}
       {operation.pending ? (
         <p role="status" className={surface.textSecondary}>
           {t('helpers.updating')}
@@ -256,7 +264,11 @@ export function TimerCard({
             !entity
               ? t('common.loading')
               : unavailable
-                ? t('common.unavailable')
+                ? t(
+                    entity.availability === 'unknown'
+                      ? 'providerDetails.unknown'
+                      : 'common.unavailable'
+                  )
                 : (value ?? t('providerDetails.unknown'))
           }
           label={size === 'tiny' ? undefined : phaseLabel}
@@ -285,6 +297,7 @@ export function TimerCard({
                   providerId={providerId}
                   timer={timer}
                   unavailable={!entity || unavailable}
+                  availability={entity?.availability}
                 />
               ),
             },

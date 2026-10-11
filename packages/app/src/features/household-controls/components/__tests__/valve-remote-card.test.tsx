@@ -113,6 +113,35 @@ describe('normalized valve controls', () => {
     );
   });
 
+  it.each([
+    { initial: 20, target: 80, direction: 'opening', opposite: 'closing' },
+    { initial: 80, target: 20, direction: 'closing', opposite: 'opening' },
+  ] as const)(
+    'confirms a position write when the valve starts $direction toward its target',
+    async ({ initial, target, direction, opposite }) => {
+      install('valve', { phase: 'open', position: initial }, valveCapabilities);
+      renderWithProviders(<ValveCard {...props} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Controls for Water valve' }));
+      const dialog = within(screen.getByRole('dialog'));
+      const field = dialog.getByRole('spinbutton');
+      fireEvent.change(field, { target: { value: String(target) } });
+      fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(dispatch).toHaveBeenCalledWith(
+          { type: 'set_position', entityId: props.id, position: target },
+          'homey'
+        )
+      );
+      expect(field).toBeDisabled();
+      install('valve', { phase: opposite, position: initial }, valveCapabilities);
+      expect(field).toBeDisabled();
+      install('valve', { phase: direction, position: initial }, valveCapabilities);
+      expect(field).toBeEnabled();
+      expect(dialog.queryByRole('alert')).not.toBeInTheDocument();
+      expect(field).toHaveValue(target);
+    }
+  );
+
   it('retains a failed position draft across different live updates and retries it', async () => {
     dispatch.mockResolvedValueOnce({ accepted: false, requiresEventConfirmation: false });
     const view = renderWithProviders(

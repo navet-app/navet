@@ -55,7 +55,7 @@ function RemoteCardContent({
   const available = entity?.availability === 'available';
   const canToggle = state?.isOn ? state.canTurnOff : state?.canTurnOn;
   const label = !available
-    ? t('common.unavailable')
+    ? t(entity?.availability === 'unknown' ? 'providerDetails.unknown' : 'common.unavailable')
     : state?.isOn === null || !state
       ? t('providerDetails.unknown')
       : t(state.isOn ? 'common.on' : 'common.off');

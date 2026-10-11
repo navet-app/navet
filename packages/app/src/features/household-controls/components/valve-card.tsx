@@ -12,6 +12,7 @@ import { useProviderControlSession } from '@navet/app/hooks/use-provider-control
 import type { NavetCapabilityId } from '@navet/core/capabilities';
 import { type NavetValveState, readNavetValveState } from '@navet/core/household-device-state';
 import type { IntegrationProviderId } from '@navet/core/integration-providers';
+import type { NavetEntity } from '@navet/core/types';
 import { ChevronDown, ChevronUp, Sliders, Square } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useDeviceCommand } from '../hooks/use-device-command';
@@ -53,11 +54,20 @@ function useValveControls(id: string, providerId: IntegrationProviderId, state: 
         (key) => ['open', 'closed'].includes(phase(key)),
         true
       ),
-    position: (position: number) =>
-      action.execute(
-        { type: 'set_position', entityId: id, position },
-        (key) => (JSON.parse(key) as { position: number }).position === position
-      ),
+    position: (position: number) => {
+      const direction =
+        state.position === null || position === state.position
+          ? undefined
+          : position > state.position
+            ? 'opening'
+            : 'closing';
+      return action.execute({ type: 'set_position', entityId: id, position }, (key) => {
+        const latest = JSON.parse(key) as Pick<NavetValveState, 'phase' | 'position'>;
+        return (
+          latest.position === position || (direction !== undefined && latest.phase === direction)
+        );
+      });
+    },
   };
 }
 
@@ -81,6 +91,7 @@ export function ValveControlPanel({
   state,
   capabilities,
   action,
+  availability,
 }: {
   id: string;
   name: string;
@@ -88,12 +99,13 @@ export function ValveControlPanel({
   state: NavetValveState;
   capabilities: readonly NavetCapabilityId[];
   action?: ReturnType<typeof useValveControls>;
+  availability?: NavetEntity['availability'];
 }) {
   const { key } = useProviderControlSession(id, providerId);
   return (
     <ValveControlPanelContent
       key={key}
-      {...{ id, name, providerId, state, capabilities, action }}
+      {...{ id, name, providerId, state, capabilities, action, availability }}
     />
   );
 }
@@ -105,6 +117,7 @@ function ValveControlPanelContent({
   state,
   capabilities,
   action: sharedAction,
+  availability,
 }: {
   id: string;
   name: string;
@@ -112,6 +125,7 @@ function ValveControlPanelContent({
   state: NavetValveState;
   capabilities: readonly NavetCapabilityId[];
   action?: ReturnType<typeof useValveControls>;
+  availability?: NavetEntity['availability'];
 }) {
   const { t } = useI18n();
   const { theme } = useTheme();
@@ -211,7 +225,11 @@ function ValveControlPanelContent({
         </form>
       ) : null}
       <ValveStatus pending={action.pending} error={action.error} />
-      {state.phase === 'unknown' ? <p role="status">{t('common.unavailable')}</p> : null}
+      {state.phase === 'unknown' ? (
+        <p role="status">
+          {t(availability === 'unknown' ? 'providerDetails.unknown' : 'common.unavailable')}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -253,7 +271,9 @@ function ValveCardContent({
   useEditModeSettingsRequest(id, () => setDialog(true), isEditMode);
   const compact = size === 'tiny' || size === 'extra-small';
   const unavailable = entity?.availability !== 'available';
-  const label = unavailable ? t('common.unavailable') : t(`valve.state.${state.phase}`);
+  const label = unavailable
+    ? t(entity?.availability === 'unknown' ? 'providerDetails.unknown' : 'common.unavailable')
+    : t(`valve.state.${state.phase}`);
   const value = !unavailable && state.position !== null ? `${state.position}%` : label;
   const settings = (
     <CardSettingsActionButton
@@ -381,6 +401,7 @@ function ValveCardContent({
                   state={state}
                   capabilities={capabilities}
                   action={action}
+                  availability={entity?.availability}
                 />
               ),
             },
