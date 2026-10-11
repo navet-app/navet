@@ -50,6 +50,7 @@ import { choreTargetProgress, progressCycleKey } from '@navet/core/chore-progres
 import {
   type ChoreDefinition,
   type ChoreParticipant,
+  type ChoreWorkspaceAction,
   type ChoreWorkspaceData,
   getChoreExperiencePointBalances,
   isChoreParticipantPausedAt,
@@ -77,7 +78,9 @@ import {
   Users,
 } from 'lucide-react';
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { getChoreCardAction } from '../chore-card-action';
 import {
+  getMissedScheduledChoreHistory,
   getMissionProgressList,
   getNextChores,
   getParticipantPointHistory,
@@ -85,6 +88,7 @@ import {
 } from '../chore-dashboard-selectors';
 import { useChoreClock } from '../use-chore-clock';
 import { ChoreBaseCard } from './chore-base-card';
+import { ChoreListItem } from './chore-card';
 import { ChoreDashboardGrid } from './chore-dashboard-grid';
 import { ProgressTargetDialog } from './chore-experience-dialogs';
 import {
@@ -1090,12 +1094,14 @@ export function RewardsView({
 
 export function ProgressView({
   data,
+  execute,
   onAdjustPoints,
   onSaveTarget,
   onDeleteTarget,
   requestManagementAccess,
 }: {
   data: ChoreWorkspaceData;
+  execute?: (action: ChoreWorkspaceAction) => Promise<boolean>;
   onAdjustPoints: (
     participant: ChoreParticipant,
     pointsDelta: number,
@@ -1135,6 +1141,7 @@ export function ProgressView({
     events: data.activity,
     now: now.toISOString(),
   });
+  const missedHistory = getMissedScheduledChoreHistory(data, now);
   const reportText = formatChoreWeeklyReport(weeklyReport, data.definitionsById, reportFormat);
   const completed = Object.values(data.occurrencesById).filter(
     (occurrence) => occurrence.status === 'done'
@@ -1217,6 +1224,33 @@ export function ProgressView({
           />
         ))}
       </ChoreDashboardGrid>
+      {missedHistory.length > 0 ? (
+        <section className="mt-6 space-y-3" aria-label={t('household.review.history')}>
+          <h3 className={cn('text-base font-semibold', surface.textPrimary)}>
+            {t('household.review.history')}
+          </h3>
+          <ChoreDashboardGrid>
+            {missedHistory.map((occurrence) => {
+              const definition = data.definitionsById[occurrence.definitionId];
+              if (!definition) return null;
+              return (
+                <ChoreListItem
+                  key={occurrence.id}
+                  definition={definition}
+                  occurrence={occurrence}
+                  participantsById={data.participantsById}
+                  now={now}
+                  action={
+                    execute
+                      ? getChoreCardAction(occurrence, definition, 'all', execute, t)
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </ChoreDashboardGrid>
+        </section>
+      ) : null}
       {gamificationEnabled ? (
         <section
           className={cn('mt-6 space-y-3', surface.textPrimary)}

@@ -31,6 +31,14 @@ Fair rotation chooses the active participant with the fewest assigned or complet
 the ordered list from `rotationCursor`. A person assignment may name active standby participants
 for dates when the primary person is paused. Hourly schedules advance by elapsed hours from the
 first local start time, while completion-date repeats retain the configured local clock time.
+After-completion chores retain one outstanding interval per assignment; everyone assignments
+restart each participant's interval independently when they submit completion, including work
+awaiting approval. Automatic missed-work skip and carry-forward settings do not replace these
+outstanding chores. The latest completed occurrence remains a durable recurrence anchor even
+beyond occurrence retention, and retention ages final work from its resolution time.
+Fixed schedules continue on their saved dates. When a later scheduled occurrence starts, earlier
+available or claimed work becomes missed; submitted work remains awaiting approval. Missed fixed
+work leaves Today and remains completable in Progress history without changing future dates.
 Occurrence IDs are deterministic from definition, scheduled instant, and assignment slot so repeated
 materialization preserves completed state.
 

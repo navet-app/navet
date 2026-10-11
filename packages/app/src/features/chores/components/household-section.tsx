@@ -941,6 +941,7 @@ export function HouseholdSection({ syncEnabled = true }: { syncEnabled?: boolean
           data ? (
             <ProgressView
               data={data}
+              execute={execute}
               onAdjustPoints={adjustParticipantPoints}
               onSaveTarget={(kind: 'badge' | 'achievement', target: ChoreProgressTarget) =>
                 updateExperience((current) => ({

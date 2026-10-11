@@ -3,6 +3,7 @@ import type { ChoreDefinition, ChoreOccurrence, ChoreWorkspaceData } from '@nave
 import { describe, expect, it } from 'vitest';
 import {
   getHousePulse,
+  getMissedScheduledChoreHistory,
   getMissionProgressList,
   getNextChores,
   getParticipantPointHistory,
@@ -344,4 +345,62 @@ describe('upcoming week', () => {
     data.definitionsById.dishes.enabled = false;
     expect(getUpcomingChores(data, 'all', localNow)).toEqual([]);
   });
+});
+
+it('keeps missed fixed chores in history and missed after-completion chores in Today', () => {
+  const data = workspace();
+  data.definitionsById.dishes.schedule = {
+    frequency: 'weekly',
+    startDate: '2026-08-01',
+    time: '09:00',
+    timeZone: 'UTC',
+    daysOfWeek: [6],
+  };
+  data.definitionsById.toys.schedule = {
+    frequency: 'after_completion',
+    startDate: '2026-08-01',
+    time: '09:00',
+    timeZone: 'UTC',
+    intervalDays: 14,
+  };
+  data.occurrencesById = {
+    fixed: { ...occurrence('fixed', 'dishes', 'missed'), scheduledAt: '2026-08-08T09:00:00.000Z' },
+    repeat: occurrence('repeat', 'toys', 'missed'),
+    pending: occurrence('pending', 'dishes', 'awaiting_approval'),
+  };
+  expect(getTodayChoresForParticipant(data, 'all', now).map((item) => item.id)).toEqual([
+    'pending',
+    'repeat',
+  ]);
+  expect(data.occurrencesById.fixed.status).toBe('missed');
+});
+
+it('keeps an existing early-missed scheduled chore actionable until its successor starts', () => {
+  const data = workspace();
+  data.definitionsById.dishes.schedule = {
+    frequency: 'daily',
+    startDate: '2026-08-01',
+    time: '09:00',
+    timeZone: 'UTC',
+  };
+  const previous = {
+    ...occurrence('previous', 'dishes', 'missed'),
+    scheduledAt: '2026-08-14T09:00:00.000Z',
+    dueAt: '2026-08-14T10:00:00.000Z',
+  };
+  const next = {
+    ...occurrence('next', 'dishes', 'available'),
+    scheduledAt: '2026-08-15T11:00:00.000Z',
+    dueAt: '2026-08-15T12:00:00.000Z',
+  };
+  data.occurrencesById = { previous, next };
+  expect(getTodayChoresForParticipant(data, 'all', now).map((item) => item.id)).toContain(
+    'previous'
+  );
+  expect(getMissedScheduledChoreHistory(data, now)).toEqual([]);
+  const started = new Date(next.scheduledAt);
+  expect(getTodayChoresForParticipant(data, 'all', started).map((item) => item.id)).not.toContain(
+    'previous'
+  );
+  expect(getMissedScheduledChoreHistory(data, started)).toEqual([previous]);
 });

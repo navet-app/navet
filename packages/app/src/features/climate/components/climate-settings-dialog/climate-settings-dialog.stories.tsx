@@ -3,7 +3,7 @@ import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { SettingsDialogStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
-import { expect, within } from 'storybook/test';
+import { expect, waitFor, within } from 'storybook/test';
 import { ClimateSettingsDialog } from './index';
 
 function ClimateSettingsDialogStory() {
@@ -67,13 +67,39 @@ export const Default: Story = {
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'Open Climate dialog' }));
     const dialog = within(await within(document.body).findByRole('dialog'));
-    await userEvent.click(dialog.getByRole('button', { name: 'More actions' }));
+    const more = dialog.getByRole('button', { name: 'More actions' });
+    const assertUncovered = async (button: HTMLElement) => {
+      button.scrollIntoView({ block: 'nearest' });
+      await waitFor(() => {
+        const bounds = button.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          bounds.x + bounds.width / 2,
+          bounds.y + bounds.height / 2
+        );
+        expect(button.contains(hit)).toBe(true);
+      });
+    };
+    await assertUncovered(more);
+    await userEvent.click(more);
     await expect(within(document.body).getByRole('menuitem', { name: 'Edit room' })).toBeVisible();
     await userEvent.click(within(document.body).getByRole('menuitem', { name: 'Controls' }));
     await userEvent.click(dialog.getByRole('button', { name: 'Back to controls' }));
     await expect(
       dialog.queryByRole('button', { name: 'Back to controls' })
     ).not.toBeInTheDocument();
+    for (const label of ['Close', 'Done']) {
+      const current = within(await within(document.body).findByRole('dialog'));
+      const button = current
+        .getAllByRole('button', { name: label })
+        .find((element) => element.getBoundingClientRect().width > 0);
+      if (!button) throw new Error(`No visible ${label} button`);
+      await assertUncovered(button);
+      await userEvent.click(button);
+      await expect(within(document.body).queryByRole('dialog')).not.toBeInTheDocument();
+      if (label === 'Close') {
+        await userEvent.click(canvas.getByRole('button', { name: 'Open Climate dialog' }));
+      }
+    }
   },
 };
 export const Mobile: Story = {

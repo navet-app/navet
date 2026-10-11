@@ -2189,3 +2189,199 @@ describe('completion-based recurrence updates', () => {
     }
   );
 });
+
+describe('outstanding chore intervals', () => {
+  const timestamp = '2026-10-11T10:00:00.000Z';
+  const range = { rangeStart: '2026-07-13T00:00:00.000Z', rangeEnd: '2026-11-25T00:00:00.000Z' };
+  function repeatWorkspace(intervalDays = 14, everyone = false) {
+    const definition = makeDefinition({
+      assignment: {
+        mode: everyone ? 'everyone' : 'person',
+        participantIds: everyone ? ['alice', 'bob'] : ['alice'],
+      },
+      schedule: {
+        frequency: 'after_completion',
+        startDate: '2026-01-01',
+        time: '18:00',
+        timeZone: 'UTC',
+        intervalDays,
+      },
+      missedPolicy: { graceMinutes: 0, action: 'carry_forward' },
+    });
+    const first = makeOccurrence({
+      id: 'old-alice',
+      scheduledAt: '2026-01-01T18:00:00.000Z',
+      dueAt: '2026-01-01T19:00:00.000Z',
+      status: 'missed',
+      missedAt: '2026-01-02T00:00:00.000Z',
+    });
+    const second = { ...first, id: 'old-bob', assignmentSlot: 'bob', assigneeIds: ['bob'] };
+    return {
+      ...createEmptyChoreWorkspace(),
+      participantsById: { alice, bob },
+      definitionsById: { [definition.id]: definition },
+      occurrencesById: everyone
+        ? { [first.id]: first, [second.id]: second }
+        : { [first.id]: first },
+    };
+  }
+  it.each(['none', 'skip', 'carry_forward'] as const)(
+    'keeps after-completion work actionable despite automatic %s policy',
+    (action) => {
+      const workspace = repeatWorkspace();
+      workspace.definitionsById['take-out-recycling'].missedPolicy = { graceMinutes: 0, action };
+      workspace.occurrencesById['old-alice'].status = 'available';
+      const scheduled = runChoreWorkspaceScheduler(workspace, timestamp);
+      expect(scheduled.data.occurrencesById).toEqual(workspace.occurrencesById);
+      const result = applyChoreWorkspaceAction({
+        workspace,
+        timestamp,
+        commandId: 'refresh',
+        action: { type: 'materialize_occurrences', ...range },
+      });
+      expect(
+        Object.values(result.data.occurrencesById).filter((item) => !item.completedAt)
+      ).toEqual([workspace.occurrencesById['old-alice']]);
+    }
+  );
+  it.each([14, 365])(
+    'retains the completion anchor and next interval for an old chore (%i days)',
+    (intervalDays) => {
+      const workspace = repeatWorkspace(intervalDays);
+      const result = applyChoreWorkspaceAction({
+        workspace,
+        timestamp,
+        commandId: 'late-complete',
+        action: {
+          type: 'occurrence_action',
+          occurrenceId: 'old-alice',
+          action: { type: 'complete', participantId: 'alice' },
+        },
+      });
+      expect(result.data.occurrencesById['old-alice']).toMatchObject({
+        status: 'done',
+        completedAt: timestamp,
+      });
+      const expected =
+        intervalDays === 14 ? '2026-10-25T18:00:00.000Z' : '2027-10-11T18:00:00.000Z';
+      expect(
+        Object.values(result.data.occurrencesById)
+          .filter((item) => item.status === 'available')
+          .map((item) => item.scheduledAt)
+      ).toEqual([expected]);
+      const reloaded = applyChoreWorkspaceAction({
+        workspace: result.data,
+        timestamp,
+        commandId: 'reload',
+        action: { type: 'materialize_occurrences', ...range },
+      });
+      expect(reloaded.data.occurrencesById).toEqual(result.data.occurrencesById);
+      if (intervalDays === 365) {
+        const monthsLater = applyChoreWorkspaceAction({
+          workspace: reloaded.data,
+          timestamp: '2027-02-01T10:00:00.000Z',
+          commandId: 'months-later',
+          action: {
+            type: 'materialize_occurrences',
+            rangeStart: '2026-11-03T00:00:00.000Z',
+            rangeEnd: '2027-03-18T00:00:00.000Z',
+          },
+        });
+        expect(monthsLater.data.occurrencesById['old-alice'].completedAt).toBe(timestamp);
+      }
+    }
+  );
+  it('starts each everyone interval independently, including approval submissions', () => {
+    const workspace = repeatWorkspace(14, true);
+    workspace.definitionsById['take-out-recycling'].approval = {
+      required: true,
+      approverIds: ['alice'],
+    };
+    const completed = applyChoreWorkspaceAction({
+      workspace,
+      timestamp,
+      commandId: 'alice-submit',
+      action: {
+        type: 'occurrence_action',
+        occurrenceId: 'old-alice',
+        action: { type: 'complete', participantId: 'alice' },
+      },
+    });
+    expect(completed.data.occurrencesById['old-alice'].status).toBe('awaiting_approval');
+    expect(completed.data.occurrencesById['old-bob']).toEqual(workspace.occurrencesById['old-bob']);
+    expect(
+      Object.values(completed.data.occurrencesById)
+        .filter((item) => item.status === 'available')
+        .map((item) => [item.assigneeIds, item.scheduledAt])
+    ).toEqual([[['alice'], '2026-10-25T18:00:00.000Z']]);
+    const bobCompleted = applyChoreWorkspaceAction({
+      workspace: completed.data,
+      timestamp: '2026-10-13T10:00:00.000Z',
+      commandId: 'bob-submit',
+      action: {
+        type: 'occurrence_action',
+        occurrenceId: 'old-bob',
+        action: { type: 'complete', participantId: 'bob' },
+      },
+    });
+    expect(
+      Object.values(bobCompleted.data.occurrencesById)
+        .filter((item) => item.status === 'available')
+        .map((item) => [item.assigneeIds, item.scheduledAt])
+    ).toEqual([
+      [['alice'], '2026-10-25T18:00:00.000Z'],
+      [['bob'], '2026-10-27T18:00:00.000Z'],
+    ]);
+  });
+  it('marks scheduled unfinished work missed only when the next occurrence starts', () => {
+    const definition = makeDefinition({ missedPolicy: { graceMinutes: 0, action: 'none' } });
+    const previous = makeOccurrence({ status: 'claimed', claimedBy: 'alice' });
+    const next = makeOccurrence({
+      id: 'next',
+      scheduledAt: '2026-08-17T16:00:00.000Z',
+      dueAt: '2026-08-17T19:00:00.000Z',
+    });
+    const submitted = makeOccurrence({
+      id: 'submitted',
+      scheduledAt: '2026-08-03T16:00:00.000Z',
+      status: 'awaiting_approval',
+      completedAt: '2026-08-04T10:00:00.000Z',
+    });
+    const workspace = {
+      ...createEmptyChoreWorkspace(),
+      participantsById: { alice, bob },
+      definitionsById: { [definition.id]: definition },
+      occurrencesById: { [previous.id]: previous, next, submitted },
+    };
+    expect(
+      runChoreWorkspaceScheduler(workspace, '2026-08-17T15:59:59.000Z').data.occurrencesById[
+        previous.id
+      ].status
+    ).toBe('claimed');
+    const superseded = runChoreWorkspaceScheduler(workspace, next.scheduledAt);
+    expect(superseded.data.occurrencesById[previous.id]).toMatchObject({
+      status: 'missed',
+      claimedBy: 'alice',
+      missedAt: next.scheduledAt,
+    });
+    expect(superseded.data.occurrencesById.submitted).toEqual(submitted);
+    expect(
+      runChoreWorkspaceScheduler(
+        { ...superseded.data, activity: superseded.activities },
+        next.scheduledAt
+      ).activities
+    ).toEqual([]);
+    const late = applyChoreWorkspaceAction({
+      workspace: superseded.data,
+      timestamp: '2026-08-18T10:00:00.000Z',
+      commandId: 'history-complete',
+      action: {
+        type: 'occurrence_action',
+        occurrenceId: previous.id,
+        action: { type: 'complete', participantId: 'alice' },
+      },
+    });
+    expect(late.data.occurrencesById.next).toEqual(next);
+    expect(late.data.occurrencesById[previous.id].status).toBe('done');
+  });
+});

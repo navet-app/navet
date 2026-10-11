@@ -1,3 +1,4 @@
+import { shouldPruneChoreOccurrence } from '@navet/core/chore-recurrence-policy';
 import { type ChoreWorkspaceData, materializeChoreOccurrences } from '@navet/core/chores';
 
 const RETENTION_DAYS = 90;
@@ -67,6 +68,7 @@ export function materializeChoreWorkspace(
       scheduledAt <= rangeEndTime &&
       !scheduledIds.has(id) &&
       occurrence.status === 'available' &&
+      scheduledAt > now.getTime() &&
       occurrence.carriedForwardFrom === undefined
     ) {
       delete occurrencesById[id];
@@ -78,8 +80,12 @@ export function materializeChoreWorkspace(
   const retentionBoundary = now.getTime() - RETENTION_DAYS * 86_400_000;
   for (const occurrence of Object.values(occurrencesById)) {
     if (
-      (occurrence.status === 'done' || occurrence.status === 'skipped') &&
-      Date.parse(occurrence.scheduledAt) < retentionBoundary
+      shouldPruneChoreOccurrence(
+        occurrence,
+        data.definitionsById,
+        occurrencesById,
+        retentionBoundary
+      )
     ) {
       delete occurrencesById[occurrence.id];
       changed = true;

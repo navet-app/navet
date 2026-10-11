@@ -1,5 +1,6 @@
 import storage from '/etc/nginx/njs/chore-durable-storage.js';
 import choreStore from '/etc/nginx/njs/chore-store.js';
+import recurrence from '/etc/nginx/njs/chore-recurrence-policy.js';
 import crypto from 'crypto';
 let assertions = 0;
 function assert(value, message) {
@@ -203,3 +204,16 @@ try {
 }
 assert(rejected, 'Corrupt hash rejected');
 print('Passed ' + assertions + ' native NJS durable-storage assertions');
+
+const repeatDefinition = { id: 'repeat', enabled: true, assignment: { mode: 'everyone', participantIds: ['manager', 'other'] }, schedule: { frequency: 'after_completion', startDate: '2026-01-01', time: '10:00', timeZone: 'UTC', intervalDays: 14 }, dueWindowMinutes: 60, approval: { required: false, approverIds: [] } };
+const completed = { id: 'old-manager', definitionId: 'repeat', scheduledAt: '2026-01-01T10:00:00.000Z', dueAt: '2026-01-01T11:00:00.000Z', assignmentSlot: 'manager', assigneeIds: ['manager'], status: 'done', completedAt: '2026-10-11T10:00:00.000Z', updatedAt: '2026-10-11T10:00:00.000Z' };
+const unfinished = Object.assign({}, completed, { id: 'old-other', assignmentSlot: 'other', assigneeIds: ['other'], status: 'missed', completedAt: undefined });
+const previous = { manager: completed, other: unfinished };
+const people = { manager: doc.data.participantsById.manager, other: Object.assign({}, doc.data.participantsById.manager, { id: 'other' }) };
+const next = choreStore.materializeDefinitionForTests(repeatDefinition, people, '2026-07-13T00:00:00.000Z', '2026-11-25T00:00:00.000Z', previous, completed.completedAt, true);
+assert(next.length === 2, 'Everyone keeps one interval per person');
+assert(next[0].scheduledAt === '2026-10-25T10:00:00.000Z' && next[1].id === 'old-other', 'Only the completed person advances');
+assert(!recurrence.shouldPruneChoreOccurrence(completed, { repeat: repeatDefinition }, previous, Date.parse('2027-02-01T10:00:00.000Z')), 'Old completion anchor survives retention');
+const fixedDefinition = Object.assign({}, repeatDefinition, { schedule: { frequency: 'weekly' } });
+assert(recurrence.getSupersedingChoreOccurrence(unfinished, fixedDefinition, { old: unfinished, next: Object.assign({}, unfinished, { id: 'new', scheduledAt: '2026-10-11T10:00:00.000Z' }) }, '2026-10-11T10:00:00.000Z').id === 'new', 'Scheduled work is superseded when the next interval starts');
+print('Passed native NJS chore recurrence assertions');

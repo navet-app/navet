@@ -277,7 +277,7 @@ function HouseholdProtectedStory() {
   return <HouseholdSection syncEnabled={false} />;
 }
 
-function HouseholdPointsStory() {
+function HouseholdPointsStory({ missedHistory = false }: { missedHistory?: boolean }) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const store = useChoreWorkspaceStore.getState();
@@ -314,6 +314,30 @@ function HouseholdPointsStory() {
         },
       ],
     };
+    if (missedHistory) {
+      const original = data.occurrencesById['today-dishwasher'];
+      const scheduledAt = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      data.occurrencesById['missed-history-dishwasher'] = {
+        ...original,
+        id: 'missed-history-dishwasher',
+        scheduledAt,
+        dueAt: scheduledAt,
+        status: 'missed',
+        missedAt: new Date().toISOString(),
+      };
+      data.occurrencesById['today-dishwasher'] = {
+        ...original,
+        scheduledAt: new Date(Date.now() - 3_600_000).toISOString(),
+        dueAt: new Date(Date.now() + 3_600_000).toISOString(),
+      };
+      data.definitionsById.dishwasher.schedule = {
+        frequency: 'weekly',
+        startDate: scheduledAt.slice(0, 10),
+        time: '10:00',
+        timeZone: 'UTC',
+        daysOfWeek: [0],
+      };
+    }
     store.setPreviewDocument({ data });
     useChoreWorkspaceStore.setState({
       managementPinConfigured: true,
@@ -358,7 +382,7 @@ function HouseholdPointsStory() {
       });
       useChoreWorkspaceStore.getState().reset();
     };
-  }, []);
+  }, [missedHistory]);
   return ready ? <HouseholdSection syncEnabled={false} /> : null;
 }
 
@@ -1341,5 +1365,32 @@ export const LaterChoresStayOutOfToday: Story = {
     await expect(canvas.getByText('Nothing needs doing today')).toBeVisible();
     await expect(canvas.queryByText('Next 7 days')).not.toBeInTheDocument();
     await expect(canvas.queryByText('Unload dishwasher')).not.toBeInTheDocument();
+  },
+};
+
+export const MissedScheduledHistory: Story = {
+  render: () => <HouseholdPointsStory missedHistory />,
+  play: async ({ canvas, userEvent }) => {
+    await canvas.findByRole('region', { name: 'Today' });
+    const data = useChoreWorkspaceStore.getState().data;
+    if (!data) throw new Error('Expected chore workspace');
+    const schedule = data.definitionsById.dishwasher.schedule;
+    const todayIds = [
+      ...canvas.getByRole('region', { name: 'Today' }).querySelectorAll('[data-chore-status]'),
+    ].map((element) => element.textContent);
+    await expect(todayIds).not.toContain('Missed');
+    await userEvent.click(canvas.getByRole('button', { name: 'Progress' }));
+    const history = within(await canvas.findByRole('region', { name: 'History and export' }));
+    await expect(history.getByText('Missed')).toBeVisible();
+    await expect(history.getByRole('heading', { name: 'Unload dishwasher' })).toBeVisible();
+    await userEvent.click(history.getByRole('button', { name: 'Mark done' }));
+    await waitFor(() =>
+      expect(
+        useChoreWorkspaceStore.getState().data?.occurrencesById['missed-history-dishwasher'].status
+      ).toBe('done')
+    );
+    await expect(
+      useChoreWorkspaceStore.getState().data?.definitionsById.dishwasher.schedule
+    ).toEqual(schedule);
   },
 };

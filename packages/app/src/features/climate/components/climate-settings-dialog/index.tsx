@@ -171,7 +171,7 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
   const climateTabContent = (
     <div className="relative -mx-6 max-sm:-mx-3.5">
       <div className="relative z-10 pt-2 pb-6 max-sm:pb-3">
-        <div className="-mt-8">
+        <div>
           <ClimateGauge
             id={entityId}
             mode={visualMode}

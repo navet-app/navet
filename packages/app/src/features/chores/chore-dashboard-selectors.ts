@@ -3,6 +3,7 @@ import {
   type ChoreRewardGoal,
   normalizeChoreExperienceState,
 } from '@navet/core/chore-experience';
+import { getSupersedingChoreOccurrence } from '@navet/core/chore-recurrence-policy';
 import {
   type ChoreDefinition,
   type ChoreOccurrence,
@@ -95,7 +96,18 @@ export function getHouseholdTodayOccurrences(
   const dayStart = startOfLocalDay(now);
   return Object.values(data.occurrencesById)
     .filter((occurrence) => {
-      if (!definitionFor(data, occurrence) || !isVisibleWork(occurrence)) return false;
+      const definition = definitionFor(data, occurrence);
+      if (!definition || !isVisibleWork(occurrence)) return false;
+      if (
+        occurrence.status === 'missed' &&
+        getSupersedingChoreOccurrence(
+          occurrence,
+          definition,
+          data.occurrencesById,
+          now.toISOString()
+        )
+      )
+        return false;
       if (occursOnLocalDay(occurrence, dayStart)) return true;
       return !isFinal(occurrence) && getChoreTiming(occurrence, now) === 'overdue';
     })
@@ -421,4 +433,20 @@ export function getDefinition(
   occurrence: ChoreOccurrence
 ): ChoreDefinition | undefined {
   return definitionFor(data, occurrence);
+}
+
+export function getMissedScheduledChoreHistory(
+  data: ChoreWorkspaceData,
+  now = new Date()
+): ChoreOccurrence[] {
+  return Object.values(data.occurrencesById)
+    .filter((item) => {
+      const definition = data.definitionsById[item.definitionId];
+      return (
+        item.status === 'missed' &&
+        definition &&
+        getSupersedingChoreOccurrence(item, definition, data.occurrencesById, now.toISOString())
+      );
+    })
+    .sort((a, b) => Date.parse(b.scheduledAt) - Date.parse(a.scheduledAt));
 }

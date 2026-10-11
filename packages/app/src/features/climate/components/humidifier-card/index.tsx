@@ -1000,7 +1000,6 @@ export const HumidifierCard = memo(function HumidifierCard({
                         size={isSmall ? 'small' : 'medium'}
                         tone={isOn ? 'default' : 'muted'}
                         variant="soft"
-                        accentColor={humidityAccentColor}
                       />
                     </div>
                   }

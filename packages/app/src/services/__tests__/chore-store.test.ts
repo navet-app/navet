@@ -680,6 +680,10 @@ describe('NJS chore workspace store', () => {
         nextAttemptAt: '2026-09-28T08:00:00.000Z',
       }));
       mockFs.writeFileSync(CHORE_PATH, JSON.stringify(stored));
+      const tick = createRequest();
+      choreStore.handle(tick);
+      const scheduled = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
+      for (const id of Object.keys(preserved)) preserved[id] = scheduled.data.occurrencesById[id];
       const updated = send({
         type: 'definition_update',
         actorParticipantId: 'maya',
@@ -2013,4 +2017,90 @@ describe('shared occurrence transition conformance', () => {
       }
     });
   }
+});
+
+describe('NJS outstanding after-completion intervals', () => {
+  afterEach(() => {
+    choreStore.resetChoreStoreForTests();
+    vi.useRealTimers();
+  });
+  it('persists completion of work older than 90 days and its next interval after reload', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-12-11T10:00:00.000Z'));
+    const mockFs = createMockFs();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    const document = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
+    document.data.definitionsById.dishes.schedule = {
+      frequency: 'after_completion',
+      startDate: '2026-08-10',
+      time: '10:00',
+      timeZone: 'UTC',
+      intervalDays: 14,
+    };
+    document.data.occurrencesById[OCCURRENCE_ID].status = 'missed';
+    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(document));
+    const complete = createActionRequest('complete-old', document.revision, {
+      type: 'occurrence_action',
+      occurrenceId: OCCURRENCE_ID,
+      action: { type: 'complete', participantId: 'maya' },
+    });
+    choreStore.handle(complete);
+    expect(complete.return).toHaveBeenCalledWith(200, expect.any(String));
+    const saved = parseResponse(complete);
+    expect(saved.data.occurrencesById[OCCURRENCE_ID]).toMatchObject({
+      status: 'done',
+      completedAt: '2026-12-11T10:00:00.000Z',
+    });
+    expect(
+      Object.values(saved.data.occurrencesById as Record<string, ChoreOccurrence>)
+        .filter((item) => item.status === 'available')
+        .map((item) => item.scheduledAt)
+    ).toEqual(['2026-12-25T10:00:00.000Z']);
+    choreStore.resetChoreStoreForTests();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    const reload = createRequest();
+    choreStore.handle(reload);
+    expect(parseResponse(reload).data.occurrencesById).toEqual(saved.data.occurrencesById);
+  });
+  it('keeps everyone clocks independent and holds missed work outside the rolling window', () => {
+    const source = seededData('everyone');
+    const definition = {
+      ...source.definitionsById.dishes,
+      assignment: { mode: 'everyone', participantIds: ['maya', 'sofia'] },
+      schedule: {
+        frequency: 'after_completion',
+        startDate: '2026-08-10',
+        time: '10:00',
+        timeZone: 'UTC',
+        intervalDays: 14,
+      },
+    };
+    const original = source.occurrencesById[OCCURRENCE_ID];
+    const existing = {
+      maya: { ...original, status: 'done', completedAt: '2026-12-11T10:00:00.000Z' },
+      sofia: {
+        ...original,
+        id: 'old-sofia',
+        assignmentSlot: 'sofia',
+        assigneeIds: ['sofia'],
+        status: 'missed',
+      },
+    };
+    const result = choreStore.materializeDefinitionForTests(
+      definition,
+      { maya: managerParticipant(), sofia: managerParticipant('sofia') },
+      '2026-09-12T00:00:00.000Z',
+      '2027-01-25T00:00:00.000Z',
+      existing,
+      '2026-12-11T10:00:00.000Z',
+      true
+    );
+    expect(result.map((item) => [item.assigneeIds, item.scheduledAt])).toEqual([
+      [['maya'], '2026-12-25T10:00:00.000Z'],
+      [['sofia'], '2026-08-10T10:00:00.000Z'],
+    ]);
+  });
 });

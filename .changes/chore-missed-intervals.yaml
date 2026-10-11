@@ -1,0 +1,6 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+  - hacs
+summary: Keep after-completion chores actionable until finished, restart each person's interval independently, and move superseded scheduled chores into missed history.

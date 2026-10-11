@@ -75,10 +75,16 @@ hourly-interval, and after-completion recurrence. Calendar schedules and complet
 keep the chosen local time; hourly intervals count elapsed hours through daylight-saving changes.
 For after-completion schedules, marking a chore done sets its next date from the day it was
 completed. A 14-day interval completed on 4 October is next due on 18 October, even when the chore
-was completed early. Each person can have a later due date for their turn.
+was completed early. With an everyone assignment, each person's interval starts independently
+when they mark their own occurrence done. Unfinished after-completion chores remain actionable;
+automatic skip and carry-forward settings do not replace them.
 
-Optional approval separates “marked done” from final completion. Missed-work rules can skip an
-occurrence, carry it forward, or leave it visible for review. Pausing a chore stops new occurrences
+Optional approval separates “marked done” from final completion; the after-completion interval
+starts when work is submitted. Fixed schedules keep their original dates. When the next scheduled
+occurrence starts, older unfinished work becomes missed and leaves Today. It remains available
+in **Progress → History and export** for optional late completion without shifting the schedule.
+Work awaiting approval remains pending. Explicit missed-work rules can still skip or carry forward
+fixed scheduled work. Pausing a chore stops new occurrences
 without deleting completed history.
 
 A claim can open only near the scheduled start, wait for an earlier turn's approval, and stay with

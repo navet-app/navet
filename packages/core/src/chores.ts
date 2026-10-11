@@ -10,6 +10,13 @@ import {
 } from './chore-calendar-policy.ts';
 import { applyChoreOccurrenceCommand } from './chore-occurrence-policy.ts';
 import { earnChoreProgressAwards } from './chore-progress-policy.ts';
+import {
+  getLatestChoreCompletion,
+  getOutstandingChoreOccurrence,
+  getParticipantChoreOccurrences,
+  getSupersedingChoreOccurrence,
+  shouldPruneChoreOccurrence,
+} from './chore-recurrence-policy.ts';
 import { assertSafeRecord, setOwnRecordValue } from './record-safety.ts';
 
 export { applyChoreOccurrenceCommand } from './chore-occurrence-policy.ts';
@@ -1231,6 +1238,42 @@ export function materializeChoreOccurrences(
     throw new Error('Invalid chore occurrence range');
   }
 
+  if (definition.schedule.frequency === 'after_completion') {
+    if (definition.assignment.mode === 'everyone') {
+      return definition.assignment.participantIds.flatMap((participantId) => {
+        const personalOccurrences = getParticipantChoreOccurrences(
+          definition,
+          existingOccurrences,
+          participantId
+        );
+        return materializeChoreOccurrences(
+          {
+            definition: {
+              ...definition,
+              assignment: {
+                ...definition.assignment,
+                mode: 'person',
+                participantIds: [participantId],
+              },
+            },
+            participantsById,
+            rangeStart,
+            rangeEnd,
+            existingOccurrences: personalOccurrences,
+            latestCompletedAt: getLatestChoreCompletion(personalOccurrences),
+          },
+          materializeNextAfterCompletion
+        );
+      });
+    }
+    const outstanding = getOutstandingChoreOccurrence(
+      definition,
+      existingOccurrences,
+      latestCompletedAt
+    );
+    if (outstanding) return [outstanding];
+  }
+
   const completionCountsByParticipant: Record<string, number> = Object.create(null);
   if (definition.assignment.rotationStrategy === 'fair') {
     for (const occurrence of Object.values(existingOccurrences)) {
@@ -1326,6 +1369,7 @@ export function materializeChoreOccurrences(
     const nextDate = latestCompletedAt ? addCalendarDays(anchor, schedule.intervalDays) : anchor;
     if (
       (materializeNextAfterCompletion ||
+        nextDate < rangeStartDateKey ||
         (nextDate >= rangeStartDateKey && nextDate <= finalDateKey)) &&
       (schedule.endDate === undefined || nextDate <= schedule.endDate) &&
       !schedule.excludedDates?.includes(nextDate)
@@ -1368,7 +1412,10 @@ export function materializeChoreOccurrences(
         const scheduledAt = localDateTimeToIso(personalDate, scheduledTimeValue, schedule.timeZone);
         const scheduledTime = new Date(scheduledAt).getTime();
         if (
-          !(materializeNextAfterCompletion && schedule.frequency === 'after_completion') &&
+          !(
+            schedule.frequency === 'after_completion' &&
+            (materializeNextAfterCompletion || scheduledTime < rangeStartTime)
+          ) &&
           (scheduledTime < rangeStartTime || scheduledTime > rangeEndTime)
         )
           continue;
@@ -1557,9 +1604,24 @@ export function runChoreWorkspaceScheduler(
     if (occurrence.status !== 'available' && occurrence.status !== 'claimed') continue;
     if (!hasAvailableAssignee(occurrence)) continue;
     const definition = workspace.definitionsById[occurrence.definitionId];
-    const policy = definition?.missedPolicy;
-    if (!definition || !policy) continue;
-    const missedBoundary = Date.parse(occurrence.dueAt) + policy.graceMinutes * 60_000;
+    if (!definition || definition.schedule.frequency === 'after_completion') continue;
+    const superseding = getSupersedingChoreOccurrence(
+      occurrence,
+      definition,
+      occurrencesById,
+      timestamp
+    );
+    const policy = superseding
+      ? { graceMinutes: 0, action: 'none' as const }
+      : definition.missedPolicy;
+    if (
+      !policy ||
+      (!superseding && policy.action === 'none' && definition.schedule.frequency !== 'once')
+    )
+      continue;
+    const missedBoundary = superseding
+      ? Date.parse(superseding.scheduledAt)
+      : Date.parse(occurrence.dueAt) + policy.graceMinutes * 60_000;
     if (!Number.isFinite(missedBoundary) || now < missedBoundary) continue;
 
     const activity: ChoreActivity = {
@@ -1568,7 +1630,7 @@ export function runChoreWorkspaceScheduler(
       occurrenceId: occurrence.id,
       definitionId: definition.id,
       type: policy.action === 'skip' ? 'skipped' : 'missed',
-      reason: 'Missed-work policy',
+      reason: superseding ? 'Next scheduled occurrence started' : 'Missed-work policy',
       timestamp,
     };
     const nextOccurrence: ChoreOccurrence = {
@@ -2907,8 +2969,12 @@ function applyChoreWorkspaceActionWithoutRecurrence(
   const retentionBoundary = Date.parse(timestamp) - 90 * 86_400_000;
   for (const occurrence of Object.values(occurrencesById)) {
     if (
-      (occurrence.status === 'done' || occurrence.status === 'skipped') &&
-      Date.parse(occurrence.scheduledAt) < retentionBoundary
+      shouldPruneChoreOccurrence(
+        occurrence,
+        workspace.definitionsById,
+        occurrencesById,
+        retentionBoundary
+      )
     ) {
       delete occurrencesById[occurrence.id];
     }
