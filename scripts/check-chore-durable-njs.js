@@ -332,4 +332,37 @@ assert(offsetPersistedRead.status === 200 && offsetPersistedRead.body.revision =
 paths['/data/navet-chore-workspace.json'] = '{broken';
 const offsetBackupRead = request('GET', '/__navet_chores__/workspace');
 assert(offsetBackupRead.status === 200 && offsetBackupRead.body.data.occurrencesById[offsetOriginal.id].supersededAt === offsetOwnBoundary.scheduledAt, 'Offset-marked last-good snapshot restores corrupted primary');
+// A quiet legacy backfill must still reach durable persistence, from either evidence source.
+const quietEvidenceSources = ['successor', 'history'];
+for (let quietIndex = 0; quietIndex < quietEvidenceSources.length; quietIndex += 1) {
+  const evidenceSource = quietEvidenceSources[quietIndex];
+  const quietBoundary = new Date(Date.now() - 3600000).toISOString();
+  const quietDefinition = Object.assign({}, offsetSchedulerDefinition, { enabled: false, assignment: { mode: 'person', participantIds: ['manager'] } });
+  const quietOriginal = Object.assign({}, offsetOriginal, { id: 'quiet-original', status: 'missed', assigneeIds: ['manager'], assignmentSlot: 'manager', scheduledAt: new Date(Date.now() - 86400000).toISOString(), dueAt: new Date(Date.now() + 86400000).toISOString(), missedAt: quietBoundary, supersededAt: undefined });
+  const quietSuccessor = Object.assign({}, quietOriginal, { id: 'quiet-successor', status: 'done', scheduledAt: quietBoundary, completedAt: quietBoundary });
+  const quietOccurrences = {};
+  quietOccurrences[quietOriginal.id] = quietOriginal;
+  if (evidenceSource === 'successor') quietOccurrences[quietSuccessor.id] = quietSuccessor;
+  const quietActivity = evidenceSource === 'history' ? [{ id: 'quiet-missed', commandId: 'quiet-history', type: 'missed', occurrenceId: quietOriginal.id, definitionId: 'repeat', timestamp: quietBoundary, reason: 'Next scheduled occurrence started' }] : [];
+  const quietData = Object.assign({}, archiveData, { definitionsById: { repeat: quietDefinition }, occurrencesById: quietOccurrences, activity: quietActivity, outbox: [] });
+  const quietDocument = Object.assign({}, doc, { data: quietData, revision: 10 });
+  paths['/data/navet-chore-workspace.json'] = JSON.stringify(quietDocument);
+  paths['/data/navet-chore-workspace.last-good.json'] = JSON.stringify(quietDocument);
+  const quietRead = request('GET', '/__navet_chores__/workspace');
+  assert(quietRead.status === 200 && quietRead.body.data.occurrencesById[quietOriginal.id].supersededAt === quietBoundary, 'Quiet ' + evidenceSource + ' backfill reaches workspace response');
+  assert(quietRead.body.revision === 11 && JSON.stringify(quietRead.body.data.activity) === JSON.stringify(quietActivity) && quietRead.body.data.outbox.length === 0, 'Marker-only backfill persists one revision without activity or reminders');
+  const quietRestart = request('GET', '/__navet_chores__/workspace');
+  assert(quietRestart.body.revision === 11 && quietRestart.body.data.occurrencesById[quietOriginal.id].supersededAt === quietBoundary, 'Quiet marker survives restart without repeated revision');
+  const quietPersisted = JSON.parse(paths['/data/navet-chore-workspace.json']);
+  assert(quietPersisted.data.occurrencesById[quietOriginal.id].supersededAt === quietBoundary, 'Quiet marker is in the actual persisted primary');
+  delete quietPersisted.data.occurrencesById[quietSuccessor.id];
+  quietPersisted.data.activity = [];
+  paths['/data/navet-chore-workspace.json'] = JSON.stringify(quietPersisted);
+  paths['/data/navet-chore-workspace.last-good.json'] = JSON.stringify(quietPersisted);
+  const withoutEvidence = request('GET', '/__navet_chores__/workspace');
+  assert(withoutEvidence.status === 200 && withoutEvidence.body.data.occurrencesById[quietOriginal.id].supersededAt === quietBoundary, 'Restart retains history after successor and event pruning');
+  paths['/data/navet-chore-workspace.json'] = '{broken';
+  const quietRecovered = request('GET', '/__navet_chores__/workspace');
+  assert(quietRecovered.status === 200 && quietRecovered.body.data.occurrencesById[quietOriginal.id].supersededAt === quietBoundary, 'Backup recovery retains quiet durable history without successor');
+}
 print('Passed native NJS chore recurrence assertions');
