@@ -1,4 +1,4 @@
-import type { ChoreActivity, ChoreDefinition, ChoreOccurrence } from './chores';
+import type { ChoreActivity, ChoreDefinition, ChoreOccurrence } from './chores.ts';
 
 /** Parse accepted ISO instants in runtimes whose Date parser lacks numeric offsets. */
 export function parseChoreInstant(timestamp: string): number {
