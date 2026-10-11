@@ -23,6 +23,7 @@ export const ZONE_DEFAULTS_BY_DEVICE_TYPE: Record<string, ZoneName> = {
   lights: 'actions',
   fans: 'actions',
   switches: 'actions',
+  helpers: 'actions',
   timers: 'actions',
   counters: 'actions',
   valves: 'actions',

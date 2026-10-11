@@ -7,6 +7,7 @@ const SEARCH_DEVICE_KEYS = [
   'climate',
   'hvac',
   'switches',
+  'helpers',
   'timers',
   'counters',
   'valves',
@@ -56,6 +57,23 @@ const {
     ...emptyDeviceCollection,
     lights: [{ id: 'light.kitchen_pendant', name: 'Kitchen pendant', room: 'Kitchen' }],
     sensors: [{ id: 'sensor.outdoor_temperature', name: 'Outdoor temperature', room: 'Garden' }],
+    helpers: [
+      'number',
+      'input_number',
+      'select',
+      'input_select',
+      'text',
+      'input_text',
+      'date',
+      'time',
+      'datetime',
+      'input_datetime',
+    ].map((domain, index) => ({
+      id: `home_assistant:${domain}.value`,
+      name: `Value control ${index}`,
+      room: `Utility room ${index}`,
+      entityType: domain,
+    })),
     timers: [{ id: 'homey:tea', name: 'Steeping', room: 'Pantry' }],
     counters: [{ id: 'homey:visits', name: 'Visits', room: 'Workshop' }],
     valves: [{ id: 'homey:irrigation', name: 'Water supply', room: 'Greenhouse' }],
@@ -110,6 +128,35 @@ describe('useHeaderSearch', () => {
       rerender();
       await waitFor(() => expect(setFilteredDeviceIdsMock).toHaveBeenLastCalledWith([id]));
     }
+  });
+
+  it.each([
+    'number',
+    'input_number',
+    'select',
+    'input_select',
+    'text',
+    'input_text',
+    'date',
+    'time',
+    'datetime',
+    'input_datetime',
+  ])('finds %s helpers by name, room, domain and provider identity', async (domain) => {
+    const device = activeDeviceCollection.helpers.find((helper) => helper.entityType === domain);
+    if (!device) throw new Error(`Missing ${domain} helper fixture`);
+    const { result, rerender } = renderHook(() => useHeaderSearch());
+    for (const query of [device.name, device.room, device.id]) {
+      act(() => result.current.handleSearchChange(query));
+      rerender();
+      await waitFor(() => expect(setFilteredDeviceIdsMock).toHaveBeenLastCalledWith([device.id]));
+    }
+    act(() => result.current.handleSearchChange(domain));
+    rerender();
+    await waitFor(() => {
+      expect(setFilteredDeviceIdsMock).toHaveBeenLastCalledWith(
+        expect.arrayContaining([device.id])
+      );
+    });
   });
 
   beforeEach(() => {
