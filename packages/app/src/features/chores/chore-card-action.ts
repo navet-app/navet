@@ -9,7 +9,7 @@ export function getChoreCardAction(
   execute: (action: ChoreWorkspaceAction) => Promise<boolean>,
   t: TranslateFn
 ): ChoreCardAction | undefined {
-  if (occurrence.status === 'done') {
+  if (definition.archivedAt || occurrence.status === 'done') {
     return undefined;
   }
 
