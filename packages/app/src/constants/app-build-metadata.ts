@@ -63,6 +63,10 @@ export function getAppBuildChannelLabel(version = APP_VERSION) {
   }
 }
 
-export function isDevOrLocalBuild(channel = APP_BUILD_METADATA.releaseChannel) {
-  return ['development', 'dev', 'local'].includes(channel);
+export function isLocalDevelopmentBuild(
+  channel = APP_BUILD_METADATA.releaseChannel,
+  hostname = typeof window === 'undefined' ? '' : window.location.hostname
+) {
+  const isLoopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+  return isLoopback && ['development', 'dev', 'local'].includes(channel);
 }

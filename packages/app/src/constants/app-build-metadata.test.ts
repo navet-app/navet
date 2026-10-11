@@ -3,7 +3,7 @@ import {
   getAppBuildChannelLabel,
   getAppReleaseBadgeLabel,
   isAppPreV1,
-  isDevOrLocalBuild,
+  isLocalDevelopmentBuild,
 } from '@navet/app/constants/app-build-metadata';
 import { APP_VERSION } from '@navet/app/constants/app-version';
 import { DASHBOARD_CONFIG_VERSION } from '@navet/app/constants/dashboard-config-version';
@@ -40,11 +40,21 @@ describe('APP_BUILD_METADATA', () => {
     expect(getAppBuildChannelLabel('1.0.0')).toBe('Dev');
   });
 
-  it('identifies development and local build channels', () => {
-    expect(isDevOrLocalBuild('development')).toBe(true);
-    expect(isDevOrLocalBuild('dev')).toBe(true);
-    expect(isDevOrLocalBuild('local')).toBe(true);
-    expect(isDevOrLocalBuild('beta')).toBe(false);
-    expect(isDevOrLocalBuild('stable')).toBe(false);
+  it.each(['localhost', '127.0.0.1', '[::1]'])('identifies local development on %s', (hostname) => {
+    for (const channel of ['development', 'dev', 'local']) {
+      expect(isLocalDevelopmentBuild(channel, hostname)).toBe(true);
+    }
+    for (const channel of ['edge', 'beta', 'stable']) {
+      expect(isLocalDevelopmentBuild(channel, hostname)).toBe(false);
+    }
   });
+
+  it.each(['dev.navet.app', 'homeassistant.local', '192.168.1.20', '', 'localhost.example.com'])(
+    'preserves build identity outside loopback on %s',
+    (hostname) => {
+      for (const channel of ['development', 'dev', 'local']) {
+        expect(isLocalDevelopmentBuild(channel, hostname)).toBe(false);
+      }
+    }
+  );
 });

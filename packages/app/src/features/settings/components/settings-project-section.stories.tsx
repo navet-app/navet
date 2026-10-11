@@ -1,3 +1,5 @@
+import { isLocalDevelopmentBuild } from '@navet/app/constants/app-build-metadata';
+import { APP_VERSION } from '@navet/app/constants/app-version';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 import { useSettingsSectionController } from '../hooks/use-settings-section-controller';
@@ -35,8 +37,13 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('Local development build')).toBeVisible();
-    await expect(canvas.queryByText('Beta', { exact: true })).not.toBeInTheDocument();
+    if (isLocalDevelopmentBuild()) {
+      await expect(canvas.getByText('Local development build')).toBeVisible();
+      await expect(canvas.queryByText('Beta', { exact: true })).not.toBeInTheDocument();
+    } else {
+      await expect(canvas.getByText(APP_VERSION, { exact: true })).toBeVisible();
+      await expect(canvas.queryByText('Local development build')).not.toBeInTheDocument();
+    }
     await expect(canvasElement.querySelectorAll('[data-settings-detail-group]')).toHaveLength(2);
     await expect(canvas.getByRole('link', { name: 'Join Discord' })).toHaveAttribute(
       'href',
