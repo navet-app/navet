@@ -93,12 +93,15 @@ const { callHomeAssistantServiceMock, resolveArtworkMock } = vi.hoisted(() => ({
 }));
 
 describe('homeassistant-adapter', () => {
+  const getConnectionMock = vi.fn<HomeAssistantServiceBridge['getConnection']>(() => null);
   const connectMock = vi.fn(async () => undefined);
   const disconnectMock = vi.fn(async () => undefined);
   const syncPanelHassMock = vi.fn();
   let currentMediaPlayerState: 'playing' | 'paused' = 'playing';
 
   beforeEach(() => {
+    getConnectionMock.mockReset();
+    getConnectionMock.mockReturnValue(null);
     callHomeAssistantServiceMock.mockReset();
     resolveArtworkMock.mockReset();
     connectMock.mockReset();
@@ -114,7 +117,7 @@ describe('homeassistant-adapter', () => {
       addListener: vi.fn(() => () => {}),
       isConnected: vi.fn(() => true),
       getPanelHass: vi.fn(() => null),
-      getConnection: vi.fn(() => null),
+      getConnection: getConnectionMock,
       sendWebSocketBinary: vi.fn(),
       getEntities: vi.fn(() => ({
         ...writableHelperEntities,
@@ -188,6 +191,20 @@ describe('homeassistant-adapter', () => {
       })),
       subscribeStore: vi.fn(() => () => {}),
     });
+  });
+
+  it('rejects commands when the household changes during command loading', async () => {
+    const previousConnection = { sendMessagePromise: vi.fn() };
+    const replacementConnection = { sendMessagePromise: vi.fn() };
+    getConnectionMock
+      .mockReturnValueOnce(previousConnection)
+      .mockReturnValue(replacementConnection);
+    const adapter = createHomeAssistantContractAdapter();
+
+    await expect(adapter.execute({ type: 'turn_on', entityId: 'light.kitchen' })).rejects.toThrow(
+      'Home Assistant session changed'
+    );
+    expect(callHomeAssistantServiceMock).not.toHaveBeenCalled();
   });
 
   it('routes advanced climate commands to the owning entity with event confirmation', async () => {
