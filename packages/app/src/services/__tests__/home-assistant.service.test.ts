@@ -207,6 +207,89 @@ describe('Home Assistant registry freshness', () => {
     expect(homeAssistantService.getAreas()).toEqual([]);
   });
 
+  it.each(['callWS', 'connection'] as const)(
+    'clears former-user metadata on the same %s transport even when replacement reads fail',
+    async (transport) => {
+      const panel = registryPanel();
+      if (transport === 'callWS') panel.hass.connection = undefined;
+      const callWS = panel.hass.callWS;
+      let denied = false;
+      panel.hass.callWS = vi.fn(async (message) => {
+        if (denied) throw new Error('Replacement user cannot read registries');
+        if (message.type === 'config/category_registry/list')
+          return [{ category_id: 'private-a', name: 'User A routines' }];
+        return callWS(message);
+      }) as HomeAssistantPanelHass['callWS'];
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      homeAssistantService.setPanelHass(panel.hass);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(homeAssistantService.getAreas()).toEqual(householdRegistryBefore.areas);
+      expect(homeAssistantService.getAutomationCategories()).toHaveLength(1);
+      const oldCallbacks = [...panel.callbacks.values()];
+      const oldReady = [...panel.readyListeners];
+      const published = vi.fn();
+      const unsubscribe = homeAssistantService.addListener('registries', published);
+      denied = true;
+      const replacement = { ...panel.hass, user: { ...panelUser, id: 'replacement-user' } };
+      homeAssistantService.setPanelHass(replacement);
+      const empty = { areas: [], devices: [], entities: [], automationCategories: [] };
+      expect(published).toHaveBeenLastCalledWith(empty);
+      expect(homeAssistantService.getAreas()).toEqual([]);
+      expect(homeAssistantService.getDeviceRegistry()).toEqual([]);
+      expect(homeAssistantService.getEntityRegistry()).toEqual([]);
+      expect(homeAssistantService.getAutomationCategories()).toEqual([]);
+      if (transport === 'connection') expect(panel.unsubscribe).toHaveBeenCalledTimes(4);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(panel.hass.callWS).toHaveBeenCalledTimes(8);
+      expect(vi.getTimerCount()).toBe(transport === 'callWS' ? 1 : 0);
+      for (const [snapshot] of published.mock.calls) expect(snapshot).toEqual(empty);
+      const calls = vi.mocked(panel.hass.callWS).mock.calls.length;
+      for (const callback of oldCallbacks) callback(householdRegistryEvents[0]);
+      for (const ready of oldReady) ready();
+      homeAssistantService.setPanelHass({ ...replacement, states: { ...replacement.states } });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(panel.hass.callWS).toHaveBeenCalledTimes(calls);
+      unsubscribe();
+    }
+  );
+
+  it.each(['callWS', 'connection'] as const)(
+    'loads a new user on the same %s transport without accepting an obsolete read',
+    async (transport) => {
+      const panel = registryPanel();
+      if (transport === 'callWS') panel.hass.connection = undefined;
+      const callWS = panel.hass.callWS;
+      let delay = false;
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      panel.hass.callWS = vi.fn(async (message) => {
+        const result = await callWS(message);
+        if (delay) await gate;
+        return result;
+      }) as HomeAssistantPanelHass['callWS'];
+      homeAssistantService.setPanelHass(panel.hass);
+      await vi.advanceTimersByTimeAsync(100);
+      delay = true;
+      const oldRead = homeAssistantService.loadRegistries();
+      await vi.advanceTimersByTimeAsync(0);
+      delay = false;
+      panel.update();
+      homeAssistantService.setPanelHass({
+        ...panel.hass,
+        user: { ...panelUser, id: 'replacement-user' },
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(homeAssistantService.getAreas()).toEqual(householdRegistryAfter.areas);
+      release();
+      await oldRead;
+      expect(homeAssistantService.getAreas()).toEqual(householdRegistryAfter.areas);
+      expect(homeAssistantService.getEntityRegistry()).toEqual(householdRegistryAfter.entities);
+      expect(panel.hass.callWS).toHaveBeenCalledTimes(12);
+    }
+  );
+
   it('refreshes callWS-only registry edits on a bounded cadence despite fresh hass wrappers', async () => {
     const panel = registryPanel();
     panel.hass.connection = undefined;

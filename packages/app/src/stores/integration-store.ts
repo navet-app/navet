@@ -469,6 +469,7 @@ export const integrationStore = createStore<IntegrationStore>()((set) => {
   };
 
   const currentHomeAssistantState = homeAssistantStore.getState();
+  let homeAssistantControlConnection = currentHomeAssistantState.connection;
   const initialCanonicalState = buildInitialProviderScopedState();
   const initialProviderRuntime = buildProviderRuntime(providerScopedStateByProviderId);
   const initialProviderEntitiesByCanonicalId = flattenProviderRecords(
@@ -497,6 +498,16 @@ export const integrationStore = createStore<IntegrationStore>()((set) => {
       providerScopedStateByProviderId[providerId]
     );
     const providerState = nextProviderScopedState.sourceProviderState;
+    const homeAssistantState =
+      providerId === 'home_assistant' ? homeAssistantStore.getState() : null;
+    // The panel adapter replaces this bridge for transport or authenticated-user changes.
+    // Publish that boundary through the existing normalized owner session used by controls.
+    const replaceHomeAssistantSession = Boolean(
+      homeAssistantState?.connected &&
+        homeAssistantState.connection &&
+        homeAssistantControlConnection !== homeAssistantState.connection
+    );
+    if (homeAssistantState) homeAssistantControlConnection = homeAssistantState.connection;
 
     set((current) =>
       syncProviderState(
@@ -506,7 +517,21 @@ export const integrationStore = createStore<IntegrationStore>()((set) => {
         buildProviderRuntimeState(providerId, providerState),
         buildProviderHealth(providerId, providerState),
         providerId === 'home_assistant'
-          ? { currentUser: current.currentUser ?? homeAssistantStore.getState().user }
+          ? {
+              currentUser: current.currentUser ?? homeAssistantState?.user ?? null,
+              ...(replaceHomeAssistantSession
+                ? {
+                    providerSessions: {
+                      ...current.providerSessions,
+                      home_assistant: {
+                        ...current.providerSessions.home_assistant,
+                        providerId: 'home_assistant',
+                        connected: true,
+                      },
+                    },
+                  }
+                : {}),
+            }
           : undefined
       )
     );

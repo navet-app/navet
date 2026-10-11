@@ -1,3 +1,4 @@
+import type { HomeAssistantPanelHass } from '@navet/app/services/home-assistant-panel-adapter';
 import { homeyService } from '@navet/app/services/homey.service';
 import { lightEntityFactory } from '@navet/app/test/fixtures/home-assistant/entities/light';
 import { resetAppStores } from '@navet/app/test/store-reset';
@@ -8,6 +9,61 @@ import { integrationStore } from '../integration-store';
 import { homeAssistantSelectors } from '../selectors';
 
 describe('integrationStore', () => {
+  it.each(['callWS', 'connection'] as const)(
+    'rotates only the owning normalized session when an actual panel user changes over %s',
+    async (transport) => {
+      await resetAppStores();
+      const hass: HomeAssistantPanelHass = {
+        states: {},
+        config: {
+          time_zone: 'UTC',
+          location_name: 'Panel home',
+          unit_system: { temperature: 'C' },
+        } as HomeAssistantPanelHass['config'],
+        user: {
+          id: 'user-a',
+          name: 'User A',
+          is_admin: true,
+          is_owner: true,
+        } as HomeAssistantPanelHass['user'],
+        callService: vi.fn(async () => undefined),
+        callWS: vi.fn(async () => []) as HomeAssistantPanelHass['callWS'],
+        ...(transport === 'connection'
+          ? {
+              connection: {
+                subscribeMessage: vi.fn(async () => () => {}),
+              } as unknown as HomeAssistantPanelHass['connection'],
+            }
+          : {}),
+      };
+      homeAssistantStore.getState().syncPanelHass(hass);
+      const other = { providerId: 'homey' as const, connected: true };
+      integrationStore.getState().setProviderSessions({
+        home_assistant: {
+          providerId: 'home_assistant',
+          connected: true,
+          runtime: 'ha-panel',
+          authMode: 'ha_frontend_session',
+        },
+        homey: other,
+      });
+      const initial = integrationStore.getState().providerSessions.home_assistant;
+      homeAssistantStore.getState().syncPanelHass({ ...hass, states: { ...hass.states } });
+      expect(integrationStore.getState().providerSessions.home_assistant).toBe(initial);
+      homeAssistantStore.getState().syncPanelHass({
+        ...hass,
+        user: { id: 'user-b', name: 'User B', is_admin: true, is_owner: true },
+      });
+      const replacement = integrationStore.getState().providerSessions.home_assistant;
+      expect(replacement).not.toBe(initial);
+      expect(replacement).toEqual(initial);
+      expect(integrationStore.getState().providerSessions.homey).toBe(other);
+      expect(integrationStore.getState().providerRuntime.home_assistant.connected).toBe(true);
+      homeAssistantStore.setState({ entities: { ...homeAssistantStore.getState().entities } });
+      expect(integrationStore.getState().providerSessions.home_assistant).toBe(replacement);
+    }
+  );
+
   it('tracks provider health for implemented providers', async () => {
     await resetAppStores();
 
