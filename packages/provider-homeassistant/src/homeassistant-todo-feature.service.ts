@@ -17,11 +17,14 @@ function sourceIdentity() {
   return panel ? (panel.connection ?? panel.callWS) : getHomeAssistantConnection();
 }
 
+const summaryTargets = new Map<string, Map<string, string | null>>();
+
 let sessionSource: unknown;
 let sessionGeneration = 0;
 function sessionKey() {
   const source = isHomeAssistantConnected() ? sourceIdentity() : null;
   if (source !== sessionSource) {
+    summaryTargets.clear();
     sessionSource = source;
     sessionGeneration++;
   }
@@ -60,32 +63,61 @@ function getList(listId: string): NavetTodoList {
   };
 }
 
-function normalizeItems(result: unknown): NavetTodoItem[] {
+function normalizeItems(listId: string, result: unknown): NavetTodoItem[] {
   if (
     !result ||
     typeof result !== 'object' ||
     !Array.isArray((result as { items?: unknown }).items)
   )
     throw new Error('Invalid shared list response');
-  return (result as { items: unknown[] }).items.map((item) => {
+  const rawItems = (result as { items: unknown[] }).items;
+  const usedIds = new Set(rawItems.map((item) => (item as { uid?: unknown } | null)?.uid));
+  const targets = new Map<string, string | null>();
+  const occurrences = new Map<string, number>();
+  const items = rawItems.map((item) => {
     if (!item || typeof item !== 'object') throw new Error('Invalid shared list item');
     const raw = item as Record<string, unknown>;
     if (
-      typeof raw.uid !== 'string' ||
-      !raw.uid ||
+      (raw.uid != null && typeof raw.uid !== 'string') ||
       typeof raw.summary !== 'string' ||
       (raw.status !== 'needs_action' && raw.status !== 'completed')
     )
       throw new Error('Invalid shared list item');
+    let uid = typeof raw.uid === 'string' && raw.uid ? raw.uid : undefined;
+    if (!uid) {
+      const occurrence = occurrences.get(raw.summary) ?? 0;
+      occurrences.set(raw.summary, occurrence + 1);
+      uid = `navet-summary:${encodeURIComponent(raw.summary)}:${occurrence}`;
+      while (usedIds.has(uid)) uid += ':';
+      usedIds.add(uid);
+      // HA resolves summaries to the first matching item. Reject ambiguous actions.
+      const matches = rawItems.filter(
+        (other) => (other as { summary?: unknown } | null)?.summary === raw.summary
+      );
+      targets.set(uid, matches.length === 1 ? raw.summary : null);
+    }
     const due = typeof raw.due === 'string' ? raw.due : undefined;
     return {
-      uid: raw.uid,
+      uid,
       summary: raw.summary,
       completed: raw.status === 'completed',
       ...(typeof raw.description === 'string' ? { description: raw.description } : {}),
       ...(due ? (/^\d{4}-\d{2}-\d{2}$/.test(due) ? { dueDate: due } : { dueDateTime: due }) : {}),
     };
   });
+  summaryTargets.set(listId, targets);
+  return items;
+}
+
+function itemTarget(listId: string, uid: string) {
+  const targets = summaryTargets.get(listId);
+  if (!targets?.has(uid)) {
+    if (uid.startsWith('navet-summary:')) throw new Error('Shared list item changed');
+    return uid;
+  }
+  const target = targets.get(uid);
+  if (target == null) throw new Error('Item name is ambiguous');
+  return target;
 }
 
 function clientFor(
@@ -184,7 +216,7 @@ export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService
       return_response: true,
     });
     if (source !== sourceIdentity()) throw new Error('Shared list connection changed');
-    return normalizeItems(result.response?.[listId]);
+    return normalizeItems(listId, result.response?.[listId]);
   },
   async subscribeItems(listId, listener, onError) {
     let disposed = false;
@@ -215,7 +247,7 @@ export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService
       const publish = (result: unknown) => {
         if (disposed || attempt !== generation || source !== sourceIdentity()) return;
         try {
-          listener(normalizeItems(result));
+          listener(normalizeItems(listId, result));
         } catch (error) {
           onError?.(error);
         }
@@ -314,11 +346,11 @@ export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService
     if (input.summary !== undefined) data.rename = summary(input.summary);
     if (input.completed !== undefined) data.status = input.completed ? 'completed' : 'needs_action';
     if (!Object.keys(data).length) throw new Error('An item change is required');
-    await call(client, listId, 'update_item', { item: uid, ...data });
+    await call(client, listId, 'update_item', { item: itemTarget(listId, uid), ...data });
   },
   async removeItem(listId, uid, expectedSessionKey) {
     const { client } = clientFor(listId, 'remove', expectedSessionKey);
     if (!uid) throw new Error('Item identifier is required');
-    await call(client, listId, 'remove_item', { item: uid });
+    await call(client, listId, 'remove_item', { item: itemTarget(listId, uid) });
   },
 };

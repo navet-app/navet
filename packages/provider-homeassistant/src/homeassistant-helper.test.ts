@@ -2,7 +2,7 @@ import { writableHelperEntities } from '@navet/app/test/fixtures/home-assistant/
 import { readNavetHelperState } from '@navet/core/helper-state';
 import type { NavetCommand } from '@navet/core/types';
 import { describe, expect, it } from 'vitest';
-import { getHomeAssistantHelperCommandRoute } from './homeassistant-helper';
+import { getHomeAssistantHelperCommandRoute } from './homeassistant-helper-commands';
 import { mapHomeAssistantEntitiesToNavetEntities } from './homeassistant-mappers';
 
 function mapped(entities = writableHelperEntities) {
@@ -54,6 +54,27 @@ describe('Home Assistant writable helper boundary', () => {
       })
     ).toThrow();
   });
+  it.each(['(?i)hello', '(?P<word>hello)', 'hello'])(
+    'leaves backend pattern %s to Home Assistant validation',
+    (pattern) => {
+      const [helper] = mapped({
+        'text.note': {
+          ...writableHelperEntities['input_text.note'],
+          entity_id: 'text.note',
+          attributes: { min: 0, max: 40, pattern },
+        },
+      });
+      expect(readNavetHelperState(helper)).toMatchObject({ writable: true });
+      expect(readNavetHelperState(helper)).not.toHaveProperty('pattern', pattern);
+      expect(
+        getHomeAssistantHelperCommandRoute(helper, {
+          type: 'set_text_value',
+          entityId: helper.id,
+          value: 'hello world',
+        })
+      ).toEqual({ domain: 'text', service: 'set_value', data: { value: 'hello world' } });
+    }
+  );
   it('excludes config-category controls while preserving the device configuration metric', () => {
     const entities = {
       ...writableHelperEntities,
@@ -108,7 +129,6 @@ describe('Home Assistant writable helper boundary', () => {
       helperType: 'text',
       minLength: 0,
       maxLength: 40,
-      pattern: '[A-Za-z ]*',
       mode: 'text',
     });
     expect(mapped().every((value) => value.type === 'helper')).toBe(true);
@@ -206,7 +226,6 @@ describe('Home Assistant writable helper boundary', () => {
     ['input_number.target', { type: 'set_number_value', value: Number.NaN }],
     ['input_number.target', { type: 'set_number_value', value: 31 }],
     ['input_select.house_mode', { type: 'select_option', option: 'Missing' }],
-    ['input_text.note', { type: 'set_text_value', value: '123' }],
     ['input_text.note', { type: 'set_text_value', value: 'a'.repeat(41) }],
     ['input_datetime.wakeup', { type: 'set_datetime_value', value: '24:00:00' }],
     ['input_datetime.birthday', { type: 'set_datetime_value', value: '2026-02-29' }],

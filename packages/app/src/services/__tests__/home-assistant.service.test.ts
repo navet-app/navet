@@ -283,7 +283,7 @@ describe('Home Assistant registry freshness', () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(homeAssistantService.getAreas()).toEqual(householdRegistryAfter.areas);
     homeAssistantService.disconnect();
-    expect(panel.unsubscribe).toHaveBeenCalledTimes(3);
+    expect(panel.unsubscribe).toHaveBeenCalledTimes(4);
     expect(panel.readyListeners.size).toBe(0);
     for (const event of householdRegistryEvents) panel.callbacks.get(event.event_type)?.(event);
     await vi.advanceTimersByTimeAsync(500);
@@ -309,6 +309,30 @@ describe('Home Assistant registry freshness', () => {
     expect(homeAssistantService.getEntityRegistry()).toEqual(householdRegistryAfter.entities);
     log.mockRestore();
   });
+  it('refreshes automation categories after category-only edits', async () => {
+    const panel = registryPanel();
+    const callWS = panel.hass.callWS;
+    let name = 'Morning';
+    panel.hass.callWS = vi.fn(async (message) =>
+      message.type === 'config/category_registry/list'
+        ? [{ category_id: 'routine', name }]
+        : callWS(message)
+    ) as HomeAssistantPanelHass['callWS'];
+    homeAssistantService.setPanelHass(panel.hass);
+    await homeAssistantService.loadRegistries();
+    expect(homeAssistantService.getAutomationCategories()).toEqual([
+      { category_id: 'routine', name: 'Morning' },
+    ]);
+    name = 'Evening';
+    panel.callbacks.get('category_registry_updated')?.({
+      data: { action: 'update', category_id: 'routine' },
+    });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(homeAssistantService.getAutomationCategories()).toEqual([
+      { category_id: 'routine', name: 'Evening' },
+    ]);
+  });
+
   it('coalesces events arriving during a slow refresh into one subsequent snapshot', async () => {
     const panel = registryPanel();
     homeAssistantService.setPanelHass(panel.hass);
@@ -371,7 +395,7 @@ describe('Home Assistant registry freshness', () => {
     homeAssistantService.disconnect();
     release();
     await vi.advanceTimersByTimeAsync(100);
-    expect(panel.unsubscribe).toHaveBeenCalledTimes(3);
+    expect(panel.unsubscribe).toHaveBeenCalledTimes(4);
     expect(panel.hass.callWS).not.toHaveBeenCalled();
   });
   it('subscribes after standalone authentication without an initial ready event', async () => {
@@ -390,7 +414,7 @@ describe('Home Assistant registry freshness', () => {
       haBaseUrl: 'https://ha.example.test',
       hassUrl: 'https://ha.example.test',
     });
-    expect(connection.subscribeMessage).toHaveBeenCalledTimes(3);
+    expect(connection.subscribeMessage).toHaveBeenCalledTimes(4);
     panel.update();
     panel.callbacks.get('entity_registry_updated')?.(householdRegistryEvents[0]);
     await vi.advanceTimersByTimeAsync(100);

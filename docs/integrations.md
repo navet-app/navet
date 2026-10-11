@@ -55,6 +55,7 @@ supported task or automation surfaces. Home Assistant also provides the advanced
 services marked **Yes** in the matrix above.
 
 Supported household helpers include numeric values, dropdown options, text, and dates or times.
+Home Assistant validates text patterns when saving; its Python patterns are not applied as browser regexes.
 Native `datetime` values display and save in UTC, with the zone shown on the control. Date/time helpers retain their Home Assistant wall-clock semantics.
 Their controls follow the entity's available options and limits. Configuration-category entities
 retain their existing metric presentation. Boolean and button helpers keep their existing controls.

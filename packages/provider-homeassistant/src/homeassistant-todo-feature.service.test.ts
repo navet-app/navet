@@ -1,8 +1,10 @@
 import {
   detailedTodoItems,
+  duplicateUidlessShoppingListItems,
   sameCountShoppingListUpdate,
   shoppingListEntity,
   shoppingListItems,
+  uidlessShoppingListItems,
 } from '@navet/app/test/fixtures/home-assistant/todo/shared-list';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { homeAssistantTodoListFeatureService as service } from './homeassistant-todo-feature.service';
@@ -51,6 +53,42 @@ function emit(event: string) {
 }
 
 describe('Home Assistant shared lists', () => {
+  it('displays UID-less items and routes changes by summary', async () => {
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: {
+        'todo.shopping_list': uidlessShoppingListItems,
+      },
+    });
+    const items = await service.getItems('todo.shopping_list');
+    expect(items).toMatchObject([
+      { summary: 'Milk', completed: false },
+      { summary: 'Bread', completed: true },
+    ]);
+    expect(items[0].uid).not.toBe(items[1].uid);
+    await service.updateItem('todo.shopping_list', items[0].uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'Milk', status: 'completed' } })
+    );
+    await service.removeItem('todo.shopping_list', items[1].uid);
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'Bread' } })
+    );
+  });
+
+  it('displays duplicate UID-less summaries without targeting an ambiguous item', async () => {
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: {
+        'todo.shopping_list': duplicateUidlessShoppingListItems,
+      },
+    });
+    const items = await service.getItems('todo.shopping_list');
+    expect(new Set(items.map((item) => item.uid)).size).toBe(2);
+    await expect(service.removeItem('todo.shopping_list', items[1].uid)).rejects.toThrow(
+      'Item name is ambiguous'
+    );
+    expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(1);
+  });
+
   it('discovers normalized lists and gates each supported capability', async () => {
     expect(await service.getLists()).toEqual([
       {

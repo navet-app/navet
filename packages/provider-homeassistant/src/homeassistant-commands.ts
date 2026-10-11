@@ -1,10 +1,8 @@
 import { UnsupportedProviderCommandError } from '@navet/core/errors';
 import type { NavetCommand, NavetEntity } from '@navet/core/types';
 import { getHomeAssistantClimateControlCommandRoute } from './homeassistant-climate-controls';
-import {
-  getHomeAssistantHelperCommandRoute,
-  HOME_ASSISTANT_VALUE_HELPER_DOMAINS,
-} from './homeassistant-helper';
+import { HOME_ASSISTANT_VALUE_HELPER_DOMAINS } from './homeassistant-helper';
+import { getHomeAssistantHelperCommandRoute } from './homeassistant-helper-commands';
 import { callHomeAssistantService } from './homeassistant-service-bridge';
 
 const ALARM_COMMAND_SERVICES: Record<

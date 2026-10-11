@@ -218,6 +218,7 @@ class HomeAssistantService {
       'entity_registry_updated',
       'device_registry_updated',
       'area_registry_updated',
+      'category_registry_updated',
     ]) {
       if (!connection.subscribeMessage) continue;
       void connection

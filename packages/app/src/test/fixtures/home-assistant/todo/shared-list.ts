@@ -38,3 +38,17 @@ export const detailedTodoItems = {
     },
   ],
 };
+
+export const uidlessShoppingListItems = {
+  items: [
+    { summary: 'Milk', status: 'needs_action' },
+    { uid: null, summary: 'Bread', status: 'completed' },
+  ],
+};
+
+export const duplicateUidlessShoppingListItems = {
+  items: [
+    { summary: 'Milk', status: 'needs_action' },
+    { summary: 'Milk', status: 'completed' },
+  ],
+};
