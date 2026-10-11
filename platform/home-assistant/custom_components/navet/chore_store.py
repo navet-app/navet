@@ -231,6 +231,12 @@ def _normalize_data(value: Any) -> dict[str, Any]:
     ):
         raise ChoreStorageError("Chore workspace data is invalid")
     data = json.loads(json.dumps(value))
+    for occurrence in data["occurrencesById"].values():
+        if isinstance(occurrence, Mapping) and "supersededAt" in occurrence:
+            try:
+                _parse_iso(occurrence["supersededAt"])
+            except (TypeError, ValueError, ChoreAuthorityError) as err:
+                raise ChoreStorageError("Chore supersession timestamp is invalid") from err
     for participant in data["participantsById"].values():
         if isinstance(participant, Mapping) and participant.get("resumeAt"):
             try:
@@ -822,6 +828,22 @@ def _should_prune_occurrence(item, definitions, occurrences, boundary):
     return True
 
 
+def _retain_supersession(occurrences, definitions, timestamp, activities=()):
+    result = dict(occurrences)
+    for occurrence_id, item in occurrences.items():
+        if item.get("status") != "missed" or item.get("supersededAt"):
+            continue
+        definition = definitions.get(item.get("definitionId"))
+        successor = _superseding_occurrence(item, definition, occurrences, timestamp) if definition else None
+        event = next((activity for activity in activities
+            if activity.get("occurrenceId") == item.get("id") and activity.get("type") == "missed"
+            and activity.get("reason") == "Next scheduled occurrence started"), None)
+        superseded_at = successor["scheduledAt"] if successor else event.get("timestamp") if event else None
+        if superseded_at:
+            result[occurrence_id] = {**item, "supersededAt": superseded_at}
+    return result
+
+
 def _superseding_occurrence(item, definition, occurrences, timestamp):
     if definition.get("schedule", {}).get("frequency") in {"once", "after_completion"}:
         return None
@@ -842,7 +864,7 @@ def _materialize(data: dict[str, Any], range_start: str, range_end: str, timesta
     end = _parse_iso(range_end)
     if end < start or end - start > timedelta(days=180):
         raise ChoreAuthorityError("Chore materialization range is invalid")
-    occurrences = dict(data["occurrencesById"])
+    occurrences = _retain_supersession(data["occurrencesById"], data["definitionsById"], timestamp, data.get("activity", []))
     past_occurrences = list(occurrences.values())
     additions: list[dict[str, Any]] = []
     recurrence_ids: set[str] = set()
@@ -869,7 +891,7 @@ def _materialize(data: dict[str, Any], range_start: str, range_end: str, timesta
         if schedule.get("frequency") == "after_completion":
             outstanding = [item for item in occurrences.values()
                 if item.get("definitionId") == definition["id"] and not item.get("completedAt")
-                and not item.get("carriedForwardTo") and item.get("status") in {"available", "claimed", "missed"}]
+                and not item.get("carriedForwardTo") and not item.get("supersededAt") and item.get("status") in {"available", "claimed", "missed"}]
             if outstanding:
                 recurrence_ids.add(min(outstanding, key=lambda item: item["scheduledAt"])["id"])
                 continue
@@ -1245,7 +1267,7 @@ def _apply_occurrence(data: dict[str, Any], occurrence_id: str, command: Mapping
         elif action_type == "reopen":
             if occurrence.get("status") not in {"done", "skipped", "missed"}:
                 raise ChoreAuthorityError("Only completed, skipped, or missed chores can be reopened")
-            for key in ("claimedBy", "claimedAt", "completedBy", "completedAt", "approvedBy", "approvedAt", "skippedBy", "skippedAt", "missedAt", "carriedForwardTo"):
+            for key in ("claimedBy", "claimedAt", "completedBy", "completedAt", "approvedBy", "approvedAt", "skippedBy", "skippedAt", "missedAt", "supersededAt", "carriedForwardTo"):
                 next_occurrence.pop(key, None)
             next_occurrence.update(status="available")
             event_type = "reopened"
@@ -1765,6 +1787,7 @@ class ChoreAuthority:
         return str(action.get("type")) in {"participant_create", "participant_update", "definition_create", "definition_update", "definition_archive", "definition_restore", "definition_delete", "retention_update", "experience_update", "experience_points_adjust", "reward_decision", "vacation_reschedule"}
 
     def _apply_workspace_action(self, data: dict[str, Any], action: Mapping[str, Any], timestamp: str, command_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        data = {**data, "occurrencesById": _retain_supersession(data["occurrencesById"], data["definitionsById"], timestamp, data.get("activity", []))}
         action_type = str(action.get("type"))
         actor = str(action.get("actorParticipantId", ""))
         if action_type == "participant_create":
@@ -2217,6 +2240,8 @@ class ChoreAuthority:
                     occurrence["skippedAt"] = timestamp
                 else:
                     occurrence["missedAt"] = timestamp
+                if superseding:
+                    occurrence["supersededAt"] = superseding["scheduledAt"]
                 activities.append(
                     _activity(
                         f"scheduler:missed:{occurrence_id}:{timestamp}",

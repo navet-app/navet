@@ -1,4 +1,33 @@
-import type { ChoreDefinition, ChoreOccurrence } from './chores';
+import type { ChoreActivity, ChoreDefinition, ChoreOccurrence } from './chores';
+
+/** Retain evidenced fixed-work history before its successor or definition can change. */
+export function retainChoreSupersession(
+  occurrences: Record<string, ChoreOccurrence>,
+  definitions: Record<string, ChoreDefinition>,
+  timestamp: string,
+  activities: readonly ChoreActivity[] = []
+): Record<string, ChoreOccurrence> {
+  let result = occurrences;
+  const items = Object.values(occurrences);
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (item.status !== 'missed' || item.supersededAt) continue;
+    const definition = definitions[item.definitionId];
+    const next =
+      definition && getSupersedingChoreOccurrence(item, definition, occurrences, timestamp);
+    const event = activities.find(
+      (activity) =>
+        activity.occurrenceId === item.id &&
+        activity.type === 'missed' &&
+        activity.reason === 'Next scheduled occurrence started'
+    );
+    const supersededAt = next?.scheduledAt ?? event?.timestamp;
+    if (!supersededAt) continue;
+    if (result === occurrences) result = Object.assign(Object.create(null), occurrences);
+    result[item.id] = Object.assign({}, item, { supersededAt });
+  }
+  return result;
+}
 
 /** An unfinished completion-based interval remains the same piece of work. */
 export function getOutstandingChoreOccurrence(
@@ -10,6 +39,7 @@ export function getOutstandingChoreOccurrence(
       (item) =>
         item.definitionId === definition.id &&
         !item.completedAt &&
+        !item.supersededAt &&
         !item.carriedForwardTo &&
         ['available', 'claimed', 'missed'].includes(item.status)
     )

@@ -89,6 +89,26 @@ function definitionFor(data: ChoreWorkspaceData, occurrence: ChoreOccurrence) {
   return definition && !definition.archivedAt ? definition : undefined;
 }
 
+function isMissedScheduledHistory(
+  occurrence: ChoreOccurrence,
+  definition: ChoreDefinition,
+  data: ChoreWorkspaceData,
+  now: Date
+) {
+  return (
+    occurrence.status === 'missed' &&
+    Boolean(
+      occurrence.supersededAt ||
+        getSupersedingChoreOccurrence(
+          occurrence,
+          definition,
+          data.occurrencesById,
+          now.toISOString()
+        )
+    )
+  );
+}
+
 export function getHouseholdTodayOccurrences(
   data: ChoreWorkspaceData,
   now = new Date()
@@ -98,16 +118,7 @@ export function getHouseholdTodayOccurrences(
     .filter((occurrence) => {
       const definition = definitionFor(data, occurrence);
       if (!definition || !isVisibleWork(occurrence)) return false;
-      if (
-        occurrence.status === 'missed' &&
-        getSupersedingChoreOccurrence(
-          occurrence,
-          definition,
-          data.occurrencesById,
-          now.toISOString()
-        )
-      )
-        return false;
+      if (isMissedScheduledHistory(occurrence, definition, data, now)) return false;
       if (occursOnLocalDay(occurrence, dayStart)) return true;
       return !isFinal(occurrence) && getChoreTiming(occurrence, now) === 'overdue';
     })
@@ -442,11 +453,7 @@ export function getMissedScheduledChoreHistory(
   return Object.values(data.occurrencesById)
     .filter((item) => {
       const definition = data.definitionsById[item.definitionId];
-      return (
-        item.status === 'missed' &&
-        definition &&
-        getSupersedingChoreOccurrence(item, definition, data.occurrencesById, now.toISOString())
-      );
+      return definition && isMissedScheduledHistory(item, definition, data, now);
     })
     .sort((a, b) => Date.parse(b.scheduledAt) - Date.parse(a.scheduledAt));
 }

@@ -317,6 +317,11 @@ function isValidChoreWorkspaceDataVersion(value, schemaVersion) {
   ) {
     return false;
   }
+  const occurrenceIds = Object.keys(value.occurrencesById);
+  for (let occurrenceIndex = 0; occurrenceIndex < occurrenceIds.length; occurrenceIndex += 1) {
+    const occurrence = value.occurrencesById[occurrenceIds[occurrenceIndex]];
+    if (occurrence && occurrence.supersededAt !== undefined && (typeof occurrence.supersededAt !== 'string' || !Number.isFinite(Date.parse(occurrence.supersededAt)))) return false;
+  }
   for (let index = 0; index < value.activity.length; index += 1) {
     if (!isValidActivity(value.activity[index])) {
       return false;
@@ -795,7 +800,8 @@ function createReminderOutboxItem(definition, occurrence, participant, eventType
 
 function runWorkspaceScheduler(data, timestamp) {
   const now = Date.parse(timestamp);
-  const occurrencesById = Object.assign({}, data.occurrencesById);
+  const retainedOccurrences = choreRecurrencePolicy.retainChoreSupersession(data.occurrencesById, data.definitionsById, timestamp, data.activity);
+  const occurrencesById = Object.assign({}, retainedOccurrences);
   const activities = [];
   const reminderItems = [];
   const existingOutboxIds = Object.create(null);
@@ -876,6 +882,7 @@ function runWorkspaceScheduler(data, timestamp) {
     });
     if (policy.action === 'skip') nextOccurrence.skippedAt = timestamp;
     else nextOccurrence.missedAt = timestamp;
+    if (superseding) nextOccurrence.supersededAt = superseding.scheduledAt;
     activities.push(activity);
 
     if (policy.action === 'carry_forward') {
@@ -1869,6 +1876,7 @@ function appendWorkspaceActivities(data, activities) {
 
 function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefinitionId) {
   recordSafety.assertSafeRecord(action);
+  data = Object.assign({}, data, { occurrencesById: choreRecurrencePolicy.retainChoreSupersession(data.occurrencesById, data.definitionsById, timestamp, data.activity) });
   if (action.type === 'occurrence_action') {
     const next = applyOccurrenceAction(data, commandId, action, timestamp);
     const previous = data.occurrencesById[action.occurrenceId];
@@ -2609,7 +2617,7 @@ function applyScheduledState(document) {
   const timestamp = nowIso();
   lastSchedulerRunAt = timestamp;
   const scheduled = runWorkspaceScheduler(document.data, timestamp);
-  if (scheduled.activities.length === 0 && scheduled.outboxItems.length === 0) {
+  if (scheduled.activities.length === 0 && scheduled.outboxItems.length === 0 && sameObjectKeys(scheduled.data.occurrencesById, document.data.occurrencesById)) {
     appendEventHistory(document.data.activity, document.data.historyRetention);
     return document;
   }
@@ -2628,7 +2636,7 @@ function sameObjectKeys(left, right) {
   const rightKeys = Object.keys(right).sort();
   if (leftKeys.length !== rightKeys.length) return false;
   for (let index = 0; index < leftKeys.length; index += 1) {
-    if (leftKeys[index] !== rightKeys[index]) return false;
+    if (leftKeys[index] !== rightKeys[index] || left[leftKeys[index]].supersededAt !== right[rightKeys[index]].supersededAt) return false;
   }
   return true;
 }

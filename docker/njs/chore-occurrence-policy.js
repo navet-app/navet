@@ -143,6 +143,7 @@ function applyChoreOccurrenceCommand(input) {
 				skippedBy: undefined,
 				skippedAt: undefined,
 				missedAt: undefined,
+				supersededAt: undefined,
 				carriedForwardTo: undefined,
 				updatedAt: timestamp
 			});

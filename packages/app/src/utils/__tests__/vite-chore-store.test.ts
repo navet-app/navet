@@ -172,6 +172,61 @@ afterEach(() => {
 });
 
 describe('Vite chore workspace store', () => {
+  it('persists legacy marker-only scheduler backfill without requiring new activities', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-18T08:00:00.000Z'));
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chore-marker-'));
+    tempDirs.push(directory);
+    const filePath = join(directory, 'chores.json');
+    const handler = createViteChoreStoreRequestHandler({
+      filePath,
+      resolvePrincipal: () => PRINCIPAL,
+    });
+    const participant = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': '0' },
+        participantActionBody('marker-manager', 0)
+      ),
+      participant.response
+    );
+    const document = JSON.parse(readFileSync(filePath, 'utf8'));
+    document.data.definitionsById.dishes = fixtureDefinition;
+    document.data.occurrencesById[OCCURRENCE_ID] = {
+      id: OCCURRENCE_ID,
+      definitionId: 'dishes',
+      scheduledAt: '2026-08-10T10:00:00.000Z',
+      dueAt: '2026-08-20T12:00:00.000Z',
+      assigneeIds: ['maya'],
+      assignmentSlot: 'maya',
+      status: 'missed',
+      updatedAt: '2026-08-17T10:00:00.000Z',
+    };
+    document.data.activity.push({
+      id: 'legacy-missed',
+      commandId: 'legacy-missed',
+      type: 'missed',
+      occurrenceId: OCCURRENCE_ID,
+      definitionId: 'dishes',
+      reason: 'Next scheduled occurrence started',
+      timestamp: '2026-08-17T10:00:00.000Z',
+    });
+    writeFileSync(filePath, JSON.stringify(document));
+    const read = createResponse();
+    await handler(createRequest('GET', '/workspace'), read.response);
+    expect(read.status).toBe(200);
+    const updated = JSON.parse(read.body);
+    expect(updated.data.activity).toEqual(document.data.activity);
+    expect(updated.data.occurrencesById[OCCURRENCE_ID].supersededAt).toBe(
+      '2026-08-17T10:00:00.000Z'
+    );
+    expect(
+      JSON.parse(readFileSync(filePath, 'utf8')).data.occurrencesById[OCCURRENCE_ID].supersededAt
+    ).toBe('2026-08-17T10:00:00.000Z');
+  });
+
   it('reports authenticated standalone runtime capabilities', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'navet-chore-store-'));
     tempDirs.push(directory);

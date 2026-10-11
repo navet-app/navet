@@ -375,6 +375,59 @@ it('keeps missed fixed chores in history and missed after-completion chores in T
   expect(data.occurrencesById.fixed.status).toBe('missed');
 });
 
+it.each(['successor pruning', 'once', 'after_completion'] as const)(
+  'keeps superseded missed work in Progress history after %s',
+  (change) => {
+    const data = workspace();
+    data.definitionsById.dishes.schedule = {
+      frequency: 'daily',
+      startDate: '2026-08-01',
+      time: '09:00',
+      timeZone: 'UTC',
+    };
+    const previous = {
+      ...occurrence('previous', 'dishes', 'missed'),
+      scheduledAt: '2026-08-13T09:00:00.000Z',
+      dueAt: '2026-08-13T10:00:00.000Z',
+      missedAt: '2026-08-14T09:00:00.000Z',
+      supersededAt: '2026-08-14T09:00:00.000Z',
+    };
+    const next = {
+      ...occurrence('next', 'dishes', 'done', 'maya'),
+      scheduledAt: '2026-08-14T09:00:00.000Z',
+      dueAt: '2026-08-14T10:00:00.000Z',
+    };
+    data.occurrencesById = { previous, next };
+    expect(getMissedScheduledChoreHistory(data, now)).toEqual([previous]);
+    if (change === 'successor pruning') delete data.occurrencesById.next;
+    else if (change === 'once') {
+      data.definitionsById.dishes.schedule = {
+        frequency: 'once',
+        date: '2026-08-15',
+        time: '09:00',
+        timeZone: 'UTC',
+      };
+    } else {
+      data.definitionsById.dishes.schedule = {
+        frequency: 'after_completion',
+        startDate: '2026-08-01',
+        time: '09:00',
+        timeZone: 'UTC',
+        intervalDays: 14,
+      };
+    }
+    expect(getTodayChoresForParticipant(data, 'all', now).map((item) => item.id)).not.toContain(
+      'previous'
+    );
+    expect(getMissedScheduledChoreHistory(data, now)).toEqual([previous]);
+    data.occurrencesById.previous = { ...previous, status: 'available', supersededAt: undefined };
+    expect(getTodayChoresForParticipant(data, 'all', now).map((item) => item.id)).toContain(
+      'previous'
+    );
+    expect(getMissedScheduledChoreHistory(data, now)).toEqual([]);
+  }
+);
+
 it('keeps an existing early-missed scheduled chore actionable until its successor starts', () => {
   const data = workspace();
   data.definitionsById.dishes.schedule = {

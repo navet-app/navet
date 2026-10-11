@@ -15,6 +15,7 @@ import {
   getOutstandingChoreOccurrence,
   getParticipantChoreOccurrences,
   getSupersedingChoreOccurrence,
+  retainChoreSupersession,
   shouldPruneChoreOccurrence,
 } from './chore-recurrence-policy.ts';
 import { assertSafeRecord, setOwnRecordValue } from './record-safety.ts';
@@ -234,6 +235,8 @@ export interface ChoreOccurrence {
   skippedBy?: string;
   skippedAt?: string;
   missedAt?: string;
+  /** Fixed work retained in history after a later calendar occurrence started. */
+  supersededAt?: string;
   carriedForwardTo?: string;
   carriedForwardFrom?: string;
   updatedAt: string;
@@ -893,6 +896,7 @@ function isChoreOccurrence(value: unknown, expectedId: string) {
     (value.skippedBy === undefined || typeof value.skippedBy === 'string') &&
     (value.skippedAt === undefined || isIsoTimestamp(value.skippedAt)) &&
     (value.missedAt === undefined || isIsoTimestamp(value.missedAt)) &&
+    (value.supersededAt === undefined || isIsoTimestamp(value.supersededAt)) &&
     (value.carriedForwardTo === undefined || typeof value.carriedForwardTo === 'string') &&
     (value.carriedForwardFrom === undefined || typeof value.carriedForwardFrom === 'string') &&
     isIsoTimestamp(value.updatedAt)
@@ -1548,7 +1552,13 @@ export function runChoreWorkspaceScheduler(
 ): RunChoreWorkspaceSchedulerResult {
   const now = Date.parse(timestamp);
   if (!Number.isFinite(now)) throw new Error('Invalid chore scheduler timestamp');
-  const occurrencesById = { ...workspace.occurrencesById };
+  const retainedOccurrences = retainChoreSupersession(
+    workspace.occurrencesById,
+    workspace.definitionsById,
+    timestamp,
+    workspace.activity
+  );
+  const occurrencesById = { ...retainedOccurrences };
   const activities: ChoreActivity[] = [];
   const outboxItems: ChoreOutboxItem[] = [];
   const existingOutboxIds = new Set(workspace.outbox.map((item) => item.id));
@@ -1634,6 +1644,7 @@ export function runChoreWorkspaceScheduler(
       status: policy.action === 'skip' ? 'skipped' : 'missed',
       skippedAt: policy.action === 'skip' ? timestamp : occurrence.skippedAt,
       missedAt: policy.action === 'skip' ? occurrence.missedAt : timestamp,
+      supersededAt: superseding?.scheduledAt ?? occurrence.supersededAt,
       updatedAt: timestamp,
     };
     activities.push(activity);
@@ -1768,7 +1779,10 @@ export function runChoreWorkspaceScheduler(
   return {
     activities,
     outboxItems,
-    data: activities.length === 0 ? workspace : { ...workspace, occurrencesById },
+    data:
+      activities.length === 0 && retainedOccurrences === workspace.occurrencesById
+        ? workspace
+        : { ...workspace, occurrencesById },
   };
 }
 
@@ -1963,6 +1977,18 @@ export function applyChoreWorkspaceAction(
   input: ApplyChoreWorkspaceActionInput
 ): ApplyChoreWorkspaceActionResult {
   assertSafeRecord(input.action);
+  input = {
+    ...input,
+    workspace: {
+      ...input.workspace,
+      occurrencesById: retainChoreSupersession(
+        input.workspace.occurrencesById,
+        input.workspace.definitionsById,
+        input.timestamp,
+        input.workspace.activity
+      ),
+    },
+  };
   const result = applyChoreWorkspaceActionWithoutRecurrence(input);
   const { action, commandId, timestamp, workspace } = input;
   if (action.type !== 'occurrence_action') return result;

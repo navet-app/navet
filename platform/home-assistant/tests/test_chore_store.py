@@ -676,6 +676,9 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
                 preserved = {}
                 for occurrence, status in zip(values, ["done", "claimed", "awaiting_approval", "skipped", "missed"]):
                     occurrence["status"] = status
+                    if status == "missed":
+                        # A complete historical fixture retains its fixed-work boundary.
+                        occurrence["supersededAt"] = values[5]["scheduledAt"]
                     preserved[occurrence["id"]] = copy.deepcopy(occurrence)
                 values[5]["carriedForwardFrom"] = "earlier"
                 preserved[values[5]["id"]] = copy.deepcopy(values[5])
@@ -1052,6 +1055,48 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         result = await self.authority.async_command({"commandId": "history-complete", "baseRevision": self.authority.revision,
             "action": {"type": "occurrence_action", "occurrenceId": missed["id"], "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
         self.assertEqual(result["data"]["occurrencesById"][today["id"]], today)
+
+    async def test_fixed_supersession_survives_storage_pruning_and_reopen(self):
+        definition = await self._seed_outstanding_interval()
+        definition["schedule"] = {"frequency": "weekly", "startDate": "2026-01-01", "time": "10:00", "timeZone": "UTC", "daysOfWeek": [0]}
+        definition["missedPolicy"] = {"graceMinutes": 0, "action": "none"}
+        await self.authority.async_command({"commandId": "fixed-marker", "baseRevision": self.authority.revision,
+            "action": {"type": "definition_update", "actorParticipantId": "manager", "definition": definition}}, "ha-user-1")
+        await self.authority.async_tick()
+        data = json.loads(json.dumps(self.authority.data))
+        old = next(item for item in data["occurrencesById"].values() if item.get("supersededAt"))
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        self.assertEqual(restarted.data["occurrencesById"][old["id"]]["supersededAt"], old["supersededAt"])
+        old["status"] = "missed"
+        old.pop("completedAt", None)
+        restored = chores._normalize_data(json.loads(json.dumps(data)))
+        self.assertEqual(restored["occurrencesById"][old["id"]]["supersededAt"], old["supersededAt"])
+        reopened, _ = chores._apply_occurrence(restored, old["id"], {"type": "reopen", "participantId": "manager", "reason": "Again"}, "2026-10-12T10:00:00.000Z", "reopen-marker")
+        self.assertEqual(reopened["occurrencesById"][old["id"]]["status"], "available")
+        self.assertNotIn("supersededAt", reopened["occurrencesById"][old["id"]])
+        restored["occurrencesById"][old["id"]]["supersededAt"] = "invalid"
+        with self.assertRaises(chores.ChoreStorageError):
+            chores._normalize_data(restored)
+
+    async def test_legacy_supersession_backfills_before_prune_and_frequency_edit(self):
+        definition = await self._seed_outstanding_interval()
+        data = json.loads(json.dumps(self.authority.data))
+        definition["schedule"] = {"frequency": "weekly", "startDate": "2026-01-01", "time": "10:00", "timeZone": "UTC", "daysOfWeek": [0]}
+        data["definitionsById"][definition["id"]] = definition
+        old = next(iter(data["occurrencesById"].values()))
+        old.update({"status": "missed", "scheduledAt": "2026-06-01T10:00:00.000Z", "dueAt": "2026-06-01T11:00:00.000Z", "updatedAt": "2026-06-01T11:00:00.000Z"})
+        old.pop("supersededAt", None)
+        successor = {**old, "id": "successor", "status": "done", "scheduledAt": "2026-06-08T10:00:00.000Z", "dueAt": "2026-06-08T11:00:00.000Z", "updatedAt": "2026-06-08T11:00:00.000Z", "completedAt": "2026-06-08T11:00:00.000Z", "completedBy": "manager"}
+        data["occurrencesById"]["successor"] = successor
+        pruned, _ = chores._materialize(data, "2026-10-11T00:00:00.000Z", "2026-10-12T00:00:00.000Z", "2026-10-11T10:00:00.000Z", "prune")
+        self.assertNotIn("successor", pruned["occurrencesById"])
+        self.assertEqual(pruned["occurrencesById"][old["id"]]["supersededAt"], successor["scheduledAt"])
+        edited = {**definition, "schedule": {"frequency": "after_completion", "startDate": "2026-10-11", "time": "10:00", "timeZone": "UTC", "intervalDays": 14}}
+        changed, _ = self.authority._apply_workspace_action(data, {"type": "definition_update", "actorParticipantId": "manager", "definition": edited}, "2026-10-11T10:00:00.000Z", "edit")
+        self.assertEqual(changed["occurrencesById"][old["id"]]["supersededAt"], successor["scheduledAt"])
+        next_data, _ = chores._materialize(changed, "2026-10-11T00:00:00.000Z", "2026-10-25T00:00:00.000Z", "2026-10-11T10:00:00.000Z", "next")
+        self.assertFalse(any(item["id"] == old["id"] for item in next_data["occurrencesById"].values() if item["status"] == "available"))
 
     async def test_early_completion_persists_next_date_fourteen_days_later(self):
         original_now = chores._now

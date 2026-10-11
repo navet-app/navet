@@ -521,7 +521,10 @@ export function createViteChoreStoreRequestHandler(options: {
     if (
       !documentNeedsMigration &&
       scheduled.activities.length === 0 &&
-      scheduled.outboxItems.length === 0
+      scheduled.outboxItems.length === 0 &&
+      !Object.values(scheduled.data.occurrencesById).some(
+        occurrence => occurrence.supersededAt !== document.data.occurrencesById[occurrence.id]?.supersededAt
+      )
     ) {
       appendEventHistory(document.data.activity, document.data.historyRetention)
       return document

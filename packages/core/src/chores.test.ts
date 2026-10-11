@@ -2549,3 +2549,135 @@ describe('outstanding chore intervals', () => {
     expect(late.data.occurrencesById[previous.id].status).toBe('done');
   });
 });
+
+describe('durable fixed-work supersession', () => {
+  function fixture(status: ChoreOccurrence['status'] = 'available'): ChoreWorkspaceData {
+    const previous = makeOccurrence({ id: 'older', status });
+    const next = makeOccurrence({
+      id: 'next',
+      scheduledAt: '2026-08-17T16:00:00.000Z',
+      dueAt: '2026-08-17T19:00:00.000Z',
+      status: 'done',
+      completedBy: 'alice',
+      completedAt: '2026-08-17T18:00:00.000Z',
+      updatedAt: '2026-08-17T18:00:00.000Z',
+    });
+    return {
+      ...createEmptyChoreWorkspace(),
+      participantsById: { alice, bob },
+      definitionsById: { 'take-out-recycling': makeDefinition() },
+      occurrencesById: { older: previous, next },
+    };
+  }
+  it('persists supersession at the fixed scheduler transition and clears it on reopen', () => {
+    const result = runChoreWorkspaceScheduler(fixture(), '2026-08-17T18:00:00.000Z').data;
+    expect(result.occurrencesById.older).toMatchObject({
+      status: 'missed',
+      supersededAt: '2026-08-17T16:00:00.000Z',
+    });
+    const reopened = applyChoreWorkspaceAction({
+      workspace: result,
+      timestamp: '2026-08-17T18:30:00.000Z',
+      commandId: 'reopen-superseded',
+      action: {
+        type: 'occurrence_action',
+        occurrenceId: 'older',
+        action: { type: 'reopen', participantId: 'alice', reason: 'Do it again' },
+      },
+    }).data;
+    expect(reopened.occurrencesById.older.status).toBe('available');
+    expect(reopened.occurrencesById.older.supersededAt).toBeUndefined();
+  });
+  it('backfills legacy missed work before its successor is pruned', () => {
+    const workspace = fixture('missed');
+    const result = applyChoreWorkspaceAction({
+      workspace,
+      timestamp: '2026-12-01T18:00:00.000Z',
+      commandId: 'prune-successor',
+      action: {
+        type: 'materialize_occurrences',
+        rangeStart: '2026-12-01T00:00:00.000Z',
+        rangeEnd: '2026-12-01T23:59:59.000Z',
+      },
+    }).data;
+    expect(result.occurrencesById.next).toBeUndefined();
+    expect(result.occurrencesById.older).toMatchObject({
+      status: 'missed',
+      supersededAt: '2026-08-17T16:00:00.000Z',
+    });
+  });
+  it('backfills before changing frequency and keeps historical work out of completion-based clocks', () => {
+    const workspace = fixture('missed');
+    const definition = workspace.definitionsById['take-out-recycling'];
+    const result = applyChoreWorkspaceAction({
+      workspace,
+      timestamp: '2026-08-18T18:00:00.000Z',
+      commandId: 'change-fixed-frequency',
+      action: {
+        type: 'definition_update',
+        actorParticipantId: 'alice',
+        definition: {
+          ...definition,
+          schedule: {
+            frequency: 'after_completion',
+            startDate: '2026-08-18',
+            time: '18:00',
+            timeZone: 'UTC',
+            intervalDays: 7,
+          },
+        },
+      },
+    }).data;
+    expect(result.occurrencesById.older).toMatchObject({
+      status: 'missed',
+      supersededAt: '2026-08-17T16:00:00.000Z',
+    });
+    expect(
+      materializeChoreOccurrences({
+        definition: result.definitionsById[definition.id],
+        participantsById: result.participantsById,
+        existingOccurrences: result.occurrencesById,
+        latestCompletedAt: '2026-08-17T18:00:00.000Z',
+        rangeStart: '2026-08-18T00:00:00.000Z',
+        rangeEnd: '2026-09-01T00:00:00.000Z',
+      }).some((item) => item.id === 'older')
+    ).toBe(false);
+  });
+  it('round-trips optional supersession markers and accepts legacy snapshots', () => {
+    const legacy = fixture('missed');
+    expect(isChoreWorkspaceData(legacy)).toBe(true);
+    const marked = runChoreWorkspaceScheduler(fixture(), '2026-08-17T18:00:00.000Z').data;
+    const restored = migrateChoreWorkspaceData(JSON.parse(JSON.stringify(marked)));
+    expect(restored.occurrencesById.older.supersededAt).toBe('2026-08-17T16:00:00.000Z');
+    restored.occurrencesById.older.supersededAt = 'invalid';
+    expect(isChoreWorkspaceData(restored)).toBe(false);
+  });
+  it('keeps early missed completion-based work actionable without supersession evidence', () => {
+    const workspace = fixture('missed');
+    delete workspace.occurrencesById.next;
+    const definition = makeDefinition({
+      schedule: {
+        frequency: 'after_completion',
+        startDate: '2026-08-10',
+        time: '18:00',
+        timeZone: 'UTC',
+        intervalDays: 7,
+      },
+    });
+    workspace.definitionsById[definition.id] = definition;
+    const result = applyChoreWorkspaceAction({
+      workspace,
+      timestamp: '2026-08-11T18:00:00.000Z',
+      commandId: 'keep-early-missed',
+      action: {
+        type: 'materialize_occurrences',
+        rangeStart: '2026-08-11T00:00:00.000Z',
+        rangeEnd: '2026-08-25T00:00:00.000Z',
+      },
+    }).data;
+    expect(result.occurrencesById.older).toEqual(workspace.occurrencesById.older);
+    expect(
+      Object.values(result.occurrencesById).filter((item) => item.status === 'available')
+    ).toHaveLength(0);
+  });
+});

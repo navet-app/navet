@@ -231,4 +231,10 @@ const carriedWork = Object.assign({}, vacationReplacement, { id: 'automatic-carr
 assert(recurrence.getSupersedingChoreOccurrence(unfinished, Object.assign({}, fixedDefinition, { assignment: { mode: 'rotation' } }), { previous: unfinished, carried: carriedWork }, carriedWork.scheduledAt) === undefined, 'Automatic carry-forward remains the same work, including after a vacation move');
 const manuallySkipped = Object.assign({}, vacationReplacement, { id: 'calendar-skip', carriedForwardFrom: undefined, status: 'skipped' });
 assert(recurrence.getSupersedingChoreOccurrence(unfinished, fixedDefinition, { previous: unfinished, skipped: manuallySkipped }, manuallySkipped.scheduledAt).id === manuallySkipped.id, 'Manual skip without a forwarded replacement remains a calendar boundary');
+const durableMissed = recurrence.retainChoreSupersession({ old: unfinished, successor: manuallySkipped }, { repeat: fixedDefinition }, manuallySkipped.scheduledAt);
+assert(durableMissed.old.supersededAt === manuallySkipped.scheduledAt, 'Legacy supersession is retained before calendar history disappears');
+delete durableMissed.successor;
+assert(recurrence.retainChoreSupersession(durableMissed, { repeat: repeatDefinition }, '2027-01-01T10:00:00.000Z').old.supersededAt === manuallySkipped.scheduledAt, 'Supersession survives pruned successors and frequency edits');
+assert(recurrence.getOutstandingChoreOccurrence(repeatDefinition, durableMissed) === undefined, 'Historical fixed missed work does not become outstanding completion work');
+assert(recurrence.getOutstandingChoreOccurrence(repeatDefinition, { old: unfinished }).id === unfinished.id, 'Early missed completion work remains actionable');
 print('Passed native NJS chore recurrence assertions');
