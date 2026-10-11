@@ -83,9 +83,32 @@ describe('Home Assistant shared lists', () => {
     });
     const items = await service.getItems('todo.shopping_list');
     expect(new Set(items.map((item) => item.uid)).size).toBe(2);
+    expect(items.every((item) => item.updatable === false && item.removable === false)).toBe(true);
+    await expect(
+      service.updateItem('todo.shopping_list', items[0].uid, { completed: true })
+    ).rejects.toThrow('Item name is ambiguous');
     await expect(service.removeItem('todo.shopping_list', items[1].uid)).rejects.toThrow(
       'Item name is ambiguous'
     );
+    expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects summary updates that could resolve to another item UID', async () => {
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: {
+        'todo.shopping_list': {
+          items: [
+            { uid: 'Milk', summary: 'Bread', status: 'needs_action' },
+            { summary: 'Milk', status: 'needs_action' },
+          ],
+        },
+      },
+    });
+    const items = await service.getItems('todo.shopping_list');
+    expect(items[1].updatable).toBe(false);
+    await expect(
+      service.updateItem('todo.shopping_list', items[1].uid, { completed: true })
+    ).rejects.toThrow('Item name is ambiguous');
     expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(1);
   });
 

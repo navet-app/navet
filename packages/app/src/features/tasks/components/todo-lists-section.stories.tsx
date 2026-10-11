@@ -34,9 +34,14 @@ type Mode =
   | 'loading'
   | 'error'
   | 'long'
-  | 'nonremovable';
+  | 'nonremovable'
+  | 'ambiguous';
 function createService(mode: Mode): TodoItemService {
   let items = mode === 'empty' ? [] : initialItems.map((item) => ({ ...item }));
+  if (mode === 'ambiguous') {
+    items[0] = { ...items[0], removable: false, updatable: false };
+    items[1] = { ...items[1], summary: items[0].summary, removable: false, updatable: false };
+  }
   if (mode === 'nonremovable') items[0].removable = false;
   if (mode === 'long')
     items[0].summary =
@@ -174,5 +179,19 @@ export const NonRemovableItem: Story = {
       canvas.queryByRole('button', { name: 'Remove item: Oat milk' })
     ).not.toBeInTheDocument();
     await expect(canvas.getByRole('button', { name: 'Remove item: Apples' })).toBeEnabled();
+  },
+};
+
+export const AmbiguousItems: Story = {
+  args: { mode: 'ambiguous' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const ambiguous = await canvas.findAllByRole('checkbox', { name: /Oat milk/ });
+    await expect(ambiguous).toHaveLength(2);
+    for (const item of ambiguous) await expect(item).toBeDisabled();
+    await expect(
+      canvas.queryByRole('button', { name: 'Edit item: Oat milk' })
+    ).not.toBeInTheDocument();
+    await expect(canvas.getByRole('button', { name: 'Edit item: Wholegrain bread' })).toBeEnabled();
   },
 };

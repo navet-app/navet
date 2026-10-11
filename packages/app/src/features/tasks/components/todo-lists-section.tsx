@@ -217,9 +217,14 @@ function TodoListItemsContent({
             <li key={item.uid}>
               <SelectableCheckboxRow
                 checked={item.completed}
-                disabled={pending || !list.available || !list.capabilities.update}
+                disabled={
+                  pending ||
+                  !list.available ||
+                  !list.capabilities.update ||
+                  item.updatable === false
+                }
                 onCheckedChange={(completed) => {
-                  if (list.capabilities.update)
+                  if (list.capabilities.update && item.updatable !== false)
                     void mutate(() => service.update(list, item.uid, { completed }));
                 }}
                 label={
@@ -241,7 +246,7 @@ function TodoListItemsContent({
                 }
                 action={
                   <div className="flex gap-1">
-                    {list.capabilities.update ? (
+                    {list.capabilities.update && item.updatable !== false ? (
                       <Button
                         variant="ghost"
                         size="small"

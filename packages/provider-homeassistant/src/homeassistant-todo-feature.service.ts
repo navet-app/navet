@@ -91,15 +91,17 @@ function normalizeItems(listId: string, result: unknown): NavetTodoItem[] {
       while (usedIds.has(uid)) uid += ':';
       usedIds.add(uid);
       // HA resolves summaries to the first matching item. Reject ambiguous actions.
-      const matches = rawItems.filter(
-        (other) => (other as { summary?: unknown } | null)?.summary === raw.summary
-      );
+      const matches = rawItems.filter((other) => {
+        const candidate = other as { summary?: unknown; uid?: unknown } | null;
+        return candidate?.summary === raw.summary || candidate?.uid === raw.summary;
+      });
       targets.set(uid, matches.length === 1 ? raw.summary : null);
     }
     const due = typeof raw.due === 'string' ? raw.due : undefined;
     return {
       uid,
       ...(!raw.uid ? { removable: false } : {}),
+      ...(targets.get(uid) === null ? { updatable: false } : {}),
       summary: raw.summary,
       completed: raw.status === 'completed',
       ...(typeof raw.description === 'string' ? { description: raw.description } : {}),

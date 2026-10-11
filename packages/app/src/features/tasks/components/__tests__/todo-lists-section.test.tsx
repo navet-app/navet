@@ -312,6 +312,15 @@ describe('shared list workflow', () => {
     expect(screen.queryByRole('button', { name: 'Remove item: Milk' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove item: Bread' })).toBeEnabled();
   });
+  it('disables completion and hides editing for items that cannot be updated', async () => {
+    items = [{ ...items[0], removable: false, updatable: false }, items[1]];
+    renderWithProviders(<TodoListItems list={list} />);
+    expect(await screen.findByRole('checkbox', { name: 'Milk' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Edit item: Milk' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove item: Milk' })).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Bread' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Edit item: Bread' })).toBeEnabled();
+  });
   it('hides unsupported mutations and optional fields', async () => {
     const readonly = {
       ...list,
