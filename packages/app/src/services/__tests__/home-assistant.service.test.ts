@@ -207,37 +207,60 @@ describe('Home Assistant registry freshness', () => {
     expect(homeAssistantService.getAreas()).toEqual([]);
   });
 
-  it('discards a stale callWS-only household load and refreshes its replacement', async () => {
-    const householdA = registryPanel();
-    householdA.hass.connection = undefined;
-    const callWS = householdA.hass.callWS;
-    let release = () => {};
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    householdA.hass.callWS = vi.fn(async (message) => {
-      await gate;
-      return callWS(message);
-    }) as HomeAssistantPanelHass['callWS'];
-    homeAssistantService.setPanelHass(householdA.hass);
-    await vi.advanceTimersByTimeAsync(100);
-    expect(householdA.hass.callWS).toHaveBeenCalledTimes(4);
-    const householdB = registryPanel();
-    householdB.hass.connection = undefined;
-    householdB.update();
-    homeAssistantService.setPanelHass(householdB.hass);
-    const snapshots: unknown[] = [];
-    const unsubscribe = homeAssistantService.addListener('registries', (registries) =>
-      snapshots.push(registries.areas)
-    );
-    release();
-    await vi.advanceTimersByTimeAsync(200);
-    expect(householdB.hass.callWS).toHaveBeenCalled();
-    expect(homeAssistantService.getAreas()).toEqual(householdRegistryAfter.areas);
-    expect(snapshots.length).toBeGreaterThan(0);
-    for (const snapshot of snapshots) expect(snapshot).toEqual(householdRegistryAfter.areas);
-    unsubscribe();
-  });
+  it.each(['before', 'after'] as const)(
+    'refreshes a replacement panel while an obsolete load settles %s it',
+    async (obsoleteSettles) => {
+      const householdA = registryPanel();
+      householdA.hass.connection = undefined;
+      const callWS = householdA.hass.callWS;
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      householdA.hass.callWS = vi.fn(async (message) => {
+        await gate;
+        return callWS(message);
+      }) as HomeAssistantPanelHass['callWS'];
+      homeAssistantService.setPanelHass(householdA.hass);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(householdA.hass.callWS).toHaveBeenCalledTimes(4);
+      const householdB = registryPanel();
+      householdB.hass.connection = undefined;
+      householdB.update();
+      const callWSB = householdB.hass.callWS;
+      let releaseB = () => {};
+      const gateB = new Promise<void>((resolve) => {
+        releaseB = resolve;
+      });
+      householdB.hass.callWS = vi.fn(async (message) => {
+        await gateB;
+        return callWSB(message);
+      }) as HomeAssistantPanelHass['callWS'];
+      homeAssistantService.setPanelHass(householdB.hass);
+      const snapshots: unknown[] = [];
+      const unsubscribe = homeAssistantService.addListener('registries', (registries) =>
+        snapshots.push(registries.areas)
+      );
+      await vi.advanceTimersByTimeAsync(100);
+      expect(householdB.hass.callWS).toHaveBeenCalledTimes(4);
+      if (obsoleteSettles === 'before') {
+        release();
+        await vi.advanceTimersByTimeAsync(100);
+        expect(homeAssistantService.getAreas()).toEqual([]);
+      }
+      releaseB();
+      await vi.advanceTimersByTimeAsync(200);
+      expect(homeAssistantService.getAreas()).toEqual(householdRegistryAfter.areas);
+      if (obsoleteSettles === 'after') {
+        release();
+        await vi.advanceTimersByTimeAsync(200);
+      }
+      expect(householdB.hass.callWS).toHaveBeenCalledTimes(4);
+      expect(snapshots.length).toBeGreaterThan(0);
+      for (const snapshot of snapshots) expect(snapshot).toEqual(householdRegistryAfter.areas);
+      unsubscribe();
+    }
+  );
 
   it('refreshes external entity, device and area edits without any entity state change', async () => {
     const panel = registryPanel();

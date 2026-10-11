@@ -22,6 +22,7 @@ class HARegistryService {
 
   resetRegistriesForSession(): void {
     this.loadGeneration += 1;
+    this.loadPromise = null;
     this.pendingRegistryLoad = false;
     this.areas = [];
     this.deviceRegistry = [];
@@ -39,15 +40,17 @@ class HARegistryService {
       this.pendingRegistryLoad = true;
       return this.loadPromise;
     }
-    this.loadPromise = (async () => {
+    const generation = this.loadGeneration;
+    const loadPromise = (async () => {
       do {
         this.pendingRegistryLoad = false;
         await this.loadRegistrySnapshot();
-      } while (this.pendingRegistryLoad);
+      } while (generation === this.loadGeneration && this.pendingRegistryLoad);
     })().finally(() => {
-      this.loadPromise = null;
+      if (this.loadPromise === loadPromise) this.loadPromise = null;
     });
-    return this.loadPromise;
+    this.loadPromise = loadPromise;
+    return loadPromise;
   }
 
   private async loadRegistrySnapshot(): Promise<void> {

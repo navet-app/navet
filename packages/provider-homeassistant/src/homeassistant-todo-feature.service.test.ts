@@ -75,6 +75,32 @@ describe('Home Assistant shared lists', () => {
     expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(2);
   });
 
+  it('updates and removes an opaque real UID that uses the synthetic ID prefix', async () => {
+    const uid = 'navet-summary:Milk:0';
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: {
+        'todo.shopping_list': {
+          items: [{ uid, summary: 'Milk', status: 'needs_action' }],
+        },
+      },
+    });
+    expect(await service.getItems('todo.shopping_list')).toEqual([
+      { uid, summary: 'Milk', completed: false },
+    ]);
+    await service.updateItem('todo.shopping_list', uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: uid, status: 'completed' } })
+    );
+    await service.removeItem('todo.shopping_list', uid);
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service: 'remove_item', service_data: { item: uid } })
+    );
+    await expect(
+      service.updateItem('todo.shopping_list', 'navet-summary:Missing:0', { completed: true })
+    ).rejects.toThrow('Shared list item changed');
+    expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(3);
+  });
+
   it('displays duplicate UID-less summaries without targeting an ambiguous item', async () => {
     bridge.client?.sendMessagePromise.mockResolvedValueOnce({
       response: {
@@ -110,6 +136,61 @@ describe('Home Assistant shared lists', () => {
       service.updateItem('todo.shopping_list', items[1].uid, { completed: true })
     ).rejects.toThrow('Item name is ambiguous');
     expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables and rejects UID actions shadowed by an earlier item summary', async () => {
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: {
+        'todo.shopping_list': {
+          items: [
+            { uid: 'first-uid', summary: 'second-uid', status: 'needs_action' },
+            { uid: 'second-uid', summary: 'Bread', status: 'needs_action' },
+          ],
+        },
+      },
+    });
+    const items = await service.getItems('todo.shopping_list');
+    expect(items[0].updatable).not.toBe(false);
+    expect(items[0].removable).not.toBe(false);
+    expect(items[1]).toMatchObject({ uid: 'second-uid', updatable: false, removable: false });
+    await expect(
+      service.updateItem('todo.shopping_list', items[1].uid, { completed: true })
+    ).rejects.toThrow('Item name is ambiguous');
+    await expect(
+      service.updateItem('todo.shopping_list', items[1].uid, { summary: 'New name' })
+    ).rejects.toThrow('Item name is ambiguous');
+    await expect(service.removeItem('todo.shopping_list', items[1].uid)).rejects.toThrow(
+      'Item name is ambiguous'
+    );
+    expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(1);
+    await service.updateItem('todo.shopping_list', items[0].uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'first-uid', status: 'completed' } })
+    );
+  });
+
+  it('keeps a UID actionable when its match precedes another item with that summary', async () => {
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: {
+        'todo.shopping_list': {
+          items: [
+            { uid: 'first-uid', summary: 'Bread', status: 'needs_action' },
+            { uid: 'second-uid', summary: 'first-uid', status: 'needs_action' },
+          ],
+        },
+      },
+    });
+    const items = await service.getItems('todo.shopping_list');
+    expect(items[0].updatable).not.toBe(false);
+    expect(items[0].removable).not.toBe(false);
+    await service.updateItem('todo.shopping_list', items[0].uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'first-uid', status: 'completed' } })
+    );
+    await service.removeItem('todo.shopping_list', items[0].uid);
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'first-uid' } })
+    );
   });
 
   it('discovers normalized lists and gates each supported capability', async () => {
@@ -184,6 +265,153 @@ describe('Home Assistant shared lists', () => {
     }
   );
 
+  it('keeps current UID-less subscription targets when an older read resolves', async () => {
+    let resolveRead: (result: unknown) => void = () => {};
+    bridge.client?.sendMessagePromise.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        })
+    );
+    const oldRead = service.getItems('todo.shopping_list');
+    let push: (result: unknown) => void = () => {};
+    bridge.client?.subscribeMessage.mockImplementationOnce(async (callback) => {
+      push = callback;
+      return vi.fn();
+    });
+    const listener = vi.fn();
+    const unsubscribe = await service.subscribeItems('todo.shopping_list', listener);
+    push({ items: [{ summary: 'Coffee', status: 'needs_action' }] });
+    const currentItem = listener.mock.lastCall?.[0][0];
+    resolveRead({ response: { 'todo.shopping_list': uidlessShoppingListItems } });
+    expect(await oldRead).toEqual([currentItem]);
+    await service.updateItem('todo.shopping_list', currentItem.uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'Coffee', status: 'completed' } })
+    );
+    unsubscribe();
+  });
+
+  it('keeps the newer read targets when reads resolve out of order', async () => {
+    let resolveRead: (result: unknown) => void = () => {};
+    bridge.client?.sendMessagePromise.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        })
+    );
+    const oldRead = service.getItems('todo.shopping_list');
+    const rejection = expect(oldRead).rejects.toThrow('Shared list items changed');
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: {
+        'todo.shopping_list': { items: [{ summary: 'Coffee', status: 'needs_action' }] },
+      },
+    });
+    const current = await service.getItems('todo.shopping_list');
+    resolveRead({ response: { 'todo.shopping_list': uidlessShoppingListItems } });
+    await rejection;
+    await service.updateItem('todo.shopping_list', current[0].uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'Coffee', status: 'completed' } })
+    );
+  });
+
+  it('returns the actionable live snapshot for reads started after a native publication', async () => {
+    let push: (result: unknown) => void = () => {};
+    bridge.client?.subscribeMessage.mockImplementationOnce(async (callback) => {
+      push = callback;
+      return vi.fn();
+    });
+    const listener = vi.fn();
+    const unsubscribe = await service.subscribeItems('todo.shopping_list', listener);
+    push({ items: [{ summary: 'Coffee', status: 'needs_action' }] });
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: { 'todo.shopping_list': uidlessShoppingListItems },
+    });
+    const displayed = await service.getItems('todo.shopping_list');
+    expect(displayed).toEqual(listener.mock.lastCall?.[0]);
+    expect(displayed[0].summary).toBe('Coffee');
+    await service.updateItem('todo.shopping_list', displayed[0].uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'Coffee', status: 'completed' } })
+    );
+    unsubscribe();
+  });
+
+  it('discards a direct read after its live subscription is disposed', async () => {
+    let push: (result: unknown) => void = () => {};
+    bridge.client?.subscribeMessage.mockImplementationOnce(async (callback) => {
+      push = callback;
+      return vi.fn();
+    });
+    const listener = vi.fn();
+    const unsubscribe = await service.subscribeItems('todo.shopping_list', listener);
+    push({ items: [{ summary: 'Coffee', status: 'needs_action' }] });
+    const current = listener.mock.lastCall?.[0][0];
+    let resolveRead: (result: unknown) => void = () => {};
+    bridge.client?.sendMessagePromise.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        })
+    );
+    const read = service.getItems('todo.shopping_list');
+    const rejection = expect(read).rejects.toThrow('Shared list items changed');
+    unsubscribe();
+    resolveRead({ response: { 'todo.shopping_list': uidlessShoppingListItems } });
+    await rejection;
+    await service.updateItem('todo.shopping_list', current.uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'Coffee', status: 'completed' } })
+    );
+  });
+
+  it('discards a fallback refresh after its subscription is disposed', async () => {
+    vi.useFakeTimers();
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: { 'todo.shopping_list': uidlessShoppingListItems },
+    });
+    const current = await service.getItems('todo.shopping_list');
+    bridge.client?.subscribeMessage.mockRejectedValueOnce(new Error('unknown_command'));
+    let resolveRead: (result: unknown) => void = () => {};
+    bridge.client?.sendMessagePromise.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        })
+    );
+    const listener = vi.fn();
+    const unsubscribe = await service.subscribeItems('todo.shopping_list', listener);
+    unsubscribe();
+    resolveRead({
+      response: {
+        'todo.shopping_list': { items: [{ summary: 'Coffee', status: 'needs_action' }] },
+      },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(listener).not.toHaveBeenCalled();
+    await service.updateItem('todo.shopping_list', current[0].uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'Milk', status: 'completed' } })
+    );
+  });
+
+  it('reads completed items even when the backend defaults to incomplete items', async () => {
+    bridge.client?.sendMessagePromise.mockImplementationOnce(async (message) => {
+      const statuses = message.service_data.status ?? ['needs_action'];
+      return {
+        response: {
+          'todo.shopping_list': {
+            items: shoppingListItems.items.filter((item) => statuses.includes(item.status)),
+          },
+        },
+      };
+    });
+    const items = await service.getItems('todo.shopping_list');
+    expect(items).toHaveLength(shoppingListItems.items.length);
+    expect(items.some((item) => item.completed)).toBe(true);
+  });
+
   it('reads both completed and incomplete items using authenticated service responses', async () => {
     expect(await service.getItems('todo.shopping_list')).toEqual(
       shoppingListItems.items.map((item) => ({
@@ -196,7 +424,7 @@ describe('Home Assistant shared lists', () => {
       type: 'call_service',
       domain: 'todo',
       service: 'get_items',
-      service_data: {},
+      service_data: { status: ['needs_action', 'completed'] },
       target: { entity_id: 'todo.shopping_list' },
       return_response: true,
     });

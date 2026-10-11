@@ -1,8 +1,72 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  householdRegistryAfter,
+  householdRegistryBefore,
+} from '../../test/fixtures/home-assistant/registries/household';
 import HARegistryService from '../ha-registry.service';
 
 describe('HARegistryService', () => {
   const sendMessagePromise = vi.fn();
+
+  it.each(['before', 'after'] as const)(
+    'loads a replacement household independently when the obsolete request settles %s it',
+    async (obsoleteSettles) => {
+      let releaseA!: (areas: typeof householdRegistryBefore.areas) => void;
+      let releaseB!: (areas: typeof householdRegistryAfter.areas) => void;
+      const areasA = new Promise<typeof householdRegistryBefore.areas>((resolve) => {
+        releaseA = resolve;
+      });
+      const areasB = new Promise<typeof householdRegistryAfter.areas>((resolve) => {
+        releaseB = resolve;
+      });
+      const client = (
+        snapshot: typeof householdRegistryBefore,
+        areas: Promise<typeof snapshot.areas>
+      ) => ({
+        sendMessagePromise: vi.fn((message: { type: string }) => {
+          if (message.type === 'config/area_registry/list') return areas;
+          if (message.type === 'config/device_registry/list')
+            return Promise.resolve(snapshot.devices);
+          if (message.type === 'config/entity_registry/list')
+            return Promise.resolve(snapshot.entities);
+          return Promise.resolve([]);
+        }),
+      });
+      const householdA = client(householdRegistryBefore, areasA);
+      const householdB = client(householdRegistryAfter, areasB);
+      let connection = householdA;
+      const service = new HARegistryService(() => connection as never);
+      const oldLoad = service.loadRegistries();
+      service.resetRegistriesForSession();
+      connection = householdB;
+      const replacementLoad = service.loadRegistries();
+      expect(householdB.sendMessagePromise).toHaveBeenCalledTimes(4);
+      expect(replacementLoad).not.toBe(oldLoad);
+      if (obsoleteSettles === 'before') {
+        // A's loop/finalizer must neither consume B's pending refresh nor release B's lock.
+        expect(service.loadRegistries()).toBe(replacementLoad);
+        releaseA(householdRegistryBefore.areas);
+        await oldLoad;
+        expect(service.getAreas()).toEqual([]);
+        expect(service.loadRegistries()).toBe(replacementLoad);
+        expect(householdB.sendMessagePromise).toHaveBeenCalledTimes(4);
+      }
+      releaseB(householdRegistryAfter.areas);
+      await replacementLoad;
+      expect(service.getAreas()).toEqual(householdRegistryAfter.areas);
+      expect(service.getDeviceRegistry()).toEqual(householdRegistryAfter.devices);
+      expect(service.getEntityRegistry()).toEqual(householdRegistryAfter.entities);
+      expect(householdB.sendMessagePromise).toHaveBeenCalledTimes(
+        obsoleteSettles === 'before' ? 8 : 4
+      );
+      if (obsoleteSettles === 'after') {
+        releaseA(householdRegistryBefore.areas);
+        await oldLoad;
+        expect(service.getAreas()).toEqual(householdRegistryAfter.areas);
+        expect(householdB.sendMessagePromise).toHaveBeenCalledTimes(4);
+      }
+    }
+  );
 
   beforeEach(() => {
     sendMessagePromise.mockReset();

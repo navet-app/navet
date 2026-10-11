@@ -166,6 +166,7 @@ class HomeAssistantService {
     this.emitRegistries();
     if (this.registryRefreshTimer !== null) clearTimeout(this.registryRefreshTimer);
     this.registryRefreshTimer = null;
+    this.registryRefreshInProgress = false;
     this.registryRefreshPending = false;
     for (const unsubscribe of this.registryUnsubscribers) unsubscribe();
     this.registryUnsubscribers = [];
@@ -189,11 +190,8 @@ class HomeAssistantService {
           console.error('[HomeAssistantService] Registry refresh failed:', error)
         )
         .finally(() => {
+          if (generation !== this.registrySubscriptionGeneration) return;
           this.registryRefreshInProgress = false;
-          if (generation !== this.registrySubscriptionGeneration) {
-            if (this.registryTransport) this.scheduleRegistryRefresh();
-            return;
-          }
           if (this.registryRefreshPending) {
             this.registryRefreshPending = false;
             this.scheduleRegistryRefresh();

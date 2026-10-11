@@ -17,7 +17,17 @@ function sourceIdentity() {
   return panel ? (panel.connection ?? panel.callWS) : getHomeAssistantConnection();
 }
 
-const summaryTargets = new Map<string, Map<string, string | null>>();
+type ItemTarget = { value: string | null; removable: boolean };
+const summaryTargets = new Map<string, Map<string, ItemTarget>>();
+const snapshotRevisions = new Map<string, number>();
+const nativeSnapshotOwners = new Map<string, Set<object>>();
+const nativeSnapshots = new Map<string, NavetTodoItem[]>();
+
+function advanceSnapshot(listId: string) {
+  const revision = (snapshotRevisions.get(listId) ?? 0) + 1;
+  snapshotRevisions.set(listId, revision);
+  return revision;
+}
 
 let sessionSource: unknown;
 let sessionGeneration = 0;
@@ -25,6 +35,9 @@ function sessionKey() {
   const source = isHomeAssistantConnected() ? sourceIdentity() : null;
   if (source !== sessionSource) {
     summaryTargets.clear();
+    snapshotRevisions.clear();
+    nativeSnapshotOwners.clear();
+    nativeSnapshots.clear();
     sessionSource = source;
     sessionGeneration++;
   }
@@ -72,7 +85,7 @@ function normalizeItems(listId: string, result: unknown): NavetTodoItem[] {
     throw new Error('Invalid shared list response');
   const rawItems = (result as { items: unknown[] }).items;
   const usedIds = new Set(rawItems.map((item) => (item as { uid?: unknown } | null)?.uid));
-  const targets = new Map<string, string | null>();
+  const targets = new Map<string, ItemTarget>();
   const occurrences = new Map<string, number>();
   const items = rawItems.map((item) => {
     if (!item || typeof item !== 'object') throw new Error('Invalid shared list item');
@@ -95,13 +108,20 @@ function normalizeItems(listId: string, result: unknown): NavetTodoItem[] {
         const candidate = other as { summary?: unknown; uid?: unknown } | null;
         return candidate?.summary === raw.summary || candidate?.uid === raw.summary;
       });
-      targets.set(uid, matches.length === 1 ? raw.summary : null);
+      targets.set(uid, { value: matches.length === 1 ? raw.summary : null, removable: false });
+    } else {
+      // HA's _find_by_uid_or_summary uses the first match, even for a real UID.
+      const firstMatch = rawItems.find((other) => {
+        const candidate = other as { summary?: unknown; uid?: unknown } | null;
+        return candidate?.uid === uid || candidate?.summary === uid;
+      });
+      targets.set(uid, { value: firstMatch === raw ? uid : null, removable: firstMatch === raw });
     }
     const due = typeof raw.due === 'string' ? raw.due : undefined;
     return {
       uid,
-      ...(!raw.uid ? { removable: false } : {}),
-      ...(targets.get(uid) === null ? { updatable: false } : {}),
+      ...(targets.get(uid)?.removable === false ? { removable: false } : {}),
+      ...(targets.get(uid)?.value === null ? { updatable: false } : {}),
       summary: raw.summary,
       completed: raw.status === 'completed',
       ...(typeof raw.description === 'string' ? { description: raw.description } : {}),
@@ -119,8 +139,8 @@ function itemTarget(listId: string, uid: string) {
     return uid;
   }
   const target = targets.get(uid);
-  if (target == null) throw new Error('Item name is ambiguous');
-  return target;
+  if (target?.value == null) throw new Error('Item name is ambiguous');
+  return target.value;
 }
 
 function clientFor(
@@ -176,6 +196,27 @@ async function call(
   });
 }
 
+async function readItems(listId: string, isCurrent: () => boolean = () => true) {
+  const { client, list } = clientFor(listId);
+  const source = sourceIdentity();
+  const revision = advanceSnapshot(listId);
+  const result = await client.sendMessagePromise<{ response?: Record<string, unknown> }>({
+    type: 'call_service',
+    domain: 'todo',
+    service: 'get_items',
+    service_data: { status: ['needs_action', 'completed'] },
+    target: { entity_id: listId },
+    return_response: true,
+  });
+  if (source !== sourceIdentity() || list.sessionKey !== sessionKey())
+    throw new Error('Shared list connection changed');
+  if (!isCurrent()) throw new Error('Shared list items changed');
+  // Return the live snapshot with its target map when a subscription owns the visible list.
+  if (nativeSnapshotOwners.get(listId)?.size) return nativeSnapshots.get(listId) ?? [];
+  if (snapshotRevisions.get(listId) !== revision) throw new Error('Shared list items changed');
+  return normalizeItems(listId, result.response?.[listId]);
+}
+
 export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService = {
   async getLists() {
     sessionKey();
@@ -207,27 +248,22 @@ export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService
       for (const unsubscribe of unsubscribers) unsubscribe();
     };
   },
-  async getItems(listId) {
-    const { client } = clientFor(listId);
-    const source = sourceIdentity();
-    const result = await client.sendMessagePromise<{ response?: Record<string, unknown> }>({
-      type: 'call_service',
-      domain: 'todo',
-      service: 'get_items',
-      service_data: {},
-      target: { entity_id: listId },
-      return_response: true,
-    });
-    if (source !== sourceIdentity()) throw new Error('Shared list connection changed');
-    return normalizeItems(listId, result.response?.[listId]);
-  },
+  getItems: readItems,
   async subscribeItems(listId, listener, onError) {
     let disposed = false;
     let generation = 0;
     let currentSource: unknown;
     let activeUnsubscribe: (() => void) | null = null;
     let poll: ReturnType<typeof setInterval> | null = null;
-    const stop = () => {
+    const snapshotOwner = {};
+    const stop = (invalidateReads = true) => {
+      if (invalidateReads) advanceSnapshot(listId);
+      const owners = nativeSnapshotOwners.get(listId);
+      owners?.delete(snapshotOwner);
+      if (owners?.size === 0) {
+        nativeSnapshotOwners.delete(listId);
+        nativeSnapshots.delete(listId);
+      }
       if (activeUnsubscribe)
         void Promise.resolve(activeUnsubscribe()).catch((error) => onError?.(error));
       activeUnsubscribe = null;
@@ -240,7 +276,7 @@ export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService
       const replacedSource = currentSource !== undefined;
       currentSource = source;
       const attempt = ++generation;
-      stop();
+      stop(replacedSource);
       if (replacedSource && source) listener([]);
       if (!source) {
         listener([]);
@@ -250,7 +286,13 @@ export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService
       const publish = (result: unknown) => {
         if (disposed || attempt !== generation || source !== sourceIdentity()) return;
         try {
-          listener(normalizeItems(listId, result));
+          const items = normalizeItems(listId, result);
+          advanceSnapshot(listId);
+          const owners = nativeSnapshotOwners.get(listId) ?? new Set();
+          owners.add(snapshotOwner);
+          nativeSnapshotOwners.set(listId, owners);
+          nativeSnapshots.set(listId, items);
+          listener(items);
         } catch (error) {
           onError?.(error);
         }
@@ -277,7 +319,10 @@ export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService
           if (refreshing || disposed || attempt !== generation) return;
           refreshing = true;
           try {
-            const items = await homeAssistantTodoListFeatureService.getItems(listId);
+            const items = await readItems(
+              listId,
+              () => !disposed && attempt === generation && source === sourceIdentity()
+            );
             if (!disposed && attempt === generation) listener(items);
           } catch (error) {
             if (!disposed && attempt === generation) onError?.(error);
@@ -355,7 +400,8 @@ export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService
     const { client } = clientFor(listId, 'remove', expectedSessionKey);
     if (!uid) throw new Error('Item identifier is required');
     const target = itemTarget(listId, uid);
-    if (summaryTargets.get(listId)?.has(uid)) throw new Error('This item does not support removal');
+    if (summaryTargets.get(listId)?.get(uid)?.removable === false)
+      throw new Error('This item does not support removal');
     await call(client, listId, 'remove_item', { item: target });
   },
 };
