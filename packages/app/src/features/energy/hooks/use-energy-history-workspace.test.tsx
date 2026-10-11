@@ -27,6 +27,7 @@ afterEach(() => {
 
 describe('useEnergyHistoryWorkspace', () => {
   it('requests energy changes in kWh using the energy unit category for both periods', async () => {
+    const emptyConsumers: EnergyConsumer[] = [];
     const statisticsLoader = vi.fn(async (request: PlatformStatisticsHistoryRequest) => ({
       'sensor.total_energy_mwh': [
         {
@@ -39,7 +40,7 @@ describe('useEnergyHistoryWorkspace', () => {
     const { result } = renderHook(() =>
       useEnergyHistoryWorkspace({
         currentLoadStatisticId: 'sensor.total_energy_mwh',
-        consumers: [],
+        consumers: emptyConsumers,
         range: 'today',
         enabled: true,
         valueKind: 'energy',
