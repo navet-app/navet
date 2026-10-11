@@ -1,0 +1,6 @@
+type: new
+audiences:
+  - standalone
+  - home-assistant
+  - hacs
+summary: Home Assistant timers, counters, valves, and remotes now have dashboard cards with their supported controls.

@@ -1,3 +1,9 @@
+import {
+  readNavetCounterState,
+  readNavetRemoteState,
+  readNavetTimerState,
+  readNavetValveState,
+} from '@navet/core/household-device-state';
 import type { NavetEntity } from '@navet/core/types';
 import { describe, expect, it } from 'vitest';
 import { mapNavetEntitiesToDeviceCollection } from '../navet-device-collections';
@@ -32,6 +38,90 @@ function createEntity({
 }
 
 describe('mapNavetEntitiesToDeviceCollection', () => {
+  it('discovers four household control families with persisted identity and source ownership', () => {
+    const entities = (['timer', 'counter', 'valve', 'remote'] as const).flatMap((type) =>
+      (['home_assistant', 'homey'] as const).map((providerId) => ({
+        ...createEntity({
+          canonicalId: `${providerId}:${type}.household`,
+          externalId: `${type}.household`,
+          type,
+          name: type,
+          attributes: {
+            phase: type === 'timer' ? 'active' : 'opening',
+            value: 4,
+            min: -10,
+            max: 20,
+            step: 2,
+            initial: 0,
+            position: 35,
+            isOn: false,
+            durationSeconds: 600,
+            remainingSeconds: 600,
+            finishesAt: '2026-10-11T12:10:00Z',
+            deviceId: 'shared-device',
+          },
+        }),
+        providerId,
+        roomId: `${providerId}:area-kitchen`,
+      }))
+    );
+    const collection = mapNavetEntitiesToDeviceCollection(entities);
+    for (const [type, key] of [
+      ['timer', 'timers'],
+      ['counter', 'counters'],
+      ['valve', 'valves'],
+      ['remote', 'remotes'],
+    ] as const) {
+      expect(
+        collection[key].map((item) => ({
+          id: item.id,
+          providerId: item.providerId,
+          nativeId: item.nativeId,
+          roomId: item.roomId,
+        }))
+      ).toEqual([
+        {
+          id: `home_assistant:${type}.household`,
+          providerId: 'home_assistant',
+          nativeId: `${type}.household`,
+          roomId: 'home_assistant:area-kitchen',
+        },
+        {
+          id: `homey:${type}.household`,
+          providerId: 'homey',
+          nativeId: `${type}.household`,
+          roomId: 'homey:area-kitchen',
+        },
+      ]);
+    }
+    expect(readNavetTimerState(collection.timers[0].normalizedEntity)).toMatchObject({
+      phase: 'active',
+      durationSeconds: 600,
+      canStart: false,
+    });
+    expect(readNavetCounterState(collection.counters[0].normalizedEntity)).toMatchObject({
+      value: 4,
+      min: -10,
+      step: 2,
+    });
+    expect(readNavetValveState(collection.valves[0].normalizedEntity)).toMatchObject({
+      position: 35,
+      phase: 'opening',
+    });
+    expect(readNavetRemoteState(collection.remotes[0].normalizedEntity)).toMatchObject({
+      isOn: false,
+    });
+    for (const key of ['timers', 'counters', 'valves', 'remotes'] as const) {
+      for (const device of collection[key]) {
+        expect(device.normalizedEntity).toBe(
+          entities.find((entity) => entity.canonicalId === device.canonicalId)
+        );
+      }
+    }
+    expect(collection.helpers).toEqual([]);
+    expect(collection.switches).toEqual([]);
+  });
+
   it('retains a writable household helper alongside its physical device card', () => {
     const switchEntity = createEntity({
       canonicalId: 'home_assistant:switch.heater',

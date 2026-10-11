@@ -1,6 +1,8 @@
 import { advancedClimateEntityFactory } from '@navet/app/test/fixtures/home-assistant/entities/advanced-climate';
+import { householdControlEntityFactory } from '@navet/app/test/fixtures/home-assistant/entities/household-controls';
 import { writableHelperEntities } from '@navet/app/test/fixtures/home-assistant/entities/writable-helper';
 import { createProviderScopedId } from '@navet/core/ids';
+import type { NavetCommand } from '@navet/core/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createHomeAssistantContractAdapter,
@@ -173,6 +175,12 @@ describe('homeassistant-adapter', () => {
         error: null,
         entities: {
           ...writableHelperEntities,
+          ...Object.fromEntries(
+            (['timer', 'counter', 'valve', 'remote'] as const).map((domain) => {
+              const entity = householdControlEntityFactory(domain);
+              return [entity.entity_id, entity];
+            })
+          ),
           'climate.living_room': advancedClimateEntityFactory(),
           'light.kitchen': lightEntityFactory(),
           'alarm_control_panel.home': alarmEntityFactory(),
@@ -205,6 +213,63 @@ describe('homeassistant-adapter', () => {
       'Home Assistant session changed'
     );
     expect(callHomeAssistantServiceMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      { type: 'timer_start', entityId: 'home_assistant:timer.household', durationSeconds: 90 },
+      'timer',
+      'start',
+      { duration: 90 },
+    ],
+    [
+      { type: 'counter_increment', entityId: 'home_assistant:counter.household' },
+      'counter',
+      'increment',
+      {},
+    ],
+    [
+      { type: 'set_position', entityId: 'home_assistant:valve.household', position: 50 },
+      'valve',
+      'set_valve_position',
+      { position: 50 },
+    ],
+    [{ type: 'turn_on', entityId: 'home_assistant:remote.household' }, 'remote', 'turn_on', {}],
+  ] as const)(
+    'routes normalized household control %j to its owner with event confirmation',
+    async (command, domain, service, data) => {
+      const adapter = createHomeAssistantContractAdapter();
+      await expect(adapter.execute(command as NavetCommand)).resolves.toMatchObject({
+        accepted: true,
+        requiresEventConfirmation: true,
+      });
+      expect(callHomeAssistantServiceMock).toHaveBeenCalledWith(domain, service, data, {
+        entityId: `${domain}.household`,
+      });
+    }
+  );
+  it('rejects wrong-owner and incompatible household commands without service writes', async () => {
+    const adapter = createHomeAssistantContractAdapter();
+    await expect(
+      adapter.execute({ type: 'timer_start', entityId: 'homey:timer.household' })
+    ).rejects.toThrow();
+    await expect(
+      adapter.execute({ type: 'turn_on', entityId: 'timer.household' })
+    ).rejects.toThrow();
+    await expect(
+      adapter.execute({ type: 'set_position', entityId: 'light.kitchen', position: 50 })
+    ).rejects.toThrow();
+    expect(callHomeAssistantServiceMock).not.toHaveBeenCalled();
+  });
+  it('preserves household transport failures for recovery', async () => {
+    const adapter = createHomeAssistantContractAdapter();
+    callHomeAssistantServiceMock.mockRejectedValueOnce(new Error('Device did not respond'));
+    await expect(
+      adapter.execute({ type: 'counter_reset', entityId: 'counter.household' })
+    ).rejects.toThrow('Device did not respond');
+    await expect(
+      adapter.execute({ type: 'counter_reset', entityId: 'counter.household' })
+    ).resolves.toMatchObject({ accepted: true, requiresEventConfirmation: true });
   });
 
   it('routes advanced climate commands to the owning entity with event confirmation', async () => {

@@ -4,6 +4,7 @@ import type {
   NavetAlarmState,
 } from '@navet/core/alarm-types';
 import type { NavetHelperState } from '@navet/core/helper-state';
+import type { NavetEntity } from '@navet/core/types';
 import type { CardSize } from '../components/shared/card-size-selector';
 import type { NavetMediaCapabilities } from '../core/navet-device-state';
 import type { SensorIconType } from '../features/sensors';
@@ -351,8 +352,29 @@ export interface GroupedSensorDevice extends BaseDevice {
   accentColor?: 'teal' | 'blue' | 'purple' | 'amber' | 'emerald';
 }
 
+export interface TimerDevice extends BaseDevice {
+  room: string;
+  normalizedEntity: NavetEntity;
+}
+export interface CounterDevice extends BaseDevice {
+  room: string;
+  normalizedEntity: NavetEntity;
+}
+export interface ValveDevice extends BaseDevice {
+  room: string;
+  normalizedEntity: NavetEntity;
+}
+export interface RemoteDevice extends BaseDevice {
+  room: string;
+  normalizedEntity: NavetEntity;
+}
+
 // Union type for all devices
 export type Device =
+  | TimerDevice
+  | CounterDevice
+  | ValveDevice
+  | RemoteDevice
   | LightDevice
   | FanDevice
   | ClimateDevice
@@ -373,6 +395,11 @@ export type Device =
 
 // Device collection
 export interface DeviceCollection {
+  timers: TimerDevice[];
+  counters: CounterDevice[];
+  valves: ValveDevice[];
+  remotes: RemoteDevice[];
+
   lights: LightDevice[];
   fans: FanDevice[];
   hvac: ClimateDevice[];

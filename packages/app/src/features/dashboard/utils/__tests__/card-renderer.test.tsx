@@ -1,11 +1,16 @@
+import { mapNavetEntitiesToDeviceCollection } from '@navet/app/core/navet-device-collections';
 import { integrationAdminService } from '@navet/app/services/integration-admin.service';
 import { integrationStore } from '@navet/app/stores/integration-store';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { renderHookWithProviders, renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
-import { act, fireEvent, screen } from '@testing-library/react';
+import type { NavetEntity } from '@navet/core/types';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderCard, useCardIsUnavailable } from '../card-renderer';
+
+const { householdDispatch } = vi.hoisted(() => ({ householdDispatch: vi.fn() }));
+vi.mock('@navet/app/commands', () => ({ dispatchEntityCommand: householdDispatch }));
 
 vi.mock('@navet/app/features/security', () => ({
   CameraCard: ({ id }: { id: string }) => <div data-testid="camera-card">{id}</div>,
@@ -493,5 +498,173 @@ describe('card availability lookup', () => {
       'home_assistant:lawn_mower.backyard'
     );
     expect(screen.queryByTestId('vacuum-card')).not.toBeInTheDocument();
+  });
+});
+
+// Keep: actual lazy household cards must preserve explicit source ownership at dashboard composition.
+describe('household controls dashboard renderer', () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    await resetAppStores();
+    householdDispatch
+      .mockReset()
+      .mockResolvedValue({ accepted: true, requiresEventConfirmation: true });
+  });
+  const cases = [
+    {
+      domain: 'timer',
+      key: 'timers',
+      attributes: { phase: 'idle', durationSeconds: 600, remainingSeconds: null, finishesAt: null },
+      capabilities: ['timer_start', 'timer_pause', 'timer_cancel', 'timer_finish'],
+      action: 'Start',
+      command: 'timer_start',
+    },
+    {
+      domain: 'counter',
+      key: 'counters',
+      attributes: { value: 4, min: -10, max: 20, step: 2, initial: 0 },
+      capabilities: ['counter_increment', 'counter_decrement', 'counter_reset', 'counter_value'],
+      action: 'Increase',
+      command: 'counter_increment',
+    },
+    {
+      domain: 'valve',
+      key: 'valves',
+      attributes: { phase: 'closed', position: 0 },
+      capabilities: ['valve_open', 'valve_close', 'valve_stop', 'position'],
+      action: 'Open',
+      command: 'open',
+    },
+    {
+      domain: 'remote',
+      key: 'remotes',
+      attributes: { isOn: false },
+      capabilities: ['toggle'],
+      action: 'Turn on Household remote',
+      command: 'turn_on',
+    },
+  ] as const;
+  function install(
+    testCase: (typeof cases)[number],
+    availability: NavetEntity['availability'] = 'available',
+    writable = true
+  ) {
+    const id = `home_assistant:${testCase.domain}.household`;
+    const entity: NavetEntity = {
+      id,
+      canonicalId: id,
+      externalId: `${testCase.domain}.household`,
+      providerId: 'home_assistant',
+      type: testCase.domain,
+      name: `Household ${testCase.domain}`,
+      room: 'Kitchen',
+      primaryState:
+        availability === 'unavailable'
+          ? testCase.domain === 'counter'
+            ? null
+            : 'unavailable'
+          : testCase.domain === 'counter'
+            ? 4
+            : testCase.domain === 'remote'
+              ? false
+              : testCase.domain === 'timer'
+                ? 'idle'
+                : 'closed',
+      availability,
+      attributes:
+        availability === 'unavailable'
+          ? {
+              ...testCase.attributes,
+              phase: 'unknown',
+              value: testCase.domain === 'counter' ? null : 'unavailable',
+              isOn: null,
+            }
+          : {
+              ...testCase.attributes,
+              ...(testCase.domain === 'counter'
+                ? {}
+                : {
+                    value:
+                      testCase.domain === 'timer'
+                        ? 'idle'
+                        : testCase.domain === 'valve'
+                          ? 'closed'
+                          : 'off',
+                  }),
+            },
+      capabilities: writable ? [...testCase.capabilities] : [],
+    };
+    integrationStore.setState({
+      currentProviderId: 'homey',
+      providerEntitiesByProviderId: { home_assistant: { [id]: entity } },
+      providerEntityLookupByProviderId: { home_assistant: { [id]: id, [entity.externalId]: id } },
+    });
+    const device = mapNavetEntitiesToDeviceCollection([entity])[testCase.key][0];
+    return { entity, device };
+  }
+  function card(testCase: (typeof cases)[number], device: ReturnType<typeof install>['device']) {
+    const result = renderCard({
+      device: { ...device, type: testCase.key },
+      size: 'small',
+      handleSizeChange: () => undefined,
+      isEditMode: false,
+    });
+    if (!result) throw new Error('Expected household card');
+    return result;
+  }
+  it.each(cases)(
+    'renders live $domain and routes its primary action to its owner rather than current provider',
+    async (testCase) => {
+      const { device, entity } = install(testCase);
+      renderWithProviders(card(testCase, device));
+      if (testCase.domain === 'timer' || testCase.domain === 'counter') {
+        fireEvent.click(await screen.findByRole('button', { name: entity.name }));
+        await screen.findByRole('dialog', { name: entity.name });
+      }
+      fireEvent.click(await screen.findByRole('button', { name: testCase.action }));
+      await vi.waitFor(() =>
+        expect(householdDispatch).toHaveBeenCalledWith(
+          expect.objectContaining({ type: testCase.command, entityId: entity.id }),
+          'home_assistant'
+        )
+      );
+      expect(integrationStore.getState().currentProviderId).toBe('homey');
+    }
+  );
+  it.each(cases)('keeps capability-free $domain read-only', async (testCase) => {
+    const { device, entity } = install(testCase, 'available', false);
+    renderWithProviders(card(testCase, device));
+    if (testCase.domain === 'timer' || testCase.domain === 'counter') {
+      fireEvent.click(await screen.findByRole('button', { name: entity.name }));
+      const dialog = await screen.findByRole('dialog', { name: entity.name });
+      expect(
+        within(dialog).getByRole('button', {
+          name: testCase.domain === 'timer' ? 'Start' : 'Reset',
+        })
+      ).toBeDisabled();
+    } else {
+      await screen.findByText(entity.name);
+      expect(screen.queryByRole('button', { name: testCase.action })).not.toBeInTheDocument();
+    }
+    expect(householdDispatch).not.toHaveBeenCalled();
+  });
+  it.each(cases)('blocks unavailable $domain controls with recovery wrapper', async (testCase) => {
+    const { device } = install(testCase, 'unavailable');
+    const { container } = renderWithProviders(card(testCase, device));
+    await screen.findAllByText('Unavailable');
+    expect(container.querySelector('[inert]')).not.toBeNull();
+    expect(householdDispatch).not.toHaveBeenCalled();
+  });
+  it.each(cases)('blocks $domain cards without an explicit owner', (testCase) => {
+    const { device } = install(testCase);
+    expect(
+      renderCard({
+        device: { ...device, type: testCase.key, providerId: undefined },
+        size: 'small',
+        handleSizeChange: () => undefined,
+        isEditMode: false,
+      })
+    ).toBeNull();
+    expect(householdDispatch).not.toHaveBeenCalled();
   });
 });

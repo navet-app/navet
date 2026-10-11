@@ -209,6 +209,10 @@ export function buildDashboardVisibilityResult(
     media: filterVisibleDevices(devices.media, hiddenIds),
     weather: filterVisibleDevices(devices.weather, hiddenIds),
     switches: filterVisibleDevices(devices.switches, hiddenIds),
+    timers: filterVisibleDevices(devices.timers, hiddenIds),
+    counters: filterVisibleDevices(devices.counters, hiddenIds),
+    valves: filterVisibleDevices(devices.valves, hiddenIds),
+    remotes: filterVisibleDevices(devices.remotes, hiddenIds),
     helpers: filterAbsorbedDevices(filterVisibleDevices(devices.helpers, hiddenIds), absorbedIds),
     covers: filterVisibleDevices(devices.covers, hiddenIds),
     locks: filterVisibleDevices(devices.locks, hiddenIds),
@@ -261,6 +265,10 @@ export const useDashboardDevices = (
       visibleDevices.weather === devices.weather &&
       visibleDevices.switches === devices.switches &&
       visibleDevices.helpers === devices.helpers &&
+      visibleDevices.timers === devices.timers &&
+      visibleDevices.counters === devices.counters &&
+      visibleDevices.valves === devices.valves &&
+      visibleDevices.remotes === devices.remotes &&
       visibleDevices.covers === devices.covers &&
       visibleDevices.locks === devices.locks &&
       visibleDevices.scenes === devices.scenes &&

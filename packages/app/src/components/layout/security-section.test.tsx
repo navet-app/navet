@@ -16,6 +16,10 @@ const devicesFixture: DeviceCollection = {
   media: [],
   weather: [],
   switches: [],
+  timers: [],
+  counters: [],
+  valves: [],
+  remotes: [],
   helpers: [
     {
       id: 'button.panic',
@@ -268,6 +272,10 @@ describe('SecuritySection', () => {
   it('renders the dashboard grid for alarm-only security views', () => {
     currentDevicesFixture = {
       ...devicesFixture,
+      timers: [],
+      counters: [],
+      valves: [],
+      remotes: [],
       helpers: [],
       covers: [],
       locks: [],

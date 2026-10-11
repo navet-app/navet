@@ -44,6 +44,24 @@ sorting, and device-type navigation as Home. The list contains entities eligible
 dashboard; adding an entity keeps the dashboard’s existing behavior. Custom-card authoring
 remains available through **Add Card**.
 
+## Timers, counters, valves, and remotes
+
+Home Assistant timers, counters, valves, and remotes appear in **All cards**. Add one to
+Home or a room, then open its card to use the controls supported by that entity.
+
+- Timers support starting, pausing, resuming, canceling, and finishing. Enter a duration in
+  seconds when starting with a different duration; leave it empty to use the configured duration.
+- Counters support increasing, decreasing, resetting, and setting a value. The provider's
+  configured limits and step apply, including negative values when allowed.
+- Valves expose their supported open, close, stop, and position controls. Stop remains available
+  while a supported valve moves. Position is a percentage from 0 to 100.
+- Remotes support turning on and off. Device-specific buttons, activities, and command learning
+  are not available from these cards.
+
+Controls follow live provider state. While an update is pending, Navet prevents duplicate writes;
+if an update fails or stalls, try the action again. Unavailable entities keep their controls disabled.
+Tiny and Extra small cards open the same controls from their compact display.
+
 ## Configure the card
 
 Depending on the card type, choose:

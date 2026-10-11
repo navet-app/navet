@@ -100,6 +100,10 @@ const SECURITY_SECTION_DEVICE_KEYS = [
   'sensors',
   'persons',
   'helpers',
+  'timers',
+  'counters',
+  'valves',
+  'remotes',
 ] as const;
 const MEDIA_SECTION_DEVICE_KEYS = ['media'] as const;
 const CLIMATE_SECTION_DEVICE_KEYS = [
@@ -880,6 +884,10 @@ const EMPTY_DEVICE_COLLECTION: DeviceCollection = {
   weather: [],
   switches: [],
   helpers: [],
+  timers: [],
+  counters: [],
+  valves: [],
+  remotes: [],
   covers: [],
   locks: [],
   scenes: [],

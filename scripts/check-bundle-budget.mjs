@@ -14,6 +14,10 @@ const MAX_AUTHENTICATED_TRANSITION_JS_BYTES = 320 * 1024;
 const MAX_MAIN_CSS_BYTES = 560 * 1024;
 const FORBIDDEN_AUTHENTICATED_TRANSITION_PREFIXES = ['dnd-vendor', 'primitives-'];
 const LAZY_CHUNK_PREFIXES = [
+  'timer-card-',
+  'counter-card-',
+  'valve-card-',
+  'remote-card-',
   'dashboard-card-item-draggable-',
   'dashboard-widget-battery-',
   'dashboard-widget-button-',

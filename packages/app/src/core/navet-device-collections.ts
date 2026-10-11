@@ -13,6 +13,10 @@ export function createEmptyDeviceCollection(): DeviceCollection {
     weather: [],
     switches: [],
     helpers: [],
+    timers: [],
+    counters: [],
+    valves: [],
+    remotes: [],
     covers: [],
     locks: [],
     scenes: [],
@@ -297,6 +301,16 @@ export function mapNavetEntitiesToDeviceCollection(entities: NavetEntity[]): Dev
     const deviceId = readDeviceId(state);
 
     switch (entity.type) {
+      case 'timer':
+      case 'counter':
+      case 'valve':
+      case 'remote': {
+        const key = (
+          { timer: 'timers', counter: 'counters', valve: 'valves', remote: 'remotes' } as const
+        )[entity.type];
+        collection[key].push({ ...base, normalizedEntity: entity });
+        break;
+      }
       case 'light':
         collection.lights.push({
           ...base,

@@ -21,6 +21,10 @@ export type NavetEntityType =
   | 'sensor'
   | 'binary_sensor'
   | 'helper'
+  | 'timer'
+  | 'counter'
+  | 'valve'
+  | 'remote'
   | 'climate'
   | 'media_player'
   | 'weather'
@@ -95,6 +99,15 @@ export interface NavetProviderState extends NavetProviderRuntimeState {
 
 // Shared UI should emit only provider-neutral commands. Keep `service` as an adapter/app shim.
 export type NavetCommand =
+  | { type: 'timer_start'; entityId: string; durationSeconds?: number }
+  | { type: 'timer_pause'; entityId: string }
+  | { type: 'timer_cancel'; entityId: string }
+  | { type: 'timer_finish'; entityId: string }
+  | { type: 'counter_increment'; entityId: string }
+  | { type: 'counter_decrement'; entityId: string }
+  | { type: 'counter_reset'; entityId: string }
+  | { type: 'set_counter_value'; entityId: string; value: number }
+  | { type: 'set_position'; entityId: string; position: number }
   | { type: 'set_number_value'; entityId: string; value: number }
   | { type: 'select_option'; entityId: string; option: string }
   | { type: 'set_text_value'; entityId: string; value: string }

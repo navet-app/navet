@@ -152,6 +152,15 @@ export default defineConfig(({ command, mode }) => {
         codeSplitting: {
           groups: [
             {
+              // Keep eager room references out of the deferred admin service chunk.
+              name: 'provider-room-management',
+              test(id: string) {
+                return id.endsWith('/packages/core/src/provider-room-management.ts');
+              },
+              entriesAware: true,
+              includeDependenciesRecursively: false,
+            },
+            {
               name(id: string) {
                 return getVendorChunkName(id) ?? 'vendor';
               },

@@ -11,6 +11,10 @@ import {
   mapHomeAssistantHelper,
 } from './homeassistant-helper';
 import {
+  HOME_ASSISTANT_HOUSEHOLD_DOMAINS,
+  mapHomeAssistantHouseholdControls,
+} from './homeassistant-household-controls';
+import {
   type createRegistryMaps,
   getEntityCategory,
   getMediaPlayerCapabilities,
@@ -63,6 +67,7 @@ interface SwitchMetricCache {
 
 const MAPPED_HOME_ASSISTANT_DOMAINS = new Set([
   ...HOME_ASSISTANT_VALUE_HELPER_DOMAINS,
+  ...HOME_ASSISTANT_HOUSEHOLD_DOMAINS,
   'light',
   'fan',
   'switch',
@@ -1670,6 +1675,7 @@ function mapHomeAssistantEntity(
   const roomId = resolveEntityRoomId(entityId, entityRegistryMap, deviceRegistryMap);
   const name = resolveSecurityEntityName(entity, entityEntry, deviceEntry, securityKind);
   const helper = mapHomeAssistantHelper(entity);
+  const household = mapHomeAssistantHouseholdControls(entity);
   const capabilities: NavetEntity['capabilities'] = helper
     ? helper.writable
       ? [
@@ -1682,7 +1688,7 @@ function mapHomeAssistantEntity(
                 : 'datetime_value',
         ]
       : []
-    : inferHomeAssistantCapabilities(entityId, entity);
+    : (household?.capabilities ?? inferHomeAssistantCapabilities(entityId, entity));
   const type =
     HOME_ASSISTANT_VALUE_HELPER_DOMAINS.has(domain) ||
     domain === 'input_boolean' ||
@@ -1751,6 +1757,7 @@ function mapHomeAssistantEntity(
     {
       ...createHomeAssistantState(entityId, entity, entityEntry, areaMap, switchMetricsByDeviceId),
       ...(helper ? { ...helper, size: 'small' } : {}),
+      ...(household ? { ...household.attributes, size: 'small' } : {}),
     },
     resources,
     roomId

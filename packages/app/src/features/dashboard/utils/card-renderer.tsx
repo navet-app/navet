@@ -84,6 +84,26 @@ const HelperCard = lazy(async () => {
   return { default: module.HelperCard };
 });
 
+const TimerCard = lazy(async () => {
+  const module = await import('@navet/app/features/household-controls/components/timer-card');
+  return { default: module.TimerCard };
+});
+
+const CounterCard = lazy(async () => {
+  const module = await import('@navet/app/features/household-controls/components/counter-card');
+  return { default: module.CounterCard };
+});
+
+const ValveCard = lazy(async () => {
+  const module = await import('@navet/app/features/household-controls/components/valve-card');
+  return { default: module.ValveCard };
+});
+
+const RemoteCard = lazy(async () => {
+  const module = await import('@navet/app/features/household-controls/components/remote-card');
+  return { default: module.RemoteCard };
+});
+
 const SwitchCard = lazy(async () => {
   const module = await import('@navet/app/features/lighting');
   return { default: module.SwitchCard };
@@ -274,7 +294,7 @@ export function selectCardIsUnavailable(
       ? readProviderEntityStateValue(providerEntity)
       : fallbackState;
 
-    return entityState === 'unavailable';
+    return providerEntity?.availability === 'unavailable' || entityState === 'unavailable';
   });
 }
 
@@ -631,6 +651,54 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
         isEditMode={isEditMode}
       />
     ),
+
+  timers: ({ device, size, isEditMode }) =>
+    typeof device.providerId === 'string' && isIntegrationProviderId(device.providerId) ? (
+      <TimerCard
+        id={device.id}
+        name={device.name as string}
+        room={device.room as string | undefined}
+        providerId={device.providerId}
+        size={size}
+        isEditMode={isEditMode}
+      />
+    ) : null,
+
+  counters: ({ device, size, isEditMode }) =>
+    typeof device.providerId === 'string' && isIntegrationProviderId(device.providerId) ? (
+      <CounterCard
+        id={device.id}
+        name={device.name as string}
+        room={device.room as string | undefined}
+        providerId={device.providerId}
+        size={size}
+        isEditMode={isEditMode}
+      />
+    ) : null,
+
+  valves: ({ device, size, isEditMode }) =>
+    typeof device.providerId === 'string' && isIntegrationProviderId(device.providerId) ? (
+      <ValveCard
+        id={device.id}
+        name={device.name as string}
+        room={device.room as string | undefined}
+        providerId={device.providerId}
+        size={size}
+        isEditMode={isEditMode}
+      />
+    ) : null,
+
+  remotes: ({ device, size, isEditMode }) =>
+    typeof device.providerId === 'string' && isIntegrationProviderId(device.providerId) ? (
+      <RemoteCard
+        id={device.id}
+        name={device.name as string}
+        room={device.room as string | undefined}
+        providerId={device.providerId}
+        size={size}
+        isEditMode={isEditMode}
+      />
+    ) : null,
 
   covers: ({ device, size, handleSizeChange, isEditMode }) => (
     <CoverCard

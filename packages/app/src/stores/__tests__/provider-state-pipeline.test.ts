@@ -56,6 +56,47 @@ function makeProviderState(overrides: Partial<NavetProviderState> = {}): NavetPr
 }
 
 describe('provider-state pipeline', () => {
+  it.each([
+    [
+      'timer',
+      'timers',
+      { phase: 'active', durationSeconds: 600 },
+      { phase: 'paused', remainingSeconds: 300 },
+    ],
+    ['counter', 'counters', { value: 4, step: 2 }, { value: 6, step: 2 }],
+    ['valve', 'valves', { phase: 'opening', position: 35 }, { phase: 'open', position: 100 }],
+    ['remote', 'remotes', { isOn: false }, { isOn: true }],
+  ] as const)(
+    'publishes same-count %s updates without losing collection identity',
+    (type, key, before, after) => {
+      const entity = makeLight({
+        id: `${type}.household`,
+        canonicalId: `home_assistant:${type}.household`,
+        externalId: `${type}.household`,
+        type,
+        attributes: before,
+      });
+      const previous = buildProviderScopedState({
+        providerId: 'home_assistant',
+        providerState: makeProviderState({ entities: [entity] }),
+      });
+      const next = buildProviderScopedState({
+        providerId: 'home_assistant',
+        providerState: makeProviderState({ entities: [{ ...entity, attributes: after }] }),
+        previousState: previous,
+      });
+      expect(previous.deviceCollection[key]).toHaveLength(1);
+      expect(next.deviceCollection[key]).toHaveLength(1);
+      expect(previous.deviceCollection[key][0].normalizedEntity.attributes).toMatchObject(before);
+      expect(next.deviceCollection[key][0].normalizedEntity.attributes).toMatchObject(after);
+      expect(next.deviceCollection[key][0].normalizedEntity).not.toBe(
+        previous.deviceCollection[key][0].normalizedEntity
+      );
+      expect(next.deviceCollection[key][0].id).toBe(`home_assistant:${type}.household`);
+      expect(next.deviceCollection.lights).toBe(previous.deviceCollection.lights);
+    }
+  );
+
   it('reuses stable entities, views, lookup, and device collections', () => {
     const first = buildProviderScopedState({
       providerId: 'home_assistant',

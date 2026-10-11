@@ -3,6 +3,8 @@ import type { NavetCommand, NavetEntity } from '@navet/core/types';
 import { getHomeAssistantClimateControlCommandRoute } from './homeassistant-climate-controls';
 import { HOME_ASSISTANT_VALUE_HELPER_DOMAINS } from './homeassistant-helper';
 import { getHomeAssistantHelperCommandRoute } from './homeassistant-helper-commands';
+import { getHomeAssistantHouseholdCommandRoute } from './homeassistant-household-commands';
+import { HOME_ASSISTANT_HOUSEHOLD_DOMAINS } from './homeassistant-household-controls';
 import { callHomeAssistantService } from './homeassistant-service-bridge';
 
 const ALARM_COMMAND_SERVICES: Record<
@@ -102,6 +104,13 @@ function getVacuumLikeCommandRoute(entity: NavetEntity, command: NavetCommand) {
 }
 
 export async function executeHomeAssistantCommand(entity: NavetEntity, command: NavetCommand) {
+  if (HOME_ASSISTANT_HOUSEHOLD_DOMAINS.has(getEntityCommandDomain(entity))) {
+    const route = getHomeAssistantHouseholdCommandRoute(entity, command);
+    await callHomeAssistantService(route.domain, route.service, route.data, {
+      entityId: entity.externalId,
+    });
+    return;
+  }
   if (
     HOME_ASSISTANT_VALUE_HELPER_DOMAINS.has(getEntityCommandDomain(entity)) &&
     !['set_number_value', 'select_option', 'set_text_value', 'set_datetime_value'].includes(

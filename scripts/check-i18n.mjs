@@ -195,17 +195,23 @@ const universallyAllowedIdenticalValues = new Set([
 ]);
 const allowedIdenticalValuesByLanguage = {
   sv: new Set([
+    // Native household-control terms shared with English.
+    'Timer', 'Position',
     'System', 'Auto', 'Standard', 'Celsius', 'Fahrenheit', 'Medium', 'Version', 'Status',
     'Media', 'Receiver', 'Soundbar', 'Sensor', 'Max', 'Live', 'tv', 'Radio', 'Person',
     'Widget', 'Normal', 'Album', 'Orange', 'Neutral', 'Gas', 'period',
   ]),
   de: new Set([
+    // Native household-control terms shared with English.
+    'Timer', 'Position',
     'System', 'Auto', 'Standard', 'Celsius', 'Fahrenheit', 'Routine', 'Version', 'Status',
     'Widgets', 'Details', 'Wind', 'Shuffle', 'Soundbar', 'Sensor', 'Max', 'Live', 'Radio',
     'Administrator', 'Person', 'Widget', 'Info', 'Optional', 'Name', 'Link', 'Normal',
     'Streams', 'Album', 'Alarm', 'Feeds', 'Orange', 'Neutral', 'Solar', 'Gas', 'In Navet',
   ]),
   fr: new Set([
+    // Native household-control terms shared with English.
+    'Pause', 'Position',
     'Description',
     'Interaction', 'Auto', 'Standard', 'Celsius', 'Fahrenheit', 'Routine', 'Action',
     'Suggestions', 'Version', 'Photo', 'Widgets', 'Volume', 'Source', 'Mode', 'Zones',
@@ -218,10 +224,14 @@ const allowedIdenticalValuesByLanguage = {
     'Sensor', 'Normal', 'Solar', 'Gas',
   ]),
   it: new Set([
+    // Native household-control terms shared with English.
+    'Timer',
     'Auto', 'Standard', 'Fahrenheit', 'Routine', 'Volume', 'Media', 'Radio', 'Menu',
     'Eco', 'Album', 'Comfort', 'Relax', 'Gas', 'In Navet',
   ]),
   nl: new Set([
+    // Native household-control terms shared with English.
+    'Timer', 'Open',
     'Items',
     'week',
     'Week {week}', 'Dashboard', 'Project', 'Celsius', 'Fahrenheit', 'Status', 'Widgets',
@@ -247,6 +257,8 @@ const allowedIdenticalValuesByLanguage = {
     'Volume', 'Sensor', 'Total', 'Radio', 'Widget', 'Link', 'Menu', 'Normal', 'Solar',
   ]),
   no: new Set([
+    // Native household-control terms shared with English.
+    'Timer', 'Start', 'Pause',
     'System', 'Auto', 'Standard', 'Celsius', 'Fahrenheit', 'Type', 'Status', 'Analytics',
     'Widgets', 'Media', 'Soundbar', 'Sensor', 'Live', 'tv', 'Radio', 'Administrator',
     'Scene', 'Person', 'Widget', 'Home Assistant Media', 'Home Assistant media', 'Info',
@@ -254,6 +266,8 @@ const allowedIdenticalValuesByLanguage = {
     'kW live', 'kW import',
   ]),
   da: new Set([
+    // Native household-control terms shared with English.
+    'Timer', 'Start', 'Pause', 'Position', 'Position for {name}',
     'Dashboard', 'System', 'Auto', 'Standard', 'Celsius', 'Fahrenheit', 'Medium', 'Type',
     'Status', 'Analytics', 'Widgets', 'Soundbar', 'Sensor', 'Stop {order}', 'Live',
     'Scripts', 'script', 'scripts', 'tv', 'Radio', 'Administrator', 'Scene', 'Person',
