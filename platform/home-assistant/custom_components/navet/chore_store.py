@@ -926,7 +926,7 @@ def _materialize(data: dict[str, Any], range_start: str, range_end: str, timesta
                 if item.get("definitionId") == definition["id"] and not item.get("completedAt")
                 and not item.get("carriedForwardTo") and not item.get("supersededAt") and item.get("status") in {"available", "claimed", "missed"}]
             if outstanding:
-                recurrence_ids.add(min(outstanding, key=lambda item: item["scheduledAt"])["id"])
+                recurrence_ids.add(min(outstanding, key=lambda item: _parse_iso(item["scheduledAt"]))["id"])
                 continue
         hourly_instants: list[datetime] = []
         hourly_indices: list[int] = []
