@@ -994,6 +994,24 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
     async def test_started_after_completion_interval_survives_assignment_edit(self):
         await self._assert_started_interval_survives_edit("assignment")
 
+    async def test_offset_outstanding_interval_preserves_earliest_future_work_after_completion(self):
+        await self._seed_outstanding_interval(approval=True)
+        original = next(iter(self.authority.data["occurrencesById"].values()))
+        earlier = {**original, "id": "restored-earlier", "scheduledAt": "2026-10-25T00:30:00+02:00",
+            "dueAt": "2026-10-25T01:30:00+02:00", "updatedAt": "2026-10-11T10:00:00.000Z"}
+        later = {**original, "id": "restored-later", "scheduledAt": "2026-10-24T23:00:00.000Z",
+            "dueAt": "2026-10-25T00:00:00.000Z", "updatedAt": "2026-10-11T10:00:00.000Z"}
+        self.assertLess(chores._parse_iso(earlier["scheduledAt"]), chores._parse_iso(later["scheduledAt"]))
+        self.authority.data["occurrencesById"].update({earlier["id"]: earlier, later["id"]: later})
+        result = await self.authority.async_command({"commandId": "offset-outstanding-complete", "baseRevision": self.authority.revision,
+            "action": {"type": "occurrence_action", "occurrenceId": original["id"], "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
+        self.assertEqual(result["data"]["occurrencesById"][original["id"]]["status"], "awaiting_approval")
+        self.assertEqual([item for item in result["data"]["occurrencesById"].values() if not item.get("completedAt")], [earlier])
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        await restarted.async_tick()
+        self.assertEqual(restarted.data["occurrencesById"], result["data"]["occurrencesById"])
+
     async def test_old_after_completion_stays_actionable_and_survives_done_and_restart(self):
         await self._seed_outstanding_interval()
         self.assertEqual(len(self.authority.data["occurrencesById"]), 1)
