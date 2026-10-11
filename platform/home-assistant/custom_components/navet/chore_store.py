@@ -2232,7 +2232,10 @@ class ChoreAuthority:
                 if not isinstance(grace, int) or now < boundary:
                     continue
                 policy_action = missed.get("action")
-                if not superseding and policy_action not in {"skip", "carry_forward"}:
+                if not superseding and (
+                    policy_action not in {"none", "skip", "carry_forward"}
+                    or (policy_action == "none" and definition.get("schedule", {}).get("frequency") != "once")
+                ):
                     continue
                 occurrence["status"] = "skipped" if policy_action == "skip" else "missed"
                 occurrence["updatedAt"] = timestamp

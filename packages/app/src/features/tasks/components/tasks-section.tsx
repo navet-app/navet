@@ -439,8 +439,8 @@ export function TasksSection() {
   );
   if (!listProviderIds.length) return <RoutineTasksSection />;
   return (
-    <div className="h-full min-w-0 space-y-4 overflow-y-auto">
-      <nav className="flex gap-2" aria-label={t('todo.workspace')}>
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-4">
+      <nav className="flex shrink-0 gap-2" aria-label={t('todo.workspace')}>
         <InteractivePill
           active={workspace === 'routines'}
           aria-pressed={workspace === 'routines'}
@@ -460,13 +460,17 @@ export function TasksSection() {
           {t('todo.lists')}
         </InteractivePill>
       </nav>
-      {workspace === 'routines' ? (
-        <RoutineTasksSection />
-      ) : (
-        <Suspense fallback={<TasksLoadingState />}>
-          <TodoListsSection providerIds={listProviderIds} />
-        </Suspense>
-      )}
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+        {workspace === 'routines' ? (
+          <RoutineTasksSection />
+        ) : (
+          <div className="h-full min-w-0 overflow-y-auto">
+            <Suspense fallback={<TasksLoadingState />}>
+              <TodoListsSection providerIds={listProviderIds} />
+            </Suspense>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
