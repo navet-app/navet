@@ -4,6 +4,7 @@ import { CardMetric } from '@navet/app/components/primitives/card-metric';
 import { RoundControlButton } from '@navet/app/components/primitives/round-control-button';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { readNavetRemoteState } from '@navet/core/household-device-state';
@@ -49,6 +50,7 @@ function RemoteCardContent({
     stateKey: String(state?.isOn ?? 'unknown'),
   });
   const [dialog, setDialog] = useState(false);
+  useEditModeSettingsRequest(id, () => setDialog(true), isEditMode);
   const supported = entity?.capabilities.includes('toggle');
   const available = entity?.availability === 'available';
   const canToggle = state?.isOn ? state.canTurnOff : state?.canTurnOn;

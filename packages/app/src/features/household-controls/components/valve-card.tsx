@@ -4,6 +4,7 @@ import { CardMetric } from '@navet/app/components/primitives/card-metric';
 import { Input } from '@navet/app/components/primitives/input';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { CoverControlButton } from '@navet/app/features/security/components/cover-card/cover-control-button';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
@@ -246,6 +247,7 @@ function ValveCardContent({
   const capabilities = entity?.capabilities ?? [];
   const action = useValveControls(id, providerId, state);
   const [dialog, setDialog] = useState(false);
+  useEditModeSettingsRequest(id, () => setDialog(true), isEditMode);
   const compact = size === 'tiny' || size === 'extra-small';
   const unavailable = entity?.availability !== 'available';
   const label = unavailable ? t('common.unavailable') : t(`valve.state.${state.phase}`);

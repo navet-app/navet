@@ -4,6 +4,7 @@ import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardD
 import { CardMetric } from '@navet/app/components/primitives/card-metric';
 import { Input } from '@navet/app/components/primitives/input';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { type NavetTimerState, readNavetTimerState } from '@navet/core/household-device-state';
@@ -196,6 +197,7 @@ function TimerControlsContent({
 export function TimerCard({
   id,
   name,
+  room,
   timer: initial,
   providerId,
   size,
@@ -226,6 +228,7 @@ export function TimerCard({
   };
   const unavailable = !!entity && (!live || entity.availability !== 'available');
   const [open, setOpen] = useState(false);
+  useEditModeSettingsRequest(id, () => setOpen(true), isEditMode);
   const phaseLabel = timer.phase === 'unknown' ? undefined : t(`timer.${timer.phase}`);
   const value = formatRemaining(useTimerRemaining(timer));
   return (
@@ -233,6 +236,7 @@ export function TimerCard({
       <BaseCard
         size={size}
         title={name}
+        subtitle={room}
         interactive={!isEditMode}
         role={!isEditMode ? 'button' : undefined}
         tabIndex={!isEditMode ? 0 : undefined}

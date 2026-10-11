@@ -92,11 +92,12 @@ export const Paused: Story = {
   },
 };
 export const Tiny: Story = {
-  args: { size: 'tiny' },
+  args: { size: 'tiny', room: 'Kitchen' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const card = await canvas.findByRole('button', { name: 'Tea timer, Idle' });
     await expect(card).toHaveAccessibleName('Tea timer, Idle');
+    await expect(canvas.getByText('Kitchen')).toBeVisible();
     const clock = canvas.getByText('00:05:00', { exact: true });
     const clockBounds = clock.getBoundingClientRect();
     const cardBounds = card.getBoundingClientRect();

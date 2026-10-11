@@ -4,6 +4,7 @@ import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardD
 import { CardMetric } from '@navet/app/components/primitives/card-metric';
 import { Input } from '@navet/app/components/primitives/input';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { type NavetCounterState, readNavetCounterState } from '@navet/core/household-device-state';
@@ -181,6 +182,7 @@ function CounterControlsContent({
 export function CounterCard({
   id,
   name,
+  room,
   counter: initial,
   providerId,
   size,
@@ -212,11 +214,13 @@ export function CounterCard({
   };
   const unavailable = !!entity && (!live || entity.availability !== 'available');
   const [open, setOpen] = useState(false);
+  useEditModeSettingsRequest(id, () => setOpen(true), isEditMode);
   return (
     <>
       <BaseCard
         size={size}
         title={name}
+        subtitle={room}
         interactive={!isEditMode}
         role={!isEditMode ? 'button' : undefined}
         tabIndex={!isEditMode ? 0 : undefined}
