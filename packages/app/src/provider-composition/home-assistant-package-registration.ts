@@ -128,6 +128,7 @@ export function createHomeAssistantAppProviderPackageRegistration({
           const state = homeAssistantStore.getState();
           return {
             connected: state.connected,
+            user: state.user,
             connecting: state.connecting,
             reconnecting: state.reconnecting,
             error: state.error,

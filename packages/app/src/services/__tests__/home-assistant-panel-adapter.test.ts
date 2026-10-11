@@ -1,4 +1,4 @@
-import type { HassConfig, HassEntity, HassUser } from 'home-assistant-js-websocket';
+import type { Connection, HassConfig, HassEntity, HassUser } from 'home-assistant-js-websocket';
 import { describe, expect, it, vi } from 'vitest';
 import {
   HomeAssistantPanelAdapter,
@@ -77,6 +77,44 @@ function createPanelHass(overrides: Partial<HomeAssistantPanelHass> = {}): HomeA
 }
 
 describe('HomeAssistantPanelAdapter', () => {
+  // Keep: connection identity must distinguish sessions while preserving ordinary hass updates.
+  it('preserves the connection bridge across panel state updates', async () => {
+    const connection = {} as Connection;
+    const adapter = new HomeAssistantPanelAdapter(createPanelHass({ connection }));
+    const bridge = adapter.getConnection();
+    expect(adapter.getConnection()).toBe(bridge);
+    const callWS = createCallWS([{ ok: true }]);
+    adapter.update(createPanelHass({ connection, callWS }));
+    expect(adapter.getConnection()).toBe(bridge);
+    await expect(bridge.sendMessagePromise({ type: 'config_entries/get_single' })).resolves.toEqual(
+      { ok: true }
+    );
+    expect(callWS).toHaveBeenCalledOnce();
+  });
+
+  it('replaces the bridge when the panel user changes on the same host connection', () => {
+    const connection = {} as Connection;
+    const adapter = new HomeAssistantPanelAdapter(createPanelHass({ connection }));
+    const original = adapter.getConnection();
+    adapter.update(createPanelHass({ connection, user: { ...user, id: 'user-2' } }));
+    expect(adapter.getConnection()).not.toBe(original);
+  });
+
+  it('replaces the bridge when the host session changes and keeps old requests on their session', async () => {
+    const originalCallWS = createCallWS([{ session: 'original' }]);
+    const adapter = new HomeAssistantPanelAdapter(
+      createPanelHass({ connection: {} as Connection, callWS: originalCallWS })
+    );
+    const bridge = adapter.getConnection();
+    const nextCallWS = createCallWS([{ session: 'next' }]);
+    adapter.update(createPanelHass({ connection: {} as Connection, callWS: nextCallWS }));
+    expect(adapter.getConnection()).not.toBe(bridge);
+    await expect(bridge.sendMessagePromise({ type: 'config_entries/get_single' })).resolves.toEqual(
+      { session: 'original' }
+    );
+    expect(nextCallWS).not.toHaveBeenCalled();
+  });
+
   it('exposes injected Home Assistant state without opening a websocket', () => {
     const adapter = new HomeAssistantPanelAdapter(createPanelHass());
 

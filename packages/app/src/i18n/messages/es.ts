@@ -1,4 +1,13 @@
 export const esMessages = {
+  'entityIntegrationReload.action': 'Recargar integración',
+  'entityIntegrationReload.title': '¿Recargar la integración?',
+  'entityIntegrationReload.description':
+    'Otras entidades de esta integración pueden dejar de estar disponibles brevemente.',
+  'entityIntegrationReload.pending': 'Recargando integración…',
+  'entityIntegrationReload.success': 'Integración recargada.',
+  'entityIntegrationReload.error':
+    'No se pudo recargar la integración. Comprueba la conexión con Home Assistant y tus permisos de administrador e inténtalo de nuevo.',
+
   'energy.history.noData': 'Sin datos',
   'energy.history.noPeriodSelected': 'Ningún período seleccionado',
   'energy.history.usageByPeriod': 'Consumo de energía por período',

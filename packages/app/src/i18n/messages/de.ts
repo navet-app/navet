@@ -1,4 +1,13 @@
 export const deMessages = {
+  'entityIntegrationReload.action': 'Integration neu laden',
+  'entityIntegrationReload.title': 'Integration neu laden?',
+  'entityIntegrationReload.description':
+    'Andere Entitäten dieser Integration können kurzzeitig nicht verfügbar sein.',
+  'entityIntegrationReload.pending': 'Integration wird neu geladen…',
+  'entityIntegrationReload.success': 'Integration neu geladen.',
+  'entityIntegrationReload.error':
+    'Die Integration konnte nicht neu geladen werden. Prüfe deine Home-Assistant-Verbindung und Administratorrechte und versuche es erneut.',
+
   'energy.history.noData': 'Keine Daten',
   'energy.history.noPeriodSelected': 'Kein Zeitraum ausgewählt',
   'energy.history.usageByPeriod': 'Energieverbrauch pro Zeitraum',

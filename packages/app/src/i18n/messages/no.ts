@@ -1,4 +1,13 @@
 export const noMessages = {
+  'entityIntegrationReload.action': 'Last inn integrasjon på nytt',
+  'entityIntegrationReload.title': 'Laste inn integrasjonen på nytt?',
+  'entityIntegrationReload.description':
+    'Andre entiteter fra denne integrasjonen kan bli utilgjengelige en kort stund.',
+  'entityIntegrationReload.pending': 'Laster inn på nytt…',
+  'entityIntegrationReload.success': 'Integrasjonen er lastet inn på nytt.',
+  'entityIntegrationReload.error':
+    'Kunne ikke laste inn integrasjonen på nytt. Kontroller tilkoblingen til Home Assistant og administratorrettighetene dine, og prøv igjen.',
+
   'energy.history.noData': 'Ingen data',
   'energy.history.noPeriodSelected': 'Ingen periode valgt',
   'energy.history.usageByPeriod': 'Energibruk per periode',

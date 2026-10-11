@@ -1,4 +1,13 @@
 export const enMessages = {
+  'entityIntegrationReload.action': 'Reload integration',
+  'entityIntegrationReload.title': 'Reload integration?',
+  'entityIntegrationReload.description':
+    'Other entities from this integration may briefly become unavailable.',
+  'entityIntegrationReload.pending': 'Reloading integration…',
+  'entityIntegrationReload.success': 'Integration reloaded.',
+  'entityIntegrationReload.error':
+    'Could not reload the integration. Check your Home Assistant connection and administrator access, then try again.',
+
   'energy.history.noData': 'No data',
   'energy.history.noPeriodSelected': 'No period selected',
   'energy.history.usageByPeriod': 'Energy usage by period',

@@ -43,7 +43,10 @@ change principles to fit code, merge your own work or claim success with failing
 Use one PR for related implementation, contracts, tests and docs; update it for follow-up repairs.
 The delivery agent owns rebasing, conflicts and integration validation. Run applicable deterministic
 checks, open a non-draft PR, verify review findings against its current head and repair valid issues
-until none remain actionable. The maintainer resolves conversations and decides when to merge.
+until none remain actionable. As soon as a fix is pushed and verified on the current PR head,
+the delivery agent marks its review thread resolved without waiting for maintainer action.
+An outdated comment alone does not establish a fix. Keep threads open while the finding remains
+unaddressed or needs a maintainer decision. The maintainer owns product decisions and merging.
 
 For accepted separate stages, use an explicitly ordered stack: record parents/merge order,
 maintain the integration branch and validate both changed contracts and the integrated result.

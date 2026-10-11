@@ -1,4 +1,13 @@
 export const fiMessages = {
+  'entityIntegrationReload.action': 'Lataa integraatio uudelleen',
+  'entityIntegrationReload.title': 'Ladataanko integraatio uudelleen?',
+  'entityIntegrationReload.description':
+    'Integraation muut entiteetit voivat olla hetken poissa käytöstä.',
+  'entityIntegrationReload.pending': 'Ladataan uudelleen…',
+  'entityIntegrationReload.success': 'Integraatio ladattu uudelleen.',
+  'entityIntegrationReload.error':
+    'Integraatiota ei voitu ladata uudelleen. Tarkista Home Assistant -yhteys ja ylläpitäjän oikeudet ja yritä uudelleen.',
+
   'energy.history.noData': 'Ei tietoja',
   'energy.history.noPeriodSelected': 'Ajanjaksoa ei ole valittu',
   'energy.history.usageByPeriod': 'Energiankulutus ajanjaksoittain',

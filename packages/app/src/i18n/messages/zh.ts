@@ -1,4 +1,12 @@
 export const zhMessages = {
+  'entityIntegrationReload.action': '重新加载集成',
+  'entityIntegrationReload.title': '重新加载集成？',
+  'entityIntegrationReload.description': '此集成中的其他实体可能会短暂不可用。',
+  'entityIntegrationReload.pending': '正在重新加载集成…',
+  'entityIntegrationReload.success': '集成已重新加载。',
+  'entityIntegrationReload.error':
+    '无法重新加载集成。请检查 Home Assistant 连接和管理员权限，然后重试。',
+
   'energy.history.noData': '无数据',
   'energy.history.noPeriodSelected': '未选择时间段',
   'energy.history.usageByPeriod': '各时间段的能源用量',

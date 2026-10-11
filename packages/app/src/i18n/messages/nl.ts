@@ -1,4 +1,13 @@
 export const nlMessages = {
+  'entityIntegrationReload.action': 'Integratie herladen',
+  'entityIntegrationReload.title': 'Integratie herladen?',
+  'entityIntegrationReload.description':
+    'Andere entiteiten van deze integratie kunnen kort niet beschikbaar zijn.',
+  'entityIntegrationReload.pending': 'Integratie wordt herladen…',
+  'entityIntegrationReload.success': 'Integratie herladen.',
+  'entityIntegrationReload.error':
+    'Kan de integratie niet herladen. Controleer je verbinding met Home Assistant en je beheerdersrechten en probeer het opnieuw.',
+
   'energy.history.noData': 'Geen gegevens',
   'energy.history.noPeriodSelected': 'Geen periode geselecteerd',
   'energy.history.usageByPeriod': 'Energieverbruik per periode',

@@ -33,6 +33,7 @@ implementation approval must still identify the exact revision, selected scope a
 - Stable ID and revision:
 - Title and category: product opportunity / UX defect / design-system improvement
 - Status, owner, and proposed priority:
+- Next action, blocker, and next review date (when waiting):
 - Visibility and permitted audience:
 - Target journey and maturity milestone:
 
@@ -69,6 +70,9 @@ reproduction steps, actual/expected result, screenshots or measured geometry, vi
 severity, confidence, shared cause, and affected consumers. Include retest evidence after repair.
 
 ## Prioritization And Decision
+
+Lead with the decision requested and a short reason for the proposed priority. For material
+work, state the time appetite or effort range and what would make the proposal ready to select.
 
 Explain user impact, recurrence, evidence confidence, 1.0 relevance, effort, and dependencies.
 Record the maintainer's selected option, approved revision and scope, acceptance criteria,

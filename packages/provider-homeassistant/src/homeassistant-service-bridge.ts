@@ -27,6 +27,7 @@ export interface HomeAssistantDeviceRegistryEntry {
 
 export interface HomeAssistantEntityRegistryEntry {
   entity_id: string;
+  config_entry_id?: string | null;
   area_id?: string | null;
   device_id?: string | null;
   categories?: Record<string, string>;
@@ -44,6 +45,7 @@ export interface HomeAssistantCategoryRegistryEntry {
 }
 
 export interface HomeAssistantStoreState {
+  user?: { is_admin?: boolean } | null;
   connected: boolean;
   connecting: boolean;
   reconnecting: boolean;

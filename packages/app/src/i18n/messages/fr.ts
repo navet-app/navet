@@ -1,4 +1,13 @@
 export const frMessages = {
+  'entityIntegrationReload.action': 'Recharger l’intégration',
+  'entityIntegrationReload.title': 'Recharger l’intégration ?',
+  'entityIntegrationReload.description':
+    'Les autres entités de cette intégration peuvent devenir brièvement indisponibles.',
+  'entityIntegrationReload.pending': 'Rechargement de l’intégration…',
+  'entityIntegrationReload.success': 'Intégration rechargée.',
+  'entityIntegrationReload.error':
+    'Impossible de recharger l’intégration. Vérifiez votre connexion à Home Assistant et vos droits d’administrateur, puis réessayez.',
+
   'energy.history.noData': 'Aucune donnée',
   'energy.history.noPeriodSelected': 'Aucune période sélectionnée',
   'energy.history.usageByPeriod': 'Consommation d’énergie par période',

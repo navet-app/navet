@@ -278,6 +278,11 @@ describe('native validation receipt verification', () => {
     const hook = await fixture(() => {}, (receipt) => { receipt.hook.sourceAtHead = 'a'.repeat(40); });
     await expect(verifyValidationReceipt(hook.input)).rejects.toThrow('provenance mismatch');
   });
+  // Keep: counts interpolated into the summary matcher must be validated as integers.
+  it.each(['10|.*', '(a+)+$', '.*', -1, 1.5])('rejects unsafe test counts: %s', async (count) => {
+    const value = await fixture(() => {}, (receipt) => { receipt.tier1Tests = count; });
+    await expect(verifyValidationReceipt(value.input)).rejects.toThrow('counts or provenance mismatch');
+  });
   it('isolates inherited hook Git variables for verifier reads and temporary repository creation', async () => {
     const value = await fixture();
     const isolated = await mkdtemp(path.join(tmpdir(), 'navet-hook-git-env-'));directories.push(isolated);

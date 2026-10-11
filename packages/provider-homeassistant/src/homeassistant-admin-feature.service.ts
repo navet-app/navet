@@ -1,10 +1,18 @@
 import { getProviderNativeId } from '@navet/core/ids';
+import type { PlatformMessageClient } from '@navet/core/provider-feature-models';
 import type { ProviderAdminFeatureService } from '@navet/core/provider-feature-services';
 import {
   createPlatformRoomReference,
   parsePlatformRoomReference,
 } from '@navet/core/provider-room-management';
 import {
+  canReloadEntityIntegration,
+  isReloadConnectionCurrent,
+  resolveReloadEntryId,
+  subscribeEntityIntegrationReload,
+} from './homeassistant-integration-reload-availability';
+import {
+  callHomeAssistantService,
   createHomeAssistantArea,
   deleteHomeAssistantArea,
   renameHomeAssistantArea,
@@ -12,7 +20,55 @@ import {
   updateHomeAssistantEntityName,
 } from './homeassistant-service-bridge';
 
-export const homeAssistantAdminFeatureService: ProviderAdminFeatureService = {
+const pendingReloadsByConnection = new WeakMap<PlatformMessageClient, Map<string, Promise<void>>>();
+
+export const homeAssistantAdminFeatureService: ProviderAdminFeatureService & {
+  canReloadEntityIntegration: (entityId: string) => boolean;
+  subscribeEntityIntegrationReload: (entityId: string, listener: () => void) => () => void;
+  reloadEntityIntegration: (entityId: string) => Promise<void>;
+} = {
+  canReloadEntityIntegration,
+  subscribeEntityIntegrationReload,
+  reloadEntityIntegration: async (entityId) => {
+    const { connection, entryId } = await resolveReloadEntryId(entityId);
+    let pendingReloads = pendingReloadsByConnection.get(connection);
+    if (!pendingReloads) {
+      pendingReloads = new Map();
+      pendingReloadsByConnection.set(connection, pendingReloads);
+    }
+    const pending = pendingReloads.get(entryId);
+    if (pending) return pending;
+    const request = (async () => {
+      const entry = await connection.sendMessagePromise<{
+        config_entry: { supports_unload?: boolean | null };
+      }>({ type: 'config_entries/get_single', entry_id: entryId });
+      if (entry.config_entry?.supports_unload !== true) {
+        throw new Error('Integration does not support reload');
+      }
+      if (!isReloadConnectionCurrent(entityId, connection)) {
+        throw new Error('Integration reload is unavailable for this entity or session');
+      }
+      await callHomeAssistantService('homeassistant', 'reload_config_entry', {
+        entry_id: entryId,
+      });
+      // The service discards async_reload's result, including failed unloads.
+      const result = await connection.sendMessagePromise<{
+        config_entry: { state: string };
+      }>({ type: 'config_entries/get_single', entry_id: entryId });
+      if (
+        !isReloadConnectionCurrent(entityId, connection) ||
+        result.config_entry?.state !== 'loaded'
+      ) {
+        throw new Error('Integration reload did not complete successfully');
+      }
+    })();
+    pendingReloads.set(entryId, request);
+    try {
+      await request;
+    } finally {
+      pendingReloads.delete(entryId);
+    }
+  },
   createRoom: async (name) => {
     const area = await createHomeAssistantArea(name);
     return createPlatformRoomReference('home_assistant', area.area_id, area.name);

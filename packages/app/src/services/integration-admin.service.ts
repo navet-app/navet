@@ -6,6 +6,7 @@ import {
 } from '@navet/app/provider-runtime-registry';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
+import { isImplementedIntegrationProviderId } from '@navet/core/integration-providers';
 import type {
   PlatformRoomMutationPlan,
   PlatformRoomMutationResult,
@@ -88,7 +89,39 @@ function requireRoomReferenceProvider(
   return parsedRoom.providerId;
 }
 
-export const integrationAdminService: ProviderAdminFeatureService = {
+export const integrationAdminService: ProviderAdminFeatureService & {
+  canReloadEntityIntegration: (entityId: string) => boolean;
+  subscribeEntityIntegrationReload: (entityId: string, listener: () => void) => () => void;
+  reloadEntityIntegration: (entityId: string) => Promise<void>;
+} = {
+  subscribeEntityIntegrationReload: (entityId, listener) => {
+    const providerId = resolveEntityProviderId(entityId);
+    if (!isImplementedIntegrationProviderId(providerId)) return () => {};
+    return (
+      getProviderRuntimeRegistration(
+        providerId
+      ).adminFeatureService?.subscribeEntityIntegrationReload?.(entityId, listener) ?? (() => {})
+    );
+  },
+  canReloadEntityIntegration: (entityId) => {
+    const providerId = resolveEntityProviderId(entityId);
+    if (!isImplementedIntegrationProviderId(providerId)) return false;
+    const service = getProviderRuntimeRegistration(providerId).adminFeatureService;
+    return Boolean(
+      service?.reloadEntityIntegration && service.canReloadEntityIntegration?.(entityId)
+    );
+  },
+  reloadEntityIntegration: async (entityId) => {
+    const providerId = resolveEntityProviderId(entityId);
+    if (!isImplementedIntegrationProviderId(providerId)) {
+      throw new Error('Integration reload is unavailable for this entity or session');
+    }
+    const service = getProviderRuntimeRegistration(providerId).adminFeatureService;
+    if (!service?.reloadEntityIntegration || !service.canReloadEntityIntegration?.(entityId)) {
+      throw new Error('Integration reload is unavailable for this entity or session');
+    }
+    await service.reloadEntityIntegration(entityId);
+  },
   createRoom: async (name) => {
     const providerId = getCurrentProviderId();
     const service = requireRoomAdminFeatureService(providerId, 'create');

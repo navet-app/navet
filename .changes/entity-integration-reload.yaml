@@ -1,0 +1,3 @@
+type: new
+audiences: [standalone, home-assistant, hacs]
+summary: Added integration reload for Home Assistant entities, including unavailable cards.

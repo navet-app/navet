@@ -42,5 +42,18 @@ varies, and not every connected platform currently supplies every advanced featu
 
 ## If state is stale
 
-Reload once and check provider connection status. Persistent stale state belongs in a support
-report with the provider, entity ID, Navet version, installation mode, and visible error.
+Refresh Navet once and check the owning provider’s connection status.
+
+For a Home Assistant entity whose integration has stopped responding, choose
+**More actions → Reload integration** from its unavailable card or entity dialog. Confirm the reload. Other entities from the same
+integration entry may briefly become unavailable while Home Assistant reconnects it.
+
+This action requires a connected Home Assistant administrator session and an entity linked to a
+configuration entry. It remains available when the entity is unavailable, but is absent for
+unsupported entities and providers. A completed reload does not guarantee the entity has recovered;
+check its live state afterward. Navet reports success only when Home Assistant confirms the entry is loaded.
+If the request fails, check the integration in Home Assistant, the connection and administrator access
+before trying again. See Home Assistant’s [reload action documentation](https://www.home-assistant.io/actions/homeassistant.reload_config_entry/).
+
+Persistent stale state belongs in a support report with the provider, entity ID, Navet version,
+installation mode, and visible error.
