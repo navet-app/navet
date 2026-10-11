@@ -809,7 +809,37 @@ def _vacation_reschedule(data: dict[str, Any], action: Mapping[str, Any], timest
     return data, activities
 
 
-def _should_prune_occurrence(item, definitions, occurrences, boundary):
+def _recurrence_participant_ids(item, participant_ids):
+    prefix = f"{item['definitionId']}:"
+    occurrence_id = item["id"]
+    has_lineage = False
+    while occurrence_id.startswith(prefix):
+        instant = occurrence_id[len(prefix):len(prefix) + 24]
+        if occurrence_id[len(prefix) + 24:len(prefix) + 25] != ":":
+            break
+        try:
+            if _iso(_parse_iso(instant)) != instant:
+                break
+        except ChoreAuthorityError:
+            break
+        slot = occurrence_id[len(prefix) + 25:]
+        source = item.get("carriedForwardFrom")
+        if occurrence_id == item["id"] and source and slot in {f"vacation:{source}", f"carry:{source}"}:
+            occurrence_id = source
+            has_lineage = True
+        elif slot in participant_ids:
+            return [slot]
+        elif has_lineage and slot.startswith(f"vacation:{prefix}"):
+            occurrence_id = slot[9:]
+        elif has_lineage and slot.startswith(f"carry:{prefix}"):
+            occurrence_id = slot[6:]
+        else:
+            return item.get("assigneeIds", [])
+    # Preserve imported noncanonical IDs without guessing their original assignment.
+    return item.get("assigneeIds", [])
+
+
+def _should_prune_occurrence(item, definitions, occurrences, boundary, participant_ids):
     if item.get("status") not in {"done", "skipped"}:
         return False
     resolved = item.get("completedAt") or item.get("skippedAt") or item["updatedAt"]
@@ -821,7 +851,7 @@ def _should_prune_occurrence(item, definitions, occurrences, boundary):
             and next_item.get("completedAt", "") > item["completedAt"]
             and next_item.get("status") == "done"
             and (definition.get("assignment", {}).get("mode") != "everyone"
-                or item["assigneeIds"][0] in next_item.get("assigneeIds", []))
+                or _recurrence_participant_ids(item, participant_ids)[0] in _recurrence_participant_ids(next_item, participant_ids))
             for next_item in occurrences.values())
         if not newer:
             return False
@@ -877,7 +907,7 @@ def _materialize(data: dict[str, Any], range_start: str, range_end: str, timesta
         if schedule.get("frequency") == "after_completion" and definition.get("assignment", {}).get("mode") == "everyone":
             for participant_id in definition["assignment"]["participantIds"]:
                 personal = {key: item for key, item in occurrences.items()
-                    if item.get("definitionId") == definition["id"] and participant_id in item.get("assigneeIds", [])}
+                    if item.get("definitionId") == definition["id"] and participant_id in _recurrence_participant_ids(item, data["participantsById"])}
                 personal_definition = {**definition, "assignment": {**definition["assignment"], "mode": "person", "participantIds": [participant_id]}}
                 personal_data = {**data, "definitionsById": {definition["id"]: personal_definition}, "occurrencesById": personal}
                 materialized, events = _materialize(personal_data, range_start, range_end, timestamp, command_id, recurrence_definition_id)
@@ -1023,7 +1053,7 @@ def _materialize(data: dict[str, Any], range_start: str, range_end: str, timesta
     occurrences = {
         key: value
         for key, value in occurrences.items()
-        if not _should_prune_occurrence(value, data["definitionsById"], occurrences, retention)
+        if not _should_prune_occurrence(value, data["definitionsById"], occurrences, retention, data["participantsById"])
     }
     return {**data, "occurrencesById": occurrences, "outbox": outbox}, additions
 

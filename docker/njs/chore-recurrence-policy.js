@@ -26,13 +26,39 @@ function getOutstandingChoreOccurrence(definition, occurrences) {
 		"missed"
 	].includes(item.status)).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))[0];
 }
+/** Assignment can change who performs work without moving its original recurrence clock. */
+function getRecurrenceParticipantIds(occurrence, participantIds) {
+	const prefix = `${occurrence.definitionId}:`;
+	let id = occurrence.id;
+	let hasLineage = false;
+	while (id.startsWith(prefix)) {
+		const instant = id.slice(prefix.length, prefix.length + 24);
+		const instantTime = Date.parse(instant);
+		if (!Number.isFinite(instantTime) || new Date(instantTime).toISOString() !== instant || id.charAt(prefix.length + 24) !== ":") break;
+		const slot = id.slice(prefix.length + 25);
+		if (id === occurrence.id && occurrence.carriedForwardFrom && (slot === `vacation:${occurrence.carriedForwardFrom}` || slot === `carry:${occurrence.carriedForwardFrom}`)) {
+			id = occurrence.carriedForwardFrom;
+			hasLineage = true;
+		} else if (participantIds.includes(slot)) {
+			return [slot];
+		} else if (hasLineage && slot.startsWith(`vacation:${prefix}`)) {
+			id = slot.slice(9);
+		} else if (hasLineage && slot.startsWith(`carry:${prefix}`)) {
+			id = slot.slice(6);
+		} else {
+			return occurrence.assigneeIds;
+		}
+	}
+	// Older imported noncanonical IDs do not contain an evidenced original slot.
+	return occurrence.assigneeIds;
+}
 /** Everyone assignments have separate clocks; rotation and shared work have one. */
-function getParticipantChoreOccurrences(definition, occurrences, participantId) {
+function getParticipantChoreOccurrences(definition, occurrences, participantId, knownParticipantIds) {
 	const result = Object.create(null);
 	const items = Object.values(occurrences);
 	for (let index = 0; index < items.length; index += 1) {
 		const item = items[index];
-		if (item.definitionId === definition.id && item.assigneeIds.includes(participantId)) {
+		if (item.definitionId === definition.id && getRecurrenceParticipantIds(item, knownParticipantIds !== null && knownParticipantIds !== void 0 ? knownParticipantIds : definition.assignment.participantIds).includes(participantId)) {
 			result[item.id] = item;
 		}
 	}
@@ -47,14 +73,14 @@ function getSupersedingChoreOccurrence(occurrence, definition, occurrences, time
 	return Object.values(occurrences).filter((next) => next.definitionId === occurrence.definitionId && !next.carriedForwardTo && (!next.carriedForwardFrom || !next.assignmentSlot.startsWith("carry:")) && next.scheduledAt > occurrence.scheduledAt && next.scheduledAt <= timestamp && (definition.assignment.mode !== "everyone" || next.assignmentSlot === occurrence.assignmentSlot)).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))[0];
 }
 /** Keep the current completion anchor even when its next interval is very long. */
-function shouldPruneChoreOccurrence(occurrence, definitions, occurrences, boundary) {
+function shouldPruneChoreOccurrence(occurrence, definitions, occurrences, boundary, knownParticipantIds) {
 	var _ref, _occurrence$completed;
 	if (occurrence.status !== "done" && occurrence.status !== "skipped") return false;
 	const resolvedAt = (_ref = (_occurrence$completed = occurrence.completedAt) !== null && _occurrence$completed !== void 0 ? _occurrence$completed : occurrence.skippedAt) !== null && _ref !== void 0 ? _ref : occurrence.updatedAt;
 	if (Date.parse(resolvedAt) >= boundary) return false;
 	const definition = definitions[occurrence.definitionId];
 	if ((definition === null || definition === void 0 ? void 0 : definition.schedule.frequency) === "after_completion" && occurrence.completedAt) {
-		const newer = Object.values(occurrences).some((next) => next.definitionId === occurrence.definitionId && next.completedAt && next.completedAt > occurrence.completedAt && next.status === "done" && (definition.assignment.mode !== "everyone" || next.assigneeIds.includes(occurrence.assigneeIds[0])));
+		const newer = Object.values(occurrences).some((next) => next.definitionId === occurrence.definitionId && next.completedAt && next.completedAt > occurrence.completedAt && next.status === "done" && (definition.assignment.mode !== "everyone" || getRecurrenceParticipantIds(next, knownParticipantIds !== null && knownParticipantIds !== void 0 ? knownParticipantIds : definition.assignment.participantIds).includes(getRecurrenceParticipantIds(occurrence, knownParticipantIds !== null && knownParticipantIds !== void 0 ? knownParticipantIds : definition.assignment.participantIds)[0])));
 		if (!newer) return false;
 	}
 	return true;

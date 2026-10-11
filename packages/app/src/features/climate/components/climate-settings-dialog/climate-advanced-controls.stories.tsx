@@ -27,9 +27,11 @@ const capabilities: NavetEntity['capabilities'] = [
 function ClimateAdvancedDialogStory({
   availability = 'available',
   supported = capabilities,
+  targetHumidity = advancedControls.targetHumidity,
 }: {
   availability?: NavetEntity['availability'];
   supported?: NavetEntity['capabilities'];
+  targetHumidity?: NavetClimateControlState['targetHumidity'];
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState('heat');
@@ -45,7 +47,7 @@ function ClimateAdvancedDialogStory({
       type: 'climate',
       primaryState: 'heat',
       availability,
-      attributes: { climateControls: advancedControls },
+      attributes: { climateControls: { ...advancedControls, targetHumidity } },
       capabilities: supported,
     };
     integrationStore.setState({
@@ -61,7 +63,7 @@ function ClimateAdvancedDialogStory({
       integrationStore.setState({
         providerEntitiesByProviderId: previous.providerEntitiesByProviderId,
       });
-  }, [availability, supported]);
+  }, [availability, supported, targetHumidity]);
   return (
     <SettingsDialogStoryFrame>
       <div className="flex items-start justify-center p-6">
@@ -101,6 +103,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Supported: Story = {
+  args: { targetHumidity: { value: 45, min: 30.5, max: 70.5, step: 1 } },
   play: async ({ canvasElement }) => {
     const trigger = within(canvasElement).getByRole('button', { name: 'Open Climate dialog' });
     trigger.focus();
@@ -125,6 +128,25 @@ export const Supported: Story = {
       await expect(field).toBeEnabled();
       await userEvent.selectOptions(field, 'Low');
       await waitFor(() => expect(field).toBeEnabled());
+      const humidity = dialog.getByRole('spinbutton', {
+        name: 'Target humidity',
+      }) as HTMLInputElement;
+      const formElement = humidity.closest('form');
+      if (!formElement) throw new Error('Humidity form is missing');
+      const form = within(formElement);
+      await userEvent.clear(humidity);
+      await userEvent.type(humidity, '31');
+      await expect(humidity.checkValidity()).toBe(true);
+      await userEvent.click(form.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(form.getByRole('alert')).toHaveTextContent(
+          'Unable to update the climate control. Try again.'
+        )
+      );
+      await expect(humidity).toHaveValue(31);
+      await userEvent.clear(humidity);
+      await userEvent.type(humidity, '31.5');
+      await expect(form.getByRole('button', { name: 'Save' })).toBeDisabled();
     } finally {
       if (runtime === undefined) delete root.dataset.navetPreviewRuntime;
       else root.dataset.navetPreviewRuntime = runtime;

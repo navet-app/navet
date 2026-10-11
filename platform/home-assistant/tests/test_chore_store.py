@@ -1040,6 +1040,40 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["data"]["occurrencesById"][original["id"]]["status"], "available")
         self.assertEqual(len(result["data"]["occurrencesById"]), 2)
 
+    async def test_everyone_reassignment_keeps_original_clock_through_completion_restart_and_retention(self):
+        await self._seed_outstanding_interval(everyone=True)
+        original_manager = next(item for item in self.authority.data["occurrencesById"].values() if item["assigneeIds"] == ["manager"])
+        original_other = next(item for item in self.authority.data["occurrencesById"].values() if item["assigneeIds"] == ["other"])
+        await self.authority.async_command({"commandId": "transfer-manager-work", "baseRevision": self.authority.revision,
+            "action": {"type": "occurrence_action", "occurrenceId": original_manager["id"], "action": {"type": "reassign", "participantId": "manager", "assigneeIds": ["other"], "reason": "Help manager"}}}, "ha-user-1")
+        transferred = self.authority.data["occurrencesById"][original_manager["id"]]
+        self.assertEqual(transferred["assigneeIds"], ["other"])
+        self.assertEqual(transferred["assignmentSlot"], "manager:other")
+        result = await self.authority.async_command({"commandId": "complete-transfer", "baseRevision": self.authority.revision,
+            "action": {"type": "occurrence_action", "occurrenceId": original_manager["id"], "action": {"type": "complete", "participantId": "other"}}}, "ha-user-1")
+        self.assertEqual(result["data"]["occurrencesById"][original_other["id"]], original_other)
+        self.assertEqual([item["scheduledAt"] for item in result["data"]["occurrencesById"].values() if item["status"] == "available" and item["assigneeIds"] == ["manager"]], ["2026-10-25T10:00:00.000Z"])
+        chores._now = lambda: datetime(2026, 10, 13, 10, 0, tzinfo=timezone.utc)
+        await self.authority.async_command({"commandId": "complete-own-other", "baseRevision": self.authority.revision,
+            "action": {"type": "occurrence_action", "occurrenceId": original_other["id"], "action": {"type": "complete", "participantId": "other"}}}, "ha-user-1")
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        chores._now = lambda: datetime(2027, 2, 1, 10, 0, tzinfo=timezone.utc)
+        await restarted.async_tick()
+        self.assertEqual(restarted.data["occurrencesById"][original_manager["id"]]["completedAt"], "2026-10-11T10:00:00.000Z")
+        self.assertEqual(sorted((item["assigneeIds"][0], item["scheduledAt"]) for item in restarted.data["occurrencesById"].values() if item["status"] == "available"), [("manager", "2026-10-25T10:00:00.000Z"), ("other", "2026-10-27T10:00:00.000Z")])
+
+    async def test_shared_completion_work_is_preserved_when_definition_changes_to_everyone(self):
+        definition = await self._seed_outstanding_interval(everyone=True)
+        data = copy.deepcopy(self.authority.data)
+        original = next(iter(data["occurrencesById"].values()))
+        original.update({"id": f"repeat:{original['scheduledAt']}:shared", "assignmentSlot": "shared", "assigneeIds": ["manager", "other"]})
+        data["occurrencesById"] = {original["id"]: original}
+        data["definitionsById"]["repeat"]["assignment"]["mode"] = "anyone"
+        changed, _ = self.authority._apply_workspace_action(data, {"type": "definition_update", "actorParticipantId": "manager", "definition": definition}, "2026-10-11T10:00:00.000Z", "adopt-shared")
+        materialized, _ = chores._materialize(changed, "2026-10-11T00:00:00.000Z", "2026-10-30T00:00:00.000Z", "2026-10-11T10:00:00.000Z", "materialize-shared")
+        self.assertEqual(materialized["occurrencesById"], data["occurrencesById"])
+
     async def test_scheduled_work_becomes_missed_when_next_starts_and_keeps_approval(self):
         definition = await self._seed_outstanding_interval()
         definition["schedule"] = {"frequency": "weekly", "startDate": "2026-01-01", "time": "10:00", "timeZone": "UTC", "daysOfWeek": [0]}

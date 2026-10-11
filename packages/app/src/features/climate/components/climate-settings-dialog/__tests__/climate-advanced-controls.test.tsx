@@ -140,6 +140,50 @@ describe('normalized advanced climate controls', () => {
     for (const field of screen.getAllByRole('combobox')) expect(field).toBeDisabled();
     expect(screen.getByRole('spinbutton', { name: 'Target humidity' })).toBeDisabled();
   });
+  it('allows integer humidity within fractional bounds without a native step mismatch', async () => {
+    installEntity({
+      attributes: {
+        climateControls: {
+          ...controls,
+          targetHumidity: { value: 45, min: 30.5, max: 70.5, step: 1 },
+        },
+      },
+    });
+    renderControls();
+    const field = screen.getByRole('spinbutton', { name: 'Target humidity' }) as HTMLInputElement;
+    fireEvent.change(field, { target: { value: '31' } });
+    expect(field.checkValidity()).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        { type: 'set_climate_humidity', entityId: 'homey:climate.hall', humidity: 31 },
+        'homey'
+      )
+    );
+    fireEvent.change(field, { target: { value: '31.5' } });
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.change(field, { target: { value: '30' } });
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.change(field, { target: { value: '71' } });
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+  it('cannot submit humidity when fractional bounds contain no integer', () => {
+    installEntity({
+      attributes: {
+        climateControls: {
+          ...controls,
+          targetHumidity: { value: null, min: 30.2, max: 30.8, step: 1 },
+        },
+      },
+    });
+    renderControls();
+    const field = screen.getByRole('spinbutton', { name: 'Target humidity' });
+    for (const value of ['30', '30.5', '31']) {
+      fireEvent.change(field, { target: { value } });
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    }
+    expect(dispatch).not.toHaveBeenCalled();
+  });
   it('uses humidity bounds, blocks fractional writes and preserves a rejected draft', async () => {
     dispatch.mockResolvedValue({ accepted: false, requiresEventConfirmation: false });
     installEntity();

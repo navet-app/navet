@@ -1208,7 +1208,7 @@ function materializeDefinition(definition, participantsById, rangeStart, rangeEn
       const personal = [];
       for (let index = 0; index < definition.assignment.participantIds.length; index += 1) {
         const participantId = definition.assignment.participantIds[index];
-        const personalOccurrences = choreRecurrencePolicy.getParticipantChoreOccurrences(definition, existing, participantId);
+        const personalOccurrences = choreRecurrencePolicy.getParticipantChoreOccurrences(definition, existing, participantId, Object.keys(participantsById));
         const personalDefinition = Object.assign({}, definition, { assignment: Object.assign({}, definition.assignment, {mode: 'person', participantIds: [participantId]}) });
         const next = materializeDefinition(personalDefinition, participantsById, rangeStart, rangeEnd, personalOccurrences, choreRecurrencePolicy.getLatestChoreCompletion(personalOccurrences), materializeNextAfterCompletion);
         for (let nextIndex = 0; nextIndex < next.length; nextIndex += 1) personal.push(next[nextIndex]);
@@ -2532,7 +2532,7 @@ function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefi
     if (!Object.prototype.hasOwnProperty.call(occurrencesById, occurrenceId)) continue;
     const occurrence = occurrencesById[occurrenceId];
     if (
-      choreRecurrencePolicy.shouldPruneChoreOccurrence(occurrence, data.definitionsById, occurrencesById, retentionBoundary)
+      choreRecurrencePolicy.shouldPruneChoreOccurrence(occurrence, data.definitionsById, occurrencesById, retentionBoundary, Object.keys(data.participantsById))
     ) {
       delete occurrencesById[occurrenceId];
     }

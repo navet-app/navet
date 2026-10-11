@@ -47,17 +47,64 @@ export function getOutstandingChoreOccurrence(
     .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))[0];
 }
 
+/** Assignment can change who performs work without moving its original recurrence clock. */
+function getRecurrenceParticipantIds(
+  occurrence: ChoreOccurrence,
+  participantIds: readonly string[]
+): readonly string[] {
+  const prefix = `${occurrence.definitionId}:`;
+  let id = occurrence.id;
+  let hasLineage = false;
+  while (id.startsWith(prefix)) {
+    const instant = id.slice(prefix.length, prefix.length + 24);
+    const instantTime = Date.parse(instant);
+    if (
+      !Number.isFinite(instantTime) ||
+      new Date(instantTime).toISOString() !== instant ||
+      id.charAt(prefix.length + 24) !== ':'
+    )
+      break;
+    const slot = id.slice(prefix.length + 25);
+    if (
+      id === occurrence.id &&
+      occurrence.carriedForwardFrom &&
+      (slot === `vacation:${occurrence.carriedForwardFrom}` ||
+        slot === `carry:${occurrence.carriedForwardFrom}`)
+    ) {
+      id = occurrence.carriedForwardFrom;
+      hasLineage = true;
+    } else if (participantIds.includes(slot)) {
+      return [slot];
+    } else if (hasLineage && slot.startsWith(`vacation:${prefix}`)) {
+      id = slot.slice(9);
+    } else if (hasLineage && slot.startsWith(`carry:${prefix}`)) {
+      id = slot.slice(6);
+    } else {
+      return occurrence.assigneeIds;
+    }
+  }
+  // Older imported noncanonical IDs do not contain an evidenced original slot.
+  return occurrence.assigneeIds;
+}
+
 /** Everyone assignments have separate clocks; rotation and shared work have one. */
 export function getParticipantChoreOccurrences(
   definition: ChoreDefinition,
   occurrences: Record<string, ChoreOccurrence>,
-  participantId: string
+  participantId: string,
+  knownParticipantIds?: readonly string[]
 ): Record<string, ChoreOccurrence> {
   const result: Record<string, ChoreOccurrence> = Object.create(null);
   const items = Object.values(occurrences);
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
-    if (item.definitionId === definition.id && item.assigneeIds.includes(participantId)) {
+    if (
+      item.definitionId === definition.id &&
+      getRecurrenceParticipantIds(
+        item,
+        knownParticipantIds ?? definition.assignment.participantIds
+      ).includes(participantId)
+    ) {
       result[item.id] = item;
     }
   }
@@ -105,7 +152,8 @@ export function shouldPruneChoreOccurrence(
   occurrence: ChoreOccurrence,
   definitions: Record<string, ChoreDefinition>,
   occurrences: Record<string, ChoreOccurrence>,
-  boundary: number
+  boundary: number,
+  knownParticipantIds?: readonly string[]
 ): boolean {
   if (occurrence.status !== 'done' && occurrence.status !== 'skipped') return false;
   const resolvedAt = occurrence.completedAt ?? occurrence.skippedAt ?? occurrence.updatedAt;
@@ -119,7 +167,15 @@ export function shouldPruneChoreOccurrence(
         next.completedAt > (occurrence.completedAt as string) &&
         next.status === 'done' &&
         (definition.assignment.mode !== 'everyone' ||
-          next.assigneeIds.includes(occurrence.assigneeIds[0]))
+          getRecurrenceParticipantIds(
+            next,
+            knownParticipantIds ?? definition.assignment.participantIds
+          ).includes(
+            getRecurrenceParticipantIds(
+              occurrence,
+              knownParticipantIds ?? definition.assignment.participantIds
+            )[0]
+          ))
     );
     if (!newer) return false;
   }
