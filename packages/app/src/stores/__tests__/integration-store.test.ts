@@ -37,6 +37,7 @@ describe('integrationStore', () => {
           : {}),
       };
       homeAssistantStore.getState().syncPanelHass(hass);
+      expect(integrationStore.getState().currentUser).toMatchObject({ id: 'user-a' });
       const other = { providerId: 'homey' as const, connected: true };
       integrationStore.getState().setProviderSessions({
         home_assistant: {
@@ -50,6 +51,7 @@ describe('integrationStore', () => {
       const initial = integrationStore.getState().providerSessions.home_assistant;
       homeAssistantStore.getState().syncPanelHass({ ...hass, states: { ...hass.states } });
       expect(integrationStore.getState().providerSessions.home_assistant).toBe(initial);
+      expect(integrationStore.getState().currentUser).toMatchObject({ id: 'user-a' });
       homeAssistantStore.getState().syncPanelHass({
         ...hass,
         user: { id: 'user-b', name: 'User B', is_admin: true, is_owner: true },
@@ -59,8 +61,23 @@ describe('integrationStore', () => {
       expect(replacement).toEqual(initial);
       expect(integrationStore.getState().providerSessions.homey).toBe(other);
       expect(integrationStore.getState().providerRuntime.home_assistant.connected).toBe(true);
+      expect(homeAssistantStore.getState().user).toMatchObject({ id: 'user-b' });
+      expect(integrationStore.getState().currentUser).toMatchObject({ id: 'user-b' });
       homeAssistantStore.setState({ entities: { ...homeAssistantStore.getState().entities } });
       expect(integrationStore.getState().providerSessions.home_assistant).toBe(replacement);
+      expect(integrationStore.getState().currentUser).toMatchObject({ id: 'user-b' });
+
+      const withoutUser = { ...hass, user: undefined };
+      homeAssistantStore.getState().syncPanelHass(withoutUser);
+      expect(homeAssistantStore.getState().user).toBeNull();
+      expect(integrationStore.getState().currentUser).toMatchObject({ id: 'user-b' });
+      const omittedUserSession = integrationStore.getState().providerSessions.home_assistant;
+      homeAssistantStore.getState().syncPanelHass({
+        ...withoutUser,
+        states: { ...withoutUser.states },
+      });
+      expect(integrationStore.getState().providerSessions.home_assistant).toBe(omittedUserSession);
+      expect(integrationStore.getState().currentUser).toMatchObject({ id: 'user-b' });
     }
   );
 

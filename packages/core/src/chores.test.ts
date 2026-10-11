@@ -3102,6 +3102,61 @@ describe('durable fixed-work supersession', () => {
     }).data;
     expect(completed.occurrencesById.older.status).toBe('done');
   });
+  it('keeps original carry-forward history through archive, restart and restore', () => {
+    const definition = makeDefinition({
+      schedule: { frequency: 'once', date: '2026-08-10', time: '16:00', timeZone: 'UTC' },
+    });
+    const original = makeOccurrence({ status: 'missed', carriedForwardTo: 'replacement' });
+    const replacement = makeOccurrence({
+      id: 'replacement',
+      status: 'available',
+      carriedForwardFrom: original.id,
+      assignmentSlot: `carry:${original.id}`,
+    });
+    const workspace = {
+      ...createEmptyChoreWorkspace(),
+      definitionsById: { [definition.id]: definition },
+      participantsById: { alice, bob },
+      occurrencesById: { [original.id]: original, replacement },
+    };
+    const archived = applyChoreWorkspaceAction({
+      workspace,
+      timestamp: '2026-08-11T18:00:00.000Z',
+      commandId: 'archive-carry-history',
+      action: {
+        type: 'definition_archive',
+        definitionId: definition.id,
+        actorParticipantId: 'alice',
+      },
+    }).data;
+    expect(archived.occurrencesById[original.id]).toEqual(original);
+    expect(archived.occurrencesById.replacement).toBeUndefined();
+    expect(() =>
+      applyChoreWorkspaceAction({
+        workspace: archived,
+        timestamp: '2026-08-11T18:01:00.000Z',
+        commandId: 'blocked-archive-carry',
+        action: {
+          type: 'occurrence_action',
+          occurrenceId: original.id,
+          action: { type: 'complete', participantId: 'alice' },
+        },
+      })
+    ).toThrow('Chore definition is no longer available');
+    const restarted = migrateChoreWorkspaceData(JSON.parse(JSON.stringify(archived)));
+    const restored = applyChoreWorkspaceAction({
+      workspace: restarted,
+      timestamp: '2026-08-11T18:02:00.000Z',
+      commandId: 'restore-carry-history',
+      action: {
+        type: 'definition_restore',
+        definitionId: definition.id,
+        actorParticipantId: 'alice',
+      },
+    }).data;
+    expect(restored.occurrencesById[original.id]).toEqual(original);
+    expect(restored.occurrencesById.replacement).toBeUndefined();
+  });
   it('round-trips optional supersession markers and accepts legacy snapshots', () => {
     const legacy = fixture('missed');
     expect(isChoreWorkspaceData(legacy)).toBe(true);

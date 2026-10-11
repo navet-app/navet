@@ -2039,7 +2039,7 @@ function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefi
           occurrence.definitionId !== action.definitionId ||
           occurrence.status === 'done' ||
           occurrence.status === 'skipped' ||
-          (occurrence.status === 'missed' && !!occurrence.supersededAt)
+          (occurrence.status === 'missed' && !!(occurrence.supersededAt || occurrence.carriedForwardTo))
         ) {
           recordSafety.setOwnRecordValue(occurrencesById, occurrenceId, occurrence);
         }
