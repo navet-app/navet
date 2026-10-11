@@ -15,6 +15,7 @@ import {
   getOutstandingChoreOccurrence,
   getParticipantChoreOccurrences,
   getSupersedingChoreOccurrence,
+  parseChoreInstant,
   retainChoreSupersession,
   shouldPruneChoreOccurrence,
 } from './chore-recurrence-policy.ts';
@@ -1557,7 +1558,8 @@ export function runChoreWorkspaceScheduler(
     workspace.occurrencesById,
     workspace.definitionsById,
     timestamp,
-    workspace.activity
+    workspace.activity,
+    Object.keys(workspace.participantsById)
   );
   const occurrencesById = { ...retainedOccurrences };
   const activities: ChoreActivity[] = [];
@@ -1616,7 +1618,8 @@ export function runChoreWorkspaceScheduler(
       occurrence,
       definition,
       occurrencesById,
-      timestamp
+      timestamp,
+      Object.keys(workspace.participantsById)
     );
     const policy = superseding
       ? { graceMinutes: 0, action: 'none' as const }
@@ -1627,7 +1630,7 @@ export function runChoreWorkspaceScheduler(
     )
       continue;
     const missedBoundary = superseding
-      ? Date.parse(superseding.scheduledAt)
+      ? parseChoreInstant(superseding.scheduledAt)
       : Date.parse(occurrence.dueAt) + policy.graceMinutes * 60_000;
     if (!Number.isFinite(missedBoundary) || now < missedBoundary) continue;
 
@@ -1986,7 +1989,8 @@ export function applyChoreWorkspaceAction(
         input.workspace.occurrencesById,
         input.workspace.definitionsById,
         input.timestamp,
-        input.workspace.activity
+        input.workspace.activity,
+        Object.keys(input.workspace.participantsById)
       ),
     },
   };
@@ -2899,7 +2903,7 @@ function applyChoreWorkspaceActionWithoutRecurrence(
           occurrence.definitionId === definition.id && occurrence.completedAt !== undefined
       )
       .map((occurrence) => occurrence.completedAt as string)
-      .sort()
+      .sort((a, b) => Date.parse(a) - Date.parse(b))
       .at(-1);
     const materialized = materializeChoreOccurrences(
       {

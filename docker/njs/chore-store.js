@@ -761,7 +761,7 @@ function nextReminderDeliveryAt(timestamp, participant, fallbackTimeZone) {
   const quietHours = isRecord(preferences.quietHours) ? preferences.quietHours : null;
   if (!quietHours || quietHours.start === quietHours.end) return timestamp;
   const timeZone = quietHours.timeZone || fallbackTimeZone;
-  const parts = getTimeZoneParts(Date.parse(timestamp), timeZone);
+  const parts = getTimeZoneParts(choreRecurrencePolicy.parseChoreInstant(timestamp), timeZone);
   const localMinutes = Number(parts.hour) * 60 + Number(parts.minute);
   const startMinutes = choreTimeToMinutes(quietHours.start);
   const endMinutes = choreTimeToMinutes(quietHours.end);
@@ -800,7 +800,7 @@ function createReminderOutboxItem(definition, occurrence, participant, eventType
 
 function runWorkspaceScheduler(data, timestamp) {
   const now = Date.parse(timestamp);
-  const retainedOccurrences = choreRecurrencePolicy.retainChoreSupersession(data.occurrencesById, data.definitionsById, timestamp, data.activity);
+  const retainedOccurrences = choreRecurrencePolicy.retainChoreSupersession(data.occurrencesById, data.definitionsById, timestamp, data.activity, Object.keys(data.participantsById));
   const occurrencesById = Object.assign({}, retainedOccurrences);
   const activities = [];
   const reminderItems = [];
@@ -861,10 +861,10 @@ function runWorkspaceScheduler(data, timestamp) {
     if (!occurrenceHasActiveAssignee(occurrence, data, timestamp)) continue;
     const definition = data.definitionsById[occurrence.definitionId];
     if (!definition || definition.schedule.frequency === 'after_completion') continue;
-    const superseding = choreRecurrencePolicy.getSupersedingChoreOccurrence(occurrence, definition, data.occurrencesById, timestamp);
+    const superseding = choreRecurrencePolicy.getSupersedingChoreOccurrence(occurrence, definition, data.occurrencesById, timestamp, Object.keys(data.participantsById));
     const policy = superseding ? { graceMinutes: 0, action: 'none' } : definition.missedPolicy;
     if (!policy || (!superseding && policy.action === 'none' && definition.schedule.frequency !== 'once') || !Number.isFinite(policy.graceMinutes)) continue;
-    const missedBoundary = superseding ? Date.parse(superseding.scheduledAt) : Date.parse(occurrence.dueAt) + policy.graceMinutes * 60000;
+    const missedBoundary = superseding ? choreRecurrencePolicy.parseChoreInstant(superseding.scheduledAt) : Date.parse(occurrence.dueAt) + policy.graceMinutes * 60000;
     if (!Number.isFinite(missedBoundary) || now < missedBoundary) continue;
 
     const activity = {
@@ -1195,7 +1195,7 @@ function localDateTimeToIso(dateKey, time, timeZone) {
 }
 
 function getZonedDateKey(timestamp, timeZone) {
-  const parts = getTimeZoneParts(Date.parse(timestamp), timeZone);
+  const parts = getTimeZoneParts(choreRecurrencePolicy.parseChoreInstant(timestamp), timeZone);
   return parts.year + '-' + parts.month + '-' + parts.day;
 }
 
@@ -1876,7 +1876,7 @@ function appendWorkspaceActivities(data, activities) {
 
 function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefinitionId) {
   recordSafety.assertSafeRecord(action);
-  data = Object.assign({}, data, { occurrencesById: choreRecurrencePolicy.retainChoreSupersession(data.occurrencesById, data.definitionsById, timestamp, data.activity) });
+  data = Object.assign({}, data, { occurrencesById: choreRecurrencePolicy.retainChoreSupersession(data.occurrencesById, data.definitionsById, timestamp, data.activity, Object.keys(data.participantsById)) });
   if (action.type === 'occurrence_action') {
     const next = applyOccurrenceAction(data, commandId, action, timestamp);
     const previous = data.occurrencesById[action.occurrenceId];
@@ -2452,7 +2452,7 @@ function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefi
         return occurrence.definitionId === definition.id && typeof occurrence.completedAt === 'string';
       })
       .map(function (occurrence) { return occurrence.completedAt; })
-      .sort();
+      .sort(function (a, b) { return choreRecurrencePolicy.parseChoreInstant(a) - choreRecurrencePolicy.parseChoreInstant(b); });
     const materialized = materializeDefinition(
       definition,
       data.participantsById,

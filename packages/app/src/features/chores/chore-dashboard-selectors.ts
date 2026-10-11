@@ -103,7 +103,8 @@ function isMissedScheduledHistory(
           occurrence,
           definition,
           data.occurrencesById,
-          now.toISOString()
+          now.toISOString(),
+          Object.keys(data.participantsById)
         )
     )
   );
