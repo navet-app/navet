@@ -99,6 +99,7 @@ function normalizeItems(listId: string, result: unknown): NavetTodoItem[] {
     const due = typeof raw.due === 'string' ? raw.due : undefined;
     return {
       uid,
+      ...(!raw.uid ? { removable: false } : {}),
       summary: raw.summary,
       completed: raw.status === 'completed',
       ...(typeof raw.description === 'string' ? { description: raw.description } : {}),
@@ -351,6 +352,8 @@ export const homeAssistantTodoListFeatureService: ProviderTodoListFeatureService
   async removeItem(listId, uid, expectedSessionKey) {
     const { client } = clientFor(listId, 'remove', expectedSessionKey);
     if (!uid) throw new Error('Item identifier is required');
-    await call(client, listId, 'remove_item', { item: itemTarget(listId, uid) });
+    const target = itemTarget(listId, uid);
+    if (summaryTargets.get(listId)?.has(uid)) throw new Error('This item does not support removal');
+    await call(client, listId, 'remove_item', { item: target });
   },
 };

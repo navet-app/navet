@@ -22,6 +22,8 @@ export interface NavetTodoItem {
   uid: string;
   summary: string;
   completed: boolean;
+  /** False when this item cannot be removed even if the list supports removal. */
+  removable?: boolean;
   description?: string;
   dueDate?: string;
   dueDateTime?: string;

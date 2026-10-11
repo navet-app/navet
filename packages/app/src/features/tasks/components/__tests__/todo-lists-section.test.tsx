@@ -304,6 +304,14 @@ describe('shared list workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove item: Oat milk' }));
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith(list, 'stable-1'));
   });
+  it('hides removal for non-removable items while retaining editing and completion', async () => {
+    items = [{ ...items[0], removable: false }, items[1]];
+    renderWithProviders(<TodoListItems list={list} />);
+    expect(await screen.findByRole('checkbox', { name: 'Milk' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Edit item: Milk' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Remove item: Milk' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove item: Bread' })).toBeEnabled();
+  });
   it('hides unsupported mutations and optional fields', async () => {
     const readonly = {
       ...list,

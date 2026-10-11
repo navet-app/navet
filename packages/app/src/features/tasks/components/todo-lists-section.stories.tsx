@@ -26,9 +26,18 @@ const initialItems: NavetTodoItem[] = [
   { uid: 'apples', summary: 'Apples', completed: false, dueDate: '2026-10-15' },
   { uid: 'bread', summary: 'Wholegrain bread', completed: true },
 ];
-type Mode = 'default' | 'empty' | 'readonly' | 'unavailable' | 'loading' | 'error' | 'long';
+type Mode =
+  | 'default'
+  | 'empty'
+  | 'readonly'
+  | 'unavailable'
+  | 'loading'
+  | 'error'
+  | 'long'
+  | 'nonremovable';
 function createService(mode: Mode): TodoItemService {
   let items = mode === 'empty' ? [] : initialItems.map((item) => ({ ...item }));
+  if (mode === 'nonremovable') items[0].removable = false;
   if (mode === 'long')
     items[0].summary =
       'Shopping list with a very long household item name and detailed instructions to check on a small phone screen';
@@ -153,4 +162,17 @@ export const ErrorState: Story = { args: { mode: 'error' } };
 export const LongNames: Story = {
   args: { mode: 'long' },
   globals: { viewport: { value: 'mobile1' } },
+};
+
+export const NonRemovableItem: Story = {
+  args: { mode: 'nonremovable' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole('checkbox', { name: /Oat milk/ })).toBeEnabled();
+    await expect(canvas.getByRole('button', { name: 'Edit item: Oat milk' })).toBeEnabled();
+    await expect(
+      canvas.queryByRole('button', { name: 'Remove item: Oat milk' })
+    ).not.toBeInTheDocument();
+    await expect(canvas.getByRole('button', { name: 'Remove item: Apples' })).toBeEnabled();
+  },
 };

@@ -61,18 +61,18 @@ describe('Home Assistant shared lists', () => {
     });
     const items = await service.getItems('todo.shopping_list');
     expect(items).toMatchObject([
-      { summary: 'Milk', completed: false },
-      { summary: 'Bread', completed: true },
+      { summary: 'Milk', completed: false, removable: false },
+      { summary: 'Bread', completed: true, removable: false },
     ]);
     expect(items[0].uid).not.toBe(items[1].uid);
     await service.updateItem('todo.shopping_list', items[0].uid, { completed: true });
     expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
       expect.objectContaining({ service_data: { item: 'Milk', status: 'completed' } })
     );
-    await service.removeItem('todo.shopping_list', items[1].uid);
-    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
-      expect.objectContaining({ service_data: { item: 'Bread' } })
+    await expect(service.removeItem('todo.shopping_list', items[1].uid)).rejects.toThrow(
+      'This item does not support removal'
     );
+    expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(2);
   });
 
   it('displays duplicate UID-less summaries without targeting an ambiguous item', async () => {

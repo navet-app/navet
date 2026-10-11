@@ -255,7 +255,7 @@ function TodoListItemsContent({
                         <Pencil className="h-4 w-4" />
                       </Button>
                     ) : null}
-                    {list.capabilities.remove ? (
+                    {list.capabilities.remove && item.removable !== false ? (
                       <Button
                         variant="ghost"
                         size="small"
