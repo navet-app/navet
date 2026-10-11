@@ -153,6 +153,7 @@ class HomeAssistantService {
   private entityService: HAEntityService;
   private panelAdapter: HomeAssistantPanelAdapter | null = null;
   private registryTransport: Connection | HomeAssistantPanelHass['callWS'] | null = null;
+  private registryUserId: string | undefined;
   private registrySubscriptionGeneration = 0;
   private registryAuthenticationAttempt = 0;
   private registryUnsubscribers: (() => void)[] = [];
@@ -174,6 +175,7 @@ class HomeAssistantService {
     for (const unsubscribe of this.registryUnsubscribers) unsubscribe();
     this.registryUnsubscribers = [];
     this.registryTransport = null;
+    this.registryUserId = undefined;
   }
 
   private scheduleRegistryRefresh(): void {
@@ -205,11 +207,13 @@ class HomeAssistantService {
 
   private subscribeToRegistryUpdates(
     connection: Connection | null,
-    transport: Connection | HomeAssistantPanelHass['callWS'] | null = connection
+    transport: Connection | HomeAssistantPanelHass['callWS'] | null = connection,
+    userId?: string
   ): void {
-    if (transport === this.registryTransport) return;
+    if (transport === this.registryTransport && userId === this.registryUserId) return;
     this.clearRegistrySubscriptions();
     this.registryTransport = transport;
+    this.registryUserId = userId;
     if (!transport) return;
     this.scheduleRegistryRefresh();
     const generation = this.registrySubscriptionGeneration;
@@ -314,7 +318,11 @@ class HomeAssistantService {
     this.registryAuthenticationAttempt += 1;
     if (this.panelAdapter) {
       this.panelAdapter.update(hass);
-      this.subscribeToRegistryUpdates(hass.connection ?? null, hass.connection ?? hass.callWS);
+      this.subscribeToRegistryUpdates(
+        hass.connection ?? null,
+        hass.connection ?? hass.callWS,
+        hass.user?.id
+      );
       this.emitPanelRuntimeState();
       return;
     }
@@ -322,7 +330,11 @@ class HomeAssistantService {
     this.clearRegistrySubscriptions();
     this.connectionService.disconnect();
     this.panelAdapter = new HomeAssistantPanelAdapter(hass);
-    this.subscribeToRegistryUpdates(hass.connection ?? null, hass.connection ?? hass.callWS);
+    this.subscribeToRegistryUpdates(
+      hass.connection ?? null,
+      hass.connection ?? hass.callWS,
+      hass.user?.id
+    );
     this.emitPanelRuntimeState();
   }
 

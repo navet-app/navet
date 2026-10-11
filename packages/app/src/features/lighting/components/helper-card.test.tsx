@@ -1,5 +1,7 @@
 import { dispatchEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { renderCard } from '@navet/app/features/dashboard/utils/card-renderer';
+import type { HomeAssistantPanelHass } from '@navet/app/services/home-assistant-panel-adapter';
+import { homeAssistantStore } from '@navet/app/stores/home-assistant-store';
 import { integrationStore } from '@navet/app/stores/integration-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
@@ -296,6 +298,94 @@ describe('helper controls', () => {
       'homey'
     );
   });
+  it.each(['accepted', 'rejected'] as const)(
+    'resets a helper after an actual same-transport panel user replacement and ignores late %s',
+    async (outcome) => {
+      const helper = {
+        helperType: 'number' as const,
+        value: 21,
+        writable: true,
+        min: 15,
+        max: 30,
+        step: 1,
+      };
+      const hass: HomeAssistantPanelHass = {
+        states: {},
+        config: {
+          time_zone: 'UTC',
+          location_name: 'Panel home',
+          unit_system: { temperature: 'C' },
+        } as HomeAssistantPanelHass['config'],
+        user: {
+          id: 'user-a',
+          name: 'User A',
+          is_admin: true,
+          is_owner: true,
+        } as HomeAssistantPanelHass['user'],
+        callService: vi.fn(async () => undefined),
+        callWS: vi.fn(async () => []) as HomeAssistantPanelHass['callWS'],
+      };
+      homeAssistantStore.getState().syncPanelHass(hass);
+      let finishOld = () => {};
+      dispatch.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            finishOld = () =>
+              outcome === 'accepted'
+                ? resolve({ accepted: true, requiresEventConfirmation: false })
+                : reject(new Error('Old user failed'));
+          })
+      );
+      const view = renderWithProviders(
+        <HelperValueControl
+          id="home_assistant:number.target"
+          providerId="home_assistant"
+          name="Target"
+          helper={helper}
+        />
+      );
+      fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '23' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(screen.getByRole('spinbutton')).toBeDisabled();
+      act(() =>
+        homeAssistantStore.getState().syncPanelHass({
+          ...hass,
+          user: { id: 'user-b', name: 'User B', is_admin: true, is_owner: true },
+        })
+      );
+      view.rerender(
+        <HelperValueControl
+          id="home_assistant:number.target"
+          providerId="home_assistant"
+          name="Target"
+          helper={{ ...helper, value: 18 }}
+        />
+      );
+      expect(screen.getByRole('spinbutton')).toHaveValue(18);
+      expect(screen.getByRole('spinbutton')).toBeEnabled();
+      fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '19' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      });
+      await act(async () => finishOld());
+      expect(screen.getByRole('spinbutton')).toHaveValue(19);
+      expect(screen.getByRole('spinbutton')).toBeDisabled();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(dispatch).toHaveBeenLastCalledWith(
+        { type: 'set_number_value', entityId: 'home_assistant:number.target', value: 19 },
+        'home_assistant'
+      );
+      view.rerender(
+        <HelperValueControl
+          id="home_assistant:number.target"
+          providerId="home_assistant"
+          name="Target"
+          helper={{ ...helper, value: 19 }}
+        />
+      );
+      expect(screen.getByRole('spinbutton')).toBeEnabled();
+    }
+  );
   it.each([
     ['session', 'accepted', true],
     ['session', 'rejected', true],
