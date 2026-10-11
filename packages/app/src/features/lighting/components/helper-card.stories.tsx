@@ -56,6 +56,7 @@ const meta = {
   args: {
     id: 'home_assistant:input_number.target',
     name: 'Target temperature',
+    room: 'Kitchen',
     providerId: 'home_assistant',
     size: 'small',
     isEditMode: false,
@@ -81,7 +82,20 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Numeric: Story = {};
-export const Tiny: Story = { args: { size: 'tiny' } };
+export const Tiny: Story = {
+  args: { size: 'tiny' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Kitchen')).toBeVisible();
+    const trigger = canvas.getByRole('button', { name: 'Target temperature, 21.5 °C' });
+    await expect(canvas.queryByText('21.5', { exact: true })).not.toBeInTheDocument();
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+    await expect(
+      within(document.body).getByRole('spinbutton', { name: 'Target temperature' })
+    ).toHaveValue(21.5);
+  },
+};
 export const Medium: Story = { args: { size: 'medium' } };
 export const Selector: Story = {
   args: {
@@ -117,6 +131,7 @@ export const DateTime: Story = {
 export const KeyboardWriteFailure: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.getByText('Kitchen')).toBeVisible();
     const trigger = canvas.getByRole('button', { name: 'Target temperature' });
     trigger.focus();
     await userEvent.keyboard('{Enter}');

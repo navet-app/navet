@@ -1899,7 +1899,7 @@ class ChoreAuthority:
             next_definition = {**definition, "enabled": action_type == "definition_restore", "updatedAt": timestamp}
             if action_type == "definition_archive":
                 next_definition["archivedAt"] = timestamp
-                data["occurrencesById"] = {key: item for key, item in data["occurrencesById"].items() if item.get("definitionId") != definition_id or item.get("status") in {"done", "skipped"}}
+                data["occurrencesById"] = {key: item for key, item in data["occurrencesById"].items() if item.get("definitionId") != definition_id or item.get("status") in {"done", "skipped"} or (item.get("status") == "missed" and item.get("supersededAt"))}
             else:
                 next_definition.pop("archivedAt", None)
             data["definitionsById"] = {**data["definitionsById"], definition_id: next_definition}

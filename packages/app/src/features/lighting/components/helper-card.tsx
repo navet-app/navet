@@ -6,6 +6,7 @@ import { CardMetric } from '@navet/app/components/primitives/card-metric';
 import { Input } from '@navet/app/components/primitives/input';
 import { Select } from '@navet/app/components/primitives/select';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
@@ -238,6 +239,7 @@ function HelperValueControlContent({
 export function HelperCard({
   id,
   name,
+  room,
   helper: initialHelper,
   providerId,
   size,
@@ -245,6 +247,7 @@ export function HelperCard({
 }: {
   id: string;
   name: string;
+  room?: string;
   helper: NavetHelperState;
   providerId?: IntegrationProviderId;
   size: CardSize;
@@ -257,6 +260,7 @@ export function HelperCard({
   const helper = liveHelper ?? { ...initialHelper, writable: false };
   const unavailable = entity?.availability === 'unavailable';
   const [open, setOpen] = useState(false);
+  useEditModeSettingsRequest(id, () => setOpen(true), isEditMode);
   const value = unavailable
     ? t('common.unavailable')
     : helper.value === null
@@ -269,28 +273,35 @@ export function HelperCard({
       <BaseCard
         size={size}
         title={name}
+        subtitle={room}
         interactive={!isEditMode}
         role={!isEditMode ? 'button' : undefined}
         tabIndex={!isEditMode ? 0 : undefined}
-        aria-label={name}
+        aria-label={
+          size === 'tiny'
+            ? `${name}, ${value}${helper.helperType === 'number' && helper.unit ? ` ${helper.unit}` : ''}`
+            : name
+        }
         onClick={() => {
           if (!isEditMode) setOpen(true);
         }}
       >
-        <CardMetric
-          value={value}
-          label={
-            helper.helperType === 'number'
-              ? helper.unit
-              : helper.helperType === 'datetime'
-                ? helper.timeZone
-                : undefined
-          }
-          theme={theme}
-          isActive={false}
-          accentClassName="text-current"
-          valueClassName="break-words line-clamp-2 text-lg font-semibold"
-        />
+        {size !== 'tiny' ? (
+          <CardMetric
+            value={value}
+            label={
+              helper.helperType === 'number'
+                ? helper.unit
+                : helper.helperType === 'datetime'
+                  ? helper.timeZone
+                  : undefined
+            }
+            theme={theme}
+            isActive={false}
+            accentClassName="text-current"
+            valueClassName="break-words line-clamp-2 text-lg font-semibold"
+          />
+        ) : null}
       </BaseCard>
       {open ? (
         <BaseCardDialog

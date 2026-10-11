@@ -157,6 +157,7 @@ class HomeAssistantService {
   private registryAuthenticationAttempt = 0;
   private registryUnsubscribers: (() => void)[] = [];
   private registryRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private registryPollTimer: ReturnType<typeof setInterval> | null = null;
   private registryRefreshInProgress = false;
   private registryRefreshPending = false;
 
@@ -165,7 +166,9 @@ class HomeAssistantService {
     this.registryService.resetRegistriesForSession();
     this.emitRegistries();
     if (this.registryRefreshTimer !== null) clearTimeout(this.registryRefreshTimer);
+    if (this.registryPollTimer !== null) clearInterval(this.registryPollTimer);
     this.registryRefreshTimer = null;
+    this.registryPollTimer = null;
     this.registryRefreshInProgress = false;
     this.registryRefreshPending = false;
     for (const unsubscribe of this.registryUnsubscribers) unsubscribe();
@@ -208,10 +211,16 @@ class HomeAssistantService {
     this.clearRegistrySubscriptions();
     this.registryTransport = transport;
     if (!transport) return;
-    // callWS-only panels can load registries, but have no native event subscription surface.
     this.scheduleRegistryRefresh();
-    if (!connection) return;
     const generation = this.registrySubscriptionGeneration;
+    // Some panel bridges expose callWS without an event subscription surface. Keep their
+    // metadata fresh through the same authenticated transport and coalesced load lifecycle.
+    if (!connection?.subscribeMessage) {
+      this.registryPollTimer = setInterval(() => {
+        if (generation === this.registrySubscriptionGeneration) this.scheduleRegistryRefresh();
+      }, 30_000);
+      return;
+    }
     for (const eventType of [
       'entity_registry_updated',
       'device_registry_updated',

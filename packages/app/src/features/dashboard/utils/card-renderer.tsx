@@ -633,6 +633,7 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       <HelperCard
         id={device.id as string}
         name={device.name as string}
+        room={device.room as string | undefined}
         size={size}
         helper={device.helper as NavetHelperState}
         providerId={device.providerId as CardProviderId}
