@@ -101,7 +101,7 @@ function DashboardEditActionsStory() {
 }
 
 const meta = {
-  title: 'Pages/Dashboard/Edit Actions',
+  title: 'Components/Shared/Dashboard Edit Actions',
   component: DashboardEditActionsStory,
   tags: ['autodocs'],
   parameters: {

@@ -8,6 +8,13 @@ import type { ThemeType } from '@navet/app/hooks/use-theme';
 import { Flame, Snowflake, ThermometerSun, Wind } from 'lucide-react';
 import { memo } from 'react';
 
+export const climateModeIcons = {
+  auto: ThermometerSun,
+  cool: Snowflake,
+  heat: Flame,
+  fan: Wind,
+} as const;
+
 interface ClimateModeControlsProps {
   mode: string;
   isOn: boolean;
@@ -29,13 +36,6 @@ export const ClimateModeControls = memo(function ClimateModeControls({
   const controlSizes = getCardActionControlSizes(primitiveSize);
   const options = resolveClimateModeControlOptions(supportedClimateModes);
 
-  const iconByMode = {
-    auto: ThermometerSun,
-    cool: Snowflake,
-    heat: Flame,
-    fan: Wind,
-  } as const;
-
   const labelByMode = {
     auto: t('settings.appearance.systemTheme.auto'),
     cool: t('climate.mode.cool'),
@@ -46,7 +46,7 @@ export const ClimateModeControls = memo(function ClimateModeControls({
   return (
     <>
       {options.map((option) => {
-        const Icon = iconByMode[option.key];
+        const Icon = climateModeIcons[option.key];
 
         return (
           <RoundControlButton

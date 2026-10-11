@@ -9,6 +9,7 @@ import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Zap } from 'lucide-react';
 import { EnergyNowCardView } from '../../energy/components/widgets/energy-now-card-view';
+import dialogMeta, * as dialogStories from './widgets/energy-now-dashboard-widget.story-fixtures';
 
 type EnergyNowStoryArgs = {
   size: Extract<CardSize, 'small' | 'medium' | 'large'>;
@@ -133,4 +134,9 @@ export const EmptyState: Story = {
   args: {
     size: 'medium',
   },
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
 };

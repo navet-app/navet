@@ -103,6 +103,11 @@ export const Medium: Story = {
 export const Positionless: Story = {
   args: { position: null, capabilities: ['valve_open', 'valve_close'] },
 };
+export const Open: Story = { args: { phase: 'open', position: 100 } };
+export const PartiallyOpen: Story = { args: { phase: 'open', position: 30 } };
+export const PositionlessOpen: Story = {
+  args: { phase: 'open', position: null, capabilities: ['valve_open', 'valve_close'] },
+};
 export const Opening: Story = { args: { phase: 'opening', position: 35 } };
 export const Unavailable: Story = {
   args: { availability: 'unavailable' },

@@ -1,6 +1,5 @@
 import { Button } from '@navet/app/components/primitives/button';
 import { useTheme } from '@navet/app/hooks';
-import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { SettingsDialogStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
@@ -46,24 +45,11 @@ function CalendarSettingsDialogStory() {
 }
 
 const meta = {
-  title: 'Cards/Dialogs/Calendar',
   component: CalendarSettingsDialogStory,
-  tags: ['autodocs'],
-  parameters: { layout: 'fullscreen', docs: { description: {} } },
+  render: () => <CalendarSettingsDialogStory />,
+  tags: ['!autodocs'],
+  parameters: { layout: 'fullscreen' },
 } satisfies Meta<typeof CalendarSettingsDialogStory>;
-
-const richComponentDocsDescription = getStoryDocsDescription(meta.title);
-
-meta.parameters = {
-  ...meta.parameters,
-  docs: {
-    ...meta.parameters?.docs,
-    description: {
-      ...meta.parameters?.docs?.description,
-      component: richComponentDocsDescription,
-    },
-  },
-};
 
 export default meta;
 

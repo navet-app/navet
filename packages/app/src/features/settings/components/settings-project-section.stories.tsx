@@ -35,6 +35,8 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.getByText('Local development build')).toBeVisible();
+    await expect(canvas.queryByText('Beta', { exact: true })).not.toBeInTheDocument();
     await expect(canvasElement.querySelectorAll('[data-settings-detail-group]')).toHaveLength(2);
     await expect(canvas.getByRole('link', { name: 'Join Discord' })).toHaveAttribute(
       'href',

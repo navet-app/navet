@@ -1,5 +1,4 @@
 import { Button } from '@navet/app/components/primitives/button';
-import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { SettingsDialogStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
@@ -28,6 +27,7 @@ function ClimateSettingsDialogStory() {
         mode={mode}
         targetTemp={targetTemp}
         currentTemp={24}
+        supportedClimateModes={['cool', 'heat', 'auto', 'fan_only', 'off']}
         temperaturePresets={[
           { label: 'Sleep', value: 18 },
           { label: 'Comfort', value: 21 },
@@ -41,24 +41,12 @@ function ClimateSettingsDialogStory() {
 }
 
 const meta = {
-  title: 'Cards/Dialogs/Climate',
   component: ClimateSettingsDialogStory,
-  tags: ['autodocs'],
-  parameters: { layout: 'fullscreen', docs: { description: {} } },
+  render: () => <ClimateSettingsDialogStory />,
+  tags: ['!autodocs'],
+  parameters: { layout: 'fullscreen' },
 } satisfies Meta<typeof ClimateSettingsDialogStory>;
 
-const richComponentDocsDescription = getStoryDocsDescription(meta.title);
-
-meta.parameters = {
-  ...meta.parameters,
-  docs: {
-    ...meta.parameters?.docs,
-    description: {
-      ...meta.parameters?.docs?.description,
-      component: richComponentDocsDescription,
-    },
-  },
-};
 export default meta;
 
 type Story = StoryObj<typeof meta>;
@@ -67,6 +55,28 @@ export const Default: Story = {
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'Open Climate dialog' }));
     const dialog = within(await within(document.body).findByRole('dialog'));
+    await expect(dialog.queryByRole('slider')).not.toBeInTheDocument();
+    const modeOption = dialog.getByRole('radio', { name: 'Cool' }).closest('label');
+    if (!modeOption) throw new Error('Missing mode option label');
+    await expect(modeOption.getBoundingClientRect().height).toBe(36);
+
+    await expect(dialog.getByText('22°C', { selector: 'dd' })).toBeVisible();
+    await expect(dialog.getByText('Current 24°C')).toBeVisible();
+    const increase = dialog.getByRole('button', { name: 'Increase temperature' });
+    await expect(increase.getBoundingClientRect().width).toBe(42);
+    await expect(increase.getBoundingClientRect().height).toBe(42);
+    await userEvent.click(increase);
+    await expect(dialog.getByText('22.5°C', { selector: 'dd' })).toBeVisible();
+    await expect(
+      within(document.body).getByRole('dialog').getBoundingClientRect().height
+    ).toBeLessThan(window.innerHeight * 0.8);
+    const shortcuts = dialog.getByRole('button', { name: 'Temperature presets' });
+    await expect(shortcuts).toHaveAttribute('aria-expanded', 'false');
+    await expect(dialog.queryByRole('radio', { name: '21°' })).not.toBeInTheDocument();
+    await userEvent.click(shortcuts);
+    await userEvent.click(dialog.getByRole('radio', { name: '21°' }));
+    await expect(dialog.getByText('21°C', { selector: 'dd' })).toBeVisible();
+    await userEvent.click(shortcuts);
     const more = dialog.getByRole('button', { name: 'More actions' });
     const assertUncovered = async (button: HTMLElement) => {
       button.scrollIntoView({ block: 'nearest' });

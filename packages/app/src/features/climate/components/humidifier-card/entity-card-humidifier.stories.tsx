@@ -115,10 +115,24 @@ export const DialogControls: Story = {
     await userEvent.click(more);
     await expect(within(document.body).getByText('humidifier.basement')).toBeVisible();
     await userEvent.keyboard('{Escape}');
-    const slider = dialog.getByRole('slider', { name: 'Target humidity' });
-    slider.focus();
-    await userEvent.keyboard('{ArrowUp}');
-    await expect(slider).toHaveAttribute('aria-valuenow', '53');
+    await expect(dialog.queryByRole('slider')).not.toBeInTheDocument();
+    const modeOption = dialog.getByRole('radio', { name: 'Sleep' }).closest('label');
+    if (!modeOption) throw new Error('Missing mode option label');
+    await expect(modeOption.getBoundingClientRect().height).toBe(36);
+
+    await expect(dialog.getByText('52%', { selector: 'dd' })).toBeVisible();
+    await expect(dialog.getByText('Current 52%')).toBeVisible();
+    const increase = dialog.getByRole('button', { name: 'Increase target humidity' });
+    await expect(increase.getBoundingClientRect().width).toBe(42);
+    await expect(increase.getBoundingClientRect().height).toBe(42);
+    increase.focus();
+    await userEvent.keyboard('{Enter}');
+    await expect(dialog.getByText('53%', { selector: 'dd' })).toBeVisible();
+    await userEvent.click(dialog.getByRole('radio', { name: 'Sleep' }));
+    await expect(dialog.getByRole('radio', { name: 'Sleep' })).toBeChecked();
+    await expect(
+      within(document.body).getByRole('dialog').getBoundingClientRect().height
+    ).toBeLessThan(window.innerHeight * 0.8);
     for (const label of ['Close', 'Done']) {
       const current = within(await within(document.body).findByRole('dialog'));
       const button = current
@@ -136,4 +150,24 @@ export const DialogControls: Story = {
       if (label === 'Close') await userEvent.click(open);
     }
   },
+};
+
+export const DialogMobile: Story = {
+  ...DialogControls,
+  globals: { viewport: { value: 'mobile1', isRotated: false } },
+};
+
+export const DialogLight: Story = {
+  ...DialogControls,
+  globals: { theme: 'light' },
+};
+
+export const DialogGlass: Story = {
+  ...DialogControls,
+  globals: { theme: 'glass' },
+};
+
+export const DialogBlack: Story = {
+  ...DialogControls,
+  globals: { theme: 'black' },
 };

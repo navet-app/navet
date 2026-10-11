@@ -1,17 +1,18 @@
-import { BaseCard } from '@navet/app/components/primitives/base-card';
+import { CardActionRow } from '@navet/app/components/patterns/card-action-row';
 import { Button } from '@navet/app/components/primitives/button';
 import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
-import { CardMetric } from '@navet/app/components/primitives/card-metric';
 import { Input } from '@navet/app/components/primitives/input';
+import { RoundControlButton } from '@navet/app/components/primitives/round-control-button';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import { SensorCard } from '@navet/app/features/sensors/components/sensor-card';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import { type NavetTimerState, readNavetTimerState } from '@navet/core/household-device-state';
 import type { IntegrationProviderId } from '@navet/core/integration-providers';
 import type { NavetEntity } from '@navet/core/types';
-import { Pause, Play, Timer } from 'lucide-react';
+import { Pause, Play, Square, Timer } from 'lucide-react';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import { useDeviceCommand } from '../hooks/use-device-command';
 
@@ -247,37 +248,42 @@ export function TimerCard({
   const value = formatRemaining(useTimerRemaining(timer));
   return (
     <>
-      <BaseCard
+      <SensorCard
+        id={id}
+        name={name}
+        room={room ?? ''}
         size={size}
-        title={name}
-        subtitle={room}
-        interactive={!isEditMode}
-        role={!isEditMode ? 'button' : undefined}
-        tabIndex={!isEditMode ? 0 : undefined}
-        aria-label={size === 'tiny' && phaseLabel ? `${name}, ${phaseLabel}` : name}
-        onClick={() => {
+        isEditMode={isEditMode}
+        unit=""
+        useLiveState={false}
+        subtitle={[room, phaseLabel].filter(Boolean).join(' · ') || t('deviceType.timer')}
+        value={
+          !entity
+            ? t('common.loading')
+            : unavailable
+              ? t(
+                  entity.availability === 'unknown'
+                    ? 'providerDetails.unknown'
+                    : 'common.unavailable'
+                )
+              : (value ?? t('providerDetails.unknown'))
+        }
+        status={!entity || unavailable ? 'unavailable' : 'measurement'}
+        onSizeChange={() => undefined}
+        onOpenSettings={() => {
           if (!isEditMode) setOpen(true);
         }}
-      >
-        <CardMetric
-          value={
-            !entity
-              ? t('common.loading')
-              : unavailable
-                ? t(
-                    entity.availability === 'unknown'
-                      ? 'providerDetails.unknown'
-                      : 'common.unavailable'
-                  )
-                : (value ?? t('providerDetails.unknown'))
-          }
-          label={size === 'tiny' ? undefined : phaseLabel}
-          theme={theme}
-          isActive={false}
-          accentClassName="text-current"
-          valueClassName={`break-words line-clamp-2 ${size === 'tiny' ? 'text-xs' : 'text-lg'} font-semibold tabular-nums`}
-        />
-      </BaseCard>
+        disableBuiltInSettingsDialog
+        bottomActionBar={
+          <TimerCardActions
+            id={id}
+            providerId={providerId}
+            timer={timer}
+            size={size}
+            disabled={isEditMode || !entity || unavailable}
+          />
+        }
+      />
       {open ? (
         <BaseCardDialog
           isOpen={open}
@@ -305,5 +311,82 @@ export function TimerCard({
         />
       ) : null}
     </>
+  );
+}
+
+function TimerCardActions({
+  id,
+  providerId,
+  timer,
+  size,
+  disabled,
+}: {
+  id: string;
+  providerId: IntegrationProviderId;
+  timer: NavetTimerState;
+  size: CardSize;
+  disabled: boolean;
+}) {
+  const { t } = useI18n();
+  const { theme } = useTheme();
+  const operation = useDeviceCommand({
+    entityId: id,
+    providerId,
+    stateKey: JSON.stringify([timer.phase, timer.finishesAt]),
+  });
+  const actions = [
+    {
+      type: 'timer_start' as const,
+      label: t(timer.phase === 'paused' ? 'timer.resume' : 'timer.start'),
+      Icon: Play,
+      enabled: timer.canStart && timer.phase !== 'active',
+      next: 'active',
+    },
+    {
+      type: 'timer_pause' as const,
+      label: t('timer.pause'),
+      Icon: Pause,
+      enabled: timer.canPause,
+      next: 'paused',
+    },
+    {
+      type: 'timer_cancel' as const,
+      label: t('timer.cancel'),
+      Icon: Square,
+      enabled: timer.canCancel,
+      next: 'idle',
+    },
+  ];
+  return (
+    <div aria-busy={operation.pending}>
+      <CardActionRow
+        theme={theme}
+        size={size === 'small' ? 'small' : 'default'}
+        leftContent={actions.map(({ type, label, Icon, enabled, next }) => (
+          <RoundControlButton
+            key={type}
+            theme={theme}
+            size="small"
+            aria-label={label}
+            title={label}
+            disabled={disabled || operation.pending || !enabled}
+            onClick={(event) => {
+              event.stopPropagation();
+              const immediateFinish =
+                type === 'timer_start' &&
+                timer.durationSeconds === 0 &&
+                (timer.remainingSeconds === null || timer.remainingSeconds === 0);
+              void operation.execute(
+                { type, entityId: id },
+                immediateFinish ? undefined : (key) => JSON.parse(key)[0] === next
+              );
+            }}
+          >
+            <Icon className="h-4 w-4" />
+          </RoundControlButton>
+        ))}
+      />
+      {operation.error ? <p role="alert">{t('deviceControls.failed')}</p> : null}
+    </div>
   );
 }

@@ -1,8 +1,13 @@
 import { dispatchEntityCommand } from '@navet/app/commands';
-import { CardActionRow } from '@navet/app/components/patterns';
 import { BaseCardDialog, type BaseCardDialogTab } from '@navet/app/components/primitives';
-import { DialogSectionRow } from '@navet/app/components/shared/device-editor';
+import {
+  DeviceControlRow,
+  DeviceTargetControl,
+  DialogSectionRow,
+} from '@navet/app/components/shared/device-editor';
+import { DeviceControlOptions } from '@navet/app/components/shared/device-editor/device-control-options';
 import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
+import { resolveClimateModeControlOptions } from '@navet/app/features/climate/utils/climate-mode-control-options';
 import { getClimateGaugeColor } from '@navet/app/features/climate/utils/climate-styles';
 import { convertCelsiusPresetToSourceUnit } from '@navet/app/features/climate/utils/climate-temperature-presets';
 import { getClimateTemperatureStatusLabel } from '@navet/app/features/climate/utils/climate-temperature-status-label';
@@ -23,8 +28,7 @@ import {
 } from '@navet/app/utils/temperature';
 import { Fan, Sliders, Thermometer } from 'lucide-react';
 import { memo, useCallback } from 'react';
-import { ClimateGauge } from '../climate-card/climate-gauge';
-import { ClimateModeControls } from '../climate-card/climate-mode-controls';
+import { climateModeIcons } from '../climate-card/climate-mode-controls';
 import { ClimateTempControls } from '../climate-card/climate-temp-controls';
 import { useClimateVisualMode } from '../climate-card/use-climate-visual-mode';
 import { ClimateAdvancedControls } from './climate-advanced-controls';
@@ -110,11 +114,6 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
     effectiveSourceTemperatureUnit,
     temperatureUnit
   );
-  const displayCurrentTemp = convertTemperatureUnitValue(
-    currentTemp,
-    effectiveSourceTemperatureUnit,
-    temperatureUnit
-  );
   const displayMinTemp = convertTemperatureUnitValue(
     minTemp,
     effectiveSourceTemperatureUnit,
@@ -168,99 +167,105 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
       }
     : undefined;
 
+  const modeOptions = resolveClimateModeControlOptions(supportedClimateModes);
+  const temperaturePresetOptions = temperaturePresets.map((preset) => {
+    const sourceValue = convertCelsiusPresetToSourceUnit(preset.value, sourceTemperatureUnit);
+    return {
+      value: String(sourceValue),
+      sourceValue,
+      label: `${formatTemperatureValueFromSourceUnit(sourceValue, sourceTemperatureUnit, temperatureUnit)}°`,
+    };
+  });
   const climateTabContent = (
-    <div className="relative -mx-6 max-sm:-mx-3.5">
-      <div className="relative z-10 pt-2 pb-6 max-sm:pb-3">
-        <div>
-          <ClimateGauge
-            id={entityId}
-            mode={visualMode}
-            targetTemp={displayTargetTemp}
-            currentTemp={displayCurrentTemp}
+    <div className="space-y-4">
+      <DeviceTargetControl
+        label={t('climate.target')}
+        value={formatTemperatureFromSourceUnit(targetTemp, sourceTemperatureUnit, temperatureUnit)}
+        currentReading={t('climate.currentTemperature', {
+          temp: formatTemperatureFromSourceUnit(
+            currentTemp,
+            sourceTemperatureUnit,
+            temperatureUnit
+          ),
+        })}
+        status={getClimateTemperatureStatusLabel(
+          t,
+          formatTemperatureFromSourceUnit(targetTemp, sourceTemperatureUnit, temperatureUnit),
+          formatTemperatureFromSourceUnit(currentTemp, sourceTemperatureUnit, temperatureUnit),
+          visualMode,
+          targetTemp,
+          currentTemp
+        )}
+        readableTokens={dialogTextTokens}
+        controls={
+          <ClimateTempControls
+            targetTemp={controlDisplayTargetTemp}
+            onTempChange={handleDisplayTargetTempChange}
+            onTempCommit={handleDisplayTargetTempCommit}
             isOn={isOn}
-            minTemp={displayMinTemp}
-            maxTemp={displayMaxTemp}
-            step={displayStep}
-            temperatureUnit={temperatureUnit}
-            helperText={getClimateTemperatureStatusLabel(
-              t,
-              formatTemperatureFromSourceUnit(targetTemp, sourceTemperatureUnit, temperatureUnit),
-              formatTemperatureFromSourceUnit(currentTemp, sourceTemperatureUnit, temperatureUnit),
-              visualMode,
-              targetTemp,
-              currentTemp
-            )}
-            onTargetTempChange={handleDisplayTargetTempChange}
-            onTargetTempCommit={handleDisplayTargetTempCommit}
-            variant="immersive"
-          />
-        </div>
-        <div className={`relative z-10 -mt-6 space-y-4 ${contentInsetClassName}`}>
-          <CardActionRow
-            theme={theme}
             size="medium"
-            leftContent={
-              <div className="flex items-center gap-2">
-                <ClimateTempControls
-                  targetTemp={controlDisplayTargetTemp}
-                  onTempChange={handleDisplayTargetTempChange}
-                  onTempCommit={handleDisplayTargetTempCommit}
-                  isOn={isOn}
-                  size="medium"
-                  minTemp={controlDisplayMinTemp}
-                  maxTemp={controlDisplayMaxTemp}
-                  step={controlDisplayStep}
-                />
-                <ClimateModeControls
-                  mode={mode}
-                  isOn={isOn}
-                  onModeChange={onModeChange}
-                  supportedClimateModes={supportedClimateModes}
-                  size="medium"
-                />
-              </div>
-            }
+            controlSize="lg"
+            minTemp={controlDisplayMinTemp}
+            maxTemp={controlDisplayMaxTemp}
+            step={controlDisplayStep}
           />
+        }
+      />
 
-          <DialogSectionRow label={t('climate.advanced.temperaturePresets')}>
-            <div className="flex flex-wrap items-center gap-2.5">
-              {temperaturePresets.map((preset) => {
-                const sourcePresetValue = convertCelsiusPresetToSourceUnit(
-                  preset.value,
-                  sourceTemperatureUnit
-                );
-                const isSelected = Math.abs(targetTemp - sourcePresetValue) < 0.05;
+      {modeOptions.length > 1 ? (
+        <DeviceControlOptions
+          label={t('climate.mode')}
+          variant="segmented"
+          theme={theme === 'light' ? 'dark' : theme}
+          selectionColor={dialogTextTokens.titleColor}
+          value={isOn ? mode : null}
+          options={modeOptions.map((option) => {
+            const Icon = climateModeIcons[option.key];
+            return {
+              value: option.mode,
+              label:
+                option.key === 'auto'
+                  ? t('settings.appearance.systemTheme.auto')
+                  : t(`climate.mode.${option.key}`),
+              icon: <Icon className="h-4 w-4" />,
+            };
+          })}
+          onValueChange={onModeChange}
+        />
+      ) : null}
 
-                return (
-                  <button
-                    type="button"
-                    key={`${preset.label ?? preset.value}`}
-                    onClick={() => (onTargetTempCommit ?? onTargetTempChange)(sourcePresetValue)}
-                    disabled={!isOn}
-                    className={`flex h-10 min-w-10 items-center justify-center rounded-full border px-3 text-sm font-semibold transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 disabled:opacity-50 ${isOn ? 'hover:scale-105' : ''} ${isSelected ? `scale-105 shadow-lg ${styles.presetButtonActiveClassName}` : styles.presetButtonClassName}`}
-                  >
-                    <span
-                      className="leading-none"
-                      style={
-                        isSelected
-                          ? { color: dialogTextTokens.titleColor }
-                          : { color: dialogTextTokens.subtitleColor }
-                      }
-                    >
-                      {formatTemperatureValueFromSourceUnit(
-                        sourcePresetValue,
-                        sourceTemperatureUnit,
-                        temperatureUnit
-                      )}
-                      °
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </DialogSectionRow>
-          <ClimateAdvancedControls entityId={entityId} />
-        </div>
+      <div>
+        {temperaturePresets.length > 0 ? (
+          <DeviceControlRow
+            kind="disclosure"
+            theme="dark"
+            label={t('climate.advanced.temperaturePresets')}
+            value={formatTemperatureFromSourceUnit(
+              targetTemp,
+              sourceTemperatureUnit,
+              temperatureUnit
+            )}
+            icon={<Thermometer className="h-4 w-4" />}
+          >
+            <DeviceControlOptions
+              label={t('climate.advanced.temperaturePresets')}
+              value={
+                temperaturePresetOptions.find(
+                  (option) => Math.abs(targetTemp - option.sourceValue) < 0.05
+                )?.value ?? null
+              }
+              disabled={!isOn}
+              selectionColor={dialogTextTokens.titleColor}
+              theme={theme === 'light' ? 'dark' : theme}
+              options={temperaturePresetOptions}
+              onValueChange={(value) => {
+                const preset = temperaturePresetOptions.find((option) => option.value === value);
+                if (preset) (onTargetTempCommit ?? onTargetTempChange)(preset.sourceValue);
+              }}
+            />
+          </DeviceControlRow>
+        ) : null}
+        <ClimateAdvancedControls entityId={entityId} selectionColor={dialogTextTokens.titleColor} />
       </div>
     </div>
   );
@@ -324,6 +329,8 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
       disableOpenAutoFocus
       maxWidth="md"
       height="capped"
+      mobileFitContent
+      defaultTintAccent={dialogGlowColors.primary}
       contentSurface={styles.contentSurface}
       contentClassName={styles.contentClassName}
       contentGlowClassName={isOn ? 'pointer-events-none absolute inset-0 z-0' : undefined}

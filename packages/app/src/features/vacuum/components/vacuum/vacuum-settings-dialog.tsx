@@ -1,4 +1,4 @@
-import { CardDialogFooter, CardDialogSection } from '@navet/app/components/patterns';
+import { CardDialogSection } from '@navet/app/components/patterns';
 import { Button } from '@navet/app/components/primitives/button';
 import {
   BaseCardDialog,
@@ -16,10 +16,10 @@ import type { ThemeType } from '@navet/app/hooks/use-theme';
 import { getEntityTypeLabel } from '@navet/app/utils/entity-type-label';
 import { Map as MapIcon, Palette, Sliders } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { hasVacuumDialogControls, VacuumCleaningControls } from './vacuum-cleaning-controls';
+import { VacuumCleaningControls } from './vacuum-cleaning-controls';
 import type { VacuumCleaningArea } from './vacuum-features';
 import { VacuumPlannerSection } from './vacuum-planner-section';
-import type { VacuumStatus } from './vacuum-utils';
+import { getVacuumStatusLabelKey, type VacuumStatus } from './vacuum-utils';
 
 const DEFAULT_VACUUM_ACCENT_COLOR = '#06b6d4';
 type VacuumSettingsTab = 'controls' | 'map' | 'card';
@@ -28,27 +28,10 @@ function isVacuumSettingsTab(value: string): value is VacuumSettingsTab {
   return value === 'controls' || value === 'map' || value === 'card';
 }
 
-function getDefaultVacuumSettingsTab({
-  shouldShowControlsTab,
-  shouldShowMapTab,
-}: {
-  shouldShowControlsTab: boolean;
-  shouldShowMapTab: boolean;
-}): VacuumSettingsTab {
-  if (shouldShowControlsTab) {
-    return 'controls';
-  }
-
-  if (shouldShowMapTab) {
-    return 'map';
-  }
-
-  return 'card';
-}
-
 interface VacuumSettingsDialogProps {
   entityId: string;
   isOpen: boolean;
+  disabled?: boolean;
   onClose: () => void;
   isLawnMower?: boolean;
   onStartCleaning: () => void;
@@ -77,9 +60,13 @@ interface VacuumSettingsDialogProps {
 export const VacuumSettingsDialog = memo(function VacuumSettingsDialog({
   entityId,
   isOpen,
+  disabled = false,
   onClose,
   isLawnMower = false,
   onStartCleaning,
+  onPauseCleaning,
+  onStopCleaning,
+  currentStatus,
   onStartAreaCleaning,
   onReturnHome,
   onLocate,
@@ -110,68 +97,38 @@ export const VacuumSettingsDialog = memo(function VacuumSettingsDialog({
   );
   const shouldShowMapTab = (capabilities?.canShowMap ?? false) || cleaningAreas.length > 0;
   const speedOptions = useMemo(() => {
-    if (!supportsFanSpeed) {
+    if (!supportsFanSpeed || capabilities?.canSetFanSpeed === false) {
       return [];
     }
 
-    return fanSpeeds?.length
-      ? fanSpeeds
-      : [t('vacuum.speed.quiet'), t('vacuum.speed.standard'), t('vacuum.speed.max')];
-  }, [fanSpeeds, supportsFanSpeed, t]);
-  const shouldShowControlsTab = hasVacuumDialogControls({
-    supportsFanSpeed,
-    fanSpeedOptions: speedOptions,
-    capabilities,
-  });
+    return fanSpeeds ?? capabilities?.fanSpeedOptions ?? [];
+  }, [fanSpeeds, supportsFanSpeed, capabilities?.fanSpeedOptions, capabilities?.canSetFanSpeed]);
   const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
-  const [selectedFanSpeed, setSelectedFanSpeed] = useState<string>(
-    fanSpeed ?? speedOptions[1] ?? speedOptions[0] ?? ''
-  );
   const [localTintColor, setLocalTintColor] = useState<string>(tintColor ?? accentColorValue);
-  const [activeTab, setActiveTab] = useState<VacuumSettingsTab>(() =>
-    getDefaultVacuumSettingsTab({ shouldShowControlsTab, shouldShowMapTab })
-  );
+  const [activeTab, setActiveTab] = useState<VacuumSettingsTab>('controls');
   const wasOpenRef = useRef(isOpen);
-
-  useEffect(() => {
-    setSelectedFanSpeed(fanSpeed ?? speedOptions[1] ?? speedOptions[0] ?? '');
-  }, [fanSpeed, speedOptions]);
 
   useEffect(() => {
     const wasOpen = wasOpenRef.current;
 
     if (isOpen && !wasOpen) {
       setSelectedAreaIds([]);
-      setSelectedFanSpeed(fanSpeed ?? speedOptions[1] ?? speedOptions[0] ?? '');
       setLocalTintColor(tintColor ?? accentColorValue);
-      setActiveTab(getDefaultVacuumSettingsTab({ shouldShowControlsTab, shouldShowMapTab }));
+      setActiveTab('controls');
     }
 
     wasOpenRef.current = isOpen;
-  }, [
-    accentColorValue,
-    fanSpeed,
-    isOpen,
-    shouldShowControlsTab,
-    shouldShowMapTab,
-    speedOptions,
-    tintColor,
-  ]);
+  }, [accentColorValue, isOpen, tintColor]);
 
   useEffect(() => {
     if (!isOpen) {
       return;
     }
 
-    if (activeTab === 'controls' && !shouldShowControlsTab) {
-      setActiveTab(shouldShowMapTab ? 'map' : 'card');
-      return;
-    }
-
     if (activeTab === 'map' && !shouldShowMapTab) {
-      setActiveTab(shouldShowControlsTab ? 'controls' : 'card');
+      setActiveTab('controls');
     }
-  }, [activeTab, isOpen, shouldShowControlsTab, shouldShowMapTab]);
+  }, [activeTab, isOpen, shouldShowMapTab]);
 
   const resolvedTintColor =
     normalizeCustomCardTint(tintColor) ?? normalizeCustomCardTint(localTintColor);
@@ -184,13 +141,6 @@ export const VacuumSettingsDialog = memo(function VacuumSettingsDialog({
         borderColor: withTintAlpha(activeControlColor, theme === 'light' ? 0.24 : 0.42),
         color: theme === 'light' ? undefined : withTintAlpha(activeControlColor, 0.96),
         boxShadow: `inset 0 0 0 1px ${withTintAlpha(activeControlColor, theme === 'light' ? 0.14 : 0.26)}`,
-      }
-    : sectionStyle;
-  const softControlStyle = activeControlColor
-    ? {
-        backgroundColor: withTintAlpha(activeControlColor, theme === 'light' ? 0.08 : 0.14),
-        borderColor: withTintAlpha(activeControlColor, theme === 'light' ? 0.16 : 0.26),
-        color: theme === 'light' ? undefined : withTintAlpha(activeControlColor, 0.92),
       }
     : sectionStyle;
   const handleTintChange = (color: string) => {
@@ -207,42 +157,67 @@ export const VacuumSettingsDialog = memo(function VacuumSettingsDialog({
   const handlePlannerStart = () => {
     if (selectedAreaIds.length > 0) {
       onStartAreaCleaning?.(selectedAreaIds);
-      onClose();
       return;
     }
 
     onStartCleaning();
-    onClose();
   };
 
+  const statusControls = (
+    <div className="flex items-center justify-between gap-4">
+      <div
+        className={`min-w-0 break-words text-lg font-semibold ${surface.textPrimary}`}
+        aria-live="polite"
+      >
+        {disabled
+          ? t('common.unavailable')
+          : currentStatus
+            ? t(getVacuumStatusLabelKey(currentStatus, { isLawnMower }))
+            : t('providerDetails.unknown')}
+      </div>
+      {capabilities?.canStart !== false ? (
+        <Button
+          size="compact"
+          variant="primary"
+          className="shrink-0"
+          onClick={handlePlannerStart}
+          disabled={disabled || (selectedAreaIds.length > 0 && !onStartAreaCleaning)}
+        >
+          {startActionLabel}
+        </Button>
+      ) : null}
+    </div>
+  );
+
   const tabs: BaseCardDialogTab[] = [
-    ...(shouldShowControlsTab
-      ? [
-          {
-            key: 'controls',
-            label: t('common.controls'),
-            icon: Sliders,
-            content: (
-              <VacuumCleaningControls
-                isLawnMower={isLawnMower}
-                fanSpeed={selectedFanSpeed}
-                onFanSpeedChange={(speed) => {
-                  setSelectedFanSpeed(speed);
-                  onSetFanSpeed?.(speed);
-                }}
-                fanSpeedOptions={speedOptions}
-                supportsFanSpeed={supportsFanSpeed}
-                isUpdatingFanSpeed={isUpdatingFanSpeed}
-                onReturnHome={onReturnHome}
-                onLocate={onLocate}
-                onCleanSpot={onCleanSpot}
-                capabilities={capabilities}
-                accentColor={activeControlColor}
-              />
-            ),
-          },
-        ]
-      : []),
+    {
+      key: 'controls',
+      label: t('common.controls'),
+      icon: Sliders,
+      content: (
+        <div className="space-y-4">
+          {statusControls}
+          <VacuumCleaningControls
+            isLawnMower={isLawnMower}
+            fanSpeed={fanSpeed ?? capabilities?.currentFanSpeed ?? ''}
+            onFanSpeedChange={onSetFanSpeed}
+            fanSpeedOptions={speedOptions}
+            supportsFanSpeed={supportsFanSpeed}
+            isUpdatingFanSpeed={isUpdatingFanSpeed}
+            disabled={disabled}
+            onReturnHome={onReturnHome}
+            onLocate={onLocate}
+            onCleanSpot={onCleanSpot}
+            capabilities={capabilities}
+            accentColor={activeControlColor}
+            theme={theme}
+            isRunning={currentStatus === 'cleaning' || currentStatus === 'mopping'}
+            onPauseCleaning={onPauseCleaning}
+            onStopCleaning={onStopCleaning}
+          />
+        </div>
+      ),
+    },
     ...(shouldShowMapTab
       ? [
           {
@@ -250,19 +225,22 @@ export const VacuumSettingsDialog = memo(function VacuumSettingsDialog({
             label: t('vacuum.settings.map'),
             icon: MapIcon,
             content: (
-              <CardDialogSection className="mb-0">
-                <div className={`text-sm font-medium ${surface.textPrimary}`}>
-                  {t('vacuum.settings.plan')}
-                </div>
-                <VacuumPlannerSection
-                  availableAreas={cleaningAreas}
-                  selectedAreaIds={selectedAreaIds}
-                  onSelectedAreaIdsChange={setSelectedAreaIds}
-                  canOrderAreaCleaning={capabilities?.canOrderAreaCleaning ?? false}
-                  accentColor={activeControlColor}
-                  activePillStyle={activePillStyle}
-                />
-              </CardDialogSection>
+              <div className="space-y-4">
+                {statusControls}
+                <CardDialogSection className="mb-0">
+                  <div className={`text-sm font-medium ${surface.textPrimary}`}>
+                    {t('vacuum.settings.plan')}
+                  </div>
+                  <VacuumPlannerSection
+                    availableAreas={cleaningAreas}
+                    selectedAreaIds={selectedAreaIds}
+                    onSelectedAreaIdsChange={setSelectedAreaIds}
+                    canOrderAreaCleaning={capabilities?.canOrderAreaCleaning ?? false}
+                    accentColor={activeControlColor}
+                    activePillStyle={activePillStyle}
+                  />
+                </CardDialogSection>
+              </div>
             ),
           },
         ]
@@ -297,24 +275,11 @@ export const VacuumSettingsDialog = memo(function VacuumSettingsDialog({
       defaultTintAccent={accentColorValue}
       disableOpenAutoFocus
       height="capped"
+      mobileFitContent
+      maxWidth="md"
       tabs={tabs}
       activeTab={activeTab}
       onActiveTabChange={handleTabChange}
-      footerContent={
-        <CardDialogFooter className="mt-6 items-center justify-end gap-2">
-          <Button variant="soft" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={handlePlannerStart}
-            className={theme !== 'light' ? 'border-white/10 bg-white/8 hover:bg-white/12' : ''}
-            style={softControlStyle}
-          >
-            {startActionLabel}
-          </Button>
-        </CardDialogFooter>
-      }
     />
   );
 });

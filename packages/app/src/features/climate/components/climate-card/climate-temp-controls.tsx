@@ -12,6 +12,7 @@ interface ClimateTempControlsProps {
   onTempCommit?: (temp: number) => void;
   isOn: boolean;
   size?: CardSize;
+  controlSize?: 'sm' | 'md' | 'lg';
   minTemp?: number;
   maxTemp?: number;
   step?: number;
@@ -29,6 +30,7 @@ export const ClimateTempControls = memo(function ClimateTempControls({
   onTempCommit,
   isOn,
   size = 'medium',
+  controlSize,
   minTemp = 16,
   maxTemp = 30,
   step = 0.5,
@@ -45,6 +47,7 @@ export const ClimateTempControls = memo(function ClimateTempControls({
       <RoundControlButton
         theme={theme}
         size={primitiveSize}
+        controlSize={controlSize}
         variant="soft"
         onClick={(e) => {
           e.stopPropagation();
@@ -55,11 +58,12 @@ export const ClimateTempControls = memo(function ClimateTempControls({
         disabled={!isOn}
         className={`${hoverScale} disabled:opacity-50`}
       >
-        <Minus className={controlSizes.icon} />
+        <Minus className={controlSize === 'lg' ? 'h-5 w-5' : controlSizes.icon} />
       </RoundControlButton>
       <RoundControlButton
         theme={theme}
         size={primitiveSize}
+        controlSize={controlSize}
         variant="soft"
         onClick={(e) => {
           e.stopPropagation();
@@ -70,7 +74,7 @@ export const ClimateTempControls = memo(function ClimateTempControls({
         disabled={!isOn}
         className={`${hoverScale} disabled:opacity-50`}
       >
-        <Plus className={controlSizes.icon} />
+        <Plus className={controlSize === 'lg' ? 'h-5 w-5' : controlSizes.icon} />
       </RoundControlButton>
     </div>
   );

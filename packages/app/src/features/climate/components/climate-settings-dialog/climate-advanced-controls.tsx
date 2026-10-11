@@ -1,8 +1,8 @@
 import { dispatchEntityCommand } from '@navet/app/commands';
 import { Button } from '@navet/app/components/primitives/button';
 import { Input } from '@navet/app/components/primitives/input';
-import { Select } from '@navet/app/components/primitives/select';
-import { DialogSectionRow } from '@navet/app/components/shared/device-editor/dialog-section-row';
+import { DeviceControlOptions } from '@navet/app/components/shared/device-editor/device-control-options';
+import { DeviceControlRow } from '@navet/app/components/shared/device-editor/device-control-row';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel } from '@navet/app/hooks';
 import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
@@ -13,6 +13,7 @@ import {
   readNavetClimateControlState,
 } from '@navet/core/climate-controls';
 import type { NavetUiCommand } from '@navet/core/types';
+import { Droplets, Fan, MoveHorizontal, MoveVertical, SlidersHorizontal } from 'lucide-react';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 
 // The existing climate dialog uses dark mode-colored surfaces in every app theme.
@@ -121,10 +122,12 @@ function ClimateOptionControl({
   kind,
   label,
   writable,
+  selectionColor,
 }: {
   entityId: string;
   providerId: IntegrationProviderId;
   control: NavetClimateOptionControl;
+  selectionColor?: string;
   kind: OptionKey;
   label: string;
   writable: boolean;
@@ -132,37 +135,56 @@ function ClimateOptionControl({
   const { t } = useI18n();
   const fieldId = useId();
   const action = useClimateControlAction(control.value ?? '', writable, providerId);
-  const optionMissing = !control.options.includes(control.value ?? '');
-  return (
-    <DialogSectionRow
-      label={<label htmlFor={fieldId}>{label}</label>}
-      labelClassName={CLIMATE_CONTROL_SURFACE.textPrimary}
-    >
-      <Select
-        id={fieldId}
-        value={control.value ?? ''}
+  // Only literal on/off pairs are boolean. Directional swing modes remain choices.
+  const off = control.options.find((option) => option.toLowerCase() === 'off');
+  const on = control.options.find((option) => option.toLowerCase() === 'on');
+  const isToggle =
+    control.options.length === 2 &&
+    off !== undefined &&
+    on !== undefined &&
+    (control.value === off || control.value === on);
+  const Icon = {
+    preset: SlidersHorizontal,
+    fanMode: Fan,
+    swingMode: MoveVertical,
+    swingHorizontalMode: MoveHorizontal,
+  }[kind];
+  const common = {
+    label,
+    theme: 'dark' as const,
+    value: control.value ?? t('providerDetails.unknown'),
+    icon: <Icon className="h-4 w-4" />,
+    status: <ControlStatus {...action} writable={writable} id={`${fieldId}-status`} />,
+  };
+  if (isToggle)
+    return (
+      <DeviceControlRow
+        {...common}
+        kind="toggle"
+        checked={control.value === on}
         disabled={action.disabled}
-        aria-describedby={`${fieldId}-status`}
-        aria-busy={action.pending}
-        onChange={(event) => {
-          const value = event.target.value;
+        onCheckedChange={(checked) =>
+          void action.send(optionCommand(entityId, kind, checked ? on : off), checked ? on : off)
+        }
+      />
+    );
+  return (
+    <DeviceControlRow {...common} kind="disclosure">
+      <DeviceControlOptions
+        label={label}
+        theme="dark"
+        selectionColor={selectionColor}
+        value={control.value}
+        disabled={action.disabled}
+        pending={action.pending}
+        statusId={`${fieldId}-status`}
+        options={control.options.map((option) => ({ value: option, label: option }))}
+        onValueChange={(value) => {
           if (control.options.includes(value))
             void action.send(optionCommand(entityId, kind, value), value);
         }}
-      >
-        {optionMissing ? (
-          <option value={control.value ?? ''} disabled>
-            {control.value ?? t('providerDetails.unknown')}
-          </option>
-        ) : null}
-        {control.options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </Select>
-      <ControlStatus {...action} writable={writable} id={`${fieldId}-status`} />
-    </DialogSectionRow>
+      />
+    </DeviceControlRow>
   );
 }
 
@@ -196,13 +218,18 @@ function ClimateHumidityControl({
     await action.send({ type: 'set_climate_humidity', entityId, humidity: value }, String(value));
   }
   return (
-    <DialogSectionRow
-      label={<label htmlFor={fieldId}>{t('climate.advanced.targetHumidity')}</label>}
-      labelClassName={CLIMATE_CONTROL_SURFACE.textPrimary}
+    <DeviceControlRow
+      kind="disclosure"
+      theme="dark"
+      label={t('climate.advanced.targetHumidity')}
+      value={control.value === null ? t('providerDetails.unknown') : `${control.value}%`}
+      icon={<Droplets className="h-4 w-4" />}
+      status={<ControlStatus {...action} writable={writable} id={`${fieldId}-status`} />}
     >
       <form onSubmit={save} className="space-y-2" aria-busy={action.pending}>
         <Input
           id={fieldId}
+          aria-label={t('climate.advanced.targetHumidity')}
           type="number"
           value={draft}
           min={Math.ceil(control.min)}
@@ -217,7 +244,6 @@ function ClimateHumidityControl({
             setDraft(event.target.value);
           }}
         />
-        <ControlStatus {...action} writable={writable} id={`${fieldId}-status`} />
         <Button
           type="submit"
           disabled={invalid || action.disabled || (value === control.value && !action.failed)}
@@ -225,11 +251,17 @@ function ClimateHumidityControl({
           {t('common.save')}
         </Button>
       </form>
-    </DialogSectionRow>
+    </DeviceControlRow>
   );
 }
 
-export function ClimateAdvancedControls({ entityId }: { entityId: string }) {
+export function ClimateAdvancedControls({
+  entityId,
+  selectionColor,
+}: {
+  entityId: string;
+  selectionColor?: string;
+}) {
   const { t } = useI18n();
   const entity = useProviderEntityModel(entityId);
   const session = useProviderControlSession(entityId, entity?.providerId);
@@ -250,6 +282,7 @@ export function ClimateAdvancedControls({ entityId }: { entityId: string }) {
             entityId={entity.canonicalId}
             providerId={entity.providerId}
             control={controls[kind]}
+            selectionColor={selectionColor}
             kind={kind}
             label={labels[kind]}
             writable={controls.writable}
@@ -266,14 +299,13 @@ export function ClimateAdvancedControls({ entityId }: { entityId: string }) {
         />
       ) : null}
       {controls.currentHumidity !== undefined ? (
-        <DialogSectionRow
+        <DeviceControlRow
+          kind="reading"
+          theme="dark"
           label={t('climate.advanced.currentHumidity')}
-          labelClassName={CLIMATE_CONTROL_SURFACE.textPrimary}
-        >
-          <span className={`text-sm ${CLIMATE_CONTROL_SURFACE.textPrimary}`}>
-            {controls.currentHumidity}%
-          </span>
-        </DialogSectionRow>
+          value={`${controls.currentHumidity}%`}
+          icon={<Droplets className="h-4 w-4" />}
+        />
       ) : null}
     </>
   );

@@ -73,22 +73,13 @@ export const On: Story = { args: { isOn: true } };
 export const Tiny: Story = {
   args: { size: 'tiny' },
   play: async ({ canvasElement }) => {
-    const trigger = within(canvasElement).getByRole('button', {
-      name: 'Controls for Living room remote, Off',
-    });
-    await expect(within(canvasElement).getByText('Living room', { exact: true })).toBeVisible();
+    const trigger = within(canvasElement).getByRole('button', { name: 'Living room remote' });
+    await waitFor(() => expect(trigger).toHaveAttribute('aria-pressed', 'false'));
+    await expect(within(canvasElement).getByText('Remote', { exact: true })).toBeVisible();
     await expect(within(canvasElement).queryByText('Off', { exact: true })).not.toBeInTheDocument();
-    await expect(
-      within(canvasElement)
-        .getByRole('heading', { name: 'Living room remote' })
-        .getBoundingClientRect().bottom
-    ).toBeLessThanOrEqual(trigger.getBoundingClientRect().bottom);
-    trigger.focus();
-    await userEvent.keyboard('{Enter}');
-    const dialog = within(await within(document.body).findByRole('dialog'));
-    await expect(dialog.getByRole('button', { name: 'Turn on Living room remote' })).toBeEnabled();
   },
 };
+export const ExtraSmall: Story = { args: { size: 'extra-small' } };
 export const Medium: Story = {
   args: { size: 'medium', name: 'Living room entertainment cabinet remote control' },
 };
@@ -98,26 +89,22 @@ export const Unavailable: Story = {
   play: async ({ canvasElement }) => {
     await waitFor(() =>
       expect(
-        within(canvasElement).getByRole('button', { name: 'Turn on Living room remote' })
+        within(canvasElement).getByRole('button', { name: 'Toggle Living room remote' })
       ).toBeDisabled()
     );
   },
 };
 export const ControlsDialog: Story = {
+  args: { isEditMode: true },
   play: async ({ canvasElement }) => {
     const trigger = within(canvasElement).getByRole('button', {
-      name: 'Controls for Living room remote',
+      name: 'Open settings for Living room remote',
     });
-    trigger.focus();
-    await userEvent.keyboard('{Enter}');
-    const dialog = within(document.body).getByRole('dialog');
-    await waitFor(() =>
-      expect(
-        within(dialog).getByRole('button', { name: 'Turn on Living room remote' })
-      ).toBeEnabled()
-    );
-    expect(
-      within(dialog).queryByRole('button', { name: /learn|activity/i })
+    await userEvent.click(trigger);
+    const dialog = within(await within(document.body).findByRole('dialog'));
+    await expect(dialog.getByText('Remote', { exact: true })).toBeVisible();
+    await expect(
+      dialog.queryByRole('button', { name: /learn|activity|turn on/i })
     ).not.toBeInTheDocument();
   },
 };

@@ -216,18 +216,9 @@ export async function getIntegrationStatisticsHistory(
     nativeToCanonical.set(readNativeEntityId(entityId), entityId);
   }
   const nativeEntityIds = [...nativeToCanonical.keys()];
-  const nativeUnits = request.units
-    ? Object.fromEntries(
-        [...nativeToCanonical.entries()].flatMap(([nativeEntityId, canonicalEntityId]) => {
-          const unit = request.units?.[canonicalEntityId];
-          return unit ? [[nativeEntityId, unit]] : [];
-        })
-      )
-    : undefined;
   const result = await service.getStatisticsHistory({
     ...request,
     entityIds: nativeEntityIds,
-    ...(nativeUnits && Object.keys(nativeUnits).length > 0 ? { units: nativeUnits } : {}),
   });
 
   const normalized: PlatformStatisticsHistorySeries = {};

@@ -649,6 +649,7 @@ export const nlMessages = {
   'common.custom': 'Aangepast',
   'common.customize': 'Pas aan',
   'common.done': 'Klaar',
+  'common.run': 'Uitvoeren',
   'common.metrics': 'Statistieken',
   'common.off': 'Uit',
   'common.on': 'Aan',
@@ -1096,6 +1097,7 @@ export const nlMessages = {
   'settings.project.about.title': 'Over',
   'settings.project.about.description': 'Snelle projectinformatie.',
   'settings.project.about.version': 'Versie',
+  'settings.project.about.localBuild': 'Lokale ontwikkelbuild',
   'settings.project.about.build': 'Bouw',
   'settings.project.credits.title': 'Kredieten',
   'settings.project.credits.description':

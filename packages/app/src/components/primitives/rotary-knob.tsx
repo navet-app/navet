@@ -261,17 +261,24 @@ export const RotaryKnob = memo(function RotaryKnob({
     onValueCommit?.(lastIssuedValueRef.current);
   };
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (!isOn || !onValueChange) {
+  useEffect(() => {
+    const knob = knobRef.current;
+    if (!knob || !isOn || !onValueChange) {
       return;
     }
 
-    event.preventDefault();
-    const direction = event.deltaY > 0 ? -1 : 1;
-    const nextValue = value + direction * safeStep;
-    commitValueChange(nextValue);
-    onValueCommit?.(snapToStep(nextValue, min, max, safeStep));
-  };
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const direction = event.deltaY > 0 ? -1 : 1;
+      const nextValue = value + direction * safeStep;
+      commitValueChange(nextValue);
+      onValueCommit?.(snapToStep(nextValue, min, max, safeStep));
+    };
+
+    // React's delegated wheel listener is passive, so cancellation needs a native listener.
+    knob.addEventListener('wheel', handleWheel, { passive: false });
+    return () => knob.removeEventListener('wheel', handleWheel);
+  }, [commitValueChange, isOn, max, min, onValueChange, onValueCommit, safeStep, value]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!isOn || !onValueChange) {
@@ -464,7 +471,6 @@ export const RotaryKnob = memo(function RotaryKnob({
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerEnd}
           onPointerCancel={handlePointerEnd}
-          onWheel={handleWheel}
           onKeyDown={handleKeyDown}
         >
           <div

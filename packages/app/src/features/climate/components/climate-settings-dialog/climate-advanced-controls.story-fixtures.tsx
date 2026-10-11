@@ -86,19 +86,11 @@ function ClimateAdvancedDialogStory({
   );
 }
 const meta = {
-  title: 'Cards/Dialogs/Climate Advanced Controls',
   component: ClimateAdvancedDialogStory,
-  tags: ['autodocs'],
+  render: (args) => <ClimateAdvancedDialogStory {...args} />,
+  tags: ['!autodocs'],
   args: { availability: 'available', supported: capabilities },
-  parameters: {
-    layout: 'fullscreen',
-    docs: {
-      description: {
-        component:
-          'Extends Cards/Dialogs/Climate with normalized capability-gated controls, reusing its existing dialog section rows and input primitives.',
-      },
-    },
-  },
+  parameters: { layout: 'fullscreen' },
 } satisfies Meta<typeof ClimateAdvancedDialogStory>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -109,25 +101,31 @@ export const Supported: Story = {
     trigger.focus();
     await userEvent.keyboard('{Enter}');
     const dialog = within(await within(document.body).findByRole('dialog'));
-    await expect(dialog.getByRole('combobox', { name: 'Preset' })).toBeEnabled();
-    await expect(dialog.getByRole('combobox', { name: 'Horizontal swing' })).toBeEnabled();
-    const field = dialog.getByRole('combobox', { name: 'Fan mode' });
+    await expect(dialog.getByRole('button', { name: 'Preset' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+    await expect(dialog.queryByRole('radio', { name: 'Comfort' })).not.toBeInTheDocument();
+    await userEvent.click(dialog.getByRole('button', { name: 'Fan mode' }));
+    const fanOptions = within(dialog.getByRole('group', { name: 'Fan mode' }));
+    const field = fanOptions.getByRole('radio', { name: 'Low' });
     const root = document.documentElement;
     const runtime = root.dataset.navetPreviewRuntime;
     const storybook = root.dataset.navetStorybook;
     delete root.dataset.navetPreviewRuntime;
     delete root.dataset.navetStorybook;
     try {
-      await userEvent.selectOptions(field, 'Low');
+      await userEvent.click(field);
       await waitFor(() =>
         expect(dialog.getByRole('alert')).toHaveTextContent(
           'Unable to update the climate control. Try again.'
         )
       );
-      await expect(field).toHaveValue('Auto');
+      await expect(fanOptions.getByRole('radio', { name: 'Auto' })).toBeChecked();
       await expect(field).toBeEnabled();
-      await userEvent.selectOptions(field, 'Low');
+      await userEvent.click(field);
       await waitFor(() => expect(field).toBeEnabled());
+      await userEvent.click(dialog.getByRole('button', { name: 'Target humidity' }));
       const humidity = dialog.getByRole('spinbutton', {
         name: 'Target humidity',
       }) as HTMLInputElement;
@@ -139,7 +137,7 @@ export const Supported: Story = {
       await expect(humidity.checkValidity()).toBe(true);
       await userEvent.click(form.getByRole('button', { name: 'Save' }));
       await waitFor(() =>
-        expect(form.getByRole('alert')).toHaveTextContent(
+        expect(humidity).toHaveAccessibleDescription(
           'Unable to update the climate control. Try again.'
         )
       );
@@ -165,7 +163,11 @@ export const Unavailable: Story = {
   play: async ({ canvas, userEvent: interaction }) => {
     await interaction.click(canvas.getByRole('button', { name: 'Open Climate dialog' }));
     const dialog = within(await within(document.body).findByRole('dialog'));
-    await expect(dialog.getByRole('combobox', { name: 'Fan mode' })).toBeDisabled();
+    await interaction.click(dialog.getByRole('button', { name: 'Fan mode' }));
+    await expect(
+      within(dialog.getByRole('group', { name: 'Fan mode' })).getByRole('radio', { name: 'Low' })
+    ).toBeDisabled();
+    await interaction.click(dialog.getByRole('button', { name: 'Target humidity' }));
     await expect(dialog.getByRole('spinbutton', { name: 'Target humidity' })).toBeDisabled();
   },
 };
@@ -174,8 +176,9 @@ export const Unsupported: Story = {
   play: async ({ canvas, userEvent: interaction }) => {
     await interaction.click(canvas.getByRole('button', { name: 'Open Climate dialog' }));
     const dialog = within(await within(document.body).findByRole('dialog'));
-    await expect(dialog.queryByRole('combobox')).not.toBeInTheDocument();
+    await expect(dialog.queryByRole('button', { name: 'Preset' })).not.toBeInTheDocument();
     await expect(dialog.queryByRole('spinbutton')).not.toBeInTheDocument();
-    await expect(dialog.getByRole('slider')).toBeInTheDocument();
+    await expect(dialog.queryByRole('slider')).not.toBeInTheDocument();
+    await expect(dialog.getByRole('button', { name: 'Increase temperature' })).toBeEnabled();
   },
 };

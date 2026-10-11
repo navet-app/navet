@@ -3,6 +3,7 @@ import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { EntityCardStoryFrame, noopCardSizeChange } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps } from 'react';
+import dialogMeta, * as dialogStories from '../vacuum/vacuum-settings-dialog.story-fixtures';
 
 function VacuumCardStory(args: Omit<ComponentProps<typeof VacuumCard>, 'onSizeChange'>) {
   return (
@@ -172,4 +173,46 @@ export const Docs: Story = {
   parameters: {
     docsOnly: true,
   },
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
+  args: { ...dialogMeta.args, ...dialogStories.Default.args },
+};
+
+export const DialogMultiSpeed: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.MultiSpeed,
+  args: { ...dialogMeta.args, ...dialogStories.MultiSpeed.args },
+};
+
+export const DialogNoFanSpeedSupport: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.NoFanSpeedSupport,
+  args: { ...dialogMeta.args, ...dialogStories.NoFanSpeedSupport.args },
+};
+
+export const DialogNoMappedAreas: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.NoMappedAreas,
+  args: { ...dialogMeta.args, ...dialogStories.NoMappedAreas.args },
+};
+
+export const DialogOrderedAreaCleaning: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.OrderedAreaCleaning,
+  args: { ...dialogMeta.args, ...dialogStories.OrderedAreaCleaning.args },
+};
+
+export const DialogOverflowNavigation: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.OverflowNavigation,
+  args: { ...dialogMeta.args, ...dialogStories.OverflowNavigation.args },
+};
+
+export const DialogMobileOverflowNavigation: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.MobileOverflowNavigation,
+  args: { ...dialogMeta.args, ...dialogStories.MobileOverflowNavigation.args },
 };

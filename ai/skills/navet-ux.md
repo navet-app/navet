@@ -76,6 +76,19 @@ empty space.
 - Do not rely on hover, color alone, or motion alone to reveal state or affordance.
 - Keep focus-visible and reduced-motion behavior when extending shared controls.
 - Use progressive disclosure for configuration; do not hide useful live state behind it.
+- For card-dialog advanced controls, reuse `DeviceControlRow` and `DeviceControlOptions` from
+  `components/shared/device-editor`. Keep the main device value and segmented operating choices
+  first. Use `DeviceTargetControl` for a labelled setpoint beside existing adjustment buttons,
+  followed by the current reading and status. Climate and humidifier dialogs use
+  `BaseCardDialog.mobileFitContent` to avoid reserving phone-sheet space for decoration.
+  Secondary rows show the current value and expand their own editor. Single-choice option lists
+  compose `SelectableRadioList` and `SelectableRadioRow`; checkbox rows are for independent
+  selections. Boolean controls use
+  an inline switch, and readings have no interactive affordance. The feature determines whether
+  provider options are genuinely boolean and owns commands, pending/error states and validation.
+  Keep editors mounted while collapsed to preserve drafts. The climate dialog is the first
+  consuming reference (`cards-entity-climate--advanced-dialog-supported`); rendered maintainer
+  acceptance remains pending.
 - Use sentence case, short household language, and the existing translation system.
 - Do not invent explanatory subtitles, status labels, badges, or calls to action merely to fill a
   composition. Every visible line must help the user understand state or act.

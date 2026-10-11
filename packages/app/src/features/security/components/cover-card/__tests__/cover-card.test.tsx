@@ -1,6 +1,8 @@
+import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
 import { I18nProvider } from '@navet/app/i18n/i18n-provider';
 import { homeAssistantStore } from '@navet/app/stores/home-assistant-store';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
+import { useThemeStore } from '@navet/app/stores/theme-store';
 import { coverEntityFactory } from '@navet/app/test/fixtures/home-assistant/entities/cover';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -134,6 +136,29 @@ describe('CoverCard', () => {
   });
 
   // Keep: these cases verify visible state and supported actions on real cards.
+  it.each([
+    { position: 0, tone: 'primary' },
+    { position: 30, tone: 'primary' },
+    { position: 50, tone: 'primary' },
+    { position: 70, tone: 'neutral' },
+    { position: 100, tone: 'primary' },
+  ] as const)(
+    'uses $tone header colors on the reversed fill at $position%',
+    ({ position, tone }) => {
+      useThemeStore.setState({ theme: 'dark', primaryColor: 'orange', followSystemTheme: false });
+      renderCoverCard({ size: 'small', initialPosition: position });
+      expect(screen.getByRole('heading', { name: 'Living Room Blind' })).toHaveStyle({
+        color: getCardReadableTextTokens({ theme: 'dark', tone, accentColor: '#f97316' })
+          .titleColor,
+      });
+      const icon = screen
+        .getByRole('button', { name: 'Toggle Living Room Blind cover' })
+        .querySelector('svg');
+      if (tone === 'primary') expect(icon?.style.color).not.toBe('');
+      else expect(icon?.style.color).toBe('');
+    }
+  );
+
   it('renders window covers from their initial and live provider class', async () => {
     renderCoverCard({ initialDeviceClass: 'window', size: 'small' });
     expect(screen.getByText('Living Room Blind')).toBeVisible();

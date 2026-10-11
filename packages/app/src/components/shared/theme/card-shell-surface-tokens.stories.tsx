@@ -76,7 +76,7 @@ function CardShellSurfaceTokensShowcase() {
 }
 
 const meta = {
-  title: 'Cards/Theme/Card Shell Surface',
+  title: 'Theme/Card Shell Surface',
   component: CardShellSurfaceTokensShowcase,
   tags: ['autodocs'],
   parameters: {

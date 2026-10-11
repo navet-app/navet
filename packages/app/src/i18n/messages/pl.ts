@@ -649,6 +649,7 @@ export const plMessages = {
   'common.custom': 'Niestandardowe',
   'common.customize': 'Dostosuj',
   'common.done': 'Gotowe',
+  'common.run': 'Uruchom',
   'common.metrics': 'Wskaźniki',
   'common.off': 'Wyłączone',
   'common.on': 'Włączone',
@@ -1092,6 +1093,7 @@ export const plMessages = {
   'settings.project.about.title': 'O projekcie',
   'settings.project.about.description': 'Podstawowe informacje o projekcie.',
   'settings.project.about.version': 'Wersja',
+  'settings.project.about.localBuild': 'Lokalna kompilacja deweloperska',
   'settings.project.about.build': 'Kompilacja',
   'settings.project.credits.title': 'Autorzy i podziękowania',
   'settings.project.credits.description':

@@ -82,11 +82,46 @@ describe('ClimateSettingsDialog', () => {
     useSettingsStore.setState({ temperatureUnit: 'fahrenheit' });
   });
 
+  it('shows supported operating modes as direct choices and preserves the provider mode value', () => {
+    const props = renderDialog({
+      supportedClimateModes: ['heat', 'heat_cool', 'off'],
+    });
+    expect(screen.getByRole('radio', { name: 'Heat' })).toBeChecked();
+    expect(screen.queryByRole('radio', { name: 'Cool' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Auto' }));
+    expect(props.onModeChange).toHaveBeenCalledWith('heat_cool');
+  });
+
+  it('omits operating choices when only one mode is available', () => {
+    renderDialog({ supportedClimateModes: ['heat', 'off'] });
+    expect(screen.queryByRole('group', { name: 'Mode' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Heat' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Increase temperature' })).toBeEnabled();
+  });
+
+  it('allows choosing an operating mode when the device is off', () => {
+    const props = renderDialog({ isOn: false });
+    expect(screen.getByRole('radio', { name: 'Heat' })).not.toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: 'Heat' }));
+    expect(props.onModeChange).toHaveBeenCalledWith('heat');
+  });
+
+  it('disables target adjustment and shortcuts while off', () => {
+    renderDialog({ isOn: false });
+    expect(screen.getByRole('button', { name: 'Increase temperature' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Decrease temperature' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Temperature presets' }));
+    expect(screen.getByRole('radio', { name: '69.8°' })).toBeDisabled();
+    expect(screen.getByText('72°F', { selector: 'dd' })).toBeInTheDocument();
+    expect(screen.getByText('Current 70°F')).toBeInTheDocument();
+  });
+
   it('keeps Fahrenheit source temperatures unchanged when Navet display is Fahrenheit', () => {
     const props = renderDialog();
 
-    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '72');
-    expect(screen.getByText('70°F')).toBeInTheDocument();
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
+    expect(screen.getByText('72°F', { selector: 'dd' })).toBeInTheDocument();
+    expect(screen.getByText('Current 70°F')).toBeInTheDocument();
     expect(screen.queryByText('162')).not.toBeInTheDocument();
     expect(screen.queryByText('Current 158°F')).not.toBeInTheDocument();
 
@@ -115,14 +150,19 @@ describe('ClimateSettingsDialog', () => {
   it('renders Celsius comfort presets as Fahrenheit display values and commits Fahrenheit source values', () => {
     const props = renderDialog();
 
-    expect(screen.queryByRole('button', { name: '18°' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '21°' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '24°' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '64.4°' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '69.8°' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '75.2°' })).toBeInTheDocument();
+    const presets = screen.getByRole('button', { name: 'Temperature presets' });
+    expect(presets).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('radio', { name: '69.8°' })).not.toBeInTheDocument();
+    fireEvent.click(presets);
+    expect(presets).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByRole('radio', { name: '18°' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: '21°' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: '24°' })).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '64.4°' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '69.8°' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: '75.2°' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '69.8°' }));
+    fireEvent.click(screen.getByRole('radio', { name: '69.8°' }));
 
     expect(props.onTargetTempCommit).toHaveBeenCalledWith(expect.closeTo(69.8));
   });
@@ -131,8 +171,8 @@ describe('ClimateSettingsDialog', () => {
     useSettingsStore.setState({ temperatureUnit: 'celsius' });
     const props = renderDialog();
 
-    expect(Number(screen.getByRole('slider').getAttribute('aria-valuenow'))).toBeCloseTo(22.222);
-    expect(screen.getByText('21.1°C')).toBeInTheDocument();
+    expect(screen.getByText('22.2°C', { selector: 'dd' })).toBeInTheDocument();
+    expect(screen.getByText('Current 21.1°C')).toBeInTheDocument();
     expect(screen.queryByText('70°F')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Increase temperature'));
@@ -151,8 +191,8 @@ describe('ClimateSettingsDialog', () => {
       step: 0.5,
     });
 
-    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '22');
-    expect(screen.getByText('21°C')).toBeInTheDocument();
+    expect(screen.getByText('22°C', { selector: 'dd' })).toBeInTheDocument();
+    expect(screen.getByText('Current 21°C')).toBeInTheDocument();
     expect(screen.queryByText('69.8°F')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Increase temperature'));
@@ -170,8 +210,8 @@ describe('ClimateSettingsDialog', () => {
       step: 0.5,
     });
 
-    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuenow', '71.6');
-    expect(screen.getByText('69.8°F')).toBeInTheDocument();
+    expect(screen.getByText('71.6°F', { selector: 'dd' })).toBeInTheDocument();
+    expect(screen.getByText('Current 69.8°F')).toBeInTheDocument();
     expect(screen.queryByText('21°C')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Increase temperature'));

@@ -1,12 +1,15 @@
 import { getCardActionControlSizes } from '@navet/app/components/shared/card-action-control-sizes';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { getRoundControlStyles } from '@navet/app/components/shared/theme/round-control-styles';
+import { navetSizeTokens } from '@navet/app/components/system/tokens';
 import type { ThemeType } from '@navet/app/hooks/use-theme';
 import { type ButtonHTMLAttributes, type CSSProperties, forwardRef, type ReactNode } from 'react';
 
 interface RoundControlButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   theme: ThemeType;
   size?: CardSize | 'large';
+  /** Explicit interaction tier for dialog actions; card controls keep their responsive size. */
+  controlSize?: keyof typeof navetSizeTokens.iconButton;
   variant?: 'neutral' | 'soft' | 'emphasis';
   iconClassName?: string;
   iconStyle?: CSSProperties;
@@ -19,6 +22,7 @@ export const RoundControlButton = forwardRef<HTMLButtonElement, RoundControlButt
     {
       theme,
       size = 'medium',
+      controlSize,
       variant = 'neutral',
       iconClassName = '',
       iconStyle,
@@ -50,7 +54,7 @@ export const RoundControlButton = forwardRef<HTMLButtonElement, RoundControlButt
         ref={ref}
         type="button"
         aria-label={resolvedAriaLabel}
-        className={`${controlSizes.button} flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 ${buttonClasses} ${className}`}
+        className={`${controlSize ? navetSizeTokens.iconButton[controlSize] : controlSizes.button} flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 ${buttonClasses} ${className}`}
         {...props}
       >
         <span

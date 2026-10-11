@@ -1,11 +1,12 @@
-import { BaseCard } from '@navet/app/components/primitives/base-card';
+import { CardActionRow } from '@navet/app/components/patterns/card-action-row';
 import { Button } from '@navet/app/components/primitives/button';
 import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
-import { CardMetric } from '@navet/app/components/primitives/card-metric';
 import { Input } from '@navet/app/components/primitives/input';
+import { RoundControlButton } from '@navet/app/components/primitives/round-control-button';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import { SensorCard } from '@navet/app/features/sensors/components/sensor-card';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import { type NavetCounterState, readNavetCounterState } from '@navet/core/household-device-state';
@@ -227,36 +228,41 @@ export function CounterCard({
   useEditModeSettingsRequest(id, () => setOpen(true), isEditMode);
   return (
     <>
-      <BaseCard
+      <SensorCard
+        id={id}
+        name={name}
+        room={room ?? ''}
         size={size}
-        title={name}
-        subtitle={room}
-        interactive={!isEditMode}
-        role={!isEditMode ? 'button' : undefined}
-        tabIndex={!isEditMode ? 0 : undefined}
-        aria-label={name}
-        onClick={() => {
+        isEditMode={isEditMode}
+        unit=""
+        subtitle={room || t('deviceType.counter')}
+        value={
+          !entity
+            ? t('common.loading')
+            : unavailable
+              ? t(
+                  entity.availability === 'unknown'
+                    ? 'providerDetails.unknown'
+                    : 'common.unavailable'
+                )
+              : String(counter.value ?? t('providerDetails.unknown'))
+        }
+        status={!entity || unavailable ? 'unavailable' : 'measurement'}
+        onSizeChange={() => undefined}
+        onOpenSettings={() => {
           if (!isEditMode) setOpen(true);
         }}
-      >
-        <CardMetric
-          value={
-            !entity
-              ? t('common.loading')
-              : unavailable
-                ? t(
-                    entity.availability === 'unknown'
-                      ? 'providerDetails.unknown'
-                      : 'common.unavailable'
-                  )
-                : (counter.value ?? t('providerDetails.unknown'))
-          }
-          theme={theme}
-          isActive={false}
-          accentClassName="text-current"
-          valueClassName="break-words line-clamp-2 text-lg font-semibold tabular-nums"
-        />
-      </BaseCard>
+        disableBuiltInSettingsDialog
+        bottomActionBar={
+          <CounterCardActions
+            id={id}
+            providerId={providerId}
+            counter={counter}
+            size={size}
+            disabled={isEditMode || !entity || unavailable}
+          />
+        }
+      />
       {open ? (
         <BaseCardDialog
           isOpen={open}
@@ -284,5 +290,84 @@ export function CounterCard({
         />
       ) : null}
     </>
+  );
+}
+
+function CounterCardActions({
+  id,
+  providerId,
+  counter,
+  size,
+  disabled,
+}: {
+  id: string;
+  providerId: IntegrationProviderId;
+  counter: NavetCounterState;
+  size: CardSize;
+  disabled: boolean;
+}) {
+  const { t } = useI18n();
+  const { theme } = useTheme();
+  const operation = useDeviceCommand({ entityId: id, providerId, stateKey: String(counter.value) });
+  const resetValue =
+    counter.initial === null
+      ? null
+      : Math.min(counter.max ?? Infinity, Math.max(counter.min ?? -Infinity, counter.initial));
+  const actions = [
+    {
+      type: 'counter_decrement' as const,
+      label: t('counter.decrement'),
+      Icon: Minus,
+      enabled: counter.canDecrement,
+      next:
+        counter.value !== null && counter.step !== null
+          ? Math.max(counter.min ?? -Infinity, counter.value - counter.step)
+          : null,
+    },
+    {
+      type: 'counter_increment' as const,
+      label: t('counter.increment'),
+      Icon: Plus,
+      enabled: counter.canIncrement,
+      next:
+        counter.value !== null && counter.step !== null
+          ? Math.min(counter.max ?? Infinity, counter.value + counter.step)
+          : null,
+    },
+    {
+      type: 'counter_reset' as const,
+      label: t('common.reset'),
+      Icon: RotateCcw,
+      enabled: counter.canReset && (resetValue === null || counter.value !== resetValue),
+      next: resetValue,
+    },
+  ];
+  return (
+    <div aria-busy={operation.pending}>
+      <CardActionRow
+        theme={theme}
+        size={size === 'small' ? 'small' : 'default'}
+        leftContent={actions.map(({ type, label, Icon, enabled, next }) => (
+          <RoundControlButton
+            key={type}
+            theme={theme}
+            size="small"
+            aria-label={label}
+            title={label}
+            disabled={disabled || operation.pending || !enabled}
+            onClick={(event) => {
+              event.stopPropagation();
+              void operation.execute(
+                { type, entityId: id },
+                next === null ? undefined : (key) => Number(key) === next
+              );
+            }}
+          >
+            <Icon className="h-4 w-4" />
+          </RoundControlButton>
+        ))}
+      />
+      {operation.error ? <p role="alert">{t('deviceControls.failed')}</p> : null}
+    </div>
   );
 }

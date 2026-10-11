@@ -12,6 +12,7 @@ import type { Decorator, Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps, ReactNode } from 'react';
 import { useEffect } from 'react';
 import { expect, userEvent, within } from 'storybook/test';
+import dialogMeta, * as dialogStories from './light-settings-dialog.story-fixtures';
 
 function LightCardStory(args: Omit<ComponentProps<typeof LightCard>, 'onSizeChange'>) {
   return (
@@ -267,4 +268,24 @@ export const ColorPicker: Story = {
       within(picker).getByRole('button', { name: 'Select color #FFA500' })
     ).toHaveAttribute('aria-pressed', 'true');
   },
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
+};
+
+export const DialogOff: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Off,
+};
+
+export const DialogOnOffOnly: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.OnOffOnly,
+};
+
+export const DialogWithEffects: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.WithEffects,
 };

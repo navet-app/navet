@@ -10,6 +10,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps } from 'react';
 import { useEffect } from 'react';
 import { expect } from 'storybook/test';
+import dialogMeta, * as dialogStories from './camera-settings-dialog.story-fixtures';
 
 type CameraCardStoryArgs = Omit<ComponentProps<typeof CameraCard>, 'onSizeChange'> & {
   cameraViewMode?: CameraViewMode;
@@ -227,4 +228,34 @@ export const Docs: Story = {
   parameters: {
     docsOnly: true,
   },
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
+  args: { ...dialogMeta.args, ...dialogStories.Default.args },
+};
+
+export const DialogProviderMse: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.ProviderMse,
+  args: { ...dialogMeta.args, ...dialogStories.ProviderMse.args },
+};
+
+export const DialogLongCameraName: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.LongCameraName,
+  args: { ...dialogMeta.args, ...dialogStories.LongCameraName.args },
+};
+
+export const DialogDirectStream: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.DirectStream,
+  args: { ...dialogMeta.args, ...dialogStories.DirectStream.args },
+};
+
+export const DialogSnapshotOnlyWithDirectStream: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.SnapshotOnlyWithDirectStream,
+  args: { ...dialogMeta.args, ...dialogStories.SnapshotOnlyWithDirectStream.args },
 };

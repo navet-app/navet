@@ -178,6 +178,7 @@ export interface PlatformStatisticsHistoryRequest {
   endTime?: string;
   period: PlatformStatisticsPeriod;
   types: PlatformStatisticsType[];
+  /** Target units keyed by measurement category (for example, energy: 'kWh'). */
   units?: Record<string, string>;
 }
 

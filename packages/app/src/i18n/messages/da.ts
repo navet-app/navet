@@ -649,6 +649,7 @@ export const daMessages = {
   'common.custom': 'Brugerdefineret',
   'common.customize': 'Tilpas',
   'common.done': 'Færdig',
+  'common.run': 'Kør',
   'common.metrics': 'Målinger',
   'common.off': 'Fra',
   'common.on': 'På',
@@ -1090,6 +1091,7 @@ export const daMessages = {
   'settings.project.about.title': 'Om',
   'settings.project.about.description': 'Hurtig projektinformation.',
   'settings.project.about.version': 'version',
+  'settings.project.about.localBuild': 'Lokalt udviklingsbuild',
   'settings.project.about.build': 'Byg',
   'settings.project.credits.title': 'Kreditter',
   'settings.project.credits.description':

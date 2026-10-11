@@ -246,7 +246,7 @@ describe('integrationHistoryService', () => {
         endTime: '2026-08-20T02:00:00Z',
         period: 'hour',
         types: ['mean'],
-        units: { 'home_assistant:sensor.house_power': 'W' },
+        units: { power: 'W' },
       })
     ).resolves.toEqual({
       'home_assistant:sensor.house_power': [
@@ -260,7 +260,7 @@ describe('integrationHistoryService', () => {
       endTime: '2026-08-20T02:00:00Z',
       period: 'hour',
       types: ['mean'],
-      units: { 'sensor.house_power': 'W' },
+      units: { power: 'W' },
     });
   });
 

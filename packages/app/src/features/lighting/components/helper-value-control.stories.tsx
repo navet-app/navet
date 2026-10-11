@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { HelperValueControl } from './helper-card';
 
 const meta = {
-  title: 'Cards/Entity/Helper Controls',
+  title: 'Components/Shared/Helper Controls',
   component: HelperValueControl,
   tags: ['autodocs'],
   args: {

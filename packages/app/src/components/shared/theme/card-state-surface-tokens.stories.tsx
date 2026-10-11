@@ -237,7 +237,7 @@ function CardStateSurfaceTokensShowcase() {
 }
 
 const meta = {
-  title: 'Cards/Theme/Card State Surface',
+  title: 'Theme/Card State Surface',
   component: CardStateSurfaceTokensShowcase,
   tags: ['autodocs'],
   parameters: {

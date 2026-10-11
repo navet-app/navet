@@ -27,6 +27,81 @@ describe('RotaryKnob', () => {
     });
   });
 
+  it('cancels page scrolling while adjusting and committing the current value with the wheel', () => {
+    const onValueChange = vi.fn();
+    const onValueCommit = vi.fn();
+    const props = {
+      id: 'wheel-knob',
+      value: 21,
+      min: 16,
+      max: 30,
+      step: 0.5,
+      ariaLabel: 'Temperature',
+      bandPrimaryColor: '#ff6b00',
+      bandSecondaryColor: '#ff9a3d',
+      bandGlowColor: 'rgba(255, 107, 0, 0.45)',
+      onValueChange,
+      onValueCommit,
+    };
+    const { rerender, unmount } = render(<RotaryKnob {...props} />);
+    const slider = screen.getByRole('slider', { name: 'Temperature' });
+    const dashRingSurface = slider.querySelector<HTMLElement>(
+      '[data-rotary-knob-hit-surface="true"]'
+    );
+    if (!dashRingSurface) {
+      throw new Error('Expected the rotary knob dash ring interaction surface');
+    }
+
+    expect(fireEvent.wheel(dashRingSurface, { deltaY: -100 })).toBe(false);
+    expect(onValueChange).toHaveBeenLastCalledWith(21.5);
+    expect(onValueCommit).toHaveBeenCalledOnce();
+    expect(onValueCommit).toHaveBeenLastCalledWith(21.5);
+
+    rerender(<RotaryKnob {...props} value={24} step={1} />);
+    expect(fireEvent.wheel(slider, { deltaY: 100 })).toBe(false);
+    expect(onValueChange).toHaveBeenLastCalledWith(23);
+    expect(onValueCommit).toHaveBeenCalledTimes(2);
+    expect(onValueCommit).toHaveBeenLastCalledWith(23);
+
+    unmount();
+    expect(fireEvent.wheel(slider, { deltaY: 100 })).toBe(true);
+    expect(onValueChange).toHaveBeenCalledTimes(2);
+    expect(onValueCommit).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows page scrolling while off or read-only and enables wheel adjustment when turned on', () => {
+    const onValueChange = vi.fn();
+    const props = {
+      id: 'disabled-wheel-knob',
+      value: 21,
+      bandPrimaryColor: '#ff6b00',
+      bandSecondaryColor: '#ff9a3d',
+      bandGlowColor: 'rgba(255, 107, 0, 0.45)',
+    };
+    const { container, rerender } = render(
+      <RotaryKnob {...props} isOn={false} onValueChange={onValueChange} />
+    );
+    const inactiveKnob = container.querySelector('[role="img"]');
+    if (!inactiveKnob) {
+      throw new Error('Expected an inactive rotary knob');
+    }
+    expect(fireEvent.wheel(inactiveKnob, { deltaY: -100 })).toBe(true);
+    expect(onValueChange).not.toHaveBeenCalled();
+
+    rerender(<RotaryKnob {...props} onValueChange={onValueChange} />);
+    const slider = screen.getByRole('slider');
+    expect(fireEvent.wheel(slider, { deltaY: -100 })).toBe(false);
+    expect(onValueChange).toHaveBeenCalledExactlyOnceWith(22);
+
+    rerender(<RotaryKnob {...props} />);
+    const readOnlyKnob = container.querySelector('[role="img"]');
+    if (!readOnlyKnob) {
+      throw new Error('Expected a read-only rotary knob');
+    }
+    expect(fireEvent.wheel(readOnlyKnob, { deltaY: -100 })).toBe(true);
+    expect(onValueChange).toHaveBeenCalledOnce();
+  });
+
   it('drags from the compact dash ring without handing the gesture to page scrolling', () => {
     const onValueChange = vi.fn();
     const onValueCommit = vi.fn();

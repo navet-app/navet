@@ -45,22 +45,23 @@ export async function getCachedEnergyStatistics<T>(
     return existingRequest;
   }
 
-  const request = fetcher().then((value) => {
-    evictCacheIfNeeded();
-    cache.set(key, {
-      value,
-      createdAt: Date.now(),
-      lastAccessedAt: Date.now(),
+  const request = fetcher()
+    .then((value) => {
+      evictCacheIfNeeded();
+      cache.set(key, {
+        value,
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now(),
+      });
+      return value;
+    })
+    .finally(() => {
+      if (inFlightRequests.get(key) === request) {
+        inFlightRequests.delete(key);
+      }
     });
-    return value;
-  });
 
   inFlightRequests.set(key, request);
-  request.finally(() => {
-    if (inFlightRequests.get(key) === request) {
-      inFlightRequests.delete(key);
-    }
-  });
 
   return request;
 }

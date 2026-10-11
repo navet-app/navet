@@ -118,7 +118,7 @@ export function useEnergyHistoryWorkspace({
             endTime: new Date(endMs).toISOString(),
             period: window.period,
             types,
-            ...(valueKind === 'energy' ? { units: { [currentLoadStatisticId]: 'kWh' } } : {}),
+            ...(valueKind === 'energy' ? { units: { energy: 'kWh' } } : {}),
           })) ?? {}
       );
 

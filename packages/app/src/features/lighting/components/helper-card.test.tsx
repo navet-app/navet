@@ -19,6 +19,73 @@ describe('helper controls', () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it.each(['unchanged', 'changed', 'rejected'] as const)(
+    'uses one Save action in the helper dialog for an %s value',
+    async (outcome) => {
+      const id = 'home_assistant:input_number.target';
+      const helper = {
+        helperType: 'number' as const,
+        value: 21,
+        writable: true,
+        min: 15,
+        max: 30,
+        step: 1,
+      };
+      integrationStore.setState({
+        providerEntitiesByProviderId: {
+          home_assistant: {
+            [id]: {
+              id,
+              canonicalId: id,
+              externalId: 'input_number.target',
+              providerId: 'home_assistant',
+              type: 'helper',
+              name: 'Target',
+              primaryState: 21,
+              availability: 'available',
+              attributes: { ...helper },
+              capabilities: ['number_value'],
+            },
+          },
+        },
+      });
+      if (outcome === 'rejected') dispatch.mockResolvedValue({ accepted: false });
+      renderWithProviders(
+        <HelperCard
+          id={id}
+          providerId="home_assistant"
+          name="Target"
+          size="small"
+          isEditMode={false}
+          helper={helper}
+        />
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Target' }));
+      expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(1);
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+      if (outcome !== 'unchanged') {
+        fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '22' } });
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      if (outcome === 'rejected') {
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        expect(screen.getByRole('spinbutton')).toHaveValue(22);
+      } else {
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      }
+      if (outcome === 'unchanged') {
+        expect(dispatch).not.toHaveBeenCalled();
+      } else {
+        expect(dispatch).toHaveBeenCalledWith(
+          { type: 'set_number_value', entityId: id, value: 22 },
+          'home_assistant'
+        );
+      }
+    }
+  );
+
   it('opens matching helper settings from the edit dock and ignores other cards and view mode', () => {
     const props = {
       id: 'number.target',

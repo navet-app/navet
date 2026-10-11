@@ -181,6 +181,37 @@ describe('homeAssistantHistoryFeatureService', () => {
     });
   });
 
+  it('requests energy conversion by category and preserves converted changes', async () => {
+    const sendMessagePromise = vi.fn().mockResolvedValue({
+      'sensor.total_energy_mwh': [{ start: 1_787_040_000_000, end: 1_787_043_600_000, change: 2 }],
+    });
+    getHomeAssistantConnectionMock.mockReturnValue({ sendMessagePromise });
+
+    await expect(
+      homeAssistantHistoryFeatureService.getStatisticsHistory?.({
+        entityIds: ['sensor.total_energy_mwh'],
+        startTime: '2026-08-20T00:00:00Z',
+        endTime: '2026-08-20T01:00:00Z',
+        period: 'hour',
+        types: ['change'],
+        units: { energy: 'kWh' },
+      })
+    ).resolves.toEqual({
+      'sensor.total_energy_mwh': [
+        { startMs: 1_787_040_000_000, endMs: 1_787_043_600_000, change: 2 },
+      ],
+    });
+    expect(sendMessagePromise).toHaveBeenCalledWith({
+      type: 'recorder/statistics_during_period',
+      statistic_ids: ['sensor.total_energy_mwh'],
+      start_time: '2026-08-20T00:00:00Z',
+      end_time: '2026-08-20T01:00:00Z',
+      period: 'hour',
+      types: ['change'],
+      units: { energy: 'kWh' },
+    });
+  });
+
   it('rejects statistics requests when there is no active provider connection', async () => {
     await expect(
       homeAssistantHistoryFeatureService.getStatisticsHistory?.({

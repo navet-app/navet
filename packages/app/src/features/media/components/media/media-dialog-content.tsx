@@ -1,10 +1,13 @@
 import { CardDialogTabList, CardDialogTabTrigger } from '@navet/app/components/patterns';
+import { CardDialogOverflowMenu } from '@navet/app/components/patterns/card-dialog-overflow-menu';
+import { Button } from '@navet/app/components/primitives/button';
 import { ModalSurface } from '@navet/app/components/primitives/modal-surface';
 import { SheetSurface, SheetSurfaceHeader } from '@navet/app/components/primitives/sheet-surface';
 import { TabPanel, Tabs } from '@navet/app/components/primitives/tabs';
+import { EntityRoomSelector } from '@navet/app/components/shared/entity-room-selector';
 import { useEntityProviderFeature, useI18n, useMediaQuery } from '@navet/app/hooks';
 import * as Popover from '@radix-ui/react-popover';
-import { Layers3, ListMusic, Sliders, Speaker, Tv2 } from 'lucide-react';
+import { ArrowLeft, Layers3, ListMusic, MapPin, Sliders, Speaker, Tv2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MediaDialogProps } from './media-dialog.types';
 import { MediaDialogBrowser } from './media-dialog-browser';
@@ -155,6 +158,8 @@ export function MediaDialogContent({
     return isTvDevice ? defaultTvDialogMode : 'playback';
   }, [defaultTvDialogMode, initialTab, isTvDevice]);
   const [activeTab, setActiveTab] = useState<string>(defaultTab);
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [editingRoom, setEditingRoom] = useState(false);
   const [isGroupingPickerOpen, setIsGroupingPickerOpen] = useState(false);
   const supportsMediaBrowse = useEntityProviderFeature(entityId, 'mediaBrowse');
   const canBrowseMedia = capabilities.canBrowseMedia && supportsMediaBrowse;
@@ -411,6 +416,8 @@ export function MediaDialogContent({
 
   useEffect(() => {
     setIsGroupingPickerOpen(false);
+    setTitleEditing(false);
+    setEditingRoom(false);
   }, [entityId, isOpen, supportsGrouping]);
 
   useEffect(() => {
@@ -419,13 +426,31 @@ export function MediaDialogContent({
     }
   }, [initialTab]);
 
+  const menu = (
+    <CardDialogOverflowMenu
+      theme={controller.theme}
+      entityId={entityId}
+      sections={[{ key: 'room', label: t('dashboard.roomsWorkspace.editRoom'), icon: MapPin }]}
+      onSectionChange={() => {
+        setTitleEditing(false);
+        setEditingRoom(true);
+      }}
+      onEditName={() => {
+        setEditingRoom(false);
+        setTitleEditing(true);
+      }}
+    />
+  );
+
   return (
     <ModalSurface
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title={entityName}
+      titleInContent
       description={entityType}
       mobileCoverSheet
+      mobileCoverSheetActions={menu}
       bodyClassName="media-dialog-body relative flex h-full max-h-full min-h-0 flex-1 touch-pan-y flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-6 pt-6 pb-10 [-webkit-overflow-scrolling:touch] max-sm:px-3.5 max-sm:pt-2 max-sm:pb-[calc(env(safe-area-inset-bottom,0px)+2rem)] md:px-7 md:pt-6 md:pb-10"
       shellBodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
       overlayClassName={`animate-in fade-in ${controller.surface.dialogBackdrop}`}
@@ -439,10 +464,25 @@ export function MediaDialogContent({
           entityType={entityType}
           entityId={entityId}
           room={room}
+          menu={menu}
+          titleEditing={titleEditing}
+          onTitleEditingChange={setTitleEditing}
         />
 
         <div className="relative">
-          {shouldRenderTabs ? (
+          {editingRoom ? (
+            <div className="space-y-4">
+              <Button
+                variant="soft"
+                size="compact"
+                leading={<ArrowLeft className="h-4 w-4" />}
+                onClick={() => setEditingRoom(false)}
+              >
+                {t('common.backToControls')}
+              </Button>
+              <EntityRoomSelector entityId={entityId} fallbackRoomName={room} />
+            </div>
+          ) : shouldRenderTabs ? (
             <Tabs value={activeTab} defaultValue={defaultTab} onValueChange={setActiveTab}>
               <TabPanel value="tv" className="mt-0">
                 {tvControlsPanel}
@@ -499,7 +539,7 @@ export function MediaDialogContent({
           ) : (
             musicPlaybackPanel
           )}
-          {speakerQuickActions}
+          {editingRoom ? null : speakerQuickActions}
         </div>
       </div>
     </ModalSurface>

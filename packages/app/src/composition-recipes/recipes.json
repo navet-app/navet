@@ -18,11 +18,11 @@
       "Long titles, phone/tablet/desktop and all four themes"
     ],
     "storyExport": "ControlsFirstDialog",
-    "reference": "packages/app/src/features/lighting/components/switch-card-dialog.stories.tsx",
+    "reference": "packages/app/src/features/lighting/components/entity-card-switch.stories.tsx",
     "family": "overlays",
     "searchTerms": ["device controls", "more actions", "progressive disclosure"],
     "states": ["closed", "controls", "settings"],
-    "referenceExport": "Default",
+    "referenceExport": "Dialog",
     "templateExport": "ControlsFirstDialog",
     "level": "building-block",
     "reviewStatus": "draft",
@@ -507,15 +507,15 @@
     "template": "packages/app/src/composition-recipes/weather/weather-settings/template.tsx",
     "storySource": "packages/app/src/composition-recipes/weather/weather-settings/recipe.stories.tsx",
     "storyExport": "SelectableControls",
-    "reference": "packages/app/src/features/weather/components/weather-card/weather-settings-dialog.stories.tsx",
-    "referenceExport": "SelectableControls",
+    "reference": "packages/app/src/features/weather/components/weather-card/entity-card-weather.stories.tsx",
+    "referenceExport": "DialogSelectableControls",
     "context": [
       "Navet theme and i18n context",
       "Caller supplies entity identity, translated household title, available metrics and controlled callbacks",
       "Connect returnFocusRef to the launcher; feature owns persisted forecast and metric preferences"
     ],
     "review": [
-      "Match Cards/Dialogs/Weather using identical state and theme",
+      "Match Cards/Entity/Weather using identical state and theme",
       "Forecast remains mutually exclusive",
       "Metric selection permits one to five available metrics",
       "Keyboard dismissal and focus return; closing and reopening preserves caller state",

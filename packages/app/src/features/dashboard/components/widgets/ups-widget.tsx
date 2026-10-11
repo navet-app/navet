@@ -8,22 +8,24 @@ import {
   BaseCard,
   BaseCardDialogWithState,
   Button,
-  CardMetric,
   EntityCardHeader,
   EntityCardHeaderIcon,
   Select,
 } from '@navet/app/components/primitives';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
 import {
   getCustomCardTintSurface,
   normalizeCustomCardTint,
 } from '@navet/app/components/shared/theme/custom-card-tint-surface';
 import { getThemeColorValue } from '@navet/app/components/shared/theme/theme-colors';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import type { SensorReading } from '@navet/app/features/sensors/components/sensors/sensor-types';
+import { SmallSensorDisplay } from '@navet/app/features/sensors/components/sensors/small-sensor-display';
 import { useAreaRooms, useI18n, useTheme } from '@navet/app/hooks';
 import { formatSensorValue } from '@navet/app/hooks/entity-utils';
 import { useSettingsStore } from '@navet/app/stores';
-import { BatteryCharging, Gauge, Settings2, Zap } from 'lucide-react';
+import { BatteryCharging, Settings2 } from 'lucide-react';
 import { type KeyboardEvent, memo, useEffect, useMemo, useState } from 'react';
 import {
   getUpsStatusTone,
@@ -50,7 +52,7 @@ interface UpsWidgetProps {
   openSettingsRequestKey?: number;
 }
 
-const SMALL_METRIC_KINDS = new Set(['battery', 'load']);
+const SMALL_METRIC_KINDS = new Set(['load', 'runtime']);
 
 function normalizeUpsCardSize(size: CardSize): 'small' | 'medium' | 'large' {
   if (size === 'small') {
@@ -77,27 +79,6 @@ function getSelectedDevice(
   }
 
   return devices.find((device) => device.deviceId === deviceId) ?? null;
-}
-
-function getStatusColorClasses(tone: ReturnType<typeof getUpsStatusTone>, theme: string) {
-  switch (tone) {
-    case 'green':
-      return theme === 'light'
-        ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
-        : 'border-emerald-400/30 bg-emerald-500/15 text-emerald-200';
-    case 'amber':
-      return theme === 'light'
-        ? 'border-amber-300 bg-amber-100 text-amber-800'
-        : 'border-amber-400/30 bg-amber-500/15 text-amber-200';
-    case 'red':
-      return theme === 'light'
-        ? 'border-red-300 bg-red-100 text-red-800'
-        : 'border-red-400/30 bg-red-500/15 text-red-200';
-    default:
-      return theme === 'light'
-        ? 'border-slate-300 bg-slate-100 text-slate-700'
-        : 'border-white/12 bg-white/8 text-white/72';
-  }
 }
 
 function getMetricLabel(kind: string, fallbackLabel: string, t: ReturnType<typeof useI18n>['t']) {
@@ -349,11 +330,7 @@ export const UpsWidget = memo(function UpsWidget({
   const textPrimaryStyle = tintSurface.textPrimaryColor
     ? { color: tintSurface.textPrimaryColor }
     : undefined;
-  const textSecondaryStyle = tintSurface.textSecondaryColor
-    ? { color: tintSurface.textSecondaryColor }
-    : undefined;
   const textPrimaryClassName = tintSurface.textPrimaryColor ? '' : surface.textPrimary;
-  const textMutedClassName = tintSurface.textSecondaryColor ? '' : surface.textMuted;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const resolvedSize = normalizeUpsCardSize(size);
   const { devices, entities, formatOptions } = useProviderUpsWidgetData({ use24HourTime });
@@ -376,15 +353,20 @@ export const UpsWidget = memo(function UpsWidget({
   const batteryMetric =
     selectedMetrics.find((metric) => metric.kind === 'battery') ??
     selectedDevice?.metrics.find((metric) => metric.kind === 'battery');
-  const loadMetric =
-    selectedMetrics.find((metric) => metric.kind === 'load') ??
-    selectedDevice?.metrics.find((metric) => metric.kind === 'load');
-  const visibleMetrics =
-    resolvedSize === 'small'
-      ? selectedMetrics.filter((metric) => SMALL_METRIC_KINDS.has(metric.kind))
-      : selectedMetrics
-          .filter((metric) => metric.entityId !== batteryMetric?.entityId)
-          .slice(0, resolvedSize === 'medium' ? 4 : 6);
+  const visibleMetrics = selectedMetrics
+    .filter((metric) => metric.entityId !== batteryMetric?.entityId)
+    .filter((metric) => resolvedSize !== 'small' || SMALL_METRIC_KINDS.has(metric.kind))
+    .sort((a, b) => Number(b.kind === 'runtime') - Number(a.kind === 'runtime'))
+    .slice(0, resolvedSize === 'small' ? 2 : resolvedSize === 'medium' ? 4 : 6);
+  const readings: SensorReading[] = [batteryMetric, ...visibleMetrics]
+    .filter((metric): metric is NonNullable<typeof metric> => Boolean(metric))
+    .map((metric) => ({
+      id: metric.entityId,
+      icon: metric.kind === 'battery' ? 'battery' : metric.kind === 'load' ? 'gauge' : 'zap',
+      label: getMetricLabel(metric.kind, metric.label, t),
+      value: metric.value,
+      unit: metric.unit,
+    }));
   const statusEntityId = data?.statusEntityId ?? selectedDevice?.defaultStatusEntityId;
   const statusEntity = statusEntityId ? entities?.[statusEntityId] : undefined;
   const statusValue = statusEntity
@@ -393,7 +375,15 @@ export const UpsWidget = memo(function UpsWidget({
       ? t('widgets.ups.status.unavailable')
       : t('widgets.ups.status.noStatus');
   const statusTone = getUpsStatusTone(statusValue);
-  const statusClasses = getStatusColorClasses(statusTone, theme);
+  const readableText = getCardReadableTextTokens({
+    theme,
+    backgroundColor: tintSurface.backgroundColor,
+  });
+  const statusText = getCardReadableTextTokens({
+    theme,
+    tone: statusTone === 'neutral' ? 'neutral' : statusTone,
+    backgroundColor: tintSurface.backgroundColor,
+  });
   const { roomValue, roomLabel, roomOptions } = useDashboardWidgetRoomOptions(room, rooms);
   const accentHex = getThemeColorValue(primaryColor);
   const cardCanOpenSettings = Boolean(onUpdate) && (!missingPersistedDevice || devices.length > 0);
@@ -480,14 +470,14 @@ export const UpsWidget = memo(function UpsWidget({
             <>
               <EntityCardHeader
                 title={selectedDevice?.name ?? t('widgets.ups.title')}
-                subtitle={selectedDevice?.room || t('widgets.common.widget')}
+                subtitle={statusValue}
                 layout="eyebrow-first"
                 size={resolvedSize === 'large' ? 'medium' : resolvedSize}
                 titleClassName={textPrimaryClassName}
-                subtitleClassName={textMutedClassName}
+                subtitleClassName=""
                 backgroundColor={tintSurface.backgroundColor}
                 titleStyle={textPrimaryStyle}
-                subtitleStyle={textSecondaryStyle}
+                subtitleStyle={{ color: statusText.titleColor }}
                 leading={
                   <EntityCardHeaderIcon
                     IconComponent={BatteryCharging}
@@ -497,92 +487,13 @@ export const UpsWidget = memo(function UpsWidget({
                 }
               />
 
-              <div className="mt-3 flex flex-1 flex-col gap-3">
-                <div className="flex items-end justify-between gap-3">
-                  <CardMetric
-                    value={
-                      batteryMetric
-                        ? `${batteryMetric.value}${batteryMetric.unit ? ` ${batteryMetric.unit}` : ''}`
-                        : t('widgets.ups.status.unavailable')
-                    }
-                    label={t('widgets.ups.metrics.battery')}
-                    size={resolvedSize === 'large' ? 'xl' : 'lg'}
-                    isActive={Boolean(batteryMetric)}
-                    accentClassName={
-                      tintSurface.textPrimaryColor
-                        ? ''
-                        : theme === 'light'
-                          ? 'text-slate-900'
-                          : 'text-white'
-                    }
-                    theme={theme}
-                    labelClassName={textMutedClassName}
-                    valueStyle={textPrimaryStyle}
-                    labelStyle={textSecondaryStyle}
-                  />
-                  <div
-                    className={`rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses}`}
-                  >
-                    {statusValue}
-                  </div>
-                </div>
-
-                {resolvedSize === 'small' ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    {(loadMetric ? [loadMetric] : visibleMetrics).map((metric) => (
-                      <div
-                        key={metric.entityId}
-                        className={`rounded-2xl border px-3 py-2 ${surface.border} ${surface.panelMuted}`}
-                      >
-                        <div
-                          className={`text-xs uppercase tracking-[0.12em] ${textMutedClassName}`}
-                          style={textSecondaryStyle}
-                        >
-                          {getMetricLabel(metric.kind, metric.label, t)}
-                        </div>
-                        <div
-                          className={`mt-1 text-lg font-semibold ${textPrimaryClassName}`}
-                          style={textPrimaryStyle}
-                        >
-                          {metric.value}
-                          {metric.unit ? ` ${metric.unit}` : ''}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div
-                    className={`grid gap-2 ${
-                      resolvedSize === 'medium' ? 'grid-cols-2' : 'grid-cols-3'
-                    }`}
-                  >
-                    {visibleMetrics.map((metric) => (
-                      <div
-                        key={metric.entityId}
-                        className={`rounded-2xl border px-3 py-3 ${surface.border} ${surface.panelMuted}`}
-                      >
-                        <div
-                          className={`flex items-center gap-2 text-xs uppercase tracking-[0.12em] ${textMutedClassName}`}
-                          style={textSecondaryStyle}
-                        >
-                          {metric.kind === 'load' ? (
-                            <Gauge className="h-3.5 w-3.5" />
-                          ) : (
-                            <Zap className="h-3.5 w-3.5" />
-                          )}
-                          <span>{getMetricLabel(metric.kind, metric.label, t)}</span>
-                        </div>
-                        <div
-                          className={`mt-2 text-xl font-semibold ${textPrimaryClassName}`}
-                          style={textPrimaryStyle}
-                        >
-                          {metric.value}
-                          {metric.unit ? ` ${metric.unit}` : ''}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="flex min-h-0 flex-1 items-end">
+                <SmallSensorDisplay
+                  sensors={readings}
+                  size={resolvedSize === 'small' ? 'small' : 'medium'}
+                  textPrimaryColor={tintSurface.textPrimaryColor ?? readableText.titleColor}
+                  textSecondaryColor={tintSurface.textSecondaryColor ?? readableText.subtitleColor}
+                />
               </div>
             </>
           )}

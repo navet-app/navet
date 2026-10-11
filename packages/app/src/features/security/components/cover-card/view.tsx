@@ -5,13 +5,15 @@ import { EntityCardHeader } from '@navet/app/components/primitives/entity-card-h
 import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-card-header-icon';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
-import { type ThemeType, useI18n } from '@navet/app/hooks';
+import { getOpenDeviceCardSurface } from '@navet/app/components/shared/theme/open-device-card-surface';
+import { type ThemeType, useI18n, useTheme } from '@navet/app/hooks';
 import type { CoverControlMode } from '@navet/app/stores/settings-store';
 import type { HTMLAttributes, MouseEvent as ReactMouseEvent } from 'react';
 import { getSecurityCardSurfaceTokens } from '../security-card-surface-tokens';
 import { CoverActionRow } from './cover-action-row';
 import { CoverDragHandle, CoverPositionFill } from './cover-position-fill';
 import { CoverPositionGestureSurface } from './cover-position-gesture-surface';
+import { getCoverPositionTone } from './cover-position-tone';
 import { CoverPresetChips } from './cover-preset-chips';
 import { CoverSettingsDialog } from './cover-settings-dialog';
 import { CoverWindowVisualization } from './cover-window-visualization';
@@ -25,12 +27,7 @@ type CoverColorSet = {
   glow: string;
 };
 
-const COVER_OPEN_TONE_THRESHOLD = 50;
 const COVER_POSITION_GESTURE_SELECTOR = '[data-cover-position-gesture="true"]';
-
-function isCoverOpenTone(position: number) {
-  return position > COVER_OPEN_TONE_THRESHOLD;
-}
 
 interface CoverCardViewProps {
   showPosition: boolean;
@@ -109,6 +106,11 @@ export function CoverCardView({
   const isSmall = isCompactCardSize(size);
   const isMedium = size === 'medium';
   const clampedPosition = stateDisplay.unavailable ? 0 : Math.max(0, Math.min(100, position));
+  const { colors, accentColor } = useTheme();
+  const fullyOpen = !stateDisplay.unavailable && clampedPosition === 100;
+  const openSurface = fullyOpen
+    ? getOpenDeviceCardSurface(theme, colors.switch.on, accentColor, size)
+    : undefined;
 
   const cardShell = getCardShellSurfaceTokens(theme);
   const securitySurface = getSecurityCardSurfaceTokens(theme);
@@ -145,13 +147,19 @@ export function CoverCardView({
       {...coverCardProps}
       data-cover-card-root="true"
       frameClassName={
-        showPosition
-          ? `bg-linear-to-br ${closedColors.gradient} ${cardShell.rootFrameClassName} ${isCoverOpenTone(clampedPosition) ? openColors.border : closedColors.border} ${securitySurface.containerShadowClassName}`
-          : undefined
+        openSurface
+          ? openSurface.frameClassName
+          : showPosition
+            ? `bg-linear-to-br ${closedColors.gradient} ${cardShell.rootFrameClassName} ${getCoverPositionTone(clampedPosition, showPosition, stateDisplay.unavailable) === 'primary' ? openColors.border : closedColors.border} ${securitySurface.containerShadowClassName}`
+            : undefined
       }
-      disableDefaultSheen={showPosition}
+      style={openSurface?.style}
+      disableDefaultSheen={fullyOpen || showPosition}
+      disableDefaultLightOverlay={fullyOpen}
       overlay={
-        showPosition ? (
+        openSurface ? (
+          openSurface.overlay
+        ) : showPosition ? (
           <>
             <CoverPositionFill
               position={clampedPosition}
@@ -339,11 +347,20 @@ function CoverCardHeader({
   iconButtonProps,
   deviceLabel,
   position,
+  showPosition,
+  stateDisplay,
 }: Pick<
   SharedCoverLayoutProps,
-  'name' | 'size' | 'DeviceIcon' | 'iconButtonProps' | 'deviceLabel' | 'position'
+  | 'name'
+  | 'size'
+  | 'DeviceIcon'
+  | 'iconButtonProps'
+  | 'deviceLabel'
+  | 'position'
+  | 'showPosition'
+  | 'stateDisplay'
 >) {
-  const tone = isCoverOpenTone(position) ? 'primary' : 'neutral';
+  const tone = getCoverPositionTone(position, showPosition, stateDisplay.unavailable);
   const isExtraSmall = size === 'extra-small';
 
   return (
@@ -358,7 +375,7 @@ function CoverCardHeader({
       leading={
         <EntityCardHeaderIcon
           IconComponent={DeviceIcon}
-          isActive={isCoverOpenTone(position)}
+          isActive={tone === 'primary'}
           size={isExtraSmall ? 'tiny' : size}
           tone={tone}
           ariaLabel={iconButtonProps['aria-label']}
@@ -453,6 +470,8 @@ function CompactCoverLayout({
         iconButtonProps={iconButtonProps}
         deviceLabel={deviceLabel}
         position={position}
+        showPosition={showPosition}
+        stateDisplay={stateDisplay}
       />
 
       {isExtraSmall ? (
@@ -531,6 +550,8 @@ function MediumCoverLayout({
         iconButtonProps={iconButtonProps}
         deviceLabel={deviceLabel}
         position={position}
+        showPosition={showPosition}
+        stateDisplay={stateDisplay}
       />
 
       <CardMetricActionLayout
@@ -601,6 +622,8 @@ function LargeCoverLayout({
         iconButtonProps={iconButtonProps}
         deviceLabel={deviceLabel}
         position={position}
+        showPosition={showPosition}
+        stateDisplay={stateDisplay}
       />
 
       <div className="mt-5 grid flex-1 grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-5">

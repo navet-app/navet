@@ -90,9 +90,12 @@ function SimpleDisclosure({
 export function SettingsProjectSection({ controller }: SettingsProjectSectionProps) {
   const { t } = useI18n();
   const { setShowLicense, setShowTerms, showLicense, showTerms, styles } = controller;
+  const isLocalBuild = ['development', 'local'].includes(APP_BUILD_METADATA.releaseChannel);
   const buildDate = APP_BUILD_METADATA.buildDate.slice(0, 10);
   const buildMeta = [
-    `${getAppBuildChannelLabel(APP_VERSION)} ${APP_BUILD_METADATA.buildVersion}`,
+    ...(isLocalBuild
+      ? []
+      : [`${getAppBuildChannelLabel(APP_VERSION)} ${APP_BUILD_METADATA.buildVersion}`]),
     APP_BUILD_METADATA.gitShaShort,
     buildDate,
   ].join(' · ');
@@ -121,8 +124,8 @@ export function SettingsProjectSection({ controller }: SettingsProjectSectionPro
               label={t('settings.project.about.version')}
               value={
                 <div className="flex flex-wrap items-center gap-2">
-                  <span>{APP_VERSION}</span>
-                  <AppReleaseBadge />
+                  <span>{isLocalBuild ? t('settings.project.about.localBuild') : APP_VERSION}</span>
+                  {!isLocalBuild && <AppReleaseBadge />}
                 </div>
               }
               styles={styles}

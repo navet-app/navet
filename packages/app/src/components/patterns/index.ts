@@ -63,4 +63,10 @@ export {
   SelectableCheckboxRow,
   type SelectableCheckboxRowProps,
 } from './selectable-checkbox-row';
+export {
+  SelectableRadioList,
+  type SelectableRadioListProps,
+  SelectableRadioRow,
+  type SelectableRadioRowProps,
+} from './selectable-radio-row';
 export { TableCellContent, type TableCellContentProps } from './table-cell-content';

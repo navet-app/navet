@@ -656,6 +656,7 @@ export const itMessages = {
   'common.custom': 'Personalizzato',
   'common.customize': 'Personalizza',
   'common.done': 'Fine',
+  'common.run': 'Esegui',
   'common.metrics': 'Metriche',
   'common.off': 'Spento',
   'common.on': 'Acceso',
@@ -1109,6 +1110,7 @@ export const itMessages = {
   'settings.project.about.title': 'Informazioni',
   'settings.project.about.description': 'Informazioni rapide sul progetto.',
   'settings.project.about.version': 'Versione',
+  'settings.project.about.localBuild': 'Build di sviluppo locale',
   'settings.project.about.build': 'Costruire',
   'settings.project.credits.title': 'Crediti',
   'settings.project.credits.description':

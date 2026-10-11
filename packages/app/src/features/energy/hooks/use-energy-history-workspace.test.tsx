@@ -26,6 +26,40 @@ afterEach(() => {
 });
 
 describe('useEnergyHistoryWorkspace', () => {
+  it('requests energy changes in kWh using the energy unit category for both periods', async () => {
+    const statisticsLoader = vi.fn(async (request: PlatformStatisticsHistoryRequest) => ({
+      'sensor.total_energy_mwh': [
+        {
+          startMs: Date.parse(request.startTime),
+          endMs: Date.parse(request.startTime) + 60 * 60 * 1000,
+          change: 2,
+        },
+      ],
+    }));
+    const { result } = renderHook(() =>
+      useEnergyHistoryWorkspace({
+        currentLoadStatisticId: 'sensor.total_energy_mwh',
+        consumers: [],
+        range: 'today',
+        enabled: true,
+        valueKind: 'energy',
+        statisticsLoader,
+      })
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.error).toBeNull();
+    expect(result.current.model).not.toBeNull();
+    expect(statisticsLoader).toHaveBeenCalledTimes(2);
+    for (const [request] of statisticsLoader.mock.calls) {
+      expect(request).toMatchObject({
+        entityIds: ['sensor.total_energy_mwh'],
+        types: ['change'],
+        units: { energy: 'kWh' },
+      });
+    }
+  });
+
   it('loads whole-home statistics first and device statistics only for a selected bucket', async () => {
     const statisticsLoader = vi.fn(async (request: PlatformStatisticsHistoryRequest) => {
       const startMs = Date.parse(request.startTime);

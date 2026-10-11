@@ -58,9 +58,19 @@ describe('household card settings and identity context', () => {
     const wrongLabel = availability === 'unknown' ? 'Unavailable' : 'Unknown';
     expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     expect(screen.queryByText(wrongLabel)).not.toBeInTheDocument();
+    if (type === 'remote') {
+      expect(screen.getByRole('button', { name: 'Toggle Kitchen control' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Kitchen control' })).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      );
+      return;
+    }
     const trigger =
-      type === 'timer' || type === 'counter' ? 'Kitchen control' : 'Controls for Kitchen control';
-    fireEvent.click(screen.getByRole('button', { name: trigger }));
+      type === 'timer' || type === 'counter'
+        ? 'Open settings for Kitchen control'
+        : 'Controls for Kitchen control';
+    fireEvent.click(screen.getAllByRole('button', { name: trigger })[0]);
     const dialog = within(screen.getByRole('dialog'));
     const actionName = {
       timer: 'Start',
@@ -73,7 +83,7 @@ describe('household card settings and identity context', () => {
       expect(dialog.queryByText('Unavailable')).not.toBeInTheDocument();
   });
 
-  it.each(cards.slice(2))(
+  it.each(cards.filter((card) => card.type === 'valve'))(
     'opens $type Tiny controls from its card surface and preserves the edit-mode guard',
     ({ type, Card }) => {
       const props = {

@@ -7,6 +7,10 @@ import { RoundControlButton } from '@navet/app/components/primitives/round-contr
 import { getCardActionControlSizes } from '@navet/app/components/shared/card-action-control-sizes';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
+import {
+  DeviceControlOptions,
+  DeviceTargetControl,
+} from '@navet/app/components/shared/device-editor';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { useEntityCardInteractionController } from '@navet/app/components/shared/entity-card-interaction-controller';
 import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
@@ -330,6 +334,7 @@ function HumidifierHumidityControls({
   step,
   isOn,
   size,
+  controlSize,
   onCommit,
 }: {
   targetHumidity: number;
@@ -338,6 +343,7 @@ function HumidifierHumidityControls({
   step: number;
   isOn: boolean;
   size: 'small' | 'medium';
+  controlSize?: 'sm' | 'md' | 'lg';
   onCommit: (value: number) => void;
 }) {
   const { theme } = useTheme();
@@ -352,6 +358,7 @@ function HumidifierHumidityControls({
       <RoundControlButton
         theme={theme}
         size={size}
+        controlSize={controlSize}
         variant="soft"
         onClick={(event) => {
           event.stopPropagation();
@@ -361,11 +368,12 @@ function HumidifierHumidityControls({
         disabled={!isOn}
         className={`${hoverScale} disabled:opacity-50`}
       >
-        <Minus className={controlSizes.icon} />
+        <Minus className={controlSize === 'lg' ? 'h-5 w-5' : controlSizes.icon} />
       </RoundControlButton>
       <RoundControlButton
         theme={theme}
         size={size}
+        controlSize={controlSize}
         variant="soft"
         onClick={(event) => {
           event.stopPropagation();
@@ -375,7 +383,7 @@ function HumidifierHumidityControls({
         disabled={!isOn}
         className={`${hoverScale} disabled:opacity-50`}
       >
-        <Plus className={controlSizes.icon} />
+        <Plus className={controlSize === 'lg' ? 'h-5 w-5' : controlSizes.icon} />
       </RoundControlButton>
     </div>
   );
@@ -452,92 +460,6 @@ function HumidifierModeControls({
   );
 }
 
-function HumidifierDialogGauge({
-  id,
-  isOn,
-  targetHumidity,
-  currentHumidity,
-  minHumidity,
-  maxHumidity,
-  step,
-  accentColor,
-  glowClassName,
-  readableTokens,
-  helperText,
-  onTargetHumidityChange,
-  onTargetHumidityCommit,
-}: {
-  id: string;
-  isOn: boolean;
-  targetHumidity: number;
-  currentHumidity: number;
-  minHumidity: number;
-  maxHumidity: number;
-  step: number;
-  accentColor: string;
-  glowClassName: string;
-  readableTokens: {
-    titleColor: string;
-    subtitleColor: string;
-  };
-  helperText: string;
-  onTargetHumidityChange: (value: number) => void;
-  onTargetHumidityCommit: (value: number) => void;
-}) {
-  return (
-    <div className="relative h-[17rem] w-full overflow-hidden">
-      <div
-        className="pointer-events-none absolute right-[-8.5rem] top-1/2 h-[18rem] w-[18rem] -translate-y-1/2 rounded-full blur-3xl"
-        style={{
-          background: `radial-gradient(circle, ${accentColor}66 0%, ${accentColor}33 42%, transparent 72%)`,
-        }}
-      />
-      <div
-        className="pointer-events-none absolute right-[-3.25rem] top-1/2 h-[13rem] w-[10rem] -translate-y-1/2 rounded-full blur-2xl"
-        style={{
-          background: `linear-gradient(90deg, transparent 0%, ${accentColor}2f 42%, ${accentColor}55 100%)`,
-        }}
-      />
-      <div className="absolute bottom-0 left-0 z-[2] inline-flex max-w-[55%] flex-col px-6 pb-12 max-sm:px-3.5">
-        <div
-          className="text-3xl font-bold leading-none"
-          style={{
-            color: readableTokens.titleColor,
-            textShadow: isOn ? `0 0 14px ${accentColor}55` : 'none',
-          }}
-        >
-          {formatHumidityValue(currentHumidity)}
-        </div>
-
-        <div className="mt-0.5 text-xs" style={{ color: readableTokens.subtitleColor }}>
-          {helperText}
-        </div>
-      </div>
-
-      <RotaryKnob
-        id={id}
-        value={targetHumidity}
-        min={minHumidity}
-        max={maxHumidity}
-        step={step}
-        isOn={isOn}
-        ariaLabel="Target humidity"
-        ariaValueText={formatHumidityValue(targetHumidity)}
-        glowClassName={glowClassName}
-        tickOffsetRem={10.6}
-        bandPrimaryColor={readableTokens.titleColor}
-        bandSecondaryColor={readableTokens.subtitleColor}
-        bandGlowColor={`${accentColor}66`}
-        faceTreatment="soft"
-        faceTintColor={accentColor}
-        onValueChange={onTargetHumidityChange}
-        onValueCommit={onTargetHumidityCommit}
-        className="absolute right-[-9.25rem] top-[54%] h-[17rem] w-[17rem] -translate-y-1/2"
-      />
-    </div>
-  );
-}
-
 const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
   entityId,
   isOpen,
@@ -554,11 +476,8 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
   currentHumidity,
   statusLabel,
   contentSurface,
-  accentColor,
-  glowClassName,
   readableTokens,
   onTargetHumidityCommit,
-  onTargetHumidityChange,
   onModeChange,
 }: {
   entityId: string;
@@ -576,61 +495,54 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
   currentHumidity: number;
   statusLabel: string;
   contentSurface: { panel: string; border: string };
-  accentColor: string;
-  glowClassName: string;
   readableTokens: {
     titleColor: string;
     subtitleColor: string;
   };
   onTargetHumidityCommit: (humidity: number) => void;
-  onTargetHumidityChange: (humidity: number) => void;
   onModeChange: (mode: string) => void;
 }) {
   const { theme } = useTheme();
   const { t } = useI18n();
   const controls = (
-    <div className="relative -mx-6 max-sm:-mx-3.5">
-      <HumidifierDialogGauge
-        id={`${entityId}-dialog`}
-        isOn={isOn}
-        targetHumidity={targetHumidity}
-        currentHumidity={currentHumidity}
-        minHumidity={minHumidity}
-        maxHumidity={maxHumidity}
-        step={step}
-        accentColor={accentColor}
-        glowClassName={glowClassName}
+    <div className="space-y-4">
+      <DeviceTargetControl
+        label={t('humidifier.targetHumidity')}
+        value={formatHumidityValue(targetHumidity)}
+        currentReading={t('humidifier.currentHumidity', { humidity: currentHumidity })}
+        status={statusLabel}
         readableTokens={readableTokens}
-        helperText={statusLabel}
-        onTargetHumidityChange={onTargetHumidityChange}
-        onTargetHumidityCommit={onTargetHumidityCommit}
+        controls={
+          <HumidifierHumidityControls
+            targetHumidity={targetHumidity}
+            minHumidity={minHumidity}
+            maxHumidity={maxHumidity}
+            step={step}
+            isOn={isOn}
+            size="medium"
+            controlSize="lg"
+            onCommit={onTargetHumidityCommit}
+          />
+        }
       />
-      <div className="relative z-10 -mt-6 px-6 max-sm:px-3.5">
-        <CardActionRow
-          theme={theme}
-          size="medium"
-          leftContent={
-            <div className="flex flex-wrap items-center gap-2">
-              <HumidifierHumidityControls
-                targetHumidity={targetHumidity}
-                minHumidity={minHumidity}
-                maxHumidity={maxHumidity}
-                step={step}
-                isOn={isOn}
-                size="medium"
-                onCommit={onTargetHumidityCommit}
-              />
-              <HumidifierModeControls
-                availableModes={availableModes}
-                currentMode={mode}
-                isOn={isOn}
-                size="medium"
-                onModeChange={onModeChange}
-              />
-            </div>
-          }
+      {availableModes.length > 1 ? (
+        <DeviceControlOptions
+          label={t('climate.mode')}
+          variant="segmented"
+          theme={theme === 'light' ? 'dark' : theme}
+          selectionColor={readableTokens.titleColor}
+          value={mode ?? null}
+          options={availableModes.map((value) => {
+            const Icon = getHumidifierModeIcon(value);
+            return {
+              value,
+              label: normalizeModeLabel(value),
+              icon: Icon ? <Icon className="h-4 w-4" /> : undefined,
+            };
+          })}
+          onValueChange={onModeChange}
         />
-      </div>
+      ) : null}
     </div>
   );
 
@@ -644,10 +556,12 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
       theme={theme}
       navigation="overflow"
       height="capped"
+      mobileFitContent
       disableOpenAutoFocus
+      defaultTintAccent={readableTokens.titleColor}
       contentSurface={contentSurface}
       contentClassName="max-w-[30rem]"
-      bodyClassName="px-6 pt-0 pb-6 max-sm:px-3.5 max-sm:pt-0 max-sm:pb-3"
+      bodyClassName="px-6 py-4 max-sm:px-3.5 max-sm:py-3"
       tabs={[{ key: 'controls', label: t('common.controls'), icon: Sliders, content: controls }]}
     />
   );
@@ -1026,10 +940,7 @@ export const HumidifierCard = memo(function HumidifierCard({
         availableModes={resolvedAvailableModes}
         statusLabel={statusLabel}
         contentSurface={getHumidifierDialogSurface(isOn, deviceClass, theme)}
-        accentColor={humidityAccentColor}
-        glowClassName={glowClassName}
         readableTokens={readableTokens}
-        onTargetHumidityChange={setTargetHumidity}
         onTargetHumidityCommit={updateHumidity}
         onModeChange={updateMode}
       />

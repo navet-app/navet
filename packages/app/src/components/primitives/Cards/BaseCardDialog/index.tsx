@@ -75,6 +75,8 @@ interface BaseCardDialogSharedProps {
 
 interface BaseCardDialogCardProps extends BaseCardDialogSharedProps {
   variant?: 'card';
+  /** Fit the phone sheet to its content, capped at the usual resting sheet height. */
+  mobileFitContent?: boolean;
   entityId?: string;
   entityType?: string;
   tabs: BaseCardDialogTab[];
@@ -149,6 +151,7 @@ interface BaseCardDialogRootProps {
   disableOpenAutoFocus?: boolean;
   onCloseAutoFocus?: (event: Event) => void;
   mobileCoverSheet?: boolean;
+  mobileFitContent?: boolean;
   persistentMobileDismiss?: boolean;
   mobileCoverSheetActions?: ReactNode;
   mobileDismissLabel?: string;
@@ -164,7 +167,7 @@ interface BaseCardDialogRootProps {
 
 const mobileCoverSheetClassName = [
   'max-sm:!top-[var(--mobile-cover-sheet-top)] max-sm:!right-0 max-sm:!bottom-0 max-sm:!left-0',
-  'max-sm:!mx-0 max-sm:!h-[80dvh] max-sm:!max-h-[100dvh] max-sm:!w-auto max-sm:!max-w-none',
+  'max-sm:!mx-0 max-sm:!w-auto max-sm:!max-w-none',
   'max-sm:[--navet-safe-area-top-offset:0px]',
   'max-sm:!flex max-sm:!flex-col',
   'max-sm:![translate:0_var(--mobile-cover-sheet-drag-y)] max-sm:!rounded-t-[30px] max-sm:!rounded-b-none',
@@ -172,7 +175,7 @@ const mobileCoverSheetClassName = [
 ].join(' ');
 
 const mobileCoverSheetFullscreenClassName = [
-  'max-sm:!h-auto',
+  'max-sm:!h-auto max-sm:!max-h-[100dvh]',
   'max-sm:!transition-[height,top,translate] max-sm:!duration-200 max-sm:!ease-out',
 ].join(' ');
 
@@ -214,6 +217,7 @@ function BaseCardDialogRoot({
   disableOpenAutoFocus = false,
   onCloseAutoFocus,
   mobileCoverSheet = true,
+  mobileFitContent = false,
   persistentMobileDismiss = false,
   mobileCoverSheetActions,
   mobileDismissLabel,
@@ -409,6 +413,11 @@ function BaseCardDialogRoot({
   const resolvedContentClassName = [
     contentClassName,
     mobileCoverSheet ? mobileCoverSheetClassName : '',
+    mobileCoverSheet && !isMobileCoverSheetFullscreen
+      ? mobileFitContent
+        ? 'max-sm:!h-auto max-sm:!max-h-[80dvh]'
+        : 'max-sm:!h-[80dvh] max-sm:!max-h-[100dvh]'
+      : '',
     persistentMobileDismiss ? 'max-sm:[&_[data-cover-sheet-inline-dismiss]]:!hidden' : '',
     mobileCoverSheet && isMobileCoverSheetFullscreen ? mobileCoverSheetFullscreenClassName : '',
     mobileCoverSheet && isMobileCoverSheetDragging ? mobileCoverSheetDraggingClassName : '',
@@ -585,6 +594,7 @@ function BaseCardDialogCardVariant({
   disableOpenAutoFocus = false,
   maxWidth = 'md',
   height,
+  mobileFitContent = false,
   activeTab,
   defaultTab,
   onActiveTabChange,
@@ -817,6 +827,7 @@ function BaseCardDialogCardVariant({
       contentGlowStyle={contentGlowStyle}
       contentOverlayClassName={contentOverlayClassName}
       contentOverlayStyle={contentOverlayStyle}
+      mobileFitContent={mobileFitContent}
       persistentMobileDismiss
       mobileDismissStyle={paletteControlStyle}
       mobileCoverSheetActions={overflowNavigation ? menu : mobileCoverSheetActions}

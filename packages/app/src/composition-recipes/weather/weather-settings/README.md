@@ -7,7 +7,7 @@ Level: `product`. Review: `pending`. Owner: Navet maintainers.
 Use when: Configure a Navet Weather card. Features keep ownership of available metrics and persistence.
 
 The manifest declares the exact exports and the generator resolves their Storybook links.
-Primary reference: `packages/app/src/features/weather/components/weather-card/weather-settings-dialog.stories.tsx#SelectableControls`.
+Primary reference: `packages/app/src/features/weather/components/weather-card/entity-card-weather.stories.tsx#DialogSelectableControls`.
 
 ## Required context
 
@@ -21,7 +21,7 @@ closed, hourly, weekly, one metric, five metrics, appearance.
 
 ## Review criteria
 
-- Match Cards/Dialogs/Weather using identical state and theme
+- Match Cards/Entity/Weather using identical state and theme
 - Forecast remains mutually exclusive
 - Metric selection permits one to five available metrics
 - Keyboard dismissal and focus return; closing and reopening preserves caller state

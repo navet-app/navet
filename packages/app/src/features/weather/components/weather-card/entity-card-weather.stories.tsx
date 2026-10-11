@@ -3,6 +3,7 @@ import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { EntityCardStoryFrame, noopCardSizeChange } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps } from 'react';
+import dialogMeta, * as dialogStories from './weather-settings-dialog.story-fixtures';
 
 function WeatherCardStory(args: Omit<ComponentProps<typeof WeatherCard>, 'onSizeChange'>) {
   return (
@@ -233,4 +234,19 @@ export const Docs: Story = {
   parameters: {
     docsOnly: true,
   },
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
+};
+
+export const DialogSelectableControls: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.SelectableControls,
+};
+
+export const DialogMobileSelectableControls: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.MobileSelectableControls,
 };

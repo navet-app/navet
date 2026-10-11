@@ -98,6 +98,9 @@ Community work follows `docs/engineering/request-workflows.md`; writing skills s
 - Before UI/card coding, follow discovery/acceptance in `ai/skills/navet-ux.md`; name the same-family
   reference and Storybook IDs; reuse canonical primitives/tokens. New visual patterns need explicit
   approval. Discovery/structural checks do not grant rendered acceptance.
+- After a UI fix, ask the maintainer to perform the visual comparison manually. Agents must not
+  perform visual comparisons unless the maintainer explicitly requests them. Continue applicable
+  automated checks; leave rendered acceptance pending the maintainer's manual review.
 - Home Assistant: official docs first; `/homeassistant/core` is for implementation details/edge cases,
   not Navet architecture.
 - Preserve persisted-data compatibility; read `docs/architecture/persisted-data-migrations.md`

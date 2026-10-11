@@ -1,6 +1,5 @@
 import { Button } from '@navet/app/components/primitives/button';
 import type { PlatformEntitySnapshot } from '@navet/app/platform/provider-feature-models';
-import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { SettingsDialogStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps } from 'react';
@@ -62,10 +61,10 @@ function CameraSettingsDialogStory(
 }
 
 const meta = {
-  title: 'Cards/Dialogs/Camera',
   component: CameraSettingsDialogStory,
-  tags: ['autodocs'],
-  parameters: { layout: 'fullscreen', docs: { description: {} } },
+  render: (args) => <CameraSettingsDialogStory {...args} />,
+  tags: ['!autodocs'],
+  parameters: { layout: 'fullscreen' },
   args: {
     entityId: 'camera.front_door',
     name: 'Front Door Camera',
@@ -90,18 +89,6 @@ const meta = {
   },
 } satisfies Meta<typeof CameraSettingsDialogStory>;
 
-const richComponentDocsDescription = getStoryDocsDescription(meta.title);
-
-meta.parameters = {
-  ...meta.parameters,
-  docs: {
-    ...meta.parameters?.docs,
-    description: {
-      ...meta.parameters?.docs?.description,
-      component: richComponentDocsDescription,
-    },
-  },
-};
 export default meta;
 
 type Story = StoryObj<typeof meta>;

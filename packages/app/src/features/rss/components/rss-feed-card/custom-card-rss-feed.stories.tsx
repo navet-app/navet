@@ -6,6 +6,7 @@ import { useTheme } from '@navet/app/hooks';
 import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { buildCustomCard, CustomWidgetStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import dialogMeta, * as dialogStories from './settings-dialog.story-fixtures';
 import type { RSSItem, RSSProvider } from './types';
 import { RSSFeedCardView } from './view';
 
@@ -169,4 +170,24 @@ export const EmptyNoSelection: Story = {
 
 export const EmptyNoArticles: Story = {
   render: () => <RSSEmptyStory size="large" variant="no-articles" />,
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
+};
+
+export const DialogOverflowNavigation: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.OverflowNavigation,
+};
+
+export const DialogMobileOverflowNavigation: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.MobileOverflowNavigation,
+};
+
+export const DialogEmptyFeedSetup: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.EmptyFeedSetup,
 };

@@ -1,6 +1,5 @@
 import { Button } from '@navet/app/components/primitives/button';
 import { useTheme } from '@navet/app/hooks';
-import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { SettingsDialogStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps } from 'react';
@@ -11,7 +10,7 @@ import { VacuumSettingsDialog } from './vacuum-settings-dialog';
 function VacuumSettingsDialogStory(
   args: Omit<ComponentProps<typeof VacuumSettingsDialog>, 'isOpen' | 'onClose'>
 ) {
-  const { accentColor } = useTheme();
+  const { accentColor, theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [tintColor, setTintColor] = useState(args.tintColor);
   const resolvedAccentColor = args.accentColorValue ?? accentColor;
@@ -29,6 +28,7 @@ function VacuumSettingsDialogStory(
       </div>
       <VacuumSettingsDialog
         {...args}
+        theme={theme}
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         accentColorValue={resolvedAccentColor}
@@ -40,16 +40,18 @@ function VacuumSettingsDialogStory(
 }
 
 const meta = {
-  title: 'Cards/Dialogs/Vacuum',
   component: VacuumSettingsDialogStory,
-  tags: ['autodocs'],
-  parameters: { layout: 'fullscreen', docs: { description: {} } },
+  render: (args) => <VacuumSettingsDialogStory {...args} />,
+  tags: ['!autodocs'],
+  parameters: { layout: 'fullscreen' },
   args: {
     entityId: 'vacuum.roborock_s7',
     onStartCleaning: () => {},
     onStartAreaCleaning: () => {},
     onPauseCleaning: () => {},
     onReturnHome: () => {},
+    onLocate: () => {},
+    onCleanSpot: () => {},
     onSetFanSpeed: () => {},
     name: 'Robo Cleaner',
     room: 'Whole Home',
@@ -90,18 +92,6 @@ const meta = {
   },
 } satisfies Meta<typeof VacuumSettingsDialogStory>;
 
-const richComponentDocsDescription = getStoryDocsDescription(meta.title);
-
-meta.parameters = {
-  ...meta.parameters,
-  docs: {
-    ...meta.parameters?.docs,
-    description: {
-      ...meta.parameters?.docs?.description,
-      component: richComponentDocsDescription,
-    },
-  },
-};
 export default meta;
 
 type Story = StoryObj<typeof meta>;
@@ -179,25 +169,25 @@ export const OverflowNavigation: Story = {
       within(canvasElement).getByRole('button', { name: 'Open vacuum dialog' })
     );
     const dialog = within(await page.findByRole('dialog', { name: 'Robo Cleaner' }));
-    await expect(dialog.getByRole('button', { name: 'Standard' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Fan Speed' })).toBeVisible();
     await expect(dialog.queryByRole('tablist')).not.toBeInTheDocument();
     await userEvent.click(dialog.getByRole('button', { name: 'More actions' }));
     await userEvent.click(page.getByRole('menuitem', { name: 'Map' }));
     await userEvent.click(dialog.getByRole('button', { name: /^Kitchen/ }));
     await expect(dialog.getByText('1 selected')).toBeVisible();
     await userEvent.click(dialog.getByRole('button', { name: 'Back to controls' }));
-    await expect(dialog.getByRole('button', { name: 'Standard' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Fan Speed' })).toBeVisible();
     await userEvent.click(dialog.getByRole('button', { name: 'More actions' }));
     await userEvent.click(page.getByRole('menuitem', { name: 'Customize' }));
     await expect(dialog.getByRole('button', { name: 'Back to controls' })).toBeVisible();
-    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
     await userEvent.click(
       within(canvasElement).getByRole('button', { name: 'Open vacuum dialog' })
     );
     await expect(
-      within(await page.findByRole('dialog')).getByRole('button', { name: 'Standard' })
+      within(await page.findByRole('dialog')).getByRole('button', { name: 'Fan Speed' })
     ).toBeVisible();
-    await userEvent.click(within(page.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(within(page.getByRole('dialog')).getByRole('button', { name: 'Done' }));
   },
 };
 

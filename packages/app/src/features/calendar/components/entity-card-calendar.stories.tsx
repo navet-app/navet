@@ -6,6 +6,7 @@ import {
 } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps } from 'react';
+import dialogMeta, * as dialogStories from './calendar/calendar-settings-dialog.story-fixtures';
 
 function toIsoDate(dayOffset: number, hours: number, minutes = 0) {
   const date = new Date();
@@ -126,4 +127,9 @@ export const Docs: Story = {
   parameters: {
     docsOnly: true,
   },
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
 };

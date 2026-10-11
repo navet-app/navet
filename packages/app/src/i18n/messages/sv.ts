@@ -649,6 +649,7 @@ export const svMessages = {
   'common.custom': 'Anpassad',
   'common.customize': 'Anpassa',
   'common.done': 'Klar',
+  'common.run': 'Kör',
   'common.metrics': 'Mått',
   'common.off': 'Av',
   'common.on': 'På',
@@ -1089,6 +1090,7 @@ export const svMessages = {
   'settings.project.about.title': 'Om',
   'settings.project.about.description': 'Snabb projektinformation.',
   'settings.project.about.version': 'Version',
+  'settings.project.about.localBuild': 'Lokalt utvecklingsbygge',
   'settings.project.about.build': 'Bygge',
   'settings.project.credits.title': 'Krediter',
   'settings.project.credits.description':

@@ -11,6 +11,7 @@ import { EntityCardStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Battery, Settings2 } from 'lucide-react';
 import { BatteryList, getLevelColor } from './widgets/battery-list';
+import dialogMeta, * as dialogStories from './widgets/battery-overview-widget.story-fixtures';
 
 type BatteryOverviewStoryArgs = {
   size: CardSize;
@@ -148,4 +149,9 @@ export const EmptyState: Story = {
   args: {
     size: 'medium',
   },
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
 };

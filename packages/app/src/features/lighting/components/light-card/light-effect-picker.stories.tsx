@@ -21,7 +21,7 @@ function EffectPickerStory({ variant }: { variant: 'compact' | 'dialog' }) {
 }
 
 const meta = {
-  title: 'Cards/Entity/Light Effect Picker',
+  title: 'Components/Shared/Light Effect Picker',
   component: EffectPickerStory,
   args: { variant: 'compact' },
 } satisfies Meta<typeof EffectPickerStory>;

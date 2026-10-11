@@ -648,6 +648,7 @@ export const fiMessages = {
   'common.custom': 'Mukautettu',
   'common.customize': 'Mukauta',
   'common.done': 'Valmis',
+  'common.run': 'Suorita',
   'common.metrics': 'Mittarit',
   'common.off': 'Pois päältä',
   'common.on': 'Päällä',
@@ -1091,6 +1092,7 @@ export const fiMessages = {
   'settings.project.about.title': 'Tietoja',
   'settings.project.about.description': 'Nopea projektitieto.',
   'settings.project.about.version': 'Versio',
+  'settings.project.about.localBuild': 'Paikallinen kehitysversio',
   'settings.project.about.build': 'Rakenna',
   'settings.project.credits.title': 'Krediitit',
   'settings.project.credits.description':

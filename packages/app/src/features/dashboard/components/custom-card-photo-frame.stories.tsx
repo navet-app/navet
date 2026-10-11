@@ -13,6 +13,7 @@ import { getCardSizeOverlayStyle } from '@navet/app/components/shared/card-size-
 import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { PhotoFrameImage } from './widgets/photo-frame-image';
+import dialogMeta, * as dialogStories from './widgets/photo-frame-settings-dialog.story-fixtures';
 import { PhotoFrameWidget } from './widgets/photo-frame-widget';
 
 type PhotoStoryArgs = {
@@ -146,4 +147,14 @@ export const EmptyState: Story = {
     size: 'large',
     shuffleEnabled: false,
   },
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
+};
+
+export const DialogMobile: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Mobile,
 };

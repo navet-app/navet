@@ -1,7 +1,6 @@
 import { Button } from '@navet/app/components/primitives/button';
 import { TEMP_OPTIONS } from '@navet/app/constants/light-constants';
 import { defaultTranslate } from '@navet/app/i18n';
-import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { SettingsDialogStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Sun, SunDim, SunMedium } from 'lucide-react';
@@ -98,24 +97,12 @@ function LightSettingsDialogStory({
 }
 
 const meta = {
-  title: 'Cards/Dialogs/Light',
   component: LightSettingsDialogStory,
-  tags: ['autodocs'],
-  parameters: { layout: 'fullscreen', docs: { description: {} } },
+  render: () => <LightSettingsDialogStory />,
+  tags: ['!autodocs'],
+  parameters: { layout: 'fullscreen' },
 } satisfies Meta<typeof LightSettingsDialogStory>;
 
-const richComponentDocsDescription = getStoryDocsDescription(meta.title);
-
-meta.parameters = {
-  ...meta.parameters,
-  docs: {
-    ...meta.parameters?.docs,
-    description: {
-      ...meta.parameters?.docs?.description,
-      component: richComponentDocsDescription,
-    },
-  },
-};
 export default meta;
 
 type Story = StoryObj<typeof meta>;

@@ -652,6 +652,7 @@ export const esMessages = {
   'common.custom': 'Personalizado',
   'common.customize': 'Personalizar',
   'common.done': 'Listo',
+  'common.run': 'Ejecutar',
   'common.metrics': 'Metricas',
   'common.off': 'Apagado',
   'common.on': 'Encendido',
@@ -1095,6 +1096,7 @@ export const esMessages = {
   'settings.project.about.title': 'Acerca de',
   'settings.project.about.description': 'Información rápida del proyecto.',
   'settings.project.about.version': 'Versión',
+  'settings.project.about.localBuild': 'Compilación de desarrollo local',
   'settings.project.about.build': 'Compilación',
   'settings.project.credits.title': 'Créditos',
   'settings.project.credits.description':

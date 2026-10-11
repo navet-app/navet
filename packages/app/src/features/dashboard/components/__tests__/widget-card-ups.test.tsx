@@ -79,9 +79,29 @@ describe('WidgetCard UPS', () => {
     );
 
     expect(await screen.findByText('Rack UPS')).toBeInTheDocument();
-    expect(await screen.findByText('97 %')).toBeInTheDocument();
+    expect((await screen.findByText('97')).parentElement).toHaveTextContent('97 %');
     expect(await screen.findByText('Online')).toBeInTheDocument();
     expect(await screen.findByText('Input voltage')).toBeInTheDocument();
+  });
+
+  it('keeps runtime and load visible in a small card', async () => {
+    renderWithProviders(
+      <WidgetCard
+        isEditMode={false}
+        card={{
+          id: 'compact-ups',
+          type: 'ups',
+          size: 'small',
+          room: 'Server Room',
+          createdAt: 1,
+        }}
+      />
+    );
+
+    expect((await screen.findByText('97')).parentElement).toHaveTextContent('97 %');
+    expect(await screen.findByText('Runtime')).toBeInTheDocument();
+    expect((await screen.findByText('14')).parentElement).toHaveTextContent('14 %');
+    expect(screen.queryByText('Input voltage')).not.toBeInTheDocument();
   });
 
   it('falls back to status data when the status sensor is unavailable', async () => {

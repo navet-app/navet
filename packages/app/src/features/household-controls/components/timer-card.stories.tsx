@@ -67,7 +67,7 @@ const meta = {
     isEditMode: false,
   },
   argTypes: {
-    size: { control: 'inline-radio', options: ['tiny', 'extra-small', 'small', 'medium'] },
+    size: { control: 'inline-radio', options: ['extra-small', 'small', 'medium'] },
   },
 } satisfies Meta<typeof TimerCardStory>;
 export default meta;
@@ -91,13 +91,15 @@ export const Paused: Story = {
     timer: { ...idle, phase: 'paused', remainingSeconds: 125, canCancel: true, canFinish: true },
   },
 };
-export const Tiny: Story = {
-  args: { size: 'tiny', room: 'Kitchen' },
+export const ExtraSmall: Story = {
+  args: { size: 'extra-small', room: 'Kitchen' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const card = await canvas.findByRole('button', { name: 'Tea timer, Idle' });
-    await expect(card).toHaveAccessibleName('Tea timer, Idle');
-    await expect(canvas.getByText('Kitchen')).toBeVisible();
+    const card = await canvas
+      .findAllByRole('button', { name: 'Open settings for Tea timer' })
+      .then((buttons) => buttons[0]);
+    await expect(card).toHaveAccessibleName('Open settings for Tea timer');
+    await expect(canvas.getByText('Kitchen · Idle')).toBeVisible();
     const clock = canvas.getByText('00:05:00', { exact: true });
     const clockBounds = clock.getBoundingClientRect();
     const cardBounds = card.getBoundingClientRect();
@@ -105,11 +107,14 @@ export const Tiny: Story = {
     await expect(clockBounds.bottom).toBeLessThanOrEqual(cardBounds.bottom);
   },
 };
+export const EditMode: Story = { args: { isEditMode: true } };
 export const Medium: Story = { args: { size: 'medium' } };
 export const KeyboardWriteFailure: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const card = await canvas.findByRole('button', { name: 'Tea timer' });
+    const card = await canvas
+      .findAllByRole('button', { name: 'Open settings for Tea timer' })
+      .then((buttons) => buttons[0]);
     card.focus();
     await userEvent.keyboard('{Enter}');
     const body = within(canvasElement.ownerDocument.body);
@@ -143,7 +148,9 @@ export const Unavailable: Story = { args: { availability: 'unavailable' } };
 export const Loading: Story = { args: { missing: true } };
 export const ControlsDialog: Story = {
   play: async ({ canvasElement }) => {
-    const card = await within(canvasElement).findByRole('button', { name: 'Tea timer' });
+    const card = await within(canvasElement)
+      .findAllByRole('button', { name: 'Open settings for Tea timer' })
+      .then((buttons) => buttons[0]);
     card.focus();
     await userEvent.keyboard('{Enter}');
     await expect(within(canvasElement.ownerDocument.body).getByRole('dialog')).toBeVisible();

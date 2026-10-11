@@ -792,9 +792,10 @@ function getAllowedSizes(
         return ['small', 'medium'];
       }
       return ['tiny', 'extra-small', 'small'];
-    case 'helpers':
     case 'timers':
     case 'counters':
+      return ['extra-small', 'small'];
+    case 'helpers':
     case 'valves':
     case 'remotes':
       return ['tiny', 'extra-small', 'small'];

@@ -7,7 +7,7 @@ Level: `building-block`. Review: `draft`. Owner: Navet maintainers.
 Use when: A device needs everyday controls and secondary settings in one focused dialog.
 
 The manifest declares the exact exports and the generator resolves their Storybook links.
-Primary reference: `packages/app/src/features/lighting/components/switch-card-dialog.stories.tsx#Default`.
+Primary reference: `packages/app/src/features/lighting/components/entity-card-switch.stories.tsx#Dialog`.
 
 ## Required context
 

@@ -1,7 +1,6 @@
 import { Button } from '@navet/app/components/primitives/button';
 import { useTheme } from '@navet/app/hooks';
 import type { WeatherForecastMode, WeatherMetricId } from '@navet/app/stores/settings-store';
-import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { SettingsDialogStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
@@ -55,24 +54,12 @@ function WeatherSettingsDialogStory() {
 }
 
 const meta = {
-  title: 'Cards/Dialogs/Weather',
   component: WeatherSettingsDialogStory,
-  tags: ['autodocs'],
-  parameters: { layout: 'fullscreen', docs: { description: {} } },
+  render: () => <WeatherSettingsDialogStory />,
+  tags: ['!autodocs'],
+  parameters: { layout: 'fullscreen' },
 } satisfies Meta<typeof WeatherSettingsDialogStory>;
 
-const richComponentDocsDescription = getStoryDocsDescription(meta.title);
-
-meta.parameters = {
-  ...meta.parameters,
-  docs: {
-    ...meta.parameters?.docs,
-    description: {
-      ...meta.parameters?.docs?.description,
-      component: richComponentDocsDescription,
-    },
-  },
-};
 export default meta;
 
 type Story = StoryObj<typeof meta>;

@@ -3,6 +3,7 @@ import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { EntityCardStoryFrame } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps } from 'react';
+import dialogMeta, * as dialogStories from './switch-card-dialog.story-fixtures';
 
 function SwitchCardStory(args: ComponentProps<typeof SwitchCard>) {
   return (
@@ -106,4 +107,9 @@ export const Docs: Story = {
   parameters: {
     docsOnly: true,
   },
+};
+
+export const Dialog: StoryObj<typeof dialogMeta> = {
+  ...dialogMeta,
+  ...dialogStories.Default,
 };

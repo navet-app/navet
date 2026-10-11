@@ -652,6 +652,7 @@ export const deMessages = {
   'common.custom': 'Benutzerdefiniert',
   'common.customize': 'Anpassen',
   'common.done': 'Fertig',
+  'common.run': 'Ausführen',
   'common.metrics': 'Messwerte',
   'common.off': 'Aus',
   'common.on': 'An',
@@ -1099,6 +1100,7 @@ export const deMessages = {
   'settings.project.about.title': 'Info',
   'settings.project.about.description': 'Kurze Projektinformationen.',
   'settings.project.about.version': 'Version',
+  'settings.project.about.localBuild': 'Lokaler Entwicklungsbuild',
   'settings.project.about.build': 'Build-Stand',
   'settings.project.credits.title': 'Mitwirkende',
   'settings.project.credits.description':

@@ -650,6 +650,7 @@ export const ptMessages = {
   'common.custom': 'Personalizado',
   'common.customize': 'Personalizar',
   'common.done': 'Concluído',
+  'common.run': 'Executar',
   'common.metrics': 'Métricas',
   'common.off': 'Desligado',
   'common.on': 'Ligado',
@@ -1092,6 +1093,7 @@ export const ptMessages = {
   'settings.project.about.title': 'Sobre',
   'settings.project.about.description': 'Informações rápidas do projeto.',
   'settings.project.about.version': 'Versão',
+  'settings.project.about.localBuild': 'Compilação de desenvolvimento local',
   'settings.project.about.build': 'Construir',
   'settings.project.credits.title': 'Créditos',
   'settings.project.credits.description':

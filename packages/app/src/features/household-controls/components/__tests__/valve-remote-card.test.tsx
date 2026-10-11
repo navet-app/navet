@@ -1,5 +1,9 @@
+import { BaseCard } from '@navet/app/components/primitives/base-card';
 import { dispatchEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import { SwitchCard } from '@navet/app/features/lighting/components/switch-card';
+import { CoverCard } from '@navet/app/features/security/components/cover-card';
 import { integrationStore } from '@navet/app/stores/integration-store';
+import { useThemeStore } from '@navet/app/stores/theme-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import type { NavetValveState } from '@navet/core/household-device-state';
@@ -61,6 +65,152 @@ beforeEach(async () => {
 });
 
 describe('normalized valve controls', () => {
+  it.each(['glass', 'dark', 'light', 'black'] as const)(
+    'matches the switch-on surface for fully open and positionless open cards in %s',
+    (theme) => {
+      useThemeStore.setState({ theme, followSystemTheme: false });
+      const switchView = renderWithProviders(
+        <SwitchCard
+          id="switch.reference"
+          name="Reference switch"
+          size="small"
+          binaryControl={{ isOn: true, disabled: false, onToggle: () => {} }}
+        />
+      );
+      const surfaceClasses = (element: Element | null) =>
+        [...(element?.classList ?? [])].filter((name) => /^(bg-|border|shadow)/.test(name)).sort();
+      const switchRoot = switchView.container.firstElementChild;
+      for (const position of [100, null]) {
+        install('valve', { phase: 'open', position }, valveCapabilities);
+        const valveView = renderWithProviders(<ValveCard {...props} />);
+        const coverView = renderWithProviders(
+          <CoverCard
+            id="cover.reference"
+            name="Reference cover"
+            room="Garden"
+            initialState="open"
+            initialPosition={100}
+            hasPosition={position !== null}
+            size="small"
+            isEditMode={false}
+            onSizeChange={() => {}}
+          />
+        );
+        for (const view of [valveView, coverView]) {
+          const root = view.container.firstElementChild;
+          expect(surfaceClasses(root)).toEqual(surfaceClasses(switchRoot));
+          expect(root?.getAttribute('style')).toBe(switchRoot?.getAttribute('style'));
+          expect(view.container.querySelector('[data-cover-coverage]')).toBeNull();
+          view.unmount();
+        }
+      }
+    }
+  );
+
+  it.each(['glass', 'dark', 'light', 'black'] as const)(
+    'matches the closed positionless cover surface in %s',
+    (theme) => {
+      useThemeStore.setState({ theme, followSystemTheme: false });
+      install('valve', { phase: 'closed', position: null }, ['valve_open', 'valve_close']);
+      const valveView = renderWithProviders(<ValveCard {...props} />);
+      const coverView = renderWithProviders(
+        <CoverCard
+          id="cover.reference"
+          name="Reference cover"
+          room="Garden"
+          initialState="closed"
+          initialPosition={0}
+          hasPosition={false}
+          size="small"
+          isEditMode={false}
+          onSizeChange={() => {}}
+        />
+      );
+      const surfaceClasses = (element: Element | null) =>
+        [...(element?.classList ?? [])].filter((name) => /^(bg-|border|shadow)/.test(name)).sort();
+      expect(surfaceClasses(valveView.container.firstElementChild)).toEqual(
+        surfaceClasses(coverView.container.firstElementChild)
+      );
+      expect(valveView.container.querySelector('[data-cover-coverage]')).toBeNull();
+      expect(Boolean(valveView.container.querySelector('[data-card-sheen]'))).toBe(
+        Boolean(coverView.container.querySelector('[data-card-sheen]'))
+      );
+    }
+  );
+
+  it.each([
+    { phase: 'closed', position: 0, command: 'open' },
+    { phase: 'open', position: 30, command: 'close' },
+    { phase: 'open', position: null, command: 'close' },
+  ])(
+    'toggles a $phase valve at $position from the header through its owner',
+    async ({ phase, position, command }) => {
+      install('valve', { phase, position }, valveCapabilities);
+      renderWithProviders(<ValveCard {...props} />);
+      const toggle = screen.getByRole('button', { name: 'Toggle Water valve' });
+      fireEvent.click(toggle);
+      await waitFor(() =>
+        expect(dispatch).toHaveBeenCalledWith({ type: command, entityId: props.id }, 'homey')
+      );
+      expect(toggle).toBeDisabled();
+    }
+  );
+
+  it('disables the header toggle when its target action is unsupported or the card is in edit mode', () => {
+    install('valve', { phase: 'open', position: 30 }, ['valve_open']);
+    const view = renderWithProviders(<ValveCard {...props} />);
+    expect(screen.getByRole('button', { name: 'Toggle Water valve' })).toBeDisabled();
+    install('valve', { phase: 'closed', position: 0 }, valveCapabilities);
+    view.rerender(<ValveCard {...props} isEditMode />);
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Water valve' }));
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it.each(['glass', 'dark', 'light', 'black'] as const)(
+    'keeps the base card background beneath the live position fill and clears stale position when unavailable in %s',
+    (theme) => {
+      useThemeStore.setState({ theme, followSystemTheme: false });
+      install('valve', { phase: 'open', position: 30 }, valveCapabilities);
+      const { container } = renderWithProviders(<ValveCard {...props} />);
+      const coverage = () => container.querySelector('[data-cover-coverage]');
+      expect(screen.getByText('30%')).toBeInTheDocument();
+      expect(coverage()).toHaveStyle({ height: '70%' });
+      const baseSurfaceClasses = container.firstElementChild?.className;
+      const reference = renderWithProviders(<BaseCard size={props.size}>{null}</BaseCard>);
+      const surfaceClasses = (element: Element | null) =>
+        [...(element?.classList ?? [])].filter((name) => /^(bg-|border|shadow)/.test(name)).sort();
+      expect(surfaceClasses(container.firstElementChild)).toEqual(
+        surfaceClasses(reference.container.firstElementChild)
+      );
+      reference.unmount();
+      const icon = screen.getByRole('button', { name: 'Toggle Water valve' }).querySelector('svg');
+      expect(icon?.style.color).not.toBe('');
+      const activeIconColor = icon?.style.color;
+      const activeTitleColor = screen.getByText(props.name).style.color;
+
+      install('valve', { phase: 'open', position: 70 }, valveCapabilities);
+      expect(coverage()).toHaveStyle({ height: '30%' });
+      expect(icon?.style.color).toBe(activeIconColor);
+      expect(screen.getByText(props.name).style.color).toBe(activeTitleColor);
+      expect(screen.getByText('Open').style.color).toBe('');
+
+      install('valve', { phase: 'open', position: 100 }, valveCapabilities);
+      expect(screen.getByText('100%')).toBeInTheDocument();
+      expect(coverage()).toBeNull();
+      expect(icon?.style.color).not.toBe('');
+
+      install('valve', { phase: 'closed', position: 0 }, valveCapabilities);
+      expect(coverage()).toHaveStyle({ height: '100%' });
+      expect(container.firstElementChild?.className).toBe(baseSurfaceClasses);
+
+      install('valve', { phase: 'open', position: 30 }, valveCapabilities, 'unavailable');
+      expect(screen.queryByText('30%')).not.toBeInTheDocument();
+      expect(coverage()).toHaveStyle({ height: '100%' });
+      expect(container.firstElementChild?.className).toBe(baseSurfaceClasses);
+      expect(screen.getByRole('button', { name: 'Toggle Water valve' })).toBeDisabled();
+    }
+  );
+
   it('opens a stopped partial valve without treating its unchanged open phase as confirmation', async () => {
     install('valve', { phase: 'open', position: 35 }, valveCapabilities);
     renderWithProviders(<ValveCard {...props} />);
@@ -262,49 +412,66 @@ describe('normalized valve controls', () => {
 });
 
 describe('normalized remote on/off controls', () => {
-  it('disables live remote actions in the edit-dock dialog instead of offering a no-op', () => {
+  it('opens switch appearance settings in edit mode without allowing live actions', () => {
     install('remote', { isOn: false }, ['toggle']);
     renderWithProviders(
       <RemoteCard {...props} id="homey:remote.living" name="Living remote" isEditMode />
     );
+    expect(screen.getByRole('button', { name: 'Toggle Living remote' })).toBeDisabled();
     act(() => dispatchEditModeSettingsRequest('homey:remote.living'));
-    const dialog = within(screen.getByRole('dialog', { name: 'Living remote' }));
-    const button = dialog.getByRole('button', { name: 'Turn on Living remote' });
-    expect(button).toBeDisabled();
-    fireEvent.click(button);
+    expect(screen.getByRole('dialog', { name: 'Living remote' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Turn on Living remote' })).not.toBeInTheDocument();
     expect(dispatch).not.toHaveBeenCalled();
-  });
-  it('keeps live off until confirmation and routes on/off to its owner', async () => {
-    install('remote', { isOn: false }, ['toggle']);
-    renderWithProviders(<RemoteCard {...props} id="homey:remote.living" name="Living remote" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Turn on Living remote' }));
-    await waitFor(() =>
-      expect(dispatch).toHaveBeenCalledWith(
-        { type: 'turn_on', entityId: 'homey:remote.living' },
-        'homey'
-      )
-    );
-    expect(screen.getByText('Off')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Turn on Living remote' })).toBeDisabled();
-    install('remote', { isOn: true }, ['toggle']);
-    fireEvent.click(screen.getByRole('button', { name: 'Turn off Living remote' }));
-    await waitFor(() =>
-      expect(dispatch).toHaveBeenLastCalledWith(
-        { type: 'turn_off', entityId: 'homey:remote.living' },
-        'homey'
-      )
-    );
   });
 
-  it('omits unsupported on/off and disables unknown advertised state', () => {
-    install('remote', { isOn: false }, []);
-    const view = renderWithProviders(
-      <RemoteCard {...props} id="homey:remote.living" name="Living remote" />
-    );
-    expect(screen.queryByRole('button', { name: 'Turn on Living remote' })).not.toBeInTheDocument();
-    install('remote', { isOn: null }, ['toggle']);
-    view.rerender(<RemoteCard {...props} id="homey:remote.living" name="Living remote" />);
-    expect(screen.getByRole('button', { name: 'Turn on Living remote' })).toBeDisabled();
-    expect(dispatch).not.toHaveBeenCalled();
-  });
+  it.each(['tiny', 'extra-small', 'small'] as const)(
+    'keeps confirmed state and routes on/off at %s size',
+    async (size) => {
+      install('remote', { isOn: false }, ['toggle']);
+      renderWithProviders(
+        <RemoteCard {...props} size={size} id="homey:remote.living" name="Living remote" />
+      );
+      const card = screen.getByRole('button', { name: 'Living remote' });
+      fireEvent.click(card);
+      await waitFor(() =>
+        expect(dispatch).toHaveBeenCalledWith(
+          { type: 'turn_on', entityId: 'homey:remote.living' },
+          'homey'
+        )
+      );
+      expect(card).toHaveAttribute('aria-pressed', 'false');
+      expect(card).toHaveAttribute('aria-disabled', 'true');
+      fireEvent.click(card);
+      expect(dispatch).toHaveBeenCalledTimes(1);
+      install('remote', { isOn: true }, ['toggle']);
+      expect(card).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.click(card);
+      await waitFor(() =>
+        expect(dispatch).toHaveBeenLastCalledWith(
+          { type: 'turn_off', entityId: 'homey:remote.living' },
+          'homey'
+        )
+      );
+    }
+  );
+
+  it.each(['tiny', 'extra-small', 'small'] as const)(
+    'blocks unsupported, unknown and unavailable actions at %s size',
+    (size) => {
+      install('remote', { isOn: false }, []);
+      renderWithProviders(
+        <RemoteCard {...props} size={size} id="homey:remote.living" name="Living remote" />
+      );
+      const card = screen.getByRole('button', { name: 'Living remote' });
+      expect(card).toHaveAttribute('aria-disabled', 'true');
+      fireEvent.click(card);
+      install('remote', { isOn: null }, ['toggle']);
+      expect(screen.getByText('Unknown')).toBeInTheDocument();
+      fireEvent.keyDown(card, { key: 'Enter' });
+      install('remote', { isOn: true }, ['toggle'], 'unavailable');
+      expect(screen.getByText('Unavailable')).toBeInTheDocument();
+      fireEvent.click(card);
+      expect(dispatch).not.toHaveBeenCalled();
+    }
+  );
 });

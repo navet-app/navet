@@ -1,7 +1,7 @@
 import { useThemeStore } from '@navet/app/stores/theme-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HumidifierCard } from '.';
 
@@ -78,11 +78,28 @@ describe('HumidifierCard', () => {
     );
     expect(screen.getAllByText('Dehumidifier').length).toBeGreaterThan(0);
     expect(screen.getByRole('dialog')).toHaveClass('from-teal-950');
-    expect(screen.getByRole('slider', { name: 'Target humidity' })).toHaveAttribute(
-      'aria-valuenow',
-      '51'
-    );
-    expect(screen.getAllByText('Drying to 51%').length).toBeGreaterThan(0);
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.queryByRole('slider')).not.toBeInTheDocument();
+    expect(dialog.getByText('51%', { selector: 'dd' })).toBeInTheDocument();
+    expect(dialog.getByText('Current 51%')).toBeInTheDocument();
+    expect(dialog.getByRole('radio', { name: 'Sleep' })).toBeChecked();
+    fireEvent.click(dialog.getByRole('radio', { name: 'Auto' }));
+    expect(invokeIntegrationNativeActionMock).toHaveBeenLastCalledWith({
+      providerId: undefined,
+      entityId: 'humidifier.basement',
+      domain: 'humidifier',
+      service: 'set_mode',
+      serviceData: { mode: 'auto' },
+    });
+    fireEvent.click(dialog.getByRole('button', { name: 'Decrease target humidity' }));
+    expect(invokeIntegrationNativeActionMock).toHaveBeenLastCalledWith({
+      providerId: undefined,
+      entityId: 'humidifier.basement',
+      domain: 'humidifier',
+      service: 'set_humidity',
+      serviceData: { humidity: 46 },
+    });
+    expect(screen.getAllByText('Drying to 46%').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Customize' })).not.toBeInTheDocument();
     expect(screen.queryByText('Card color')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
@@ -96,6 +113,28 @@ describe('HumidifierCard', () => {
       },
       undefined
     );
+  });
+
+  it('omits the dialog mode chooser when there is only one mode', () => {
+    renderWithProviders(
+      <HumidifierCard
+        id="humidifier.bedroom"
+        name="Bedroom Humidifier"
+        room="Bedroom"
+        entityType="Humidifier"
+        initialState
+        initialMode="auto"
+        availableModes={['auto']}
+        size="medium"
+        onSizeChange={vi.fn()}
+        isEditMode={false}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings for Bedroom Humidifier' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.queryByRole('group', { name: 'Mode' })).not.toBeInTheDocument();
+    expect(dialog.queryByRole('radio')).not.toBeInTheDocument();
+    expect(dialog.getByRole('button', { name: 'Increase target humidity' })).toBeEnabled();
   });
 
   it('uses the same solid dark inactive surface family as other climate cards', () => {
@@ -127,5 +166,10 @@ describe('HumidifierCard', () => {
 
     expect(card).toHaveClass('from-zinc-800', 'to-zinc-900');
     expect(card).not.toHaveClass('from-white/[0.08]', 'via-white/[0.03]');
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings for Bedroom Humidifier' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByRole('button', { name: 'Increase target humidity' })).toBeDisabled();
+    expect(dialog.getByRole('button', { name: 'Decrease target humidity' })).toBeDisabled();
+    expect(dialog.getByRole('radio', { name: 'Eco' })).toBeEnabled();
   });
 });

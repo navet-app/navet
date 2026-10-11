@@ -1,12 +1,18 @@
 import { dispatchEntityCommand } from '@navet/app/commands';
+import { CardDialogFooter } from '@navet/app/components/patterns/card-dialog';
 import { BaseCard } from '@navet/app/components/primitives/base-card';
 import { Button } from '@navet/app/components/primitives/button';
 import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
-import { CardMetric } from '@navet/app/components/primitives/card-metric';
+import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-card-header-icon';
 import { Input } from '@navet/app/components/primitives/input';
 import { Select } from '@navet/app/components/primitives/select';
-import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import {
+  type CardSize,
+  isExtraSmallCardSize,
+  isTinyCardSize,
+} from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
@@ -51,6 +57,7 @@ type HelperValueControlProps = {
   helper: NavetHelperState;
   providerId?: IntegrationProviderId;
   unavailable?: boolean;
+  onSaved?: () => void;
 };
 
 export function HelperValueControl(props: HelperValueControlProps) {
@@ -70,6 +77,7 @@ function HelperValueControlContent({
   helper,
   providerId,
   unavailable = false,
+  onSaved,
 }: HelperValueControlProps) {
   const { t } = useI18n();
   const { theme } = useTheme();
@@ -82,6 +90,7 @@ function HelperValueControlContent({
   const requestGeneration = useRef(0);
   const dirty = useRef(false);
   const current = inputValue(helper);
+  const unchanged = comparableValue(helper, draft) === comparableValue(helper, current);
   useEffect(
     () => () => {
       requestGeneration.current++;
@@ -95,8 +104,9 @@ function HelperValueControlContent({
       submitted.current = false;
       dirty.current = false;
       setPending(null);
+      onSaved?.();
     }
-  }, [current, helper, pending]);
+  }, [current, helper, pending, onSaved]);
   useEffect(() => {
     if (!dirty.current) setDraft(current);
   }, [current]);
@@ -119,6 +129,10 @@ function HelperValueControlContent({
     (textLength < helper.minLength || textLength > helper.maxLength);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (unchanged && onSaved && pending === null) {
+      onSaved();
+      return;
+    }
     if (disabled || optionMissing || textLengthInvalid || submitted.current) return;
     const generation = ++requestGeneration.current;
     submitted.current = true;
@@ -129,6 +143,7 @@ function HelperValueControlContent({
       const result = await dispatchEntityCommand(helperCommand(id, helper, draft), providerId);
       if (generation !== requestGeneration.current) return;
       if (!result.accepted) throw new Error('Rejected');
+      onSaved?.();
       if (!result.requiresEventConfirmation) {
         dirty.current = false;
         setPending(null);
@@ -142,6 +157,18 @@ function HelperValueControlContent({
       if (generation === requestGeneration.current) submitted.current = false;
     }
   }
+  const saveButton = (
+    <Button
+      type="submit"
+      disabled={
+        onSaved && unchanged && pending === null
+          ? false
+          : disabled || optionMissing || textLengthInvalid || (draft === current && !error)
+      }
+    >
+      {t('common.save')}
+    </Button>
+  );
   const descriptionId = `${fieldId}-status`;
   return (
     <form
@@ -229,12 +256,7 @@ function HelperValueControlContent({
           )
         ) : null}
       </div>
-      <Button
-        type="submit"
-        disabled={disabled || optionMissing || textLengthInvalid || (draft === current && !error)}
-      >
-        {t('common.save')}
-      </Button>
+      {onSaved ? <CardDialogFooter>{saveButton}</CardDialogFooter> : saveButton}
     </form>
   );
 }
@@ -263,6 +285,12 @@ export function HelperCard({
   const helper = liveHelper ?? { ...initialHelper, writable: false };
   const unavailable = entity?.availability === 'unavailable';
   const [open, setOpen] = useState(false);
+  const cardShell = getCardShellSurfaceTokens(theme);
+  const isTiny = isTinyCardSize(size);
+  const isExtraSmall = isExtraSmallCardSize(size);
+  const isVeryCompact = isTiny || isExtraSmall;
+  const chromeSize = isVeryCompact ? 'tiny' : size === 'small' ? 'small' : 'medium';
+  const isDateTimeValue = helper.helperType === 'datetime' && !unavailable && helper.value !== null;
   useEditModeSettingsRequest(id, () => setOpen(true), isEditMode);
   const value = unavailable
     ? t('common.unavailable')
@@ -277,11 +305,30 @@ export function HelperCard({
         size={size}
         title={name}
         subtitle={room}
+        headerCompact={isExtraSmall}
+        headerVariant={isExtraSmall ? 'dense' : 'default'}
+        headerLayout="eyebrow-first"
+        headerTitleOverflow={isTiny ? 'truncate' : 'wrap'}
+        headerTone="neutral"
+        headerLeading={
+          !isTiny ? (
+            <EntityCardHeaderIcon
+              IconComponent={Sliders}
+              isActive={!unavailable}
+              size={chromeSize}
+              variant={isExtraSmall ? 'dense' : 'default'}
+              tone="neutral"
+            />
+          ) : undefined
+        }
+        frameClassName={cardShell.rootFrameClassName}
+        disableDefaultSheen={theme !== 'light'}
+        contentClassName="flex items-end"
         interactive={!isEditMode}
         role={!isEditMode ? 'button' : undefined}
         tabIndex={!isEditMode ? 0 : undefined}
         aria-label={
-          size === 'tiny'
+          isTiny
             ? `${name}, ${value}${helper.helperType === 'number' && helper.unit ? ` ${helper.unit}` : ''}`
             : name
         }
@@ -289,21 +336,27 @@ export function HelperCard({
           if (!isEditMode) setOpen(true);
         }}
       >
-        {size !== 'tiny' ? (
-          <CardMetric
-            value={value}
-            label={
-              helper.helperType === 'number'
-                ? helper.unit
-                : helper.helperType === 'datetime'
-                  ? helper.timeZone
-                  : undefined
-            }
-            theme={theme}
-            isActive={false}
-            accentClassName="text-current"
-            valueClassName="break-words line-clamp-2 text-lg font-semibold"
-          />
+        {!isTiny ? (
+          <div
+            className={`relative z-10 min-w-0 font-light tracking-normal ${
+              isDateTimeValue
+                ? 'whitespace-pre-line leading-tight text-xl'
+                : `${helper.helperType === 'text' ? 'break-words line-clamp-2' : 'truncate'} leading-none ${
+                    isVeryCompact ? 'text-2xl' : size === 'small' ? 'text-3xl' : 'text-4xl'
+                  }`
+            }`}
+            title={value}
+          >
+            {isDateTimeValue ? value.replace(/[ T]/, '\n') : value}
+            {helper.helperType === 'number' && helper.unit ? (
+              <span className={`${isVeryCompact ? 'text-base' : 'text-xl'} align-baseline`}>
+                {` ${helper.unit}`}
+              </span>
+            ) : null}
+            {helper.helperType === 'datetime' && helper.timeZone ? (
+              <span className="block truncate text-sm">{helper.timeZone}</span>
+            ) : null}
+          </div>
         ) : null}
       </BaseCard>
       {open ? (
@@ -314,6 +367,8 @@ export function HelperCard({
           theme={theme}
           entityId={id}
           entityType="helper"
+          // biome-ignore lint/complexity/noUselessFragments: The form owns its footer; an empty slot suppresses the default Done action.
+          footerContent={<></>}
           tabs={[
             {
               key: 'controls',
@@ -326,6 +381,7 @@ export function HelperCard({
                   helper={helper}
                   providerId={providerId}
                   unavailable={unavailable}
+                  onSaved={() => setOpen(false)}
                 />
               ),
             },

@@ -1,12 +1,14 @@
-import { CardDialogChoicePill, CardDialogSection } from '@navet/app/components/patterns';
+import { DeviceControlOptions } from '@navet/app/components/shared/device-editor/device-control-options';
+import { DeviceControlRow } from '@navet/app/components/shared/device-editor/device-control-row';
 import { useI18n } from '@navet/app/hooks';
-import { Crosshair, Home, Sparkles } from 'lucide-react';
+import type { ThemeType } from '@navet/app/hooks/use-theme';
+import { Crosshair, Fan, Home, Pause, Sparkles, Square } from 'lucide-react';
 import type { VacuumCapabilities } from './vacuum-features';
 
 interface VacuumCleaningControlsProps {
   isLawnMower?: boolean;
   fanSpeed: string;
-  onFanSpeedChange: (speed: string) => void;
+  onFanSpeedChange?: (speed: string) => void;
   fanSpeedOptions: string[];
   supportsFanSpeed: boolean;
   isUpdatingFanSpeed?: boolean;
@@ -15,20 +17,11 @@ interface VacuumCleaningControlsProps {
   onCleanSpot?: () => void;
   capabilities?: VacuumCapabilities;
   accentColor?: string;
-}
-
-export function hasVacuumDialogControls(options: {
-  supportsFanSpeed: boolean;
-  fanSpeedOptions: string[];
-  capabilities?: VacuumCapabilities;
-}) {
-  const canReturnHome = options.capabilities?.canReturnHome ?? false;
-  const hasFanSpeedChoices = options.supportsFanSpeed && options.fanSpeedOptions.length > 1;
-  const hasSecondaryActions = Boolean(
-    options.capabilities?.canLocate || options.capabilities?.canCleanSpot
-  );
-
-  return canReturnHome || hasFanSpeedChoices || hasSecondaryActions;
+  theme: ThemeType;
+  disabled?: boolean;
+  isRunning?: boolean;
+  onPauseCleaning?: () => void;
+  onStopCleaning?: () => void;
 }
 
 export function VacuumCleaningControls({
@@ -43,94 +36,99 @@ export function VacuumCleaningControls({
   onCleanSpot,
   capabilities,
   accentColor,
+  theme,
+  disabled = false,
+  isRunning = false,
+  onPauseCleaning,
+  onStopCleaning,
 }: VacuumCleaningControlsProps) {
   const { t } = useI18n();
   const returnActionLabel = t(
     isLawnMower ? 'lawnMower.action.returnToBase' : 'vacuum.action.returnToDock'
   );
-  const canReturnHome = capabilities?.canReturnHome ?? false;
   const hasFanSpeedChoices = supportsFanSpeed && fanSpeedOptions.length > 1;
-  const hasSecondaryActions = Boolean(capabilities?.canLocate || capabilities?.canCleanSpot);
-
-  if (
-    !hasVacuumDialogControls({
-      supportsFanSpeed,
-      fanSpeedOptions,
-      capabilities,
-    })
-  ) {
-    return null;
-  }
 
   return (
-    <div className="mt-5 flex flex-col gap-5">
-      {canReturnHome ? (
-        <CardDialogSection label={t('vacuum.settings.actions')} className="mb-0">
-          <CardDialogChoicePill
-            active={false}
-            accentColor={accentColor}
-            onClick={onReturnHome}
-            size="compact"
-            className="min-w-24"
-          >
-            <Home className="mr-1.5 h-3.5 w-3.5" />
-            {returnActionLabel}
-          </CardDialogChoicePill>
-        </CardDialogSection>
+    <div>
+      {isRunning && capabilities?.canPause && onPauseCleaning ? (
+        <DeviceControlRow
+          kind="action"
+          theme={theme}
+          label={t('vacuum.action.pause')}
+          icon={<Pause className="h-4 w-4" />}
+          disabled={disabled}
+          onAction={onPauseCleaning}
+        />
       ) : null}
-
-      {hasSecondaryActions ? (
-        <CardDialogSection label={t('vacuum.settings.moreActions')} className="mb-0">
-          <div className="flex flex-wrap gap-2">
-            {capabilities?.canLocate ? (
-              <CardDialogChoicePill
-                active={false}
-                accentColor={accentColor}
-                onClick={() => onLocate?.()}
-                size="compact"
-                className="min-w-24"
-              >
-                <Crosshair className="mr-1.5 h-3.5 w-3.5" />
-                {t('vacuum.action.locate')}
-              </CardDialogChoicePill>
-            ) : null}
-            {capabilities?.canCleanSpot ? (
-              <CardDialogChoicePill
-                active={false}
-                accentColor={accentColor}
-                onClick={() => onCleanSpot?.()}
-                size="compact"
-                className="min-w-24"
-              >
-                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                {t('vacuum.action.cleanSpot')}
-              </CardDialogChoicePill>
-            ) : null}
-          </div>
-        </CardDialogSection>
+      {isRunning && capabilities?.canStop && onStopCleaning ? (
+        <DeviceControlRow
+          kind="action"
+          theme={theme}
+          label={t('vacuum.action.stop')}
+          icon={<Square className="h-4 w-4" />}
+          disabled={disabled}
+          onAction={onStopCleaning}
+        />
+      ) : null}
+      {capabilities?.canReturnHome ? (
+        <DeviceControlRow
+          kind="action"
+          theme={theme}
+          label={returnActionLabel}
+          icon={<Home className="h-4 w-4" />}
+          disabled={disabled}
+          onAction={onReturnHome}
+        />
+      ) : null}
+      {capabilities?.canLocate ? (
+        <DeviceControlRow
+          kind="action"
+          theme={theme}
+          label={t('vacuum.action.locate')}
+          icon={<Crosshair className="h-4 w-4" />}
+          disabled={disabled || !onLocate}
+          onAction={() => onLocate?.()}
+        />
+      ) : null}
+      {capabilities?.canCleanSpot ? (
+        <DeviceControlRow
+          kind="action"
+          theme={theme}
+          label={t('vacuum.action.cleanSpot')}
+          icon={<Sparkles className="h-4 w-4" />}
+          disabled={disabled || !onCleanSpot}
+          onAction={() => onCleanSpot?.()}
+        />
       ) : null}
 
       {hasFanSpeedChoices ? (
-        <CardDialogSection label={t('vacuum.settings.fanSpeed')} className="mb-0">
-          <div className="flex flex-wrap gap-2">
-            {fanSpeedOptions.map((speed) => (
-              <CardDialogChoicePill
-                key={speed}
-                active={fanSpeed === speed}
-                accentColor={accentColor}
-                onClick={() => {
-                  if (!isUpdatingFanSpeed) {
-                    onFanSpeedChange(speed);
-                  }
-                }}
-                size="compact"
-                className="min-w-18"
-              >
-                {speed}
-              </CardDialogChoicePill>
-            ))}
-          </div>
-        </CardDialogSection>
+        <DeviceControlRow
+          kind="disclosure"
+          theme={theme}
+          label={t('vacuum.settings.fanSpeed')}
+          value={fanSpeed || t('providerDetails.unknown')}
+          icon={<Fan className="h-4 w-4" />}
+        >
+          <DeviceControlOptions
+            label={t('vacuum.settings.fanSpeed')}
+            theme={theme}
+            selectionColor={accentColor}
+            value={fanSpeed || null}
+            options={fanSpeedOptions.map((speed) => ({ value: speed, label: speed }))}
+            disabled={disabled || isUpdatingFanSpeed || !onFanSpeedChange}
+            pending={isUpdatingFanSpeed}
+            onValueChange={(speed) => {
+              if (
+                !disabled &&
+                !isUpdatingFanSpeed &&
+                fanSpeedOptions.includes(speed) &&
+                speed !== fanSpeed
+              ) {
+                onFanSpeedChange?.(speed);
+              }
+            }}
+          />
+        </DeviceControlRow>
       ) : null}
     </div>
   );

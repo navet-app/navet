@@ -1,6 +1,7 @@
 import { CardDialogHeader } from '@navet/app/components/patterns';
 import { RoundControlButton } from '@navet/app/components/primitives/round-control-button';
 import { Slider } from '@navet/app/components/primitives/slider';
+import { EntityRoomSelector } from '@navet/app/components/shared/entity-room-selector';
 import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
 import { getMediaTVViewSurfaceTokens } from '@navet/app/components/shared/theme/media-tv-view-surface-tokens';
 import { useI18n } from '@navet/app/hooks';
@@ -19,7 +20,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { type CSSProperties, useEffect, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
 import { getMediaDisplayVolume } from './media-card-style-utils';
 import type { MediaDialogGroupingPlayer, MediaDialogProps } from './media-dialog.types';
 import { MediaFallbackArtwork } from './media-fallback-artwork';
@@ -38,6 +39,9 @@ interface MediaDialogHeaderProps {
   entityType: string;
   entityId: string;
   room?: string;
+  menu: ReactNode;
+  titleEditing: boolean;
+  onTitleEditingChange: (editing: boolean) => void;
 }
 
 export function MediaDialogHeader({
@@ -46,15 +50,32 @@ export function MediaDialogHeader({
   entityType,
   entityId,
   room,
+  menu,
+  titleEditing,
+  onTitleEditingChange,
 }: MediaDialogHeaderProps) {
   return (
     <CardDialogHeader
+      presentation="compact"
+      theme={controller.theme}
+      titleEditing={titleEditing}
+      onTitleEditingChange={onTitleEditingChange}
       title={entityName}
       description={entityType}
       entityId={entityId}
-      forceDarkRoomSelector={controller.theme !== 'light'}
-      roomSelectorFallbackRoomName={room}
-      roomSelectorCompactContentStyle={controller.readableForeground.subtitleStyle}
+      showRoomSelector={false}
+      eyebrow={
+        <span className="min-w-0 truncate" style={controller.readableForeground.subtitleStyle}>
+          <EntityRoomSelector
+            entityId={entityId}
+            fallbackRoomName={room}
+            readOnly
+            className="truncate text-xs font-medium"
+          />
+        </span>
+      }
+      trailing={<div className="hidden sm:block">{menu}</div>}
+      className="max-sm:pr-24"
       titleStyle={controller.readableForeground.titleStyle}
       descriptionStyle={controller.readableForeground.subtitleStyle}
       actionButtonStyle={controller.readableForeground.titleStyle}

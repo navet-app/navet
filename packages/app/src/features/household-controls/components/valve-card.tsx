@@ -1,19 +1,25 @@
 import { BaseCard, BaseCardDialog } from '@navet/app/components/primitives';
 import { Button } from '@navet/app/components/primitives/button';
 import { CardMetric } from '@navet/app/components/primitives/card-metric';
+import { EntityCardHeader } from '@navet/app/components/primitives/entity-card-header';
+import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-card-header-icon';
 import { Input } from '@navet/app/components/primitives/input';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
+import { getOpenDeviceCardSurface } from '@navet/app/components/shared/theme/open-device-card-surface';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { CoverControlButton } from '@navet/app/features/security/components/cover-card/cover-control-button';
+import { CoverPositionFill } from '@navet/app/features/security/components/cover-card/cover-position-fill';
+import { getCoverPositionTone } from '@navet/app/features/security/components/cover-card/cover-position-tone';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import type { NavetCapabilityId } from '@navet/core/capabilities';
 import { type NavetValveState, readNavetValveState } from '@navet/core/household-device-state';
 import type { IntegrationProviderId } from '@navet/core/integration-providers';
 import type { NavetEntity } from '@navet/core/types';
-import { ChevronDown, ChevronUp, Sliders, Square } from 'lucide-react';
+import { ChevronDown, ChevronUp, Droplets, Sliders, Square } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useDeviceCommand } from '../hooks/use-device-command';
 
@@ -262,7 +268,7 @@ function ValveCardContent({
   isEditMode: boolean;
 }) {
   const { t } = useI18n();
-  const { theme } = useTheme();
+  const { theme, colors, accentColor } = useTheme();
   const entity = useProviderEntityModel(id);
   const state = readNavetValveState(entity ?? undefined) ?? EMPTY_VALVE;
   const capabilities = entity?.capabilities ?? [];
@@ -271,6 +277,32 @@ function ValveCardContent({
   useEditModeSettingsRequest(id, () => setDialog(true), isEditMode);
   const compact = size === 'tiny' || size === 'extra-small';
   const unavailable = entity?.availability !== 'available';
+  const position = unavailable
+    ? 0
+    : Math.max(
+        0,
+        Math.min(
+          100,
+          state.position ?? (state.phase === 'open' || state.phase === 'opening' ? 100 : 0)
+        )
+      );
+  const showPosition = state.position !== null;
+  const fullyOpen = !unavailable && position === 100;
+  const openSurface = fullyOpen
+    ? getOpenDeviceCardSurface(theme, colors.switch.on, accentColor, size)
+    : undefined;
+  const openColors = colors.cover.open;
+  const headerTone = !unavailable && (showPosition || fullyOpen) ? 'primary' : 'neutral';
+  const stateTone = getCoverPositionTone(position, showPosition, unavailable);
+  const stateText = getCardReadableTextTokens({ theme, tone: stateTone, accentColor });
+  const toggleCloses = position > 0;
+  const toggleDisabled =
+    isEditMode ||
+    unavailable ||
+    action.pending ||
+    (toggleCloses
+      ? !capabilities.includes('valve_close') || !state.canClose || state.phase === 'closing'
+      : !capabilities.includes('valve_open') || !state.canOpen || state.phase === 'opening');
   const label = unavailable
     ? t(entity?.availability === 'unknown' ? 'providerDetails.unknown' : 'common.unavailable')
     : t(`valve.state.${state.phase}`);
@@ -279,6 +311,7 @@ function ValveCardContent({
     <CardSettingsActionButton
       theme={theme}
       size={size}
+      variant="soft"
       disabled={isEditMode}
       aria-label={t('providerDetails.controls', { name })}
       onClick={() => setDialog(true)}
@@ -290,6 +323,33 @@ function ValveCardContent({
         size={size}
         title={name}
         subtitle={room}
+        header={
+          size !== 'tiny' ? (
+            <EntityCardHeader
+              title={name}
+              subtitle={t('deviceType.valve')}
+              layout="eyebrow-first"
+              size={size}
+              compact={size === 'extra-small'}
+              tone={headerTone}
+              leading={
+                <EntityCardHeaderIcon
+                  IconComponent={Droplets}
+                  isActive={headerTone === 'primary'}
+                  size={size === 'extra-small' ? 'tiny' : size}
+                  tone={headerTone}
+                  ariaLabel={t('entityCardInteraction.toggle', { name })}
+                  disabled={toggleDisabled}
+                  onClick={() => {
+                    if (toggleDisabled) return;
+                    void (toggleCloses ? action.close() : action.open());
+                  }}
+                />
+              }
+              trailing={compact ? settings : undefined}
+            />
+          ) : undefined
+        }
         interactive={size === 'tiny' && !isEditMode}
         role={size === 'tiny' && !isEditMode ? 'button' : undefined}
         tabIndex={size === 'tiny' && !isEditMode ? 0 : undefined}
@@ -301,8 +361,26 @@ function ValveCardContent({
         onClick={() => {
           if (size === 'tiny' && !isEditMode) setDialog(true);
         }}
-        isActive={!unavailable && (state.phase === 'open' || state.phase === 'opening')}
+        frameClassName={openSurface?.frameClassName}
+        style={openSurface?.style}
+        disableDefaultSheen={fullyOpen || showPosition}
+        disableDefaultLightOverlay={fullyOpen}
+        overlay={
+          openSurface ? (
+            openSurface.overlay
+          ) : showPosition ? (
+            <CoverPositionFill
+              position={position}
+              theme={theme}
+              coverageGradient={openColors.gradient}
+              cardSize={size}
+              showSlats={false}
+            />
+          ) : undefined
+        }
         headerTrailing={compact ? settings : undefined}
+        headerCompact={size === 'extra-small'}
+        contentClassName="flex h-full flex-col"
         actionRow={
           compact
             ? undefined
@@ -371,9 +449,13 @@ function ValveCardContent({
             value={value}
             label={!unavailable && state.position !== null ? label : undefined}
             theme={theme}
-            isActive={false}
-            accentClassName="text-current"
-            valueClassName={compact ? 'text-sm font-semibold' : undefined}
+            isActive={!unavailable && position > 0}
+            accentClassName={openColors.accent}
+            labelStyle={stateTone === 'primary' ? { color: stateText.subtitleColor } : undefined}
+            className="mt-auto"
+            valueClassName={
+              !showPosition ? 'text-2xl font-light leading-tight break-words' : undefined
+            }
           />
         ) : null}
         <div className={size === 'tiny' ? 'sr-only' : undefined}>

@@ -125,10 +125,25 @@ describe('MediaDialog', () => {
       expect.objectContaining({
         entityId: 'media_player.bathroom',
         fallbackRoomName: 'Bathroom',
+        readOnly: true,
       })
     );
     expect(screen.getAllByText('Speaker').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole('button', { name: 'Edit Bathroom' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Bathroom' })).not.toBeInTheDocument();
+    const moreActions = screen.getAllByRole('button', { name: 'More actions' })[0];
+    if (!moreActions) throw new Error('Missing More actions button');
+    fireEvent.keyDown(moreActions, { key: 'Enter' });
+    expect(screen.getByText('media_player.bathroom')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit card name' }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Card name' })).toHaveFocus());
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Card name' }), { key: 'Escape' });
+    fireEvent.keyDown(moreActions, { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit room' }));
+    expect(entityRoomSelectorMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ entityId: 'media_player.bathroom', fallbackRoomName: 'Bathroom' })
+    );
+    expect(screen.queryByRole('button', { name: 'Pause playback' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to controls' }));
     expect(screen.getAllByText('Touch').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Cigarettes After Sex').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole('button', { name: 'Pause playback' })).toBeInTheDocument();

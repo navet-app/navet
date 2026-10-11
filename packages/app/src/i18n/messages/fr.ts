@@ -654,6 +654,7 @@ export const frMessages = {
   'common.custom': 'Personnalisé',
   'common.customize': 'Personnaliser',
   'common.done': 'Terminé',
+  'common.run': 'Exécuter',
   'common.metrics': 'Mesures',
   'common.off': 'Arrêt',
   'common.on': 'Marche',
@@ -1100,6 +1101,7 @@ export const frMessages = {
   'settings.project.about.title': 'À propos',
   'settings.project.about.description': 'Informations rapides sur le projet.',
   'settings.project.about.version': 'Version',
+  'settings.project.about.localBuild': 'Compilation de développement locale',
   'settings.project.about.build': 'Compilation',
   'settings.project.credits.title': 'Crédits',
   'settings.project.credits.description':

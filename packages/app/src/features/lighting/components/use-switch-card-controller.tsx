@@ -16,7 +16,7 @@ import { useIntegrationStore } from '@navet/app/hooks/use-integration-store';
 import type { PlatformEntitySnapshot } from '@navet/app/platform/provider-feature-models';
 import { compactRepeatedDeviceLabel } from '@navet/app/utils/compact-device-label';
 import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SwitchCardProps } from './switch-card.types';
 import { useSwitchCardAppearance } from './use-switch-card-appearance';
 import { useSwitchMetricFormatters } from './use-switch-metric-formatters';
@@ -35,6 +35,7 @@ export function useSwitchCardController({
   size,
   providerId,
   initialState = false,
+  binaryControl,
   entityType,
   serviceDomain,
   serviceAction,
@@ -44,7 +45,8 @@ export function useSwitchCardController({
   metrics,
   isEditMode = false,
 }: Omit<SwitchCardProps, 'room'>) {
-  const [isOn, setIsOn] = useState(initialState);
+  const [localIsOn, setIsOn] = useState(initialState);
+  const isOn = binaryControl?.isOn ?? localIsOn;
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const resetTimerRef = useRef<number | null>(null);
   const providerEntity = useProviderEntityModel(id);
@@ -115,7 +117,7 @@ export function useSwitchCardController({
 
   const cardColors = isOn ? colors.switch.on : colors.switch.off;
   const hasControlsDialog = true;
-  const handleToggle = useSwitchToggleAction({
+  const defaultToggle = useSwitchToggleAction({
     id,
     providerId,
     isOn,
@@ -125,6 +127,13 @@ export function useSwitchCardController({
     resolvedServiceAction,
     updateSwitchFailedMessage: t('lighting.feedback.updateSwitchFailed'),
   });
+
+  const toggleDisabled = isEditMode || binaryControl?.disabled === true;
+  const handleToggle = useCallback(() => {
+    if (toggleDisabled) return;
+    if (binaryControl) binaryControl.onToggle();
+    else defaultToggle();
+  }, [binaryControl, defaultToggle, toggleDisabled]);
 
   const cardInteraction = useEntityCardInteractionController({
     ariaLabel: name,
@@ -197,6 +206,7 @@ export function useSwitchCardController({
     showSettingsButton,
     isExtraSmall,
     theme,
+    toggleDisabled,
     tintColor: appearance.tintColor,
   };
 }

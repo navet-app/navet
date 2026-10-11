@@ -96,6 +96,7 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
         <BaseCard
           size="tiny"
           {...controller.cardInteraction.cardProps}
+          aria-disabled={controller.toggleDisabled || props.isEditMode}
           interactive={!props.isEditMode}
           className={`${CARD_VISUAL_TRANSITION_CLASS} ${!props.isEditMode ? 'cursor-pointer' : ''}`}
           frameClassName={frameClassName}
@@ -148,6 +149,7 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
             </div>
             <span />
           </div>
+          {props.binaryControl?.status}
         </BaseCard>
 
         {controlsDialog}
@@ -161,6 +163,7 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
         <BaseCard
           size="extra-small"
           {...controller.cardInteraction.cardProps}
+          aria-disabled={controller.toggleDisabled || props.isEditMode}
           interactive={!props.isEditMode}
           className={`${CARD_VISUAL_TRANSITION_CLASS} ${!props.isEditMode ? 'cursor-pointer' : ''}`}
           frameClassName={frameClassName}
@@ -212,11 +215,13 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
                   size="tiny"
                   tone={controller.isOn ? 'primary' : 'neutral'}
                   ariaLabel={controller.cardInteraction.iconButtonProps['aria-label']}
+                  disabled={controller.toggleDisabled}
                   onClick={controller.cardInteraction.iconButtonProps.onClick}
                 />
               }
             />
           </div>
+          {props.binaryControl?.status}
         </BaseCard>
 
         {controlsDialog}
@@ -229,6 +234,7 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
       <BaseCard
         size={controller.isExtraSmall ? 'extra-small' : 'small'}
         {...controller.cardInteraction.cardProps}
+        aria-disabled={controller.toggleDisabled || props.isEditMode}
         interactive={!props.isEditMode}
         className={`${CARD_VISUAL_TRANSITION_CLASS} ${!props.isEditMode ? 'cursor-pointer' : ''}`}
         frameClassName={frameClassName}
@@ -278,6 +284,7 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
                 size={controller.isExtraSmall ? 'extra-small' : 'small'}
                 tone={controller.isOn ? 'primary' : 'neutral'}
                 ariaLabel={controller.cardInteraction.iconButtonProps['aria-label']}
+                disabled={controller.toggleDisabled}
                 onClick={controller.cardInteraction.iconButtonProps.onClick}
               />
             }
@@ -326,6 +333,7 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
             )}
           </div>
         </div>
+        {props.binaryControl?.status}
       </BaseCard>
 
       {controlsDialog}

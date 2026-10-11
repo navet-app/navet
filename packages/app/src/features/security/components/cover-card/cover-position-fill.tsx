@@ -14,6 +14,7 @@ export function CoverPositionFill({
   backgroundGradient,
   theme,
   showHandle = false,
+  showSlats = true,
   cardSize,
   handleAlignment = 'right',
 }: {
@@ -22,6 +23,7 @@ export function CoverPositionFill({
   backgroundGradient?: string;
   theme: ThemeType;
   showHandle?: boolean;
+  showSlats?: boolean;
   cardSize?: CardSize;
   handleAlignment?: 'center' | 'right';
 }) {
@@ -36,12 +38,14 @@ export function CoverPositionFill({
         data-cover-coverage
         style={{ height: `${100 - value}%` }}
       >
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent 7px, ${theme === 'light' ? 'rgba(0,0,0,0.045)' : 'rgba(255,255,255,0.05)'} 7px, ${theme === 'light' ? 'rgba(0,0,0,0.045)' : 'rgba(255,255,255,0.05)'} 8px)`,
-          }}
-        />
+        {showSlats ? (
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent 7px, ${theme === 'light' ? 'rgba(0,0,0,0.045)' : 'rgba(255,255,255,0.05)'} 7px, ${theme === 'light' ? 'rgba(0,0,0,0.045)' : 'rgba(255,255,255,0.05)'} 8px)`,
+            }}
+          />
+        ) : null}
       </div>
       {showHandle && (
         <CoverDragHandle

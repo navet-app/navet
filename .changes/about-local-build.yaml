@@ -1,0 +1,4 @@
+type: fixed
+audiences:
+  - standalone
+summary: About Navet now identifies local development builds instead of showing the source version as a release.

@@ -647,6 +647,7 @@ export const noMessages = {
   'common.custom': 'Egendefinert',
   'common.customize': 'Tilpass',
   'common.done': 'Ferdig',
+  'common.run': 'Kjør',
   'common.metrics': 'Beregninger',
   'common.off': 'Av',
   'common.on': 'På',
@@ -1089,6 +1090,7 @@ export const noMessages = {
   'settings.project.about.title': 'Om',
   'settings.project.about.description': 'Rask prosjektinformasjon.',
   'settings.project.about.version': 'Versjon',
+  'settings.project.about.localBuild': 'Lokalt utviklingsbygg',
   'settings.project.about.build': 'Bygg',
   'settings.project.credits.title': 'Studiepoeng',
   'settings.project.credits.description':

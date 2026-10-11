@@ -663,21 +663,6 @@ const STORY_DOCS: Record<string, string> = {
       'Check that the card remains useful even when events are sparse or brief.',
     ]
   ),
-  'Cards/Dialogs/Calendar': doc(
-    'Settings dialog for calendar-card configuration, including selected sources and compact view behavior.',
-    [
-      'The dialog surface for choosing which calendars feed the card and how they are summarized.',
-      'How card-dialog tabs, sections, and list selection patterns are applied to calendar data.',
-    ],
-    [
-      'Use this story when changing calendar-card settings structure, selection behavior, or tint customization.',
-      'Keep calendar configuration aligned with the broader card-dialog family rather than creating calendar-only layout rules.',
-    ],
-    [
-      'Check that source selection is easy to scan and toggle.',
-      'Check that the controls and customize tabs remain balanced and lightweight.',
-    ]
-  ),
   'Cards/Entity/Climate': doc(
     'Entity card for Climate control and status, focused on current mode, action, and target temperature.',
     [
@@ -706,21 +691,6 @@ const STORY_DOCS: Record<string, string> = {
     [
       'Check that the target humidity remains obvious before the secondary controls.',
       'Check that humidifier and dehumidifier variants stay visually distinct without looking like separate products.',
-    ]
-  ),
-  'Cards/Dialogs/Climate': doc(
-    'Settings dialog for configuring the Climate card rather than controlling the live climate entity.',
-    [
-      'The configuration surface used to tune how the climate card appears or behaves.',
-      'How shared dialog sections and field patterns are applied to Climate-specific settings.',
-    ],
-    [
-      'Use this story when changing climate-card settings structure or wording.',
-      'Keep configuration behavior aligned with the shared dialog shell and other card settings dialogs.',
-    ],
-    [
-      'Check section grouping, field clarity, and action placement.',
-      'Check that the dialog remains faster to scan than the card is to operate.',
     ]
   ),
   'Cards/Custom/Action': doc(
@@ -784,21 +754,6 @@ const STORY_DOCS: Record<string, string> = {
       'Check that the card remains readable without turning into a dense list.',
     ]
   ),
-  'Cards/Dialogs/Battery Overview': doc(
-    'Settings dialog for choosing which battery entities are included in the battery-overview custom card.',
-    [
-      'The selection workflow for a maintenance-oriented summary card.',
-      'How compact list controls and multi-select rows fit inside the card-dialog shell.',
-    ],
-    [
-      'Use this story when changing battery selection behavior, empty states, or card-settings copy.',
-      'Keep the battery-overview setup flow simple enough for quick dashboard curation.',
-    ],
-    [
-      'Check that multi-select rows are easy to toggle without accidental misses.',
-      'Check that bulk actions and list density remain readable in the capped dialog body.',
-    ]
-  ),
   'Cards/Custom/Energy Now': doc(
     'Custom dashboard energy snapshot card with a full-bleed live trend backdrop and current power as the primary reading.',
     [
@@ -814,21 +769,6 @@ const STORY_DOCS: Record<string, string> = {
       'Check that the chart still reads as the main surface rather than background decoration.',
     ]
   ),
-  'Cards/Dialogs/Energy': doc(
-    'Settings dialog for choosing which configured energy source or energy-usage sensor the custom energy card should show.',
-    [
-      'The grouped selection flow for home, source, and device energy entities, including energy-usage sensors exposed from Home Assistant.',
-      'How the card-dialog pattern supports a chart-led custom card without overcomplicating setup.',
-    ],
-    [
-      'Use this story when changing energy source grouping, sensor selection affordances, or wording.',
-      'Keep the dialog focused on choosing the reading rather than turning it into a full energy-management surface.',
-    ],
-    [
-      'Check that grouped options are easy to compare at a glance.',
-      'Check that the currently selected energy source or usage sensor remains visually obvious.',
-    ]
-  ),
   'Cards/Custom/Photo': doc(
     'Custom photo-frame card used to surface imagery as a dashboard-native visual widget.',
     [
@@ -842,21 +782,6 @@ const STORY_DOCS: Record<string, string> = {
     [
       'Check cropping, readability of any overlaid content, and overall visual restraint.',
       'Check that the card still feels intentional within a functional dashboard layout.',
-    ]
-  ),
-  'Cards/Dialogs/Photo': doc(
-    'Settings dialog for configuring the photo-frame custom card source, shuffle behavior, and media inputs.',
-    [
-      'The setup flow for switching between direct URLs and Home Assistant media sources.',
-      'How richer form controls fit into the same custom-card dialog shell.',
-    ],
-    [
-      'Use this story when changing photo-source setup, media-source wording, or list editing behavior.',
-      'Keep the photo dialog aligned with other custom-card settings instead of introducing a separate media form style.',
-    ],
-    [
-      'Check that source switching keeps the form easy to understand.',
-      'Check that URL list editing remains tidy and scannable inside the dialog body.',
     ]
   ),
   'Cards/Custom/Quick Note': doc(
@@ -981,21 +906,6 @@ const STORY_DOCS: Record<string, string> = {
       'Check that dialog accents match the fan card surface instead of the global primary color.',
     ]
   ),
-  'Cards/Dialogs/Light': doc(
-    'Settings dialog for configuring the light card rather than operating the light itself.',
-    [
-      'The structure and wording of light-card configuration options.',
-      'How shared dialog patterns are composed for this specific card family.',
-    ],
-    [
-      'Use this story when changing light-card settings sections or field behavior.',
-      'Keep light-card configuration aligned with the shared dialog shell and other settings dialogs.',
-    ],
-    [
-      'Check that options are grouped logically and easy to scan.',
-      'Check that the dialog stays lightweight enough for frequent card customization.',
-    ]
-  ),
   'Cards/Entity/Media': doc(
     'Entity card for media playback with transport state, progress, and device grouping context.',
     [
@@ -1059,21 +969,6 @@ const STORY_DOCS: Record<string, string> = {
       'Check that the card still feels like a quick-glance surface, not a dense content list.',
     ]
   ),
-  'Cards/Dialogs/RSS Feed': doc(
-    'Settings dialog for configuring the RSS feed card and its content behavior.',
-    [
-      'The configuration surface for feed source, display, and card-level behavior.',
-      'How shared dialog sections are used for a content-oriented custom card.',
-    ],
-    [
-      'Use this story when changing RSS card settings structure or editorial wording.',
-      'Keep feed-card configuration consistent with the rest of the custom-card settings dialogs.',
-    ],
-    [
-      'Check that settings are grouped clearly and use understandable language.',
-      'Check that advanced options do not overwhelm the primary setup path.',
-    ]
-  ),
   'Cards/Entity/Scene': doc(
     'Entity card for scenes, optimized around recognition and triggering rather than ongoing status control.',
     [
@@ -1087,21 +982,6 @@ const STORY_DOCS: Record<string, string> = {
     [
       'Check that the card reads as a scene trigger immediately.',
       'Check that action emphasis is clear without feeling destructive or risky.',
-    ]
-  ),
-  'Cards/Dialogs/Camera': doc(
-    'Settings dialog for the camera card, focused on configuration rather than live viewing.',
-    [
-      'The options and section structure used to configure camera-card behavior.',
-      'How shared dialog patterns support a media-rich security surface.',
-    ],
-    [
-      'Use this story when changing camera-card settings or security-surface configuration wording.',
-      'Keep camera configuration aligned with other card dialogs rather than inventing special-case shells.',
-    ],
-    [
-      'Check that the options are easy to scan and understand.',
-      'Check that configuration complexity does not spill into the runtime camera card.',
     ]
   ),
   'Cards/Entity/Camera': doc(
@@ -1209,21 +1089,6 @@ const STORY_DOCS: Record<string, string> = {
       'Check that long labels truncate cleanly on narrow dashboard widths.',
     ]
   ),
-  'Cards/Dialogs/Vacuum': doc(
-    'Settings dialog for the vacuum card and its presentation or behavior options.',
-    [
-      'The configuration structure used for a maintenance-oriented device card.',
-      'How shared settings patterns support a domain with multiple operational states.',
-    ],
-    [
-      'Use this story when changing vacuum-card settings sections, labels, or defaults.',
-      'Keep vacuum-card configuration consistent with the rest of the card-dialog family.',
-    ],
-    [
-      'Check grouping clarity and ease of setup.',
-      'Check that the dialog remains simpler than the operational card itself.',
-    ]
-  ),
   'Cards/Entity/Vacuum': doc(
     'Entity card for vacuum devices, including cleaning status and maintenance-oriented context.',
     [
@@ -1267,21 +1132,6 @@ const STORY_DOCS: Record<string, string> = {
     [
       'Check condition legibility, icon clarity, and value emphasis.',
       'Check that the card remains readable across themes with visually expressive weather content.',
-    ]
-  ),
-  'Cards/Dialogs/Weather': doc(
-    'Settings dialog for weather-card configuration and display choices.',
-    [
-      'The configuration surface for tuning how weather information is shown in the card.',
-      'How shared settings patterns support a data-rich informational card.',
-    ],
-    [
-      'Use this story when adjusting weather-card settings structure or wording.',
-      'Keep weather configuration aligned with the broader card-dialog system.',
-    ],
-    [
-      'Check that options are understandable without weather-specific jargon overload.',
-      'Check that the dialog remains easy to scan despite several display choices.',
     ]
   ),
 };
@@ -2107,36 +1957,6 @@ const ADDITIONAL_STORY_DOCS: Record<string, string> = {
     [
       'Check that on-off state is immediately obvious.',
       'Check that the card works well at all supported sizes.',
-    ]
-  ),
-  'Cards/Dialogs/Switch': doc(
-    'Settings dialog for configuring the switch card appearance and behavior.',
-    [
-      'The configuration surface for switch card customization.',
-      'How switch-specific options are organized in the dialog.',
-    ],
-    [
-      'Use this story when changing switch card settings structure.',
-      'Keep switch settings aligned with other card configuration dialogs.',
-    ],
-    [
-      'Check option grouping and label clarity.',
-      'Check that settings are easy to understand and modify.',
-    ]
-  ),
-  'Cards/Dialogs/Light': doc(
-    'Settings dialog for configuring the light card appearance and behavior.',
-    [
-      'The configuration surface for light card customization.',
-      'How light-specific options such as color mode and brightness are organized.',
-    ],
-    [
-      'Use this story when changing light card settings structure.',
-      'Keep light settings aligned with other card configuration dialogs.',
-    ],
-    [
-      'Check option grouping and control clarity.',
-      'Check that advanced options do not overwhelm basic setup.',
     ]
   ),
   // Media

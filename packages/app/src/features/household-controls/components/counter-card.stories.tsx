@@ -68,7 +68,7 @@ const meta = {
     isEditMode: false,
   },
   argTypes: {
-    size: { control: 'inline-radio', options: ['tiny', 'extra-small', 'small', 'medium'] },
+    size: { control: 'inline-radio', options: ['extra-small', 'small', 'medium'] },
   },
 } satisfies Meta<typeof CounterCardStory>;
 export default meta;
@@ -77,12 +77,14 @@ export const Default: Story = {};
 export const AtMaximum: Story = {
   args: { counter: { ...counter, value: 10, canIncrement: false } },
 };
-export const Tiny: Story = { args: { size: 'tiny' } };
+export const ExtraSmall: Story = { args: { size: 'extra-small' } };
 export const Medium: Story = { args: { size: 'medium' } };
 export const KeyboardWriteFailure: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const card = await canvas.findByRole('button', { name: 'Visits' });
+    const card = await canvas
+      .findAllByRole('button', { name: 'Open settings for Visits' })
+      .then((buttons) => buttons[0]);
     card.focus();
     await userEvent.keyboard('{Enter}');
     const body = within(canvasElement.ownerDocument.body);
@@ -117,7 +119,9 @@ export const Unavailable: Story = { args: { availability: 'unavailable' } };
 export const Loading: Story = { args: { missing: true } };
 export const ControlsDialog: Story = {
   play: async ({ canvasElement }) => {
-    const card = await within(canvasElement).findByRole('button', { name: 'Visits' });
+    const card = await within(canvasElement)
+      .findAllByRole('button', { name: 'Open settings for Visits' })
+      .then((buttons) => buttons[0]);
     card.focus();
     await userEvent.keyboard('{Enter}');
     await expect(within(canvasElement.ownerDocument.body).getByRole('dialog')).toBeVisible();

@@ -752,6 +752,7 @@ export function SharedVacuumCardShell({
         <VacuumSettingsDialog
           entityId={state.id}
           isOpen={state.isDialogOpen}
+          disabled={state.isUnavailable}
           onClose={() => state.setIsDialogOpen(false)}
           isLawnMower={state.isLawnMower}
           onStartCleaning={state.handleStartCleaning}

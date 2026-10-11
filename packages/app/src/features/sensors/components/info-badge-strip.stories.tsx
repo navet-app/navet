@@ -71,7 +71,7 @@ function SummaryBarStory({ items: storyItems }: { items: HomeStatusSummaryItem[]
 }
 
 const meta = {
-  title: 'Cards/Entity/Summary Bar',
+  title: 'Components/Shared/Summary Bar',
   component: SummaryBarStory,
   tags: ['autodocs'],
   parameters: {

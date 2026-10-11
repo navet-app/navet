@@ -313,6 +313,55 @@ describe('DashboardCardItem card locking', () => {
     );
   });
 
+  it.each([
+    ['timer', 'timers'],
+    ['counter', 'counters'],
+  ] as const)(
+    'removes Tiny from %s resize options and renders saved Tiny cards as Small',
+    (domain, type) => {
+      const id = `home_assistant:${domain}.kitchen`;
+      const handleSizeChange = vi.fn();
+      const device: DeviceWithType = {
+        id,
+        name: 'Kitchen control',
+        room: 'Kitchen',
+        size: 'tiny',
+        type,
+        normalizedEntity: {
+          id,
+          canonicalId: id,
+          externalId: `${domain}.kitchen`,
+          providerId: 'home_assistant',
+          name: 'Kitchen control',
+          type: domain,
+          primaryState: null,
+          availability: 'available',
+          attributes: {},
+          capabilities: [],
+        },
+      };
+      const { container } = renderWithProviders(
+        <DashboardCardItem
+          id={id}
+          size="tiny"
+          isEditMode
+          handleSizeChange={handleSizeChange}
+          device={device}
+        />
+      );
+      expect(renderCardMock).toHaveBeenCalledWith(expect.objectContaining({ size: 'small' }));
+      const trigger = container.querySelector<HTMLButtonElement>(
+        '[data-card-edit-dock="true"] button.z-500.group'
+      );
+      expect(trigger).toBeTruthy();
+      fireEvent.click(trigger as HTMLButtonElement);
+      expect(screen.queryByRole('button', { name: /^tiny\b/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^small\b/i })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /^extra-small\b/i }));
+      expect(handleSizeChange).toHaveBeenCalledWith(id, 'extra-small');
+    }
+  );
+
   it('upgrades alarm sensor cards to the alarm panel footprint', () => {
     renderWithProviders(
       <DashboardCardItem

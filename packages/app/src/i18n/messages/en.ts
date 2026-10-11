@@ -80,6 +80,7 @@ export const enMessages = {
   'common.custom': 'Custom',
   'common.customize': 'Customize',
   'common.done': 'Done',
+  'common.run': 'Run',
   'common.metrics': 'Metrics',
   'common.off': 'Off',
   'common.on': 'On',
@@ -528,6 +529,7 @@ export const enMessages = {
   'settings.project.about.title': 'About',
   'settings.project.about.description': 'Quick project information.',
   'settings.project.about.version': 'Version',
+  'settings.project.about.localBuild': 'Local development build',
   'settings.project.about.build': 'Build',
   'settings.project.credits.title': 'Credits',
   'settings.project.credits.description':

@@ -3,7 +3,7 @@ import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import type { NavetClimateControlState } from '@navet/core/climate-controls';
 import type { NavetEntity } from '@navet/core/types';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClimateAdvancedControls } from '../climate-advanced-controls';
 
@@ -48,6 +48,15 @@ function installEntity(overrides: Partial<NavetEntity> = {}) {
 }
 function renderControls() {
   renderWithProviders(<ClimateAdvancedControls entityId="homey:climate.hall" />);
+  openControls();
+}
+function openControls() {
+  for (const button of screen.queryAllByRole('button')) {
+    if (button.getAttribute('aria-expanded') === 'false') fireEvent.click(button);
+  }
+}
+function option(label: string, value: string) {
+  return within(screen.getByRole('group', { name: label })).getByRole('radio', { name: value });
 }
 
 describe('normalized advanced climate controls', () => {
@@ -55,13 +64,86 @@ describe('normalized advanced climate controls', () => {
     await resetAppStores();
     dispatch.mockReset().mockResolvedValue({ accepted: true, requiresEventConfirmation: false });
   });
+  it('shows live values before disclosure and preserves a humidity draft when collapsed', () => {
+    installEntity();
+    renderWithProviders(<ClimateAdvancedControls entityId="homey:climate.hall" />);
+    expect(screen.getByRole('button', { name: 'Fan mode' })).toHaveTextContent('Auto');
+    expect(screen.getByText('42%')).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Current humidity' })).not.toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: 'Target humidity' });
+    fireEvent.click(trigger);
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '55' } });
+    fireEvent.click(trigger);
+    expect(trigger).toHaveTextContent('45%');
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(screen.getByRole('spinbutton')).toHaveValue(55);
+  });
+  it('keeps the selected row checked when clicked again without sending a command', () => {
+    installEntity();
+    renderControls();
+    const selected = option('Preset', 'Comfort');
+    expect(selected).toBeChecked();
+    fireEvent.click(selected);
+    expect(selected).toBeChecked();
+    expect(option('Preset', 'Away')).not.toBeChecked();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('uses an inline toggle only for explicit boolean options and confirms the live update', async () => {
+    dispatch.mockResolvedValue({ accepted: true, requiresEventConfirmation: true });
+    installEntity({
+      attributes: {
+        climateControls: { ...controls, swingMode: { value: 'Off', options: ['Off', 'On'] } },
+      },
+    });
+    renderControls();
+    const toggle = screen.getByRole('switch', { name: 'Vertical swing' });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(dispatch).toHaveBeenCalledWith(
+      { type: 'set_climate_swing_mode', entityId: 'homey:climate.hall', mode: 'On' },
+      'homey'
+    );
+    expect(toggle).toBeDisabled();
+    expect(toggle).not.toBeChecked();
+    await waitFor(() => expect(dispatch).toHaveBeenCalled());
+    installEntity({
+      attributes: {
+        climateControls: { ...controls, swingMode: { value: 'On', options: ['Off', 'On'] } },
+      },
+    });
+    expect(toggle).toBeChecked();
+    expect(toggle).toBeEnabled();
+    installEntity({
+      availability: 'unavailable',
+      attributes: {
+        climateControls: { ...controls, swingMode: { value: 'On', options: ['Off', 'On'] } },
+      },
+    });
+    expect(toggle).toBeDisabled();
+  });
+  it('keeps an unknown option visible without selecting a different supported value', () => {
+    installEntity({
+      attributes: {
+        climateControls: { ...controls, preset: { value: 'Custom', options: ['Comfort', 'Away'] } },
+      },
+    });
+    renderControls();
+    expect(screen.getByRole('button', { name: 'Preset' })).toHaveTextContent('Custom');
+    expect(option('Preset', 'Comfort')).not.toBeChecked();
+    expect(option('Preset', 'Away')).not.toBeChecked();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
   it('omits controls without advertised capabilities or supported options', () => {
     installEntity({
       capabilities: ['climate_fan_mode'],
       attributes: { climateControls: { ...controls, fanMode: { value: 'Auto', options: [] } } },
     });
     renderControls();
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
     expect(screen.getByText('42%')).toBeInTheDocument();
   });
@@ -79,7 +161,7 @@ describe('normalized advanced climate controls', () => {
       ],
     ] as const;
     for (const [label, value, command] of cases) {
-      fireEvent.change(screen.getByRole('combobox', { name: label }), { target: { value } });
+      fireEvent.click(option(label, value));
       await waitFor(() =>
         expect(dispatch).toHaveBeenCalledWith(
           { ...command, entityId: 'homey:climate.hall' },
@@ -87,15 +169,15 @@ describe('normalized advanced climate controls', () => {
         )
       );
     }
-    expect(screen.getByRole('combobox', { name: 'Preset' })).toHaveValue('Comfort');
+    expect(option('Preset', 'Comfort')).toBeChecked();
   });
   it('prevents duplicate pending writes and confirms the provider update', async () => {
     dispatch.mockResolvedValue({ accepted: true, requiresEventConfirmation: true });
     installEntity();
     renderControls();
-    const field = screen.getByRole('combobox', { name: 'Fan mode' });
-    fireEvent.change(field, { target: { value: 'Low' } });
-    fireEvent.change(field, { target: { value: 'Low' } });
+    const field = option('Fan mode', 'Low');
+    fireEvent.click(field);
+    fireEvent.click(field);
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(field).toBeDisabled();
     expect(screen.getByText('Updating…')).toBeInTheDocument();
@@ -105,7 +187,7 @@ describe('normalized advanced climate controls', () => {
         climateControls: { ...controls, fanMode: { ...controls.fanMode, value: 'Low' } },
       },
     });
-    expect(field).toHaveValue('Low');
+    expect(field).toBeChecked();
     expect(field).toBeEnabled();
     expect(screen.queryByText('Updating…')).not.toBeInTheDocument();
   });
@@ -113,14 +195,14 @@ describe('normalized advanced climate controls', () => {
     dispatch.mockResolvedValue({ accepted: false, requiresEventConfirmation: false });
     installEntity();
     renderControls();
-    const field = screen.getByRole('combobox', { name: 'Preset' });
-    fireEvent.change(field, { target: { value: 'Away' } });
+    const field = option('Preset', 'Away');
+    fireEvent.click(field);
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Unable to update the climate control. Try again.'
     );
-    expect(field).toHaveValue('Comfort');
+    expect(option('Preset', 'Comfort')).toBeChecked();
     expect(field).toBeEnabled();
-    fireEvent.change(field, { target: { value: 'Away' } });
+    fireEvent.click(field);
     await waitFor(() => expect(dispatch).toHaveBeenCalledTimes(2));
   });
   it('refreshes backend options and disables all supported actions when unavailable', () => {
@@ -134,10 +216,10 @@ describe('normalized advanced climate controls', () => {
         },
       },
     });
-    expect(screen.getByRole('option', { name: 'Sleep' })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'Away' })).not.toBeInTheDocument();
+    expect(option('Preset', 'Sleep')).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Away' })).not.toBeInTheDocument();
     installEntity({ availability: 'unavailable' });
-    for (const field of screen.getAllByRole('combobox')) expect(field).toBeDisabled();
+    for (const field of screen.getAllByRole('radio')) expect(field).toBeDisabled();
     expect(screen.getByRole('spinbutton', { name: 'Target humidity' })).toBeDisabled();
   });
   it('allows integer humidity within fractional bounds without a native step mismatch', async () => {
@@ -242,16 +324,16 @@ describe('normalized advanced climate controls', () => {
     );
     installEntity();
     renderControls();
-    const field = screen.getByRole('combobox', { name: 'Preset' });
+    const field = option('Preset', 'Away');
     vi.useFakeTimers();
     try {
-      fireEvent.change(field, { target: { value: 'Away' } });
+      fireEvent.click(field);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(10000);
       });
       expect(field).toBeEnabled();
       expect(screen.getByRole('alert')).toBeInTheDocument();
-      fireEvent.change(field, { target: { value: 'Away' } });
+      fireEvent.click(field);
       await act(async () => {
         await Promise.resolve();
       });
@@ -298,19 +380,19 @@ describe('normalized advanced climate controls', () => {
     const { rerender } = renderWithProviders(
       <ClimateAdvancedControls entityId={entityA.canonicalId} />
     );
+    openControls();
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Target humidity' }), {
       target: { value: '55' },
     });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Preset' }), {
-      target: { value: 'Away' },
-    });
-    expect(screen.getByRole('combobox', { name: 'Preset' })).toBeDisabled();
+    fireEvent.click(option('Preset', 'Away'));
+    expect(option('Preset', 'Away')).toBeDisabled();
     rerender(<ClimateAdvancedControls entityId={entityB.canonicalId} />);
+    openControls();
     const humidityB = screen.getByRole('spinbutton', { name: 'Target humidity' });
     expect(humidityB).toHaveValue(60);
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: 'Preset' })).toHaveValue('Sleep');
-    expect(screen.getByRole('combobox', { name: 'Preset' })).toBeEnabled();
+    expect(option('Preset', 'Sleep')).toBeChecked();
+    expect(option('Preset', 'Away')).toBeEnabled();
     expect(screen.queryByText('Updating…')).not.toBeInTheDocument();
     await act(async () => {
       rejectOld(new Error('Old entity request rejected'));
@@ -357,7 +439,7 @@ describe('normalized advanced climate controls', () => {
         ['Horizontal swing', 'Horizontal'],
       ] as const;
       for (const [label, value] of selections) {
-        fireEvent.change(screen.getByRole('combobox', { name: label }), { target: { value } });
+        fireEvent.click(option(label, value));
       }
       fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '55' } });
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -383,13 +465,14 @@ describe('normalized advanced climate controls', () => {
         }
       });
       installEntity({ attributes: { climateControls: nextControls } });
+      openControls();
       expect(screen.getByRole('spinbutton')).toHaveValue(60);
       expect(screen.getByRole('spinbutton')).toBeEnabled();
-      expect(screen.getByRole('combobox', { name: 'Preset' })).toHaveValue('Sleep');
+      expect(option('Preset', 'Sleep')).toBeChecked();
       expect(screen.queryByText('Updating…')).not.toBeInTheDocument();
       for (const [label, value] of selections) {
-        expect(screen.getByRole('combobox', { name: label })).toBeEnabled();
-        fireEvent.change(screen.getByRole('combobox', { name: label }), { target: { value } });
+        expect(option(label, value)).toBeEnabled();
+        fireEvent.click(option(label, value));
       }
       fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '61' } });
       await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
@@ -403,8 +486,7 @@ describe('normalized advanced climate controls', () => {
       );
       expect(screen.getByRole('spinbutton')).toHaveValue(61);
       expect(screen.getByRole('spinbutton')).toBeDisabled();
-      for (const [label] of selections)
-        expect(screen.getByRole('combobox', { name: label })).toBeDisabled();
+      for (const [label, value] of selections) expect(option(label, value)).toBeDisabled();
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       installEntity({
         attributes: {
@@ -419,8 +501,7 @@ describe('normalized advanced climate controls', () => {
         },
       });
       expect(screen.getByRole('spinbutton')).toBeEnabled();
-      for (const [label] of selections)
-        expect(screen.getByRole('combobox', { name: label })).toBeEnabled();
+      for (const [label, value] of selections) expect(option(label, value)).toBeEnabled();
     }
   );
 });

@@ -84,7 +84,7 @@ describe('VacuumSettingsDialog', () => {
       'max-sm:!flex',
       'max-sm:!flex-col',
       'max-h-[85vh]',
-      'max-sm:!h-[80dvh]',
+      'max-sm:!h-auto',
       'max-sm:!rounded-t-[30px]',
       'max-sm:[&_[data-cover-sheet-inline-dismiss]]:!hidden'
     );
@@ -141,15 +141,13 @@ describe('VacuumSettingsDialog', () => {
     );
 
     const startButton = screen.getByRole('button', { name: 'Start Cleaning' });
-    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    const doneButton = screen.getByRole('button', { name: 'Done' });
     const scrollRoot = screen.getByRole('dialog').querySelector('[dir="ltr"]');
-    const footer = startButton.closest('.mt-6.flex.justify-end');
 
-    expect(scrollRoot).not.toBeNull();
     expect(scrollRoot?.contains(startButton)).toBe(true);
-    expect(footer).not.toBeNull();
-    expect(footer?.firstElementChild).toBe(cancelButton);
-    expect(footer?.lastElementChild).toBe(startButton);
+    expect(scrollRoot?.contains(doneButton)).toBe(true);
+    expect(doneButton.closest('.mt-6.flex.justify-end')?.childElementCount).toBe(1);
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
   });
 
   it('renders the map tab only when map support is available', () => {
@@ -511,10 +509,11 @@ describe('VacuumSettingsDialog', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'balanced' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fan Speed' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'balanced' }));
 
     expect(onSetFanSpeed).toHaveBeenCalledWith('balanced');
-    expect(screen.getByRole('button', { name: 'balanced' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'balanced' })).not.toBeChecked();
   });
 
   it('reflects live fan-speed updates back into the selected state', () => {
@@ -538,7 +537,8 @@ describe('VacuumSettingsDialog', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'quiet' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fan Speed' }));
+    expect(screen.getByRole('radio', { name: 'quiet' })).toBeChecked();
 
     rerender(
       <VacuumSettingsDialog
@@ -560,7 +560,7 @@ describe('VacuumSettingsDialog', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'turbo' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'turbo' })).toBeChecked();
   });
 
   it('hides the return-to-dock action when the vacuum does not support it', () => {
@@ -596,7 +596,7 @@ describe('VacuumSettingsDialog', () => {
       />
     );
 
-    expect(screen.queryByRole('button', { name: 'Return to Dock' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Run Return to Dock' })).not.toBeInTheDocument();
   });
 
   it('hides the controls tab when the vacuum has no dialog controls', () => {
@@ -634,4 +634,131 @@ describe('VacuumSettingsDialog', () => {
 
     expect(screen.queryByRole('button', { name: 'Controls' })).not.toBeInTheDocument();
   });
+
+  it('keeps the fan editor mounted while collapsed and prevents changes while updating', () => {
+    const onSetFanSpeed = vi.fn();
+    renderWithProviders(
+      <VacuumSettingsDialog
+        {...advancedDialogProps}
+        onSetFanSpeed={onSetFanSpeed}
+        isUpdatingFanSpeed
+      />
+    );
+    const disclosure = screen.getByRole('button', { name: 'Fan Speed' });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('radio', { name: 'Turbo' })).not.toBeInTheDocument();
+    fireEvent.click(disclosure);
+    expect(screen.getByRole('radio', { name: 'Turbo' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('radio', { name: 'Turbo' }));
+    expect(onSetFanSpeed).not.toHaveBeenCalled();
+    fireEvent.click(disclosure);
+    expect(screen.getByRole('radio', { name: 'Turbo', hidden: true })).toBeInTheDocument();
+  });
+
+  it('routes push actions and hides pause and stop after cleaning ends', () => {
+    const onPauseCleaning = vi.fn();
+    const onStopCleaning = vi.fn();
+    const onReturnHome = vi.fn();
+    const onLocate = vi.fn();
+    const onCleanSpot = vi.fn();
+    const props = {
+      ...advancedDialogProps,
+      onPauseCleaning,
+      onStopCleaning,
+      onReturnHome,
+      onLocate,
+      onCleanSpot,
+    };
+    const { rerender } = renderWithProviders(<VacuumSettingsDialog {...props} />);
+    expect(screen.queryByText('Actions')).not.toBeInTheDocument();
+    expect(screen.queryByText('More Actions')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Run Pause cleaning' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run Stop cleaning' }));
+    expect(onPauseCleaning).toHaveBeenCalledOnce();
+    expect(onStopCleaning).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Run Return to Dock' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run Locate vacuum' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run Spot clean' }));
+    expect(onReturnHome).toHaveBeenCalledOnce();
+    expect(onLocate).toHaveBeenCalledOnce();
+    expect(onCleanSpot).toHaveBeenCalledOnce();
+    rerender(<VacuumSettingsDialog {...props} currentStatus="docked" />);
+    expect(screen.queryByRole('button', { name: 'Run Pause cleaning' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Run Stop cleaning' })).not.toBeInTheDocument();
+  });
+
+  it('disables device commands if the vacuum becomes unavailable while the dialog is open', () => {
+    const { rerender } = renderWithProviders(<VacuumSettingsDialog {...advancedDialogProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Fan Speed' }));
+    rerender(<VacuumSettingsDialog {...advancedDialogProps} disabled />);
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    for (const label of [
+      'Run Pause cleaning',
+      'Run Stop cleaning',
+      'Run Return to Dock',
+      'Run Locate vacuum',
+      'Run Spot clean',
+      'Start Cleaning',
+    ]) {
+      expect(screen.getByRole('button', { name: label })).toBeDisabled();
+    }
+    expect(screen.getByRole('radio', { name: 'Turbo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Done' })).toBeEnabled();
+  });
+
+  it('starts cleaning beside the live status and stays open until Done is pressed', () => {
+    const onStartCleaning = vi.fn();
+    const onClose = vi.fn();
+    renderWithProviders(
+      <VacuumSettingsDialog
+        {...advancedDialogProps}
+        currentStatus="docked"
+        onStartCleaning={onStartCleaning}
+        onClose={onClose}
+      />
+    );
+    const startButton = screen.getByRole('button', { name: 'Start Cleaning' });
+    expect(startButton).toHaveTextContent('Start Cleaning');
+    expect(startButton.parentElement).toHaveTextContent('Docked');
+    fireEvent.click(startButton);
+    expect(onStartCleaning).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });
+
+const advancedDialogProps = {
+  entityId: 'vacuum.roborock',
+  isOpen: true,
+  onClose: vi.fn(),
+  onStartCleaning: vi.fn(),
+  onPauseCleaning: vi.fn(),
+  onStopCleaning: vi.fn(),
+  onReturnHome: vi.fn(),
+  onSetFanSpeed: vi.fn(),
+  onLocate: vi.fn(),
+  onCleanSpot: vi.fn(),
+  name: 'Robot',
+  room: 'Kitchen',
+  theme: 'dark' as const,
+  accentColorValue: '#06b6d4',
+  currentStatus: 'cleaning' as const,
+  fanSpeed: 'Balanced',
+  fanSpeeds: ['Quiet', 'Balanced', 'Turbo'],
+  capabilities: {
+    canStart: true,
+    canPause: true,
+    canStop: true,
+    canReturnHome: true,
+    canLocate: true,
+    canCleanSpot: true,
+    canSetFanSpeed: true,
+    fanSpeedOptions: ['Quiet', 'Balanced', 'Turbo'],
+    canCycleFanSpeed: true,
+    canShowMap: false,
+    canCleanByArea: false,
+    canOrderAreaCleaning: false,
+    availableCleaningAreas: [],
+  },
+};
