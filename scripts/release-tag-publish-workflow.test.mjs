@@ -90,6 +90,10 @@ describe('production release tag publisher', () => {
     expect(releaseWorkflow.jobs['publish-channels'].needs).toContain('publish-addon-metadata');
     expect(releaseWorkflow.jobs['release-context'].if).toBe("github.ref == 'refs/heads/main'");
     expect(contextRun).toContain('INSTALLATION_TESTED');
+    // Keep: user-selected release tags may execute only code already admitted to main.
+    expect(contextRun).toContain('git merge-base --is-ancestor "${RELEASE_SHA}" refs/remotes/origin/main');
+    const panelSteps = releaseWorkflow.jobs['custom-panel-artifact'].steps;
+    expect(panelSteps.find((step) => step.name === 'Setup pnpm').with.cache).toBe(false);
     expect(releaseWorkflow.concurrency.group).toBe('navet-release-publication');
     const imageWorkflow = parse(readFileSync('.github/workflows/release-image.yml', 'utf8'));
     const build = imageWorkflow.jobs.image.steps.find(

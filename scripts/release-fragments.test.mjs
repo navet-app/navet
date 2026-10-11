@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { isDependabotDependencyUpdate, parseReleaseFragment, renderReleaseNotes } from './release-fragments.mjs';
 
 describe('release fragments', () => {
+  // Keep: untrusted fragment fields must fail validation without prototype mutation.
+  it.each(['__proto__', 'constructor', 'prototype'])(
+    'rejects unsupported prototype-related fields: %s',
+    (field) => {
+      expect(() => parseReleaseFragment(
+        `type: internal\naudiences: []\nsummary: Reviewed release tooling.\n${field}: injected\n`
+      )).toThrow('unsupported fields');
+      expect(Object.prototype).not.toHaveProperty('injected');
+    }
+  );
   it('validates and renders user-facing fragments by category', () => {
     const fragments = [
       parseReleaseFragment(

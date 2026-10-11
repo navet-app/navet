@@ -28,6 +28,14 @@ export const itMessages = {
   'todo.retry': 'Riprova',
   'todo.saving': 'Salvataggio…',
 
+  'entityIntegrationReload.action': 'Ricarica integrazione',
+  'entityIntegrationReload.title': 'Ricaricare l’integrazione?',
+  'entityIntegrationReload.description':
+    'Le altre entità di questa integrazione potrebbero non essere disponibili per un breve periodo.',
+  'entityIntegrationReload.pending': 'Ricaricamento dell’integrazione…',
+  'entityIntegrationReload.success': 'Integrazione ricaricata.',
+  'entityIntegrationReload.error':
+    'Impossibile ricaricare l’integrazione. Controlla la connessione a Home Assistant e i permessi di amministratore, poi riprova.',
   'energy.history.noData': 'Nessun dato',
   'energy.history.noPeriodSelected': 'Nessun periodo selezionato',
   'energy.history.usageByPeriod': 'Consumo energetico per periodo',

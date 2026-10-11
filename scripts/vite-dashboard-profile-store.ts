@@ -1,4 +1,4 @@
-import { setOwnRecordValue } from '../packages/core/src/record-safety'
+import { setOwnRecordValue } from '../packages/core/src/record-safety.ts'
 import fileSystem from 'node:fs'
 import boundedFile from '../docker/shared/bounded-file.js'
 import profilePolicy from '../docker/shared/dashboard-profile-policy.js'

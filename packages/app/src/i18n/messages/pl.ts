@@ -24,6 +24,15 @@ export const plMessages = {
   'todo.items': 'Pozycje',
   'todo.retry': 'Spróbuj ponownie',
   'todo.saving': 'Zapisywanie…',
+  'entityIntegrationReload.action': 'Przeładuj integrację',
+  'entityIntegrationReload.title': 'Przeładować integrację?',
+  'entityIntegrationReload.description':
+    'Inne encje tej integracji mogą być przez chwilę niedostępne.',
+  'entityIntegrationReload.pending': 'Przeładowywanie integracji…',
+  'entityIntegrationReload.success': 'Integracja przeładowana.',
+  'entityIntegrationReload.error':
+    'Nie udało się przeładować integracji. Sprawdź połączenie z Home Assistant i uprawnienia administratora, a następnie spróbuj ponownie.',
+
   'energy.history.noData': 'Brak danych',
   'energy.history.noPeriodSelected': 'Nie wybrano okresu',
   'energy.history.usageByPeriod': 'Zużycie energii według okresu',

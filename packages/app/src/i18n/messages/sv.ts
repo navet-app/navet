@@ -24,6 +24,15 @@ export const svMessages = {
   'todo.items': 'Poster',
   'todo.retry': 'Försök igen',
   'todo.saving': 'Sparar…',
+  'entityIntegrationReload.action': 'Ladda om integration',
+  'entityIntegrationReload.title': 'Ladda om integrationen?',
+  'entityIntegrationReload.description':
+    'Andra entiteter från den här integrationen kan bli otillgängliga en kort stund.',
+  'entityIntegrationReload.pending': 'Laddar om integrationen…',
+  'entityIntegrationReload.success': 'Integrationen har laddats om.',
+  'entityIntegrationReload.error':
+    'Kunde inte ladda om integrationen. Kontrollera anslutningen till Home Assistant och dina administratörsrättigheter och försök igen.',
+
   'energy.history.noData': 'Inga data',
   'energy.history.noPeriodSelected': 'Ingen period vald',
   'energy.history.usageByPeriod': 'Energianvändning per period',

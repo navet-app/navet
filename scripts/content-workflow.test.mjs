@@ -11,6 +11,7 @@ import {
   jaccardSimilarity,
   loadChannelConfig,
   loadPublishedVoiceExamples,
+  parseCliArgs,
   repoRoot,
   validateBrief,
   validateDrafts,
@@ -18,10 +19,35 @@ import {
   validateMetrics,
   validatePublishedAsset,
   writeYaml,
+  writePack,
 } from './content-workflow.mjs';
 
 const temporaryDirectories = [];
 const fixedNow = new Date('2026-09-01T12:00:00.000Z');
+
+// Keep: attacker-controlled option names cannot alter prototypes, and generated
+// channel IDs cannot select files outside the caller's output directory.
+it('treats prototype names as ordinary CLI keys', () => {
+  const options = parseCliArgs(['--__proto__=polluted', '--constructor', 'override', '--prototype']);
+  expect(Object.getPrototypeOf(options)).toBeNull();
+  expect(options.__proto__).toBe('polluted');
+  expect(options.constructor).toBe('override');
+  expect(options.prototype).toBe(true);
+  expect(Object.prototype).not.toHaveProperty('polluted');
+});
+
+it.each(['../escape', '/tmp/escape', 'youtube/../../escape', 'youtube\\escape'])(
+  'rejects generated channel filenames before writing: %s',
+  (channelId) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'navet-content-path-'));
+    temporaryDirectories.push(root);
+    const output = path.join(root, 'output');
+    expect(() => writePack({ drafts: [{ channelId }], channels: [{ id: channelId }] }, output))
+      .toThrow('Draft channel must match a configured channel');
+    expect(fs.existsSync(output)).toBe(false);
+    expect(fs.readdirSync(root)).toEqual([]);
+  }
+);
 
 it('generates all three transports from one master without rewriting wording or links', async () => {
   const cacheRoot = path.join(repoRoot, '.cache', 'content-workflow-tests');

@@ -51,12 +51,28 @@ export interface HomeAssistantPanelShellBridge {
 
 export class HomeAssistantPanelAdapter {
   private hass: HomeAssistantPanelHass;
+  private connectionBridge?: {
+    session: { hass: HomeAssistantPanelHass };
+    connection: Connection;
+  };
 
   constructor(hass: HomeAssistantPanelHass) {
     this.hass = hass;
   }
 
   update(hass: HomeAssistantPanelHass): void {
+    if (this.connectionBridge) {
+      const previous = this.connectionBridge.session.hass;
+      if (
+        previous.connection === hass.connection &&
+        previous.user?.id === hass.user?.id &&
+        (hass.connection || previous.callWS === hass.callWS)
+      ) {
+        this.connectionBridge.session.hass = hass;
+      } else {
+        this.connectionBridge = undefined;
+      }
+    }
     this.hass = hass;
   }
 
@@ -77,20 +93,24 @@ export class HomeAssistantPanelAdapter {
   }
 
   getConnection(): Connection {
-    return {
-      sendMessagePromise: (message: Record<string, unknown>) => this.hass.callWS(message),
+    if (this.connectionBridge) return this.connectionBridge.connection;
+    const session = { hass: this.hass };
+    const connection = {
+      sendMessagePromise: (message: Record<string, unknown>) => session.hass.callWS(message),
       subscribeMessage: <Result>(
         callback: (result: Result) => void,
         subscribeMessage: MessageBase,
         options?: { resubscribe?: boolean; preCheck?: () => boolean | Promise<boolean> }
       ) => {
-        if (this.hass.connection?.subscribeMessage) {
-          return this.hass.connection.subscribeMessage(callback, subscribeMessage, options);
+        if (session.hass.connection?.subscribeMessage) {
+          return session.hass.connection.subscribeMessage(callback, subscribeMessage, options);
         }
 
         return Promise.reject(new Error('Home Assistant panel connection cannot subscribe'));
       },
     } as unknown as Connection;
+    this.connectionBridge = { session, connection };
+    return connection;
   }
 
   async callService(

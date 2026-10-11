@@ -5,6 +5,9 @@ const mocks = vi.hoisted(() => ({
     | undefined
     | {
         dependencies: {
+          homeAssistantStore: {
+            getState: () => { user?: { name: string; is_admin: boolean } | null };
+          };
           homeAssistantService: {
             subscribeCameraWebRtcOffer: (
               entityId: string,
@@ -23,6 +26,10 @@ const mocks = vi.hoisted(() => ({
   createHomeyProviderPackageRegistrationMock: vi.fn(() => ({ runtimeRegistration: {} })),
   createOpenHABProviderPackageRegistrationMock: vi.fn(() => ({ runtimeRegistration: {} })),
   subscribeCameraWebRtcOfferMock: vi.fn(async () => () => undefined),
+  homeAssistantUser: { name: 'Administrator', is_admin: true } as {
+    name: string;
+    is_admin: boolean;
+  } | null,
 }));
 
 vi.mock('@navet/provider-homeassistant', () => ({
@@ -100,6 +107,7 @@ vi.mock('./stores/home-assistant-store', () => ({
   homeAssistantStore: {
     getState: () => ({
       connected: false,
+      user: mocks.homeAssistantUser,
       config: null,
       entities: null,
       areas: [],
@@ -122,6 +130,21 @@ describe('provider-package-registry Home Assistant WebRTC bridge', () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.capturedHomeAssistantArgs = undefined;
+    mocks.homeAssistantUser = { name: 'Administrator', is_admin: true };
+  });
+
+  // Keep existing WebRTC coverage; add a regression for the live composition boundary.
+  it('forwards current Home Assistant permissions, including revocation and logout', async () => {
+    const { getProviderPackageRegistration } = await import('./provider-package-registry');
+    getProviderPackageRegistration('home_assistant');
+    const store = mocks.capturedHomeAssistantArgs?.dependencies.homeAssistantStore;
+    expect(store?.getState().user).toEqual({ name: 'Administrator', is_admin: true });
+
+    mocks.homeAssistantUser = { name: 'Administrator', is_admin: false };
+    expect(store?.getState().user?.is_admin).toBe(false);
+
+    mocks.homeAssistantUser = null;
+    expect(store?.getState().user).toBeNull();
   });
 
   it('forwards combined session and answer events plus candidate and error events', async () => {

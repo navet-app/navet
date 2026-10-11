@@ -24,6 +24,15 @@ export const daMessages = {
   'todo.items': 'Elementer',
   'todo.retry': 'Prøv igen',
   'todo.saving': 'Gemmer…',
+  'entityIntegrationReload.action': 'Genindlæs integration',
+  'entityIntegrationReload.title': 'Genindlæse integrationen?',
+  'entityIntegrationReload.description':
+    'Andre entiteter fra denne integration kan kortvarigt blive utilgængelige.',
+  'entityIntegrationReload.pending': 'Genindlæser integrationen…',
+  'entityIntegrationReload.success': 'Integrationen er genindlæst.',
+  'entityIntegrationReload.error':
+    'Kunne ikke genindlæse integrationen. Kontrollér forbindelsen til Home Assistant og dine administratorrettigheder, og prøv igen.',
+
   'energy.history.noData': 'Ingen data',
   'energy.history.noPeriodSelected': 'Ingen periode valgt',
   'energy.history.usageByPeriod': 'Energiforbrug pr. periode',
