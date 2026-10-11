@@ -320,7 +320,7 @@ function isValidChoreWorkspaceDataVersion(value, schemaVersion) {
   const occurrenceIds = Object.keys(value.occurrencesById);
   for (let occurrenceIndex = 0; occurrenceIndex < occurrenceIds.length; occurrenceIndex += 1) {
     const occurrence = value.occurrencesById[occurrenceIds[occurrenceIndex]];
-    if (occurrence && occurrence.supersededAt !== undefined && (typeof occurrence.supersededAt !== 'string' || !Number.isFinite(Date.parse(occurrence.supersededAt)))) return false;
+    if (occurrence && occurrence.supersededAt !== undefined && (typeof occurrence.supersededAt !== 'string' || !Number.isFinite(choreRecurrencePolicy.parseChoreInstant(occurrence.supersededAt)))) return false;
   }
   for (let index = 0; index < value.activity.length; index += 1) {
     if (!isValidActivity(value.activity[index])) {

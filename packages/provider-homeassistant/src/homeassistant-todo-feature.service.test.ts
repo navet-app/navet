@@ -17,7 +17,11 @@ const bridge = vi.hoisted(() => ({
   entities: {} as Record<string, unknown>,
   listeners: new Map<string, Set<() => void>>(),
   connected: true,
-  panel: null as { connection?: unknown; callWS: ReturnType<typeof vi.fn> } | null,
+  panel: null as {
+    connection?: unknown;
+    callWS: ReturnType<typeof vi.fn>;
+    user?: { id: string };
+  } | null,
 }));
 vi.mock('./homeassistant-service-bridge', () => ({
   getHomeAssistantConnection: () =>
@@ -277,6 +281,147 @@ describe('Home Assistant shared lists', () => {
     expect((await service.getLists())[0].sessionKey).toBe(previous);
     bridge.panel = { callWS, connection: {} };
     expect((await service.getLists())[0].sessionKey).not.toBe(previous);
+  });
+
+  it('isolates panel user subscriptions despite an unchanged transport and list ID', async () => {
+    if (!bridge.client) throw new Error('Fixture client missing');
+    const callWS = bridge.client.sendMessagePromise;
+    const connection = {};
+    bridge.panel = { callWS, connection, user: { id: 'household-a-user' } };
+    const previousSession = (await service.getLists())[0].sessionKey;
+    const snapshots = vi.fn();
+    const pushes: ((items: unknown) => void)[] = [];
+    const releases = [vi.fn(), vi.fn()];
+    bridge.client.subscribeMessage.mockImplementation(async (push) => {
+      pushes.push(push);
+      return releases[pushes.length - 1];
+    });
+    const unsubscribe = await service.subscribeItems('todo.shopping_list', snapshots);
+    pushes[0](uidlessShoppingListItems);
+    let resolveOldRead: (result: unknown) => void = () => {};
+    bridge.client.sendMessagePromise.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveOldRead = resolve;
+        })
+    );
+    const oldRead = service.getItems('todo.shopping_list');
+    const rejectedOldRead = expect(oldRead).rejects.toThrow('connection changed');
+    bridge.panel = { callWS, connection, user: { id: 'household-b-user' } };
+    emit('connection');
+    await Promise.resolve();
+    const currentSession = (await service.getLists())[0].sessionKey;
+    expect(currentSession).not.toBe(previousSession);
+    expect(releases[0]).toHaveBeenCalledOnce();
+    expect(snapshots).toHaveBeenLastCalledWith([]);
+    pushes[1]({ items: [{ summary: 'Household B', status: 'needs_action' }] });
+    pushes[0](uidlessShoppingListItems);
+    expect(snapshots).toHaveBeenLastCalledWith([
+      expect.objectContaining({ summary: 'Household B' }),
+    ]);
+    resolveOldRead({ response: { 'todo.shopping_list': uidlessShoppingListItems } });
+    await rejectedOldRead;
+    const readCount = bridge.client.sendMessagePromise.mock.calls.length;
+    await expect(
+      service.addItem('todo.shopping_list', { summary: 'Old draft' }, previousSession)
+    ).rejects.toThrow('connection changed');
+    await expect(
+      service.updateItem(
+        'todo.shopping_list',
+        'navet-summary:Milk:0',
+        { completed: true },
+        currentSession
+      )
+    ).rejects.toThrow('item changed');
+    expect(bridge.client.sendMessagePromise).toHaveBeenCalledTimes(readCount);
+    await service.updateItem(
+      'todo.shopping_list',
+      'navet-summary:Household%20B:0',
+      { completed: true },
+      currentSession
+    );
+    expect(bridge.client.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        service_data: { item: 'Household B', status: 'completed' },
+      })
+    );
+    bridge.panel = { callWS, connection, user: { id: 'household-b-user' } };
+    expect((await service.getLists())[0].sessionKey).toBe(currentSession);
+    unsubscribe();
+    expect(releases[1]).toHaveBeenCalledOnce();
+  });
+
+  it('replaces callWS-only user polling and rejects stale caches, writes and late reads', async () => {
+    vi.useFakeTimers();
+    if (!bridge.client) throw new Error('Fixture client missing');
+    const callWS = bridge.client.sendMessagePromise;
+    bridge.panel = { callWS, user: { id: 'user-a' } };
+    bridge.client.subscribeMessage.mockRejectedValue(
+      new Error('Home Assistant panel connection cannot subscribe')
+    );
+    bridge.client.sendMessagePromise.mockResolvedValue({
+      response: { 'todo.shopping_list': uidlessShoppingListItems },
+    });
+    const previousSession = (await service.getLists())[0].sessionKey;
+    const snapshots = vi.fn();
+    const unsubscribe = await service.subscribeItems('todo.shopping_list', snapshots);
+    await vi.advanceTimersByTimeAsync(0);
+    let resolveOldRead: (result: unknown) => void = () => {};
+    bridge.client.sendMessagePromise.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveOldRead = resolve;
+        })
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    bridge.client.sendMessagePromise.mockResolvedValue({
+      response: { 'todo.shopping_list': { items: [{ summary: 'B list', status: 'completed' }] } },
+    });
+    bridge.panel = { callWS, user: { id: 'user-b' } };
+    emit('connection');
+    await vi.advanceTimersByTimeAsync(0);
+    const currentSession = (await service.getLists())[0].sessionKey;
+    expect(currentSession).not.toBe(previousSession);
+    expect(snapshots).toHaveBeenLastCalledWith([
+      expect.objectContaining({ summary: 'B list', completed: true }),
+    ]);
+    resolveOldRead({ response: { 'todo.shopping_list': uidlessShoppingListItems } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(snapshots).toHaveBeenLastCalledWith([
+      expect.objectContaining({ summary: 'B list', completed: true }),
+    ]);
+    const calls = bridge.client.sendMessagePromise.mock.calls.length;
+    await expect(
+      service.addItem('todo.shopping_list', { summary: 'A draft' }, previousSession)
+    ).rejects.toThrow('connection changed');
+    await expect(
+      service.updateItem(
+        'todo.shopping_list',
+        'navet-summary:Milk:0',
+        { completed: true },
+        currentSession
+      )
+    ).rejects.toThrow('item changed');
+    await expect(
+      service.removeItem('todo.shopping_list', 'old-uid', previousSession)
+    ).rejects.toThrow('connection changed');
+    expect(bridge.client.sendMessagePromise).toHaveBeenCalledTimes(calls);
+    await service.updateItem(
+      'todo.shopping_list',
+      'navet-summary:B%20list:0',
+      { completed: false },
+      currentSession
+    );
+    expect(bridge.client.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        service_data: { item: 'B list', status: 'needs_action' },
+      })
+    );
+    unsubscribe();
+    const callsAfterDisposal = bridge.client.sendMessagePromise.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bridge.client.sendMessagePromise).toHaveBeenCalledTimes(callsAfterDisposal);
+    expect(bridge.listeners.get('connection')?.size).toBe(0);
   });
 
   it.each(['add', 'update', 'remove'] as const)(

@@ -326,4 +326,101 @@ describe('normalized advanced climate controls', () => {
       )
     );
   });
+  it.each([
+    ['session', 'accepted'],
+    ['session', 'rejected'],
+    ['connection', 'accepted'],
+    ['connection', 'rejected'],
+  ] as const)(
+    'resets same-entity climate controls on %s replacement and ignores old %s results',
+    async (change, outcome) => {
+      const oldResults: (() => void)[] = [];
+      for (let index = 0; index < 5; index += 1) {
+        dispatch.mockImplementationOnce(
+          () =>
+            new Promise((resolve, reject) => {
+              oldResults.push(() =>
+                outcome === 'accepted'
+                  ? resolve({ accepted: true, requiresEventConfirmation: false })
+                  : reject(new Error('Previous household failed'))
+              );
+            })
+        );
+      }
+      dispatch.mockResolvedValue({ accepted: true, requiresEventConfirmation: true });
+      installEntity();
+      renderControls();
+      const selections = [
+        ['Preset', 'Away'],
+        ['Fan mode', 'Low'],
+        ['Vertical swing', 'Vertical'],
+        ['Horizontal swing', 'Horizontal'],
+      ] as const;
+      for (const [label, value] of selections) {
+        fireEvent.change(screen.getByRole('combobox', { name: label }), { target: { value } });
+      }
+      fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '55' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(dispatch).toHaveBeenCalledTimes(5);
+      const nextControls = {
+        ...controls,
+        preset: { value: 'Sleep', options: ['Sleep', 'Away'] },
+        targetHumidity: { value: 60, min: 30, max: 70, step: 1 },
+      };
+      act(() => {
+        if (change === 'session') {
+          integrationStore
+            .getState()
+            .setProviderSessions({ homey: { providerId: 'homey', connected: true } });
+        } else {
+          const runtime = integrationStore.getState().providerRuntime;
+          integrationStore.setState({
+            providerRuntime: {
+              ...runtime,
+              homey: { ...runtime.homey, connected: !runtime.homey.connected },
+            },
+          });
+        }
+      });
+      installEntity({ attributes: { climateControls: nextControls } });
+      expect(screen.getByRole('spinbutton')).toHaveValue(60);
+      expect(screen.getByRole('spinbutton')).toBeEnabled();
+      expect(screen.getByRole('combobox', { name: 'Preset' })).toHaveValue('Sleep');
+      expect(screen.queryByText('Updating…')).not.toBeInTheDocument();
+      for (const [label, value] of selections) {
+        expect(screen.getByRole('combobox', { name: label })).toBeEnabled();
+        fireEvent.change(screen.getByRole('combobox', { name: label }), { target: { value } });
+      }
+      fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '61' } });
+      await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Save' })));
+      await act(async () => {
+        for (const finish of oldResults) finish();
+      });
+      expect(dispatch).toHaveBeenCalledTimes(10);
+      expect(dispatch).toHaveBeenLastCalledWith(
+        { type: 'set_climate_humidity', entityId: 'homey:climate.hall', humidity: 61 },
+        'homey'
+      );
+      expect(screen.getByRole('spinbutton')).toHaveValue(61);
+      expect(screen.getByRole('spinbutton')).toBeDisabled();
+      for (const [label] of selections)
+        expect(screen.getByRole('combobox', { name: label })).toBeDisabled();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      installEntity({
+        attributes: {
+          climateControls: {
+            ...nextControls,
+            preset: { ...nextControls.preset, value: 'Away' },
+            fanMode: { value: 'Low', options: ['Auto', 'Low'] },
+            swingMode: { value: 'Vertical', options: ['Off', 'Vertical'] },
+            swingHorizontalMode: { value: 'Horizontal', options: ['Off', 'Horizontal'] },
+            targetHumidity: { ...nextControls.targetHumidity, value: 61 },
+          },
+        },
+      });
+      expect(screen.getByRole('spinbutton')).toBeEnabled();
+      for (const [label] of selections)
+        expect(screen.getByRole('combobox', { name: label })).toBeEnabled();
+    }
+  );
 });

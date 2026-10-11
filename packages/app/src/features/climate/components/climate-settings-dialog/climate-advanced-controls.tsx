@@ -5,6 +5,7 @@ import { Select } from '@navet/app/components/primitives/select';
 import { DialogSectionRow } from '@navet/app/components/shared/device-editor/dialog-section-row';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useProviderEntityModel } from '@navet/app/hooks';
+import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import {
   type NavetClimateControlState,
@@ -231,6 +232,7 @@ function ClimateHumidityControl({
 export function ClimateAdvancedControls({ entityId }: { entityId: string }) {
   const { t } = useI18n();
   const entity = useProviderEntityModel(entityId);
+  const session = useProviderControlSession(entityId, entity?.providerId);
   const controls = readNavetClimateControlState(entity ?? undefined);
   if (!entity || !controls) return null;
   const labels = {
@@ -244,7 +246,7 @@ export function ClimateAdvancedControls({ entityId }: { entityId: string }) {
       {(['preset', 'fanMode', 'swingMode', 'swingHorizontalMode'] as const).map((kind) =>
         controls[kind] ? (
           <ClimateOptionControl
-            key={`${entity.canonicalId}:${kind}`}
+            key={`${session.key}:${kind}`}
             entityId={entity.canonicalId}
             providerId={entity.providerId}
             control={controls[kind]}
@@ -256,7 +258,7 @@ export function ClimateAdvancedControls({ entityId }: { entityId: string }) {
       )}
       {controls.targetHumidity ? (
         <ClimateHumidityControl
-          key={`${entity.canonicalId}:humidity`}
+          key={`${session.key}:humidity`}
           entityId={entity.canonicalId}
           providerId={entity.providerId}
           control={controls.targetHumidity}

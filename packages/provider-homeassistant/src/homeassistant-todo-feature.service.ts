@@ -11,10 +11,20 @@ import {
   isHomeAssistantConnected,
 } from './homeassistant-service-bridge';
 
+let panelSource: { transport: unknown; userId: string | undefined } | undefined;
 function sourceIdentity() {
-  const panel = getHomeAssistantPanelHass() as { connection?: unknown; callWS?: unknown } | null;
-  // Frontend hass objects can change per state update; their authenticated callWS transport is stable.
-  return panel ? (panel.connection ?? panel.callWS) : getHomeAssistantConnection();
+  const panel = getHomeAssistantPanelHass() as {
+    connection?: unknown;
+    callWS?: unknown;
+    user?: { id?: string } | null;
+  } | null;
+  if (!panel) return getHomeAssistantConnection();
+  const transport = panel.connection ?? panel.callWS;
+  if (!transport) return null;
+  // State wrappers change frequently; transport and authenticated user define the panel session.
+  if (panelSource?.transport !== transport || panelSource.userId !== panel.user?.id)
+    panelSource = { transport, userId: panel.user?.id };
+  return panelSource;
 }
 
 type ItemTarget = { value: string | null; removable: boolean };

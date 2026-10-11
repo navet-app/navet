@@ -375,6 +375,36 @@ it('keeps missed fixed chores in history and missed after-completion chores in T
   expect(data.occurrencesById.fixed.status).toBe('missed');
 });
 
+it('keeps the original once carry-forward occurrence in history while its replacement remains Today work', () => {
+  const data = workspace();
+  const original = {
+    ...occurrence('original-once', 'dishes', 'missed'),
+    carriedForwardTo: 'carried-once',
+    missedAt: '2026-08-15T09:30:00.000Z',
+  };
+  const replacement = {
+    ...occurrence('carried-once', 'dishes', 'available'),
+    carriedForwardFrom: original.id,
+  };
+  data.occurrencesById = { [original.id]: original, [replacement.id]: replacement };
+  expect(getTodayChoresForParticipant(data, 'all', now).map((item) => item.id)).toEqual([
+    replacement.id,
+  ]);
+  expect(getMissedScheduledChoreHistory(data, now)).toEqual([original]);
+  data.occurrencesById[replacement.id] = {
+    ...replacement,
+    status: 'done',
+    completedAt: now.toISOString(),
+  };
+  expect(getTodayChoresForParticipant(data, 'all', now).map((item) => item.id)).toEqual([
+    replacement.id,
+  ]);
+  expect(getMissedScheduledChoreHistory(data, now)).toEqual([original]);
+  delete data.occurrencesById[replacement.id];
+  expect(getTodayChoresForParticipant(data, 'all', now)).toEqual([]);
+  expect(getMissedScheduledChoreHistory(data, now)).toEqual([original]);
+});
+
 it.each(['successor pruning', 'once', 'after_completion'] as const)(
   'keeps superseded missed work in Progress history after %s',
   (change) => {
