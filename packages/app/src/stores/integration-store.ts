@@ -518,7 +518,9 @@ export const integrationStore = createStore<IntegrationStore>()((set) => {
         buildProviderHealth(providerId, providerState),
         providerId === 'home_assistant'
           ? {
-              currentUser: current.currentUser ?? homeAssistantState?.user ?? null,
+              currentUser: replaceHomeAssistantSession
+                ? (homeAssistantState?.user ?? current.currentUser)
+                : (current.currentUser ?? homeAssistantState?.user ?? null),
               ...(replaceHomeAssistantSession
                 ? {
                     providerSessions: {
