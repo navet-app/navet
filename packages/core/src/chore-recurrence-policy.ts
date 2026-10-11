@@ -1,11 +1,25 @@
 import type { ChoreActivity, ChoreDefinition, ChoreOccurrence } from './chores';
 
+/** Parse accepted ISO instants in runtimes whose Date parser lacks numeric offsets. */
+export function parseChoreInstant(timestamp: string): number {
+  const parsed = Date.parse(timestamp);
+  if (Number.isFinite(parsed)) return parsed;
+  const offset = /([+-])(\d{2}):(\d{2})$/.exec(timestamp);
+  if (!offset) return parsed;
+  const hours = Number(offset[2]);
+  const minutes = Number(offset[3]);
+  if (hours > 23 || minutes > 59) return NaN;
+  const utc = Date.parse(`${timestamp.slice(0, -6)}Z`);
+  return utc - (offset[1] === '+' ? 1 : -1) * (hours * 60 + minutes) * 60000;
+}
+
 /** Retain evidenced fixed-work history before its successor or definition can change. */
 export function retainChoreSupersession(
   occurrences: Record<string, ChoreOccurrence>,
   definitions: Record<string, ChoreDefinition>,
   timestamp: string,
-  activities?: readonly ChoreActivity[]
+  activities?: readonly ChoreActivity[],
+  knownParticipantIds?: readonly string[]
 ): Record<string, ChoreOccurrence> {
   const events = activities ?? [];
   let result = occurrences;
@@ -15,7 +29,8 @@ export function retainChoreSupersession(
     if (item.status !== 'missed' || item.supersededAt) continue;
     const definition = definitions[item.definitionId];
     const next =
-      definition && getSupersedingChoreOccurrence(item, definition, occurrences, timestamp);
+      definition &&
+      getSupersedingChoreOccurrence(item, definition, occurrences, timestamp, knownParticipantIds);
     const event = events.find(
       (activity) =>
         activity.occurrenceId === item.id &&
@@ -44,7 +59,7 @@ export function getOutstandingChoreOccurrence(
         !item.carriedForwardTo &&
         ['available', 'claimed', 'missed'].includes(item.status)
     )
-    .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))[0];
+    .sort((a, b) => parseChoreInstant(a.scheduledAt) - parseChoreInstant(b.scheduledAt))[0];
 }
 
 /** Assignment can change who performs work without moving its original recurrence clock. */
@@ -57,7 +72,7 @@ function getRecurrenceParticipantIds(
   let hasLineage = false;
   while (id.startsWith(prefix)) {
     const instant = id.slice(prefix.length, prefix.length + 24);
-    const instantTime = Date.parse(instant);
+    const instantTime = parseChoreInstant(instant);
     if (
       !Number.isFinite(instantTime) ||
       new Date(instantTime).toISOString() !== instant ||
@@ -117,7 +132,7 @@ export function getLatestChoreCompletion(
   const completions = Object.values(occurrences)
     .map((item) => item.completedAt)
     .filter((value): value is string => Boolean(value))
-    .sort();
+    .sort((a, b) => parseChoreInstant(a) - parseChoreInstant(b));
   return completions[completions.length - 1];
 }
 
@@ -125,7 +140,8 @@ export function getSupersedingChoreOccurrence(
   occurrence: ChoreOccurrence,
   definition: ChoreDefinition,
   occurrences: Record<string, ChoreOccurrence>,
-  timestamp: string
+  timestamp: string,
+  knownParticipantIds?: readonly string[]
 ): ChoreOccurrence | undefined {
   if (
     definition.schedule.frequency === 'after_completion' ||
@@ -139,12 +155,20 @@ export function getSupersedingChoreOccurrence(
         !next.carriedForwardTo &&
         // Vacation moves retain the calendar slot; automatic carry-forward is the same work.
         (!next.carriedForwardFrom || !next.assignmentSlot.startsWith('carry:')) &&
-        next.scheduledAt > occurrence.scheduledAt &&
-        next.scheduledAt <= timestamp &&
+        parseChoreInstant(next.scheduledAt) > parseChoreInstant(occurrence.scheduledAt) &&
+        parseChoreInstant(next.scheduledAt) <= parseChoreInstant(timestamp) &&
         (definition.assignment.mode !== 'everyone' ||
-          next.assignmentSlot === occurrence.assignmentSlot)
+          getRecurrenceParticipantIds(
+            next,
+            knownParticipantIds ?? definition.assignment.participantIds
+          ).some((id) =>
+            getRecurrenceParticipantIds(
+              occurrence,
+              knownParticipantIds ?? definition.assignment.participantIds
+            ).includes(id)
+          ))
     )
-    .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))[0];
+    .sort((a, b) => parseChoreInstant(a.scheduledAt) - parseChoreInstant(b.scheduledAt))[0];
 }
 
 /** Keep the current completion anchor even when its next interval is very long. */
@@ -157,14 +181,14 @@ export function shouldPruneChoreOccurrence(
 ): boolean {
   if (occurrence.status !== 'done' && occurrence.status !== 'skipped') return false;
   const resolvedAt = occurrence.completedAt ?? occurrence.skippedAt ?? occurrence.updatedAt;
-  if (Date.parse(resolvedAt) >= boundary) return false;
+  if (parseChoreInstant(resolvedAt) >= boundary) return false;
   const definition = definitions[occurrence.definitionId];
   if (definition?.schedule.frequency === 'after_completion' && occurrence.completedAt) {
     const newer = Object.values(occurrences).some(
       (next) =>
         next.definitionId === occurrence.definitionId &&
         next.completedAt &&
-        next.completedAt > (occurrence.completedAt as string) &&
+        parseChoreInstant(next.completedAt) > parseChoreInstant(occurrence.completedAt as string) &&
         next.status === 'done' &&
         (definition.assignment.mode !== 'everyone' ||
           getRecurrenceParticipantIds(

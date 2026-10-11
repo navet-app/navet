@@ -848,7 +848,8 @@ def _should_prune_occurrence(item, definitions, occurrences, boundary, participa
     definition = definitions.get(item["definitionId"], {})
     if definition.get("schedule", {}).get("frequency") == "after_completion" and item.get("completedAt"):
         newer = any(next_item.get("definitionId") == item["definitionId"]
-            and next_item.get("completedAt", "") > item["completedAt"]
+            and next_item.get("completedAt")
+            and _parse_iso(next_item["completedAt"]) > _parse_iso(item["completedAt"])
             and next_item.get("status") == "done"
             and (definition.get("assignment", {}).get("mode") != "everyone"
                 or _recurrence_participant_ids(item, participant_ids)[0] in _recurrence_participant_ids(next_item, participant_ids))
@@ -858,13 +859,13 @@ def _should_prune_occurrence(item, definitions, occurrences, boundary, participa
     return True
 
 
-def _retain_supersession(occurrences, definitions, timestamp, activities=()):
+def _retain_supersession(occurrences, definitions, timestamp, activities=(), participant_ids=None):
     result = dict(occurrences)
     for occurrence_id, item in occurrences.items():
         if item.get("status") != "missed" or item.get("supersededAt"):
             continue
         definition = definitions.get(item.get("definitionId"))
-        successor = _superseding_occurrence(item, definition, occurrences, timestamp) if definition else None
+        successor = _superseding_occurrence(item, definition, occurrences, timestamp, participant_ids) if definition else None
         event = next((activity for activity in activities
             if activity.get("occurrenceId") == item.get("id") and activity.get("type") == "missed"
             and activity.get("reason") == "Next scheduled occurrence started"), None)
@@ -874,19 +875,21 @@ def _retain_supersession(occurrences, definitions, timestamp, activities=()):
     return result
 
 
-def _superseding_occurrence(item, definition, occurrences, timestamp):
+def _superseding_occurrence(item, definition, occurrences, timestamp, participant_ids=None):
     if definition.get("schedule", {}).get("frequency") in {"once", "after_completion"}:
         return None
+    known_ids = participant_ids if participant_ids is not None else definition.get("assignment", {}).get("participantIds", [])
     candidates = [next_item for next_item in occurrences.values()
         if next_item.get("definitionId") == item["definitionId"]
         and not next_item.get("carriedForwardTo")
         # Vacation moves keep their calendar slot; automatic carry-forward is the same work.
         and (not next_item.get("carriedForwardFrom")
             or not next_item.get("assignmentSlot", "").startswith("carry:"))
-        and item["scheduledAt"] < next_item["scheduledAt"] <= timestamp
+        and _parse_iso(item["scheduledAt"]) < _parse_iso(next_item["scheduledAt"]) <= _parse_iso(timestamp)
         and (definition.get("assignment", {}).get("mode") != "everyone"
-            or next_item.get("assignmentSlot") == item.get("assignmentSlot"))]
-    return min(candidates, key=lambda value: value["scheduledAt"], default=None)
+            or any(participant_id in _recurrence_participant_ids(item, known_ids)
+                for participant_id in _recurrence_participant_ids(next_item, known_ids)))]
+    return min(candidates, key=lambda value: _parse_iso(value["scheduledAt"]), default=None)
 
 
 def _materialize(data: dict[str, Any], range_start: str, range_end: str, timestamp: str, command_id: str, recurrence_definition_id: str | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -894,7 +897,7 @@ def _materialize(data: dict[str, Any], range_start: str, range_end: str, timesta
     end = _parse_iso(range_end)
     if end < start or end - start > timedelta(days=180):
         raise ChoreAuthorityError("Chore materialization range is invalid")
-    occurrences = _retain_supersession(data["occurrencesById"], data["definitionsById"], timestamp, data.get("activity", []))
+    occurrences = _retain_supersession(data["occurrencesById"], data["definitionsById"], timestamp, data.get("activity", []), data["participantsById"])
     past_occurrences = list(occurrences.values())
     additions: list[dict[str, Any]] = []
     recurrence_ids: set[str] = set()
@@ -943,10 +946,11 @@ def _materialize(data: dict[str, Any], range_start: str, range_end: str, timesta
             dates = [instant.astimezone(_zone(time_zone)).date() for instant in hourly_instants]
         elif schedule.get("frequency") == "after_completion":
             completed = sorted(
-                occurrence["completedAt"]
-                for occurrence in occurrences.values()
-                if occurrence.get("definitionId") == definition.get("id")
-                and isinstance(occurrence.get("completedAt"), str)
+                (occurrence["completedAt"]
+                 for occurrence in occurrences.values()
+                 if occurrence.get("definitionId") == definition.get("id")
+                 and isinstance(occurrence.get("completedAt"), str)),
+                key=_parse_iso,
             )
             time_zone = str(schedule.get("timeZone") or "UTC")
             if completed:
@@ -1817,7 +1821,7 @@ class ChoreAuthority:
         return str(action.get("type")) in {"participant_create", "participant_update", "definition_create", "definition_update", "definition_archive", "definition_restore", "definition_delete", "retention_update", "experience_update", "experience_points_adjust", "reward_decision", "vacation_reschedule"}
 
     def _apply_workspace_action(self, data: dict[str, Any], action: Mapping[str, Any], timestamp: str, command_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
-        data = {**data, "occurrencesById": _retain_supersession(data["occurrencesById"], data["definitionsById"], timestamp, data.get("activity", []))}
+        data = {**data, "occurrencesById": _retain_supersession(data["occurrencesById"], data["definitionsById"], timestamp, data.get("activity", []), data["participantsById"])}
         action_type = str(action.get("type"))
         actor = str(action.get("actorParticipantId", ""))
         if action_type == "participant_create":
@@ -2255,7 +2259,7 @@ class ChoreAuthority:
                 definition = data["definitionsById"].get(occurrence.get("definitionId"), {})
                 if definition.get("schedule", {}).get("frequency") == "after_completion":
                     continue
-                superseding = _superseding_occurrence(occurrence, definition, occurrences, timestamp)
+                superseding = _superseding_occurrence(occurrence, definition, occurrences, timestamp, data["participantsById"])
                 missed = {"graceMinutes": 0, "action": "none"} if superseding else definition.get("missedPolicy") or {}
                 grace = missed.get("graceMinutes")
                 boundary = _parse_iso(superseding["scheduledAt"]) if superseding else due + timedelta(minutes=grace or 0)
