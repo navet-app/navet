@@ -3,6 +3,7 @@ import { DiscordMark, RedditMark, YouTubeMark } from '@navet/app/components/shar
 import {
   APP_BUILD_METADATA,
   getAppBuildChannelLabel,
+  isDevOrLocalBuild,
 } from '@navet/app/constants/app-build-metadata';
 import { APP_VERSION } from '@navet/app/constants/app-version';
 import { COMMUNITY_URLS } from '@navet/app/constants/urls';
@@ -90,7 +91,7 @@ function SimpleDisclosure({
 export function SettingsProjectSection({ controller }: SettingsProjectSectionProps) {
   const { t } = useI18n();
   const { setShowLicense, setShowTerms, showLicense, showTerms, styles } = controller;
-  const isLocalBuild = ['development', 'local'].includes(APP_BUILD_METADATA.releaseChannel);
+  const isLocalBuild = isDevOrLocalBuild(APP_BUILD_METADATA.releaseChannel);
   const buildDate = APP_BUILD_METADATA.buildDate.slice(0, 10);
   const buildMeta = [
     ...(isLocalBuild

@@ -177,6 +177,7 @@ export const InfoCard = memo(function InfoCard({
     isEditMode && !disableBuiltInSettingsDialog && onOpenSettings === undefined
   );
   const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       openSettings();

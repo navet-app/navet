@@ -1,5 +1,5 @@
 import { renderWithProviders } from '@navet/app/test/render';
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { InfoCard } from '../sensor-card';
 
@@ -12,6 +12,48 @@ vi.mock('../../hooks/use-sensor-statistics-history', () => ({
 }));
 
 describe('InfoCard', () => {
+  // Keep: keyboard activation of a footer action must not trigger the card's settings action.
+  it.each(['Enter', ' '])(
+    'keeps %s activation of footer controls separate from settings',
+    (key) => {
+      const openSettings = vi.fn();
+      const action = vi.fn();
+      renderWithProviders(
+        <InfoCard
+          id="counter.household"
+          name="Household counter"
+          room="Kitchen"
+          value="4"
+          unit=""
+          size="medium"
+          onSizeChange={() => undefined}
+          isEditMode={false}
+          onOpenSettings={openSettings}
+          bottomActionBar={
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                action();
+              }}
+            >
+              Increase
+            </button>
+          }
+        />
+      );
+      const button = screen.getByRole('button', { name: 'Increase' });
+      expect(fireEvent.keyDown(button, { key })).toBe(true);
+      fireEvent.click(button);
+      expect(action).toHaveBeenCalledOnce();
+      expect(openSettings).not.toHaveBeenCalled();
+      fireEvent.click(
+        screen.getAllByRole('button', { name: 'Open settings for Household counter' })[0]
+      );
+      expect(openSettings).toHaveBeenCalledOnce();
+    }
+  );
+
   beforeEach(() => {
     localStorage.clear();
     useSensorStatisticsHistoryMock.mockClear();

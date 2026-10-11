@@ -3,6 +3,7 @@ import { dispatchEditModeSettingsRequest } from '@navet/app/components/shared/ed
 import { SwitchCard } from '@navet/app/features/lighting/components/switch-card';
 import { CoverCard } from '@navet/app/features/security/components/cover-card';
 import { integrationStore } from '@navet/app/stores/integration-store';
+import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { useThemeStore } from '@navet/app/stores/theme-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
@@ -412,6 +413,63 @@ describe('normalized valve controls', () => {
 });
 
 describe('normalized remote on/off controls', () => {
+  // Keep: control-first must expose the owning remote action at the smallest supported size.
+  it('operates a tiny remote from its control-first dialog and waits for confirmed state', async () => {
+    useSettingsStore.getState().updateSettings({ entityInteractionMode: 'control-first' });
+    install('remote', { isOn: false }, ['toggle']);
+    renderWithProviders(
+      <RemoteCard {...props} size="tiny" id="homey:remote.living" name="Living remote" />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Living remote' }));
+    const dialog = screen.getByRole('dialog', { name: 'Living remote' });
+    const toggle = within(dialog).getByRole('switch', { name: 'Living remote' });
+    expect(dispatch).not.toHaveBeenCalled();
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        { type: 'turn_on', entityId: 'homey:remote.living' },
+        'homey'
+      )
+    );
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(toggle).toBeDisabled();
+    fireEvent.click(toggle);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    install('remote', { isOn: true }, ['toggle']);
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenLastCalledWith(
+        { type: 'turn_off', entityId: 'homey:remote.living' },
+        'homey'
+      )
+    );
+  });
+
+  it.each([false, true])(
+    'blocks dialog actions in edit mode (%s) or without capability',
+    (isEditMode) => {
+      useSettingsStore.getState().updateSettings({ entityInteractionMode: 'control-first' });
+      install('remote', { isOn: false }, isEditMode ? ['toggle'] : []);
+      renderWithProviders(
+        <RemoteCard
+          {...props}
+          size="tiny"
+          id="homey:remote.living"
+          name="Living remote"
+          isEditMode={isEditMode}
+        />
+      );
+      if (isEditMode) act(() => dispatchEditModeSettingsRequest('homey:remote.living'));
+      else fireEvent.click(screen.getByRole('button', { name: 'Living remote' }));
+      const dialog = screen.getByRole('dialog', { name: 'Living remote' });
+      const toggle = within(dialog).getByRole('switch', { name: 'Living remote' });
+      expect(toggle).toBeDisabled();
+      fireEvent.click(toggle);
+      expect(dispatch).not.toHaveBeenCalled();
+    }
+  );
+
   it('opens switch appearance settings in edit mode without allowing live actions', () => {
     install('remote', { isOn: false }, ['toggle']);
     renderWithProviders(

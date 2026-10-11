@@ -4,6 +4,7 @@ import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-ca
 import { EntityCardTitleBlock } from '@navet/app/components/primitives/entity-card-title-block';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import { isTinyCardSize } from '@navet/app/components/shared/card-size-selector';
+import { DeviceControlRow } from '@navet/app/components/shared/device-editor/device-control-row';
 import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
 import {
@@ -86,6 +87,19 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
         selectedIcon={controller.selectedIcon}
         onIconChange={controller.setSelectedIcon}
         siblingEntities={controller.siblingEntities}
+        customControls={
+          props.binaryControl ? (
+            <DeviceControlRow
+              kind="toggle"
+              theme="dark"
+              label={props.name}
+              checked={controller.isOn}
+              disabled={controller.toggleDisabled}
+              onCheckedChange={props.binaryControl.onToggle}
+              status={props.binaryControl.status}
+            />
+          ) : undefined
+        }
         tintColor={controller.tintColor}
         onTintColorChange={controller.setTintColor}
       />
