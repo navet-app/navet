@@ -91,7 +91,19 @@ export const Paused: Story = {
     timer: { ...idle, phase: 'paused', remainingSeconds: 125, canCancel: true, canFinish: true },
   },
 };
-export const Tiny: Story = { args: { size: 'tiny' } };
+export const Tiny: Story = {
+  args: { size: 'tiny' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const card = await canvas.findByRole('button', { name: 'Tea timer, Idle' });
+    await expect(card).toHaveAccessibleName('Tea timer, Idle');
+    const clock = canvas.getByText('00:05:00', { exact: true });
+    const clockBounds = clock.getBoundingClientRect();
+    const cardBounds = card.getBoundingClientRect();
+    await expect(clockBounds.right).toBeLessThanOrEqual(cardBounds.right);
+    await expect(clockBounds.bottom).toBeLessThanOrEqual(cardBounds.bottom);
+  },
+};
 export const Medium: Story = { args: { size: 'medium' } };
 export const KeyboardWriteFailure: Story = {
   play: async ({ canvasElement }) => {

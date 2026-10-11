@@ -226,6 +226,7 @@ export function TimerCard({
   };
   const unavailable = !!entity && (!live || entity.availability !== 'available');
   const [open, setOpen] = useState(false);
+  const phaseLabel = timer.phase === 'unknown' ? undefined : t(`timer.${timer.phase}`);
   const value = formatRemaining(useTimerRemaining(timer));
   return (
     <>
@@ -235,7 +236,7 @@ export function TimerCard({
         interactive={!isEditMode}
         role={!isEditMode ? 'button' : undefined}
         tabIndex={!isEditMode ? 0 : undefined}
-        aria-label={name}
+        aria-label={size === 'tiny' && phaseLabel ? `${name}, ${phaseLabel}` : name}
         onClick={() => {
           if (!isEditMode) setOpen(true);
         }}
@@ -248,7 +249,7 @@ export function TimerCard({
                 ? t('common.unavailable')
                 : (value ?? t('providerDetails.unknown'))
           }
-          label={timer.phase === 'unknown' ? undefined : t(`timer.${timer.phase}`)}
+          label={size === 'tiny' ? undefined : phaseLabel}
           theme={theme}
           isActive={false}
           accentClassName="text-current"
