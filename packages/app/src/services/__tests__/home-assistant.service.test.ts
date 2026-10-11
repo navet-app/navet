@@ -207,6 +207,74 @@ describe('Home Assistant registry freshness', () => {
     expect(homeAssistantService.getAreas()).toEqual([]);
   });
 
+  it('refreshes callWS-only registry edits on a bounded cadence despite fresh hass wrappers', async () => {
+    const panel = registryPanel();
+    panel.hass.connection = undefined;
+    homeAssistantService.setPanelHass(panel.hass);
+    await vi.advanceTimersByTimeAsync(100);
+    const states = homeAssistantService.getEntities();
+    panel.update();
+    for (let second = 0; second < 30; second += 1) {
+      homeAssistantService.setPanelHass({ ...panel.hass, states: { ...panel.hass.states } });
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+    await vi.advanceTimersByTimeAsync(100);
+    expect(panel.hass.callWS).toHaveBeenCalledTimes(8);
+    expect(panel.callbacks.size).toBe(0);
+    expect(homeAssistantService.getEntities()).toEqual(states);
+    const mapper = createHomeAssistantEntityMapper();
+    expect(
+      mapper.map({
+        entities: homeAssistantService.getEntities() ?? {},
+        areas: homeAssistantService.getAreas(),
+        deviceRegistry: homeAssistantService.getDeviceRegistry(),
+        entityRegistry: homeAssistantService.getEntityRegistry(),
+      })[0]
+    ).toMatchObject({ name: 'Dining lights', room: 'Dining room' });
+  });
+
+  it('releases the callWS-only poll when a native panel replaces it and on disconnect', async () => {
+    const panel = registryPanel();
+    panel.hass.connection = undefined;
+    homeAssistantService.setPanelHass(panel.hass);
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(panel.hass.callWS).toHaveBeenCalledTimes(8);
+    const native = registryPanel();
+    homeAssistantService.setPanelHass(native.hass);
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(panel.hass.callWS).toHaveBeenCalledTimes(8);
+    expect(native.hass.callWS).toHaveBeenCalledTimes(4);
+    homeAssistantService.setPanelHass(panel.hass);
+    await vi.advanceTimersByTimeAsync(100);
+    homeAssistantService.disconnect();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(panel.hass.callWS).toHaveBeenCalledTimes(12);
+  });
+
+  it('keeps the last useful callWS-only snapshot after polling fails and recovers on the next tick', async () => {
+    const panel = registryPanel();
+    panel.hass.connection = undefined;
+    const callWS = panel.hass.callWS;
+    let denied = false;
+    panel.hass.callWS = vi.fn(async (message) => {
+      if (denied) throw new Error('temporary registry failure');
+      return callWS(message);
+    }) as HomeAssistantPanelHass['callWS'];
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    homeAssistantService.setPanelHass(panel.hass);
+    await vi.advanceTimersByTimeAsync(100);
+    denied = true;
+    panel.update();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(homeAssistantService.getAreas()).toEqual(householdRegistryBefore.areas);
+    denied = false;
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(homeAssistantService.getAreas()).toEqual(householdRegistryAfter.areas);
+    expect(panel.hass.callWS).toHaveBeenCalledTimes(12);
+  });
+
   it.each(['before', 'after'] as const)(
     'refreshes a replacement panel while an obsolete load settles %s it',
     async (obsoleteSettles) => {

@@ -2861,6 +2861,70 @@ describe('durable fixed-work supersession', () => {
       }).some((item) => item.id === 'older')
     ).toBe(false);
   });
+  it('preserves superseded missed history through archive and restore while removing unfinished work', () => {
+    const workspace = runChoreWorkspaceScheduler(fixture(), '2026-08-18T18:00:00.000Z').data;
+    workspace.occurrencesById.active = makeOccurrence({
+      id: 'active',
+      scheduledAt: '2026-08-24T16:00:00.000Z',
+      dueAt: '2026-08-24T19:00:00.000Z',
+      status: 'available',
+    });
+    workspace.occurrencesById.early = makeOccurrence({
+      id: 'early',
+      scheduledAt: '2026-08-25T16:00:00.000Z',
+      dueAt: '2026-08-25T19:00:00.000Z',
+      status: 'missed',
+    });
+    const archived = applyChoreWorkspaceAction({
+      workspace,
+      timestamp: '2026-08-18T18:00:00.000Z',
+      commandId: 'archive-history',
+      action: {
+        type: 'definition_archive',
+        definitionId: 'take-out-recycling',
+        actorParticipantId: 'alice',
+      },
+    }).data;
+    expect(archived.occurrencesById.older).toEqual(workspace.occurrencesById.older);
+    expect(archived.occurrencesById.next).toEqual(workspace.occurrencesById.next);
+    expect(archived.occurrencesById.active).toBeUndefined();
+    expect(archived.occurrencesById.early).toBeUndefined();
+    expect(() =>
+      applyChoreWorkspaceAction({
+        workspace: archived,
+        timestamp: '2026-08-18T18:01:00.000Z',
+        commandId: 'blocked-archived-history',
+        action: {
+          type: 'occurrence_action',
+          occurrenceId: 'older',
+          action: { type: 'complete', participantId: 'alice' },
+        },
+      })
+    ).toThrow('Chore definition is no longer available');
+    const restarted = migrateChoreWorkspaceData(JSON.parse(JSON.stringify(archived)));
+    const restored = applyChoreWorkspaceAction({
+      workspace: restarted,
+      timestamp: '2026-08-18T18:02:00.000Z',
+      commandId: 'restore-history',
+      action: {
+        type: 'definition_restore',
+        definitionId: 'take-out-recycling',
+        actorParticipantId: 'alice',
+      },
+    }).data;
+    expect(restored.occurrencesById.older).toEqual(workspace.occurrencesById.older);
+    const completed = applyChoreWorkspaceAction({
+      workspace: restored,
+      timestamp: '2026-08-18T18:03:00.000Z',
+      commandId: 'complete-restored-history',
+      action: {
+        type: 'occurrence_action',
+        occurrenceId: 'older',
+        action: { type: 'complete', participantId: 'alice' },
+      },
+    }).data;
+    expect(completed.occurrencesById.older.status).toBe('done');
+  });
   it('round-trips optional supersession markers and accepts legacy snapshots', () => {
     const legacy = fixture('missed');
     expect(isChoreWorkspaceData(legacy)).toBe(true);

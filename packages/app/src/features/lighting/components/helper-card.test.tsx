@@ -1,3 +1,5 @@
+import { dispatchEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import { renderCard } from '@navet/app/features/dashboard/utils/card-renderer';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
@@ -13,6 +15,48 @@ describe('helper controls', () => {
     dispatch.mockReset().mockResolvedValue({ accepted: true, requiresEventConfirmation: true });
   });
   afterEach(() => vi.useRealTimers());
+
+  it('opens matching helper settings from the edit dock and ignores other cards and view mode', () => {
+    const props = {
+      id: 'number.target',
+      name: 'Target',
+      size: 'small' as const,
+      helper: {
+        helperType: 'number' as const,
+        value: 21,
+        writable: true,
+        min: 15,
+        max: 30,
+        step: 1,
+      },
+    };
+    const view = renderWithProviders(<HelperCard {...props} isEditMode={false} />);
+    act(() => dispatchEditModeSettingsRequest(props.id));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    view.rerender(<HelperCard {...props} isEditMode />);
+    act(() => dispatchEditModeSettingsRequest('number.other'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    act(() => dispatchEditModeSettingsRequest(props.id));
+    expect(screen.getByRole('dialog', { name: 'Target' })).toBeInTheDocument();
+  });
+
+  it('preserves helper room identity through dashboard composition', async () => {
+    const card = renderCard({
+      device: {
+        id: 'number.target',
+        name: 'Target',
+        type: 'helpers',
+        room: 'Kitchen',
+        helper: { helperType: 'number', value: 21, writable: true, min: 15, max: 30, step: 1 },
+      },
+      size: 'small',
+      isEditMode: false,
+      handleSizeChange: () => undefined,
+    });
+    if (!card) throw new Error('Expected helper card');
+    renderWithProviders(card);
+    expect(await screen.findByText('Kitchen')).toBeInTheDocument();
+  });
 
   it('labels a UTC datetime control and preserves its displayed clock on submission', async () => {
     const view = renderWithProviders(
@@ -374,7 +418,9 @@ describe('helper controls', () => {
       />
     );
     expect(screen.queryByText('secret')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Password' }));
+    const trigger = screen.getByRole('button', { name: 'Password, ••••' });
+    expect(trigger).not.toHaveAccessibleName(/secret/);
+    fireEvent.click(trigger);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByLabelText('Password', { selector: 'input' })).toHaveAttribute(
       'type',

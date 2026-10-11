@@ -1113,6 +1113,33 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(chores.ChoreStorageError):
             chores._normalize_data(restored)
 
+    async def test_archive_preserves_superseded_missed_history_across_restart_and_restore(self):
+        definition = await self._seed_outstanding_interval()
+        definition["schedule"] = {"frequency": "weekly", "startDate": "2026-01-01", "time": "10:00", "timeZone": "UTC", "daysOfWeek": [0]}
+        definition["missedPolicy"] = {"graceMinutes": 0, "action": "none"}
+        await self.authority.async_command({"commandId": "fixed-archive", "baseRevision": self.authority.revision,
+            "action": {"type": "definition_update", "actorParticipantId": "manager", "definition": definition}}, "ha-user-1")
+        await self.authority.async_tick()
+        historical = next(item for item in self.authority.data["occurrencesById"].values() if item.get("supersededAt"))
+        active_ids = {item["id"] for item in self.authority.data["occurrencesById"].values() if item["status"] == "available"}
+        self.assertTrue(active_ids)
+        result = await self.authority.async_command({"commandId": "archive-fixed-history", "baseRevision": self.authority.revision,
+            "action": {"type": "definition_archive", "actorParticipantId": "manager", "definitionId": "repeat"}}, "ha-user-1")
+        self.assertEqual(result["data"]["occurrencesById"][historical["id"]], historical)
+        self.assertTrue(active_ids.isdisjoint(result["data"]["occurrencesById"]))
+        with self.assertRaisesRegex(chores.ChoreAuthorityError, "Chore definition is no longer available"):
+            await self.authority.async_command({"commandId": "reject-archived-completion", "baseRevision": self.authority.revision,
+                "action": {"type": "occurrence_action", "occurrenceId": historical["id"], "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        self.assertEqual(restarted.data["occurrencesById"][historical["id"]], historical)
+        restored = await restarted.async_command({"commandId": "restore-fixed-history", "baseRevision": restarted.revision,
+            "action": {"type": "definition_restore", "actorParticipantId": "manager", "definitionId": "repeat"}}, "ha-user-1")
+        self.assertEqual(restored["data"]["occurrencesById"][historical["id"]], historical)
+        completed = await restarted.async_command({"commandId": "complete-restored-fixed-history", "baseRevision": restarted.revision,
+            "action": {"type": "occurrence_action", "occurrenceId": historical["id"], "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
+        self.assertEqual(completed["data"]["occurrencesById"][historical["id"]]["status"], "done")
+
     async def test_legacy_supersession_backfills_before_prune_and_frequency_edit(self):
         definition = await self._seed_outstanding_interval()
         data = json.loads(json.dumps(self.authority.data))
