@@ -32,6 +32,33 @@ const occurrence: ChoreOccurrence = {
 };
 
 describe('getChoreCardAction', () => {
+  it.each(['all', 'maya'])(
+    'keeps archived missed history read-only for %s until restored',
+    (participantId) => {
+      const execute = vi
+        .fn<(action: ChoreWorkspaceAction) => Promise<boolean>>()
+        .mockResolvedValue(true);
+      const history: ChoreOccurrence = {
+        ...occurrence,
+        status: 'missed',
+        missedAt: '2026-08-18T08:00:00.000Z',
+        supersededAt: '2026-08-18T16:00:00.000Z',
+      };
+      const archived = { ...definition, archivedAt: '2026-08-19T08:00:00.000Z' };
+      expect(getChoreCardAction(history, archived, participantId, execute, t)).toBeUndefined();
+      expect(execute).not.toHaveBeenCalled();
+
+      const restored = getChoreCardAction(history, definition, participantId, execute, t);
+      expect(restored?.kind).toBe('complete');
+      if (participantId === 'all') restored?.onSelectParticipant?.('maya');
+      else restored?.onSelect?.();
+      expect(execute).toHaveBeenCalledWith({
+        type: 'occurrence_action',
+        occurrenceId: history.id,
+        action: { type: 'complete', participantId: 'maya' },
+      });
+    }
+  );
   it('keeps Mark done available in Everyone view and attributes it to the chosen person', () => {
     const execute = vi
       .fn<(action: ChoreWorkspaceAction) => Promise<boolean>>()
