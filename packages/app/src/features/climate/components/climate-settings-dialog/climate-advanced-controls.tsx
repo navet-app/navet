@@ -204,8 +204,8 @@ function ClimateHumidityControl({
           id={fieldId}
           type="number"
           value={draft}
-          min={control.min}
-          max={control.max}
+          min={Math.ceil(control.min)}
+          max={Math.floor(control.max)}
           step={control.step}
           required
           disabled={action.disabled}

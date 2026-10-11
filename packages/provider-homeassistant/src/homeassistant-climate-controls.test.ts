@@ -79,6 +79,27 @@ describe('advanced climate adapter boundary', () => {
       } as NavetCommand)
     ).toThrow();
   });
+  it('accepts bounded integer humidity with fractional limits without truncating fractional writes', () => {
+    const entity = mapped({ min_humidity: 30.5, max_humidity: 70.5, target_humidity_step: 1 });
+    for (const humidity of [31, 70]) {
+      expect(
+        getHomeAssistantClimateControlCommandRoute(entity, {
+          type: 'set_climate_humidity',
+          entityId: entity.id,
+          humidity,
+        })
+      ).toEqual({ service: 'set_humidity', data: { humidity } });
+    }
+    for (const humidity of [30, 31.5, 71]) {
+      expect(() =>
+        getHomeAssistantClimateControlCommandRoute(entity, {
+          type: 'set_climate_humidity',
+          entityId: entity.id,
+          humidity,
+        })
+      ).toThrow();
+    }
+  });
   it('requires feature flags even when attributes include option lists', () => {
     const entity = mapped({ supported_features: 1 });
     expect(entity.capabilities).toEqual(['temperature_setpoint']);

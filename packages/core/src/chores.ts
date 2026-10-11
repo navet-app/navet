@@ -1248,7 +1248,8 @@ export function materializeChoreOccurrences(
         const personalOccurrences = getParticipantChoreOccurrences(
           definition,
           existingOccurrences,
-          participantId
+          participantId,
+          Object.keys(participantsById)
         );
         return materializeChoreOccurrences(
           {
@@ -2995,7 +2996,8 @@ function applyChoreWorkspaceActionWithoutRecurrence(
         occurrence,
         workspace.definitionsById,
         occurrencesById,
-        retentionBoundary
+        retentionBoundary,
+        Object.keys(workspace.participantsById)
       )
     ) {
       delete occurrencesById[occurrence.id];
