@@ -135,7 +135,7 @@ function normalizeItems(listId: string, result: unknown): NavetTodoItem[] {
 function itemTarget(listId: string, uid: string) {
   const targets = summaryTargets.get(listId);
   if (!targets?.has(uid)) {
-    if (uid.startsWith('navet-summary:')) throw new Error('Shared list item changed');
+    if (targets || uid.startsWith('navet-summary:')) throw new Error('Shared list item changed');
     return uid;
   }
   const target = targets.get(uid);

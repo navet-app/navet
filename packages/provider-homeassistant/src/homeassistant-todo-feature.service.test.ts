@@ -101,6 +101,42 @@ describe('Home Assistant shared lists', () => {
     expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(3);
   });
 
+  it('rejects a removed real UID even when it becomes another item summary', async () => {
+    bridge.client?.sendMessagePromise.mockResolvedValueOnce({
+      response: {
+        'todo.shopping_list': {
+          items: [{ uid: 'old-uid', summary: 'Milk', status: 'needs_action' }],
+        },
+      },
+    });
+    const previous = await service.getItems('todo.shopping_list');
+    let push: (result: unknown) => void = () => {};
+    bridge.client?.subscribeMessage.mockImplementationOnce(async (callback) => {
+      push = callback;
+      return vi.fn();
+    });
+    const listener = vi.fn();
+    const unsubscribe = await service.subscribeItems('todo.shopping_list', listener);
+    push({ items: [{ uid: 'other-uid', summary: 'old-uid', status: 'needs_action' }] });
+    await expect(
+      service.updateItem('todo.shopping_list', previous[0].uid, { summary: 'Changed' })
+    ).rejects.toThrow('Shared list item changed');
+    await expect(service.removeItem('todo.shopping_list', previous[0].uid)).rejects.toThrow(
+      'Shared list item changed'
+    );
+    expect(bridge.client?.sendMessagePromise).toHaveBeenCalledTimes(1);
+    const current = listener.mock.lastCall?.[0][0];
+    await service.updateItem('todo.shopping_list', current.uid, { completed: true });
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service_data: { item: 'other-uid', status: 'completed' } })
+    );
+    await service.removeItem('todo.shopping_list', current.uid);
+    expect(bridge.client?.sendMessagePromise).toHaveBeenLastCalledWith(
+      expect.objectContaining({ service: 'remove_item', service_data: { item: 'other-uid' } })
+    );
+    unsubscribe();
+  });
+
   it('displays duplicate UID-less summaries without targeting an ambiguous item', async () => {
     bridge.client?.sendMessagePromise.mockResolvedValueOnce({
       response: {
