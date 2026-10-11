@@ -2335,7 +2335,8 @@ function applyChoreWorkspaceActionWithoutRecurrence(
                 occurrence.definitionId !== action.definitionId ||
                 occurrence.status === 'done' ||
                 occurrence.status === 'skipped' ||
-                (occurrence.status === 'missed' && !!occurrence.supersededAt)
+                (occurrence.status === 'missed' &&
+                  !!(occurrence.supersededAt || occurrence.carriedForwardTo))
             )
           )
         : workspace.occurrencesById;

@@ -271,17 +271,23 @@ const unfinishedArchiveWork = Object.assign({}, historicalMissed, { id: 'unfinis
 const archiveData = Object.assign({}, doc.data, { definitionsById: { 'archive-fixed': archiveDefinition }, occurrencesById: {}, activity: [], outbox: [], experience: Object.assign({}, doc.data.experience, { pointTransactions: [], earnedPointsByParticipant: { manager: 0 } }) });
 archiveData.occurrencesById[historicalMissed.id] = historicalMissed;
 archiveData.occurrencesById[unfinishedArchiveWork.id] = unfinishedArchiveWork;
+const archiveCarriedOriginal = Object.assign({}, historicalMissed, { id: 'archive-carried-original', supersededAt: undefined, carriedForwardTo: unfinishedArchiveWork.id });
+archiveData.occurrencesById[archiveCarriedOriginal.id] = archiveCarriedOriginal;
+archiveData.occurrencesById[unfinishedArchiveWork.id] = Object.assign({}, unfinishedArchiveWork, { carriedForwardFrom: archiveCarriedOriginal.id, assignmentSlot: 'carry:' + archiveCarriedOriginal.id });
 paths['/data/navet-chore-workspace.json'] = JSON.stringify(Object.assign({}, doc, { data: archiveData, revision: 1 }));
 let archiveRead = request('GET', '/__navet_chores__/workspace');
 assert(archiveRead.status === 200, 'Native archive regression starts from valid historical snapshot');
 let archiveResult = request('POST', '/__navet_chores__/commands', { commandId: 'native-archive-history', baseRevision: archiveRead.body.revision, action: { type: 'definition_archive', actorParticipantId: 'manager', definitionId: archiveDefinition.id } });
 assert(archiveResult.status === 200 && archiveResult.body.data.occurrencesById[historicalMissed.id].supersededAt === historicalMissed.supersededAt, 'Native archive retains superseded missed history');
+assert(JSON.stringify(archiveResult.body.data.occurrencesById[archiveCarriedOriginal.id]) === JSON.stringify(archiveCarriedOriginal), 'Native archive keeps original carry-forward history without supersession marker');
 assert(archiveResult.body.data.occurrencesById[unfinishedArchiveWork.id] === undefined, 'Native archive still removes currently unfinished work');
 const archivedWrite = request('POST', '/__navet_chores__/commands', { commandId: 'native-reject-archived-history', baseRevision: archiveResult.body.revision, action: { type: 'occurrence_action', occurrenceId: historicalMissed.id, action: { type: 'complete', participantId: 'manager' } } });
 assert(archivedWrite.status >= 400 && archivedWrite.status < 500, 'Native archived definition still blocks history completion');
 archiveRead = request('GET', '/__navet_chores__/workspace');
 assert(archiveRead.body.data.occurrencesById[historicalMissed.id].supersededAt === historicalMissed.supersededAt, 'Native archive persists missed history across subsequent reads');
+assert(archiveRead.body.data.occurrencesById[archiveCarriedOriginal.id].carriedForwardTo === unfinishedArchiveWork.id, 'Restart retains archived carry history after replacement removal');
 archiveResult = request('POST', '/__navet_chores__/commands', { commandId: 'native-restore-history', baseRevision: archiveRead.body.revision, action: { type: 'definition_restore', actorParticipantId: 'manager', definitionId: archiveDefinition.id } });
+assert(archiveResult.body.data.occurrencesById[archiveCarriedOriginal.id].carriedForwardTo === unfinishedArchiveWork.id, 'Restore retains original carry history without recreating removed replacement');
 assert(archiveResult.status === 200 && archiveResult.body.data.occurrencesById[historicalMissed.id].supersededAt === historicalMissed.supersededAt, 'Native restore preserves missed history');
 ['2026-08-17T01:00:00+02:00', '2026-08-16T23:00:00-00:30', '2026-08-17T00:30:00+00:00', '2026-08-17T02:00:00.123+01:30'].forEach(function (iso, index) {
   const expected = ['2026-08-16T23:00:00.000Z', '2026-08-16T23:30:00.000Z', '2026-08-17T00:30:00.000Z', '2026-08-17T00:30:00.123Z'][index];

@@ -1195,6 +1195,28 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             "action": {"type": "occurrence_action", "occurrenceId": historical["id"], "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
         self.assertEqual(completed["data"]["occurrencesById"][historical["id"]]["status"], "done")
 
+    async def test_archive_retains_original_carry_history_across_restart_and_restore(self):
+        definition = await self._seed_outstanding_interval()
+        definition["schedule"] = {"frequency": "once", "date": "2026-10-10", "time": "10:00", "timeZone": "UTC"}
+        self.authority.data["definitionsById"][definition["id"]] = definition
+        original = next(iter(self.authority.data["occurrencesById"].values()))
+        original.update({"status": "missed", "missedAt": "2026-10-10T11:00:00.000Z", "carriedForwardTo": "carry-replacement"})
+        replacement = {**original, "id": "carry-replacement", "status": "available", "assignmentSlot": f"carry:{original['id']}", "carriedForwardFrom": original["id"], "scheduledAt": "2026-10-12T10:00:00.000Z", "dueAt": "2026-10-12T11:00:00.000Z"}
+        replacement.pop("carriedForwardTo")
+        self.authority.data["occurrencesById"][replacement["id"]] = replacement
+        result = await self.authority.async_command({"commandId": "archive-carry-history", "baseRevision": self.authority.revision,
+            "action": {"type": "definition_archive", "actorParticipantId": "manager", "definitionId": definition["id"]}}, "ha-user-1")
+        self.assertEqual(result["data"]["occurrencesById"][original["id"]], original)
+        self.assertNotIn(replacement["id"], result["data"]["occurrencesById"])
+        with self.assertRaises(chores.ChoreAuthorityError):
+            await self.authority.async_command({"commandId": "blocked-archived-carry", "baseRevision": self.authority.revision,
+                "action": {"type": "occurrence_action", "occurrenceId": original["id"], "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        restored = await restarted.async_command({"commandId": "restore-carry-history", "baseRevision": restarted.revision,
+            "action": {"type": "definition_restore", "actorParticipantId": "manager", "definitionId": definition["id"]}}, "ha-user-1")
+        self.assertEqual(restored["data"]["occurrencesById"][original["id"]], original)
+
     async def test_legacy_supersession_backfills_before_prune_and_frequency_edit(self):
         definition = await self._seed_outstanding_interval()
         data = json.loads(json.dumps(self.authority.data))
