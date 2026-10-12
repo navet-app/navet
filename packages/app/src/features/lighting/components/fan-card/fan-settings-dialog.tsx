@@ -35,8 +35,8 @@ export function FanSettingsDialog(props: {
   const { t } = useI18n();
   const { theme } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
-  const oscillationLabel = t('lighting.fanOscillation', { state: '' }).trim();
-  const directionLabel = t('lighting.fanDirection', { direction: '' }).trim();
+  const oscillationLabel = t('lighting.fanOscillationLabel');
+  const directionLabel = t('lighting.fanDirectionLabel');
   const selectedSpeed = !props.isOn
     ? null
     : props.percentage <= 45
