@@ -278,6 +278,31 @@ function buildDeviceSuppressionIndexes(entities: NavetEntity[]): DeviceSuppressi
   return indexes;
 }
 
+/** Compatibility snapshot for profiles saved before helper cards became opt-in. */
+export function getLegacyVisibleHelperIds(entities: NavetEntity[]): string[] {
+  const parentDeviceIds = new Set(
+    entities
+      .filter(
+        (entity) =>
+          hasPrimaryCardType(entity) ||
+          ['sensor', 'binary_sensor', 'energy', 'unknown', 'grouped_sensor'].includes(entity.type)
+      )
+      .map((entity) => readDeviceId(readEntityState(entity)))
+      .filter((id): id is string => Boolean(id))
+  );
+  return entities
+    .filter((entity) => {
+      if (entity.type !== 'helper') return false;
+      const state = readEntityState(entity);
+      // Configuration helpers were newly admitted alongside opt-in visibility.
+      if (state.entityCategory === 'config') return false;
+      if (readNavetHelperState(entity) || readSecurityKind(state.securityKind)) return true;
+      const deviceId = readDeviceId(state);
+      return !deviceId || !parentDeviceIds.has(deviceId);
+    })
+    .map((entity) => entity.canonicalId);
+}
+
 export function mapNavetEntitiesToDeviceCollection(entities: NavetEntity[]): DeviceCollection {
   const collection = createEmptyDeviceCollection();
   const indexes = buildDeviceSuppressionIndexes(entities);

@@ -1,3 +1,4 @@
+import { getLegacyVisibleHelperIds } from '@navet/app/core/navet-device-collections';
 import { useIntegrationStore } from '@navet/app/hooks/use-integration-store';
 import { useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
@@ -28,9 +29,7 @@ export function useDashboardEntityVisibility() {
       if (!runtime[providerId]) continue;
       migrateHelpers(
         providerId,
-        Object.values(entities[providerId] ?? {})
-          .filter((entity) => entity.type === 'helper')
-          .map((entity) => entity.canonicalId)
+        getLegacyVisibleHelperIds(Object.values(entities[providerId] ?? {}))
       );
     }
   }, [runtime, entities, pendingProviders, migrateHelpers]);

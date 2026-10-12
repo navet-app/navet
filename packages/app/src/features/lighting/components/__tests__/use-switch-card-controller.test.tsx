@@ -1,14 +1,17 @@
 import { renderHookWithProviders } from '@navet/app/test/render';
+import type { NavetEntity } from '@navet/core/types';
 import { describe, expect, it, vi } from 'vitest';
 
 const testState = vi.hoisted(() => ({
   siblingIds: [] as string[],
   siblingEntityRecord: {} as Record<string, unknown>,
+  providerEntity: null as NavetEntity | null,
+  toggleAction: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('@navet/app/hooks', () => ({
   useI18n: () => ({ t: (key: string) => key }),
-  useProviderEntityModel: vi.fn(() => null),
+  useProviderEntityModel: vi.fn(() => testState.providerEntity),
   useProviderEntitySnapshot: vi.fn(() => undefined),
   useProviderEntitySnapshotRecord: vi.fn(() => testState.siblingEntityRecord),
   useProviderSwitchTopology: () => ({ deviceId: null, siblingIds: testState.siblingIds }),
@@ -67,12 +70,45 @@ vi.mock('../use-switch-reset-timer-cleanup', () => ({
 }));
 
 vi.mock('../use-switch-toggle-action', () => ({
-  useSwitchToggleAction: () => vi.fn(),
+  useSwitchToggleAction: testState.toggleAction,
 }));
 
 import { useSwitchCardController } from '../use-switch-card-controller';
 
 describe('useSwitchCardController', () => {
+  it('uses the normalized press capability and source ownership for standalone action helpers', () => {
+    testState.providerEntity = {
+      id: 'homey:action.identify',
+      canonicalId: 'homey:action.identify',
+      externalId: 'action.identify',
+      providerId: 'homey',
+      type: 'helper',
+      name: 'Identify',
+      primaryState: null,
+      availability: 'available',
+      attributes: {},
+      capabilities: ['press'],
+    };
+    try {
+      const { unmount } = renderHookWithProviders(() =>
+        useSwitchCardController({
+          id: 'homey:action.identify',
+          name: 'Identify',
+          size: 'small',
+          serviceAction: 'turn_on',
+        })
+      );
+      expect(testState.toggleAction).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          providerId: 'homey',
+          resolvedServiceAction: 'press',
+        })
+      );
+      unmount();
+    } finally {
+      testState.providerEntity = null;
+    }
+  });
   it('does not infer Home Assistant from arbitrary dotted ids', () => {
     testState.siblingIds = [];
     testState.siblingEntityRecord = {};

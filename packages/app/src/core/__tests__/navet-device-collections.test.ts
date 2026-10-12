@@ -7,7 +7,10 @@ import {
 import type { NavetEntity } from '@navet/core/types';
 import { describe, expect, it } from 'vitest';
 import { buildDashboardVisibilityResult } from '../../hooks/use-dashboard-devices';
-import { mapNavetEntitiesToDeviceCollection } from '../navet-device-collections';
+import {
+  getLegacyVisibleHelperIds,
+  mapNavetEntitiesToDeviceCollection,
+} from '../navet-device-collections';
 
 function createEntity({
   canonicalId,
@@ -39,6 +42,48 @@ function createEntity({
 }
 
 describe('mapNavetEntitiesToDeviceCollection', () => {
+  it('migrates only the legacy helper collection, excluding newly admitted configuration and grouped actions', () => {
+    const parent = createEntity({
+      canonicalId: 'home_assistant:lock.front_door',
+      externalId: 'lock.front_door',
+      type: 'lock',
+      name: 'Front Door',
+      attributes: { deviceId: 'front-door' },
+    });
+    const helper = (id: string, attributes: Record<string, unknown>) =>
+      createEntity({
+        canonicalId: `home_assistant:${id}`,
+        externalId: id,
+        type: 'helper',
+        name: id,
+        attributes,
+      });
+    const standalone = helper('button.standalone', {});
+    const grouped = helper('button.identify', { deviceId: 'front-door' });
+    const security = helper('button.security', { deviceId: 'front-door', securityKind: 'button' });
+    const value = helper('number.visible', {
+      deviceId: 'front-door',
+      helperType: 'number',
+      value: 5,
+      writable: true,
+      min: 0,
+      max: 10,
+      step: 1,
+    });
+    const config = helper('number.config', { ...value.attributes, entityCategory: 'config' });
+    const configAction = helper('button.config', { entityCategory: 'config' });
+    expect(
+      getLegacyVisibleHelperIds([
+        parent,
+        standalone,
+        grouped,
+        security,
+        value,
+        config,
+        configAction,
+      ])
+    ).toEqual([standalone.canonicalId, security.canonicalId, value.canonicalId]);
+  });
   it('discovers four household control families with persisted identity and source ownership', () => {
     const entities = (['timer', 'counter', 'valve', 'remote'] as const).flatMap((type) =>
       (['home_assistant', 'homey'] as const).map((providerId) => ({

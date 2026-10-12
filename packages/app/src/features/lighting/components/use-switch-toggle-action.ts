@@ -1,6 +1,5 @@
 import { dispatchEntityCommand } from '@navet/app/commands';
 import { useServiceActionHandler } from '@navet/app/hooks';
-import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import { useCallback } from 'react';
 
@@ -10,7 +9,6 @@ interface UseSwitchToggleActionParams {
   isOn: boolean;
   setIsOn: (next: boolean) => void;
   resetTimerRef: React.MutableRefObject<number | null>;
-  resolvedServiceDomain: string;
   resolvedServiceAction: string;
   updateSwitchFailedMessage: string;
 }
@@ -29,7 +27,6 @@ export function useSwitchToggleAction({
   isOn,
   setIsOn,
   resetTimerRef,
-  resolvedServiceDomain,
   resolvedServiceAction,
   updateSwitchFailedMessage,
 }: UseSwitchToggleActionParams) {
@@ -78,12 +75,7 @@ export function useSwitchToggleAction({
       setIsOn(true);
       void runAction(
         async () => {
-          await invokeIntegrationNativeAction({
-            providerId,
-            entityId: id,
-            domain: resolvedServiceDomain,
-            service: 'press',
-          });
+          await dispatchEntityCommand({ type: 'press', entityId: id }, providerId);
           resetTimerRef.current = window.setTimeout(() => setIsOn(false), 500);
         },
         updateSwitchFailedMessage,
@@ -117,7 +109,6 @@ export function useSwitchToggleAction({
     isOn,
     runAction,
     resolvedServiceAction,
-    resolvedServiceDomain,
     resetTimerRef,
     setIsOn,
     updateSwitchFailedMessage,

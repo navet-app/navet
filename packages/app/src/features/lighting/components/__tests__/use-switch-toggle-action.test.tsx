@@ -1,5 +1,5 @@
 import { renderHookWithProviders } from '@navet/app/test/render';
-import { act } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { dispatchEntityCommandMock, invokeIntegrationNativeActionMock } = vi.hoisted(() => ({
@@ -37,7 +37,6 @@ describe('useSwitchToggleAction', () => {
         isOn: true,
         setIsOn,
         resetTimerRef,
-        resolvedServiceDomain: 'switch',
         resolvedServiceAction: 'toggle',
         updateSwitchFailedMessage: 'Failed to update switch',
       })
@@ -51,4 +50,34 @@ describe('useSwitchToggleAction', () => {
     expect(dispatchEntityCommandMock).not.toHaveBeenCalled();
     expect(invokeIntegrationNativeActionMock).not.toHaveBeenCalled();
   });
+
+  it.each(['home_assistant', 'homey', 'openhab'] as const)(
+    'dispatches standalone action presses to their owning %s adapter',
+    async (providerId) => {
+      const setIsOn = vi.fn();
+      const resetTimerRef = { current: null as number | null };
+      const id = `${providerId}:button.identify`;
+      const { result } = renderHookWithProviders(() =>
+        useSwitchToggleAction({
+          id,
+          providerId,
+          isOn: false,
+          setIsOn,
+          resetTimerRef,
+          resolvedServiceAction: 'press',
+          updateSwitchFailedMessage: 'Failed to run action',
+        })
+      );
+      act(() => result.current());
+      await waitFor(() =>
+        expect(dispatchEntityCommandMock).toHaveBeenCalledWith(
+          { type: 'press', entityId: id },
+          providerId
+        )
+      );
+      expect(invokeIntegrationNativeActionMock).not.toHaveBeenCalled();
+      await waitFor(() => expect(resetTimerRef.current).not.toBeNull());
+      window.clearTimeout(resetTimerRef.current as number);
+    }
+  );
 });

@@ -66,7 +66,9 @@ export function useSwitchCardController({
   const { t } = useI18n();
   const resolvedEntityType = entityType || t('lighting.type.switch');
   const resolvedServiceDomain = serviceDomain || id.split('.')[0];
-  const resolvedServiceAction = serviceAction || 'binary';
+  const resolvedServiceAction = providerEntity?.capabilities.includes('press')
+    ? 'press'
+    : serviceAction || 'binary';
   const isScript = resolvedServiceDomain === 'script';
   const isTiny = isTinyCardSize(size);
   const isExtraSmall = isExtraSmallCardSize(size);
@@ -119,11 +121,10 @@ export function useSwitchCardController({
   const hasControlsDialog = true;
   const defaultToggle = useSwitchToggleAction({
     id,
-    providerId,
+    providerId: resolvedProviderId,
     isOn,
     setIsOn,
     resetTimerRef,
-    resolvedServiceDomain,
     resolvedServiceAction,
     updateSwitchFailedMessage: t('lighting.feedback.updateSwitchFailed'),
   });
