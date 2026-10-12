@@ -362,7 +362,7 @@ describe('dashboard-config import hardening', () => {
     ).toEqual(['Living Room', 'Office', 'Guest Room']);
   });
 
-  it('round-trips explicitly added helpers without treating legacy profiles as selected', () => {
+  it('round-trips helper selections and retains pending legacy migration across exports', () => {
     useDashboardEntitiesStore.getState().showEntity('input_number.target');
     const exported = exportDashboardConfig();
     expect(exported.dashboardEntities?.explicitlyShownEntityIds).toEqual([
@@ -374,7 +374,27 @@ describe('dashboard-config import hardening', () => {
       'home_assistant:input_number.target',
     ]);
     importDashboardConfig(baseConfig);
-    expect(useDashboardEntitiesStore.getState().explicitlyShownEntityIds).toEqual([]);
+    expect(useDashboardEntitiesStore.getState().legacyHelperVisibilityProviderIds).toContain(
+      'home_assistant'
+    );
+    const legacyExport = exportDashboardConfig();
+    importDashboardConfig(legacyExport);
+    useDashboardEntitiesStore
+      .getState()
+      .migrateLegacyHelperVisibility('home_assistant', ['home_assistant:input_number.target']);
+    expect(useDashboardEntitiesStore.getState().explicitlyShownEntityIds).toEqual([
+      'home_assistant:input_number.target',
+    ]);
+    importDashboardConfig({
+      ...baseConfig,
+      dashboardEntities: {
+        hiddenEntityIds: [],
+        lockedCardIds: [],
+        onboardingCompleted: true,
+        explicitlyShownEntityIds: [],
+      },
+    });
+    expect(useDashboardEntitiesStore.getState().legacyHelperVisibilityProviderIds).toEqual([]);
   });
 
   it('exports locked card ids with dashboard entity state', () => {

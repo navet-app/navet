@@ -7,7 +7,7 @@ describe('useDashboardEntitiesStore', () => {
     useDashboardEntitiesStore.setState(useDashboardEntitiesStore.getInitialState(), true);
   });
 
-  it('requires an explicit add for helpers, including after onboarding and visibility resets', async () => {
+  it('requires explicit adds on fresh profiles and restores previously selected helpers', async () => {
     const store = () => useDashboardEntitiesStore.getState();
     store().completeOnboarding(['light.kitchen', 'input_number.target'], false);
     expect(store().explicitlyShownEntityIds).toEqual([]);
@@ -20,9 +20,67 @@ describe('useDashboardEntitiesStore', () => {
     expect(store().explicitlyShownEntityIds).toEqual(['home_assistant:input_number.target']);
     store().hideEntity('input_number.target');
     store().resetHiddenEntities();
-    expect(store().explicitlyShownEntityIds).toEqual([]);
+    expect(store().explicitlyShownEntityIds).toEqual(['home_assistant:input_number.target']);
     store().replaceDashboardEntitiesState({ hiddenEntityIds: [], onboardingCompleted: true });
     expect(store().explicitlyShownEntityIds).toEqual([]);
+  });
+
+  it('preserves unhidden legacy helpers after provider hydration and migrates each provider only once', async () => {
+    localStorage.setItem(
+      'navet-dashboard-entities',
+      JSON.stringify({
+        state: { hiddenEntityIds: ['input_number.hidden'], onboardingCompleted: true },
+        version: 0,
+      })
+    );
+    await useDashboardEntitiesStore.persist.rehydrate();
+    const store = () => useDashboardEntitiesStore.getState();
+    expect(store().legacyHelperVisibilityProviderIds).toContain('home_assistant');
+    store().migrateLegacyHelperVisibility('home_assistant', [
+      'home_assistant:input_number.visible',
+      'home_assistant:input_number.hidden',
+    ]);
+    expect(store().explicitlyShownEntityIds).toEqual(['home_assistant:input_number.visible']);
+    expect(store().legacyHelperVisibilityProviderIds).not.toContain('home_assistant');
+    expect(store().legacyHelperVisibilityProviderIds).toContain('openhab');
+    store().migrateLegacyHelperVisibility('home_assistant', ['home_assistant:number.new']);
+    expect(store().explicitlyShownEntityIds).toEqual(['home_assistant:input_number.visible']);
+    await useDashboardEntitiesStore.persist.rehydrate();
+    expect(store().legacyHelperVisibilityProviderIds).not.toContain('home_assistant');
+    store().migrateLegacyHelperVisibility('openhab', ['openhab:legacy']);
+    expect(store().explicitlyShownEntityIds).toContain('openhab:legacy');
+  });
+
+  it('does not migrate an intentionally empty current helper selection', async () => {
+    localStorage.setItem(
+      'navet-dashboard-entities',
+      JSON.stringify({
+        state: { hiddenEntityIds: [], explicitlyShownEntityIds: [], onboardingCompleted: true },
+        version: 0,
+      })
+    );
+    await useDashboardEntitiesStore.persist.rehydrate();
+    expect(useDashboardEntitiesStore.getState().legacyHelperVisibilityProviderIds).toEqual([]);
+    useDashboardEntitiesStore
+      .getState()
+      .migrateLegacyHelperVisibility('home_assistant', ['home_assistant:input_number.target']);
+    expect(useDashboardEntitiesStore.getState().explicitlyShownEntityIds).toEqual([]);
+  });
+
+  it('restores removed helpers and sensors through Add all removed entities', () => {
+    const store = () => useDashboardEntitiesStore.getState();
+    store().showEntity('input_number.target');
+    store().hideEntity('input_number.target');
+    store().hideEntity('button.legacy_hidden');
+    store().hideEntity('sensor.temperature');
+    store().showAllEntities();
+    expect(store().hiddenEntityIds).toEqual([]);
+    expect(store().explicitlyShownEntityIds).toEqual([
+      'home_assistant:input_number.target',
+      'home_assistant:button.legacy_hidden',
+      'home_assistant:sensor.temperature',
+    ]);
+    expect(store().shownSensorEntityIds).toEqual(['home_assistant:sensor.temperature']);
   });
 
   it('locks, unlocks, and toggles cards without duplicating ids', () => {

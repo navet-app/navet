@@ -1,3 +1,4 @@
+import { actionHelperEntities } from '@navet/app/test/fixtures/home-assistant/entities/action-helper';
 import { describe, expect, it } from 'vitest';
 import {
   buildHomeAssistantProviderRooms,
@@ -18,6 +19,25 @@ function makeEntity(entity_id: string, state: string, attributes: Record<string,
 }
 
 describe('homeassistant-mappers', () => {
+  it('retains configuration-category action helpers with normalized press support', () => {
+    const helpers = mapHomeAssistantEntitiesToNavetEntities({
+      entities: actionHelperEntities,
+      areas: [],
+      deviceRegistry: [],
+      entityRegistry: Object.keys(actionHelperEntities).map((entity_id) => ({
+        entity_id,
+        device_id: 'related-device',
+        entity_category: 'config',
+      })),
+    });
+    expect(helpers).toHaveLength(3);
+    for (const entity of helpers) {
+      expect(entity.type).toBe('helper');
+      expect(entity.capabilities).toContain('press');
+      expect(entity.attributes.deviceId).toBe('related-device');
+    }
+  });
+
   it('defaults cover cards to small while preserving their position controls', () => {
     const [cover] = mapHomeAssistantEntitiesToNavetEntities({
       entities: {

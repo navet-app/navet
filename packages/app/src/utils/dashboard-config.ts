@@ -38,6 +38,7 @@ import { useEntityRoomOverridesStore } from '@navet/app/stores/entity-room-overr
 import { useNavigationStore } from '@navet/app/stores/navigation-store';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { useThemeStore } from '@navet/app/stores/theme-store';
+import { isIntegrationProviderId } from '@navet/app/types/provider';
 import {
   parseDashboardConfigYaml,
   stringifyDashboardConfigYaml,
@@ -71,7 +72,12 @@ export interface DashboardConfigPayload {
   dashboardEntities?: Pick<
     ReturnType<typeof useDashboardEntitiesStore.getState>,
     'hiddenEntityIds' | 'lockedCardIds' | 'onboardingCompleted'
-  > & { explicitlyShownEntityIds?: string[] };
+  > & {
+    explicitlyShownEntityIds?: string[];
+    legacyHelperVisibilityProviderIds?: ReturnType<
+      typeof useDashboardEntitiesStore.getState
+    >['legacyHelperVisibilityProviderIds'];
+  };
   entityRoomOverrides?: ReturnType<
     typeof useEntityRoomOverridesStore.getState
   >['roomIdsByEntityId'];
@@ -232,10 +238,13 @@ export const exportDashboardConfig = (): DashboardConfigPayload => {
       dashboardEntitiesState.hiddenEntityIds.length > 0 ||
       dashboardEntitiesState.lockedCardIds.length > 0 ||
       dashboardEntitiesState.explicitlyShownEntityIds.length > 0 ||
+      dashboardEntitiesState.legacyHelperVisibilityProviderIds.length > 0 ||
       dashboardEntitiesState.onboardingCompleted
         ? {
             hiddenEntityIds: dashboardEntitiesState.hiddenEntityIds,
             explicitlyShownEntityIds: dashboardEntitiesState.explicitlyShownEntityIds,
+            legacyHelperVisibilityProviderIds:
+              dashboardEntitiesState.legacyHelperVisibilityProviderIds,
             lockedCardIds: dashboardEntitiesState.lockedCardIds,
             onboardingCompleted: dashboardEntitiesState.onboardingCompleted,
           }
@@ -716,7 +725,15 @@ export const importDashboardConfig = (
 
   useDashboardEntitiesStore.getState().replaceDashboardEntitiesState({
     hiddenEntityIds: sanitizeStringArray(dashboardEntities.hiddenEntityIds),
-    explicitlyShownEntityIds: sanitizeStringArray(dashboardEntities.explicitlyShownEntityIds),
+    explicitlyShownEntityIds:
+      dashboardEntities.explicitlyShownEntityIds === undefined
+        ? undefined
+        : sanitizeStringArray(dashboardEntities.explicitlyShownEntityIds),
+    legacyHelperVisibilityProviderIds: Array.isArray(
+      dashboardEntities.legacyHelperVisibilityProviderIds
+    )
+      ? dashboardEntities.legacyHelperVisibilityProviderIds.filter(isIntegrationProviderId)
+      : undefined,
     lockedCardIds: sanitizeStringArray(dashboardEntities.lockedCardIds),
     onboardingCompleted:
       typeof dashboardEntities.onboardingCompleted === 'boolean'

@@ -1,4 +1,8 @@
 import {
+  IMPLEMENTED_INTEGRATION_PROVIDER_IDS,
+  type IntegrationProviderId,
+} from '@navet/app/types/provider';
+import {
   ensureCanonicalEntityId,
   ensureCanonicalEntityIds,
 } from '@navet/app/utils/provider-entity-id';
@@ -10,12 +14,15 @@ interface DashboardEntitiesState {
   hiddenEntityIds: string[];
   shownSensorEntityIds: string[];
   explicitlyShownEntityIds: string[];
+  legacyHelperVisibilityProviderIds: IntegrationProviderId[];
+  migrateLegacyHelperVisibility: (providerId: IntegrationProviderId, helperIds: string[]) => void;
   lockedCardIds: string[];
   onboardingCompleted: boolean;
   replaceDashboardEntitiesState: (state: {
     hiddenEntityIds: string[];
     shownSensorEntityIds?: string[];
     explicitlyShownEntityIds?: string[];
+    legacyHelperVisibilityProviderIds?: IntegrationProviderId[];
     lockedCardIds?: string[];
     onboardingCompleted: boolean;
   }) => void;
@@ -52,18 +59,45 @@ function isSensorEntityId(entityId: string) {
   return nativeId.startsWith('sensor.') || nativeId.startsWith('binary_sensor.');
 }
 
+// Missing helper selections identify profiles written before helpers became opt-in.
+// Wait for each provider's first hydrated snapshot before capturing its legacy visible helpers.
+function normalizeLegacyHelperProviders(
+  selections: unknown,
+  pending: unknown
+): IntegrationProviderId[] {
+  if (Array.isArray(pending))
+    return IMPLEMENTED_INTEGRATION_PROVIDER_IDS.filter((id) => pending.includes(id));
+  return selections === undefined ? [...IMPLEMENTED_INTEGRATION_PROVIDER_IDS] : [];
+}
+
+function restoreHiddenEntities(state: DashboardEntitiesState) {
+  return {
+    hiddenEntityIds: [],
+    explicitlyShownEntityIds: ensureCanonicalEntityIds([
+      ...state.explicitlyShownEntityIds,
+      ...state.hiddenEntityIds,
+    ]),
+    shownSensorEntityIds: ensureCanonicalEntityIds([
+      ...state.shownSensorEntityIds,
+      ...state.hiddenEntityIds.filter(isSensorEntityId),
+    ]),
+  };
+}
+
 export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
   persist(
     (set) => ({
       hiddenEntityIds: [],
       shownSensorEntityIds: [],
       explicitlyShownEntityIds: [],
+      legacyHelperVisibilityProviderIds: [],
       lockedCardIds: [],
       onboardingCompleted: false,
       replaceDashboardEntitiesState: ({
         hiddenEntityIds,
         shownSensorEntityIds = [],
-        explicitlyShownEntityIds = [],
+        explicitlyShownEntityIds,
+        legacyHelperVisibilityProviderIds,
         lockedCardIds = [],
         onboardingCompleted,
       }) =>
@@ -71,8 +105,27 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
           hiddenEntityIds: ensureCanonicalEntityIds(hiddenEntityIds),
           shownSensorEntityIds: normalizeStringArray(shownSensorEntityIds),
           explicitlyShownEntityIds: normalizeStringArray(explicitlyShownEntityIds),
+          legacyHelperVisibilityProviderIds: normalizeLegacyHelperProviders(
+            explicitlyShownEntityIds,
+            legacyHelperVisibilityProviderIds
+          ),
           lockedCardIds: normalizeLockedCardIds(lockedCardIds),
           onboardingCompleted,
+        }),
+      migrateLegacyHelperVisibility: (providerId, helperIds) =>
+        set((state) => {
+          if (!state.legacyHelperVisibilityProviderIds.includes(providerId)) return state;
+          return {
+            explicitlyShownEntityIds: ensureCanonicalEntityIds([
+              ...state.explicitlyShownEntityIds,
+              ...helperIds.filter(
+                (id) => !state.hiddenEntityIds.includes(ensureCanonicalEntityId(id))
+              ),
+            ]),
+            legacyHelperVisibilityProviderIds: state.legacyHelperVisibilityProviderIds.filter(
+              (id) => id !== providerId
+            ),
+          };
         }),
       completeOnboarding: (entityIds, startBlank) =>
         set({
@@ -81,6 +134,7 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
             ? []
             : ensureCanonicalEntityIds(entityIds.filter(isSensorEntityId)),
           explicitlyShownEntityIds: [],
+          legacyHelperVisibilityProviderIds: [],
           onboardingCompleted: true,
         }),
       markOnboardingCompleted: () => set({ onboardingCompleted: true }),
@@ -88,9 +142,6 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
         set((state) => {
           const canonicalEntityId = ensureCanonicalEntityId(entityId);
           return {
-            explicitlyShownEntityIds: state.explicitlyShownEntityIds.filter(
-              (id) => id !== canonicalEntityId
-            ),
             hiddenEntityIds: state.hiddenEntityIds.includes(canonicalEntityId)
               ? state.hiddenEntityIds
               : [...state.hiddenEntityIds, canonicalEntityId],
@@ -114,8 +165,8 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
                 : state.shownSensorEntityIds,
           };
         }),
-      showAllEntities: () => set({ hiddenEntityIds: [] }),
-      resetHiddenEntities: () => set({ hiddenEntityIds: [] }),
+      showAllEntities: () => set(restoreHiddenEntities),
+      resetHiddenEntities: () => set(restoreHiddenEntities),
       lockCard: (cardId) =>
         set((state) => ({
           lockedCardIds: state.lockedCardIds.includes(cardId)
@@ -158,6 +209,10 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
           hiddenEntityIds,
           shownSensorEntityIds,
           explicitlyShownEntityIds: normalizeStringArray(persisted.explicitlyShownEntityIds),
+          legacyHelperVisibilityProviderIds: normalizeLegacyHelperProviders(
+            persisted.explicitlyShownEntityIds,
+            persisted.legacyHelperVisibilityProviderIds
+          ),
           lockedCardIds,
           onboardingCompleted,
         };

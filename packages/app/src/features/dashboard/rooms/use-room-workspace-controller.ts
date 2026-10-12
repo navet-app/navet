@@ -8,6 +8,7 @@ import type { IntegrationProviderId } from '@navet/app/types/provider';
 import type { PlatformManageableRoomReference } from '@navet/core/provider-feature-models';
 import type { NavetEntity, NavetProviderRoom } from '@navet/core/types';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useDashboardEntityVisibility } from '../hooks/use-dashboard-entity-visibility';
 import type {
   RoomWorkspaceActions,
   RoomWorkspaceChangeViewModel,
@@ -415,9 +416,7 @@ export function useRoomWorkspaceController({
     isOpen ? state.roomIdsByEntityId : EMPTY_ROOM_OVERRIDES
   );
   const hiddenDashboardEntityIds = useDashboardEntitiesStore((state) => state.hiddenEntityIds);
-  const explicitlyShownEntityIds = useDashboardEntitiesStore(
-    (state) => state.explicitlyShownEntityIds
-  );
+  const { explicitlyShownEntityIds } = useDashboardEntityVisibility();
   const shownSensorEntityIds = useDashboardEntitiesStore((state) => state.shownSensorEntityIds);
   const hideDashboardEntity = useDashboardEntitiesStore((state) => state.hideEntity);
   const showDashboardEntity = useDashboardEntitiesStore((state) => state.showEntity);
