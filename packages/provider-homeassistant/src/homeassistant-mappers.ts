@@ -1056,6 +1056,10 @@ function inferHomeAssistantCapabilities(
     return capabilities;
   }
 
+  if (domain === 'button' || domain === 'input_button' || domain === 'script') {
+    return ['press'];
+  }
+
   if (domain === 'switch' || domain === 'input_boolean') {
     return ['toggle'];
   }

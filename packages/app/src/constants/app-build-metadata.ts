@@ -68,5 +68,5 @@ export function isLocalDevelopmentBuild(
   hostname = typeof window === 'undefined' ? '' : window.location.hostname
 ) {
   const isLoopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
-  return isLoopback && ['development', 'dev', 'local'].includes(channel);
+  return isLoopback && ['development', 'local'].includes(channel);
 }

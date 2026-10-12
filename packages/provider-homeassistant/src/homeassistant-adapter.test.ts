@@ -1,3 +1,4 @@
+import { actionHelperEntities } from '@navet/app/test/fixtures/home-assistant/entities/action-helper';
 import { advancedClimateEntityFactory } from '@navet/app/test/fixtures/home-assistant/entities/advanced-climate';
 import { householdControlEntityFactory } from '@navet/app/test/fixtures/home-assistant/entities/household-controls';
 import { writableHelperEntities } from '@navet/app/test/fixtures/home-assistant/entities/writable-helper';
@@ -123,6 +124,7 @@ describe('homeassistant-adapter', () => {
       sendWebSocketBinary: vi.fn(),
       getEntities: vi.fn(() => ({
         ...writableHelperEntities,
+        ...actionHelperEntities,
         'climate.living_room': advancedClimateEntityFactory(),
         'light.kitchen': lightEntityFactory(),
         'alarm_control_panel.home': alarmEntityFactory(),
@@ -175,6 +177,7 @@ describe('homeassistant-adapter', () => {
         error: null,
         entities: {
           ...writableHelperEntities,
+          ...actionHelperEntities,
           ...Object.fromEntries(
             (['timer', 'counter', 'valve', 'remote'] as const).map((domain) => {
               const entity = householdControlEntityFactory(domain);
@@ -343,6 +346,27 @@ describe('homeassistant-adapter', () => {
     await expect(
       adapter.execute({ type: 'turn_on', entityId: 'input_number.target' })
     ).rejects.toThrow();
+    expect(callHomeAssistantServiceMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['button', 'input_button', 'script'])(
+    'routes normalized presses through the owning %s adapter',
+    async (domain) => {
+      const adapter = createHomeAssistantContractAdapter();
+      const entityId = `home_assistant:${domain}.action`;
+      expect((await adapter.getEntity(entityId))?.capabilities).toContain('press');
+      await adapter.execute({ type: 'press', entityId });
+      expect(callHomeAssistantServiceMock).toHaveBeenCalledWith(
+        domain,
+        domain === 'script' ? 'turn_on' : 'press',
+        {},
+        { entityId: `${domain}.action` }
+      );
+    }
+  );
+  it('rejects presses for unsupported entities without issuing a service call', async () => {
+    const adapter = createHomeAssistantContractAdapter();
+    await expect(adapter.execute({ type: 'press', entityId: 'light.kitchen' })).rejects.toThrow();
     expect(callHomeAssistantServiceMock).not.toHaveBeenCalled();
   });
 

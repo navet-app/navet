@@ -41,10 +41,10 @@ describe('APP_BUILD_METADATA', () => {
   });
 
   it.each(['localhost', '127.0.0.1', '[::1]'])('identifies local development on %s', (hostname) => {
-    for (const channel of ['development', 'dev', 'local']) {
+    for (const channel of ['development', 'local']) {
       expect(isLocalDevelopmentBuild(channel, hostname)).toBe(true);
     }
-    for (const channel of ['edge', 'beta', 'stable']) {
+    for (const channel of ['dev', 'edge', 'beta', 'stable']) {
       expect(isLocalDevelopmentBuild(channel, hostname)).toBe(false);
     }
   });

@@ -160,6 +160,66 @@ describe('parent helper controls', () => {
     );
   });
 
+  it.each(['press', 'toggle'] as const)(
+    'lets a stalled %s command time out and retry without accepting its late response',
+    async (capability) => {
+      let completeFirst!: (result: {
+        accepted: boolean;
+        requiresEventConfirmation: boolean;
+      }) => void;
+      dispatch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            completeFirst = resolve;
+          })
+      );
+      const actionHelper: NavetEntity = {
+        ...helper,
+        name: 'Related control',
+        primaryState: 'off',
+        attributes: { deviceId: 'shared-device' },
+        capabilities: [capability],
+      };
+      integrationStore.setState({
+        providerEntitiesByProviderId: {
+          home_assistant: {
+            [parent.canonicalId]: parent,
+            [actionHelper.canonicalId]: actionHelper,
+          },
+        },
+      });
+      renderWithProviders(<EntityHelperControls entityId={parent.canonicalId} />);
+      vi.useFakeTimers();
+      try {
+        const control = screen.getByRole(capability === 'press' ? 'button' : 'switch', {
+          name: /Related control/,
+        });
+        fireEvent.click(control);
+        expect(control).toBeDisabled();
+        expect(dispatch).toHaveBeenCalledWith(
+          {
+            type: capability === 'press' ? 'press' : 'turn_on',
+            entityId: actionHelper.canonicalId,
+          },
+          'home_assistant'
+        );
+        await act(() => vi.advanceTimersByTimeAsync(10000));
+        expect(control).not.toBeDisabled();
+        expect(screen.getByRole('alert')).toBeInTheDocument();
+        dispatch.mockImplementationOnce(() => new Promise(() => {}));
+        fireEvent.click(control);
+        expect(dispatch).toHaveBeenCalledTimes(2);
+        expect(control).toBeDisabled();
+        await act(async () => completeFirst({ accepted: true, requiresEventConfirmation: true }));
+        expect(control).toBeDisabled();
+        await act(() => vi.advanceTimersByTimeAsync(10000));
+        expect(control).not.toBeDisabled();
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+
   it('disables an unavailable helper and masks password text in the collapsed row', () => {
     const password: NavetEntity = {
       ...helper,

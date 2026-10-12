@@ -81,6 +81,60 @@ describe('useDashboardDevices', () => {
     ).toEqual([]);
   });
 
+  it('keeps person-associated helpers available and absorbs them for remote controls', () => {
+    const helper = {
+      id: 'home_assistant:number.delay',
+      name: 'Delay',
+      room: 'Hall',
+      size: 'small' as const,
+      state: false,
+      providerId: 'home_assistant' as const,
+      underlyingDeviceId: 'shared',
+    };
+    const devices: DeviceCollection = {
+      ...createEmptyDeviceCollection(),
+      persons: [
+        {
+          id: 'home_assistant:device_tracker.phone',
+          name: 'Phone',
+          room: 'Hall',
+          size: 'small',
+          state: 'home',
+          location: 'Home',
+          providerId: 'home_assistant',
+          underlyingDeviceId: 'shared',
+        },
+      ],
+      helpers: [helper],
+    };
+    expect(getAbsorbedDashboardEntityIds(devices, [])).toEqual([]);
+    expect(buildDashboardVisibilityResult(devices, []).availableDevices.helpers).toEqual([helper]);
+    expect(
+      buildDashboardVisibilityResult(devices, [], [], [helper.id]).visibleDevices.helpers
+    ).toEqual([helper]);
+    devices.persons = [];
+    devices.remotes = [
+      {
+        ...helper,
+        id: 'home_assistant:remote.tv',
+        normalizedEntity: {
+          id: 'home_assistant:remote.tv',
+          canonicalId: 'home_assistant:remote.tv',
+          externalId: 'remote.tv',
+          providerId: 'home_assistant',
+          type: 'remote',
+          name: 'TV',
+          primaryState: 'on',
+          availability: 'available',
+          attributes: {},
+          capabilities: [],
+        },
+      },
+    ];
+    expect(buildDashboardVisibilityResult(devices, []).availableDevices.helpers).toEqual([]);
+    expect(getAbsorbedDashboardEntityIds(devices, [])).toEqual([helper.id]);
+  });
+
   it('keeps sensors hidden until explicitly shown', () => {
     const devices: DeviceCollection = {
       ...createEmptyDeviceCollection(),
@@ -152,7 +206,7 @@ describe('useDashboardDevices', () => {
     expect(result.current.lights).toBe(devices.lights);
   });
 
-  it('absorbs security child entities when a visible parent card already represents the device', () => {
+  it('absorbs security sensors but keeps lock-associated helpers available without a helper dialog', () => {
     const devices: DeviceCollection = {
       ...createEmptyDeviceCollection(),
       locks: [
@@ -210,11 +264,10 @@ describe('useDashboardDevices', () => {
     expect(result.current.sensors).toEqual([]);
     expect(result.current.helpers).toEqual([]);
     expect(getAbsorbedDashboardEntityIds(devices, [])).toEqual([
-      'button.front_door_chime',
       'binary_sensor.front_door_contact',
     ]);
     expect(visibility.availableDevices.sensors).toEqual([]);
-    expect(visibility.availableDevices.helpers).toEqual([]);
+    expect(visibility.availableDevices.helpers).toEqual(devices.helpers);
   });
 
   it('allows a child security entity to surface again when its parent card is hidden', () => {

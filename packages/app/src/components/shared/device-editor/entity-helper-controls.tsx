@@ -4,7 +4,6 @@ import { useIntegrationStore } from '@navet/app/hooks/use-integration-store';
 import { useProviderControlSession } from '@navet/app/hooks/use-provider-control-session';
 import { useProviderEntityModel } from '@navet/app/hooks/use-provider-device';
 import type { ThemeType } from '@navet/app/hooks/use-theme';
-import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
 import { readNavetHelperState } from '@navet/core/helper-state';
 import type { NavetEntity } from '@navet/core/types';
 import { useEffect, useRef, useState } from 'react';
@@ -92,7 +91,7 @@ function EntityHelperRowContent({ entity, theme }: { entity: NavetEntity; theme?
     }
   }, [expectedState, isOn]);
   useEffect(() => {
-    if (expectedState === null) return;
+    if (!pending) return;
     const timeout = setTimeout(() => {
       generation.current++;
       inFlight.current = false;
@@ -101,7 +100,7 @@ function EntityHelperRowContent({ entity, theme }: { entity: NavetEntity; theme?
       setFailed(true);
     }, 10000);
     return () => clearTimeout(timeout);
-  }, [expectedState]);
+  }, [pending]);
   useEffect(
     () => () => {
       generation.current++;
@@ -130,8 +129,7 @@ function EntityHelperRowContent({ entity, theme }: { entity: NavetEntity; theme?
       </DeviceControlRow>
     );
   }
-  const action = entity.attributes.serviceAction;
-  const isAction = action === 'press' || action === 'turn_on';
+  const isAction = entity.capabilities.includes('press');
   const writable = !unavailable && (isAction || entity.capabilities.includes('toggle'));
   async function send(checked: boolean) {
     if (pending || inFlight.current || !writable) return;
@@ -141,23 +139,17 @@ function EntityHelperRowContent({ entity, theme }: { entity: NavetEntity; theme?
     setFailed(false);
     let waitingForEvent = false;
     try {
-      if (action === 'press' && typeof entity.attributes.serviceDomain === 'string') {
-        await invokeIntegrationNativeAction({
-          providerId: entity.providerId,
+      const result = await dispatchEntityCommand(
+        {
+          type: isAction ? 'press' : checked ? 'turn_on' : 'turn_off',
           entityId: entity.canonicalId,
-          domain: entity.attributes.serviceDomain,
-          service: 'press',
-        });
-      } else {
-        const result = await dispatchEntityCommand(
-          { type: checked ? 'turn_on' : 'turn_off', entityId: entity.canonicalId },
-          entity.providerId
-        );
-        if (!result.accepted) throw new Error('Rejected');
-        if (request !== generation.current) return;
-        waitingForEvent = !isAction && result.requiresEventConfirmation;
-        if (waitingForEvent) setExpectedState(checked);
-      }
+        },
+        entity.providerId
+      );
+      if (!result.accepted) throw new Error('Rejected');
+      if (request !== generation.current) return;
+      waitingForEvent = !isAction && result.requiresEventConfirmation;
+      if (waitingForEvent) setExpectedState(checked);
     } catch {
       if (request === generation.current) setFailed(true);
     } finally {

@@ -33,13 +33,26 @@ describe('About Navet build identity', () => {
     build.hostname = 'localhost';
   });
 
-  it.each(['development', 'dev', 'local'])('presents %s as a local build', (channel) => {
+  it.each(['development', 'local'])('presents %s as a local build', (channel) => {
     build.releaseChannel = channel;
     renderWithProviders(<ProjectSection />);
     expect(screen.getByText('Local development build')).toBeInTheDocument();
     expect(screen.queryByText(APP_VERSION, { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Beta', { exact: true })).not.toBeInTheDocument();
   });
+
+  it.each(['localhost', '127.0.0.1', '[::1]'])(
+    'preserves published Dev build identity on %s',
+    (hostname) => {
+      build.releaseChannel = 'dev';
+      build.hostname = hostname;
+      renderWithProviders(<ProjectSection />);
+      expect(screen.getByText(APP_VERSION, { exact: true })).toBeInTheDocument();
+      expect(screen.queryByText('Local development build')).not.toBeInTheDocument();
+      expect(screen.getByText('Beta', { exact: true })).toBeInTheDocument();
+      expect(screen.getByText(/ · test-sh · /)).toHaveTextContent(APP_VERSION);
+    }
+  );
 
   it.each(['beta', 'stable'])('preserves the release version for %s builds', (channel) => {
     build.releaseChannel = channel;

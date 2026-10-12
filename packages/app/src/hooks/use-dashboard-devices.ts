@@ -20,6 +20,10 @@ const ABSORBING_PARENT_KEYS = [
   'valves',
   'remotes',
 ] as const;
+// Lock and person cards do not expose related helper controls.
+const HELPER_PARENT_KEYS = ABSORBING_PARENT_KEYS.filter(
+  (key) => key !== 'locks' && key !== 'persons'
+);
 const ABSORBABLE_CHILD_KEYS = ['helpers', 'sensors'] as const;
 
 interface DashboardVisibilityResult {
@@ -86,11 +90,12 @@ function filterVisibleSensors<T extends DashboardEntityIdentity>(
 
 function collectVisibleParentDeviceIds(
   devices: DeviceCollection,
-  hiddenIds: Set<string>
+  hiddenIds: Set<string>,
+  parentKeys: readonly (typeof ABSORBING_PARENT_KEYS)[number][] = ABSORBING_PARENT_KEYS
 ): Set<string> {
   const parentDeviceIds = new Set<string>();
 
-  for (const key of ABSORBING_PARENT_KEYS) {
+  for (const key of parentKeys) {
     for (const device of devices[key]) {
       if (
         isDashboardEntityHidden(device, hiddenIds) ||
@@ -162,6 +167,11 @@ export function getAbsorbedDashboardEntityIds(
 ): string[] {
   const hiddenIds = new Set(getExpandedHiddenDashboardEntityIds(devices, hiddenEntityIds));
   const visibleParentDeviceIds = collectVisibleParentDeviceIds(devices, hiddenIds);
+  const helperParentDeviceIds = collectVisibleParentDeviceIds(
+    devices,
+    hiddenIds,
+    HELPER_PARENT_KEYS
+  );
   const absorbedEntityIds: string[] = [];
 
   for (const key of ABSORBABLE_CHILD_KEYS) {
@@ -169,7 +179,7 @@ export function getAbsorbedDashboardEntityIds(
       if (
         (key === 'helpers' || isAbsorbableSecurityChild(device)) &&
         typeof device.underlyingDeviceId === 'string' &&
-        visibleParentDeviceIds.has(
+        (key === 'helpers' ? helperParentDeviceIds : visibleParentDeviceIds).has(
           `${device.providerId ?? 'home_assistant'}:${device.underlyingDeviceId}`
         )
       ) {

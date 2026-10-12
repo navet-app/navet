@@ -1,4 +1,5 @@
 export type NavetCapabilityId =
+  | 'press'
   | 'timer_start'
   | 'timer_pause'
   | 'timer_cancel'
@@ -32,6 +33,7 @@ export type NavetCapabilityId =
   | 'numeric_sensor';
 
 export const NAVET_CAPABILITY_IDS: readonly NavetCapabilityId[] = [
+  'press',
   'timer_start',
   'timer_pause',
   'timer_cancel',

@@ -120,6 +120,24 @@ export async function executeHomeAssistantCommand(entity: NavetEntity, command: 
     throw new UnsupportedProviderCommandError(command.type);
   }
   switch (command.type) {
+    case 'press': {
+      const domain = getEntityCommandDomain(entity);
+      if (
+        !entity.capabilities.includes('press') ||
+        !['button', 'input_button', 'script'].includes(domain)
+      ) {
+        throw new UnsupportedProviderCommandError(command.type);
+      }
+      await callHomeAssistantService(
+        domain,
+        domain === 'script' ? 'turn_on' : 'press',
+        {},
+        {
+          entityId: entity.externalId,
+        }
+      );
+      return;
+    }
     case 'set_number_value':
     case 'select_option':
     case 'set_text_value':
