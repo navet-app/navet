@@ -86,6 +86,28 @@ export function applyPreviewCommandToEntity(
           value: entity.type === 'switch' || entity.type === 'helper' ? false : 'off',
         },
       };
+    case 'set_temperature':
+      return { ...entity, attributes: { ...entity.attributes, temperature: command.temperature } };
+    case 'set_climate_mode':
+      return {
+        ...entity,
+        primaryState: command.mode,
+        attributes: {
+          ...entity.attributes,
+          value: command.mode,
+          action: command.mode === 'off' ? 'off' : 'idle',
+        },
+      };
+    case 'set_position':
+      return {
+        ...entity,
+        primaryState: command.position > 0 ? 'open' : 'closed',
+        attributes: {
+          ...entity.attributes,
+          value: command.position > 0 ? 'open' : 'closed',
+          position: command.position,
+        },
+      };
     case 'set_brightness':
       return {
         ...entity,

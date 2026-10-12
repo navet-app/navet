@@ -3,7 +3,11 @@
 This workspace builds the public Navet demo at `https://demo.navet.app`.
 
 The sample home includes fan direction and oscillation, advanced Main floor climate controls,
-linked Kitchen island helpers, and a configured UPS monitor. Home edit mode exposes sample
+linked Kitchen island helpers, and a configured UPS monitor. Named rooms contain household devices
+and readings: laundry and UPS in Basement, bathroom ventilation and floor heating, bedroom comfort
+controls, an office workspace, and outdoor security. Room cards share provider-backed sample state
+with the rest of the demo. Numbered Demo Rooms exercise navigation with placeholder cards.
+Home edit mode exposes sample
 entities and content card templates through Add card. Controls and widget settings update local
 sample state; reloading restores the demo defaults.
 

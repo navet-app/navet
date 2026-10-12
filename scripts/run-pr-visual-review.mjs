@@ -39,6 +39,34 @@ const scenarios = [
   },
 ];
 
+// Verify named-room composition through navigation without comparing rendered images.
+const namedRoomSamples = {
+  Basement: 'Utility lights', Bathroom: 'Mirror lights', Bedroom: 'Bedroom fan',
+  'Guest room': 'Window blind', Gym: 'Workout fan', Hallway: 'Main floor',
+  Kitchen: 'Espresso machine', 'Living Room': 'Living Room Air', Office: 'Desk lamp',
+  Outside: 'Outdoor temperature', Toilet: 'Extractor fan', Unassigned: 'Spare smart plug',
+};
+for (const [room, sample] of Object.entries(namedRoomSamples)) {
+  scenarios.push({
+    name: `desktop-room-${room.toLowerCase().replaceAll(' ', '-')}`,
+    path: '/demo/home', viewport: { width: 1440, height: 900 },
+    prepare: async (page) => {
+      const direct = page.getByRole('button', { name: room, exact: true }).filter({ visible: true });
+      if (await direct.count()) {
+        await direct.click();
+      } else {
+        const group = ['Bedroom', 'Guest room', 'Office'].includes(room) ? 'Upstairs'
+          : ['Kitchen', 'Living Room', 'Hallway'].includes(room) ? 'Shared spaces' : null;
+        const groupButton = group ? page.getByRole('button', { name: group, exact: true }).filter({ visible: true }) : null;
+        if (groupButton && await groupButton.count()) await groupButton.click();
+        else await page.getByRole('button', { name: 'Rooms', exact: true }).click();
+        await page.getByRole('menuitem', { name: room, exact: true }).click();
+      }
+      await page.getByText(sample, { exact: true }).first().waitFor();
+    },
+  });
+}
+
 function startServer() {
   const child = spawn(
     'pnpm',

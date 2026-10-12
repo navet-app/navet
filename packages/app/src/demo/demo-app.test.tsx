@@ -7,6 +7,7 @@ import { integrationStore } from '@navet/app/stores/integration-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { DEMO_ROOM_ENTITY_IDS } from '../preview/demo-room-entities';
 import {
   getPreviewRuntimeScenario,
   installPreviewRuntime,
@@ -50,6 +51,70 @@ describe('demo preview runtime', () => {
         }),
       })
     );
+  });
+
+  it('backs every named-room card with an entity in its room and compatibility registries', () => {
+    const scenario = getPreviewRuntimeScenario('demo');
+    for (const [room, ids] of Object.entries(DEMO_ROOM_ENTITY_IDS)) {
+      const providerRoom = scenario.rooms.find((entry) => entry.name === room);
+      expect(providerRoom, room).toBeDefined();
+      for (const id of ids) {
+        const entity = scenario.entities.find((entry) => entry.externalId === id);
+        expect(entity, `${room}: ${id}`).toBeDefined();
+        expect(entity?.room).toBe(room);
+        expect(providerRoom?.memberIds).toContain(entity?.canonicalId);
+        expect(scenario.homeAssistant.entities?.[id]).toBeDefined();
+        const registryEntry = scenario.homeAssistant.entityRegistry.find(
+          (entry) => entry.entity_id === id
+        );
+        expect(registryEntry?.area_id).toBe(providerRoom?.externalId);
+        expect(
+          scenario.homeAssistant.deviceRegistry.some(
+            (device) =>
+              device.id === registryEntry?.device_id && device.area_id === registryEntry?.area_id
+          )
+        ).toBe(true);
+      }
+    }
+    expect(new Set(scenario.entities.map((entity) => entity.canonicalId)).size).toBe(
+      scenario.entities.length
+    );
+    expect(
+      getPreviewRuntimeScenario().entities.some(
+        (entity) => entity.externalId === 'light.bathroom_mirror'
+      )
+    ).toBe(false);
+  });
+
+  it('keeps room controls in shared provider state and restores defaults on reset', async () => {
+    document.documentElement.dataset.navetPreviewRuntime = 'demo';
+    installPreviewRuntime(getPreviewRuntimeScenario('demo'));
+    await dispatchEntityCommand({
+      type: 'turn_off',
+      entityId: 'home_assistant:light.bathroom_mirror',
+    });
+    await dispatchEntityCommand({
+      type: 'set_temperature',
+      entityId: 'home_assistant:climate.bathroom_floor',
+      temperature: 25,
+    });
+    await dispatchEntityCommand({
+      type: 'set_position',
+      entityId: 'home_assistant:cover.office_blind',
+      position: 20,
+    });
+    await dispatchEntityCommand({ type: 'turn_on', entityId: 'home_assistant:switch.spare_plug' });
+    const entities = integrationStore.getState().providerEntitiesByCanonicalId;
+    expect(entities['home_assistant:light.bathroom_mirror']?.primaryState).toBe('off');
+    expect(entities['home_assistant:climate.bathroom_floor']?.attributes.temperature).toBe(25);
+    expect(entities['home_assistant:cover.office_blind']?.attributes.position).toBe(20);
+    expect(entities['home_assistant:switch.spare_plug']?.primaryState).toBe(true);
+    installPreviewRuntime(getPreviewRuntimeScenario('demo'));
+    expect(
+      integrationStore.getState().providerEntitiesByCanonicalId[
+        'home_assistant:climate.bathroom_floor'
+      ]?.attributes.temperature
+    ).toBe(24);
   });
 
   it('saves linked helper values and keeps unavailable helpers without an editor', async () => {

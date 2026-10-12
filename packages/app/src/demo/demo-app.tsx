@@ -44,6 +44,7 @@ import { useDeferredVisibility } from '@navet/app/hooks/use-deferred-visibility'
 import { I18nProvider, useI18n } from '@navet/app/i18n';
 import { integrationSessionRuntime } from '@navet/app/integration-session-runtime';
 import type { Section } from '@navet/app/navigation/sections';
+import { DEMO_ROOM_ENTITY_IDS } from '@navet/app/preview/demo-room-entities';
 import {
   getPreviewRuntimeScenario,
   installPreviewRuntime,
@@ -54,6 +55,7 @@ import { useNavigationStore } from '@navet/app/stores/navigation-store';
 import { defaultSettings, useSettingsStore } from '@navet/app/stores/settings-store';
 import { useThemeStore } from '@navet/app/stores/theme-store';
 import type { NavetAlarmEntity } from '@navet/core/alarm-types';
+import type { NavetEntity } from '@navet/core/types';
 import { Fan, Lightbulb, ShieldCheck, Speaker, Zap } from 'lucide-react';
 import {
   Children,
@@ -138,18 +140,7 @@ const AddEntityDialogPrimitive = lazy(async () => {
 const noopCardSizeChange = () => {};
 const noopRemoveEntity = () => {};
 const DEMO_ROOMS = [
-  'Basement',
-  'Bathroom',
-  'Bedroom',
-  'Guest room',
-  'Gym',
-  'Hallway',
-  'Kitchen',
-  'Living Room',
-  'Office',
-  'Outside',
-  'Toilet',
-  'Unassigned',
+  ...Object.keys(DEMO_ROOM_ENTITY_IDS),
   ...Array.from({ length: 48 }, (_, index) => `Demo Room ${String(index + 1).padStart(2, '0')}`),
 ];
 const DEMO_ROOM_GROUPS = [
@@ -1567,6 +1558,117 @@ function HomeRoomShot({
   );
 }
 
+const demoRoomEntities = new Map(
+  getPreviewRuntimeScenario('demo').entities.map((entity) => [entity.externalId, entity])
+);
+
+function DemoRoomEntityCard({ entity }: { entity: NavetEntity }) {
+  const { externalId: id, name, room, attributes: attrs, primaryState: state } = entity;
+  const isOn = state === 'on' || state === true;
+  const size = entity.type === 'hvac' || entity.type === 'climate' ? 'medium' : 'small';
+  const shared = {
+    id,
+    name,
+    room: room ?? 'Unassigned',
+    size,
+    onSizeChange: noopCardSizeChange,
+    isEditMode: false,
+  } as const;
+  if (id === 'sensor.nutdev1_status') {
+    const ups = demoHomeWidgets.find((card) => card.type === 'ups');
+    return ups ? <DemoWidgetCard card={ups} /> : null;
+  }
+  if (entity.type === 'switch' || entity.type === 'helper') {
+    return (
+      <DemoSwitchCard
+        {...shared}
+        initialState={isOn}
+        entityType={entity.type}
+        serviceDomain={id.split('.')[0]}
+        serviceAction="toggle"
+        power={typeof attrs.power === 'number' ? attrs.power : undefined}
+      />
+    );
+  }
+  let card: ReactNode;
+  switch (entity.type) {
+    case 'light':
+      card = (
+        <LightCard
+          {...shared}
+          initialState={isOn}
+          initialBrightness={Number(attrs.brightnessPct)}
+          initialTemp={Number(attrs.colorTemperatureKelvin)}
+        />
+      );
+      break;
+    case 'fan':
+      card = (
+        <FanCard {...shared} initialState={isOn} initialPercentage={Number(attrs.percentage)} />
+      );
+      break;
+    case 'hvac':
+      card = (
+        <ClimateCard
+          {...shared}
+          initialState={state !== 'off'}
+          initialTemp={Number(attrs.temperature)}
+          initialCurrentTemp={Number(attrs.currentTemperature)}
+          initialMode="heat"
+          initialAction={attrs.action === 'idle' ? 'idle' : 'heating'}
+        />
+      );
+      break;
+    case 'climate':
+      card = (
+        <HumidifierCard
+          {...shared}
+          entityType="Humidifier"
+          deviceClass="humidifier"
+          initialState={isOn}
+          initialTargetHumidity={Number(attrs.targetHumidity)}
+          minHumidity={30}
+          maxHumidity={70}
+          targetHumidityStep={1}
+          initialMode="auto"
+          availableModes={['auto', 'eco', 'sleep']}
+        />
+      );
+      break;
+    case 'cover':
+      card = (
+        <CoverCard
+          {...shared}
+          initialPosition={Number(attrs.position)}
+          initialDeviceClass="blind"
+        />
+      );
+      break;
+    case 'lock':
+      card = <LockCard {...shared} initialState={state === 'locked'} />;
+      break;
+    case 'sensor':
+      card = (
+        <SensorCard
+          {...shared}
+          value={String(state)}
+          unit={String(attrs.unit ?? '')}
+          icon={
+            attrs.deviceClass === 'temperature'
+              ? 'thermometer'
+              : attrs.deviceClass === 'humidity'
+                ? 'droplets'
+                : 'gauge'
+          }
+        />
+      );
+      break;
+    default:
+      return null;
+  }
+  return <CardSlot size={size}>{card}</CardSlot>;
+}
+
 function RoomShot({ room }: { room: string }) {
   const roomSlug = getRoomEntitySlug(room);
 
@@ -1588,7 +1690,7 @@ function RoomShot({ room }: { room: string }) {
         </CardSlot>
         <CardSlot size="medium">
           <LightCard
-            id="light.kitchen_island_room"
+            id="light.kitchen_island"
             name="Kitchen island"
             room="Kitchen"
             initialState
@@ -1601,7 +1703,7 @@ function RoomShot({ room }: { room: string }) {
         </CardSlot>
         <DemoSwitchCard
           id="switch.espresso"
-          name="Espresso"
+          name="Espresso machine"
           initialState
           entityType="switch"
           serviceDomain="switch"
@@ -1612,7 +1714,7 @@ function RoomShot({ room }: { room: string }) {
         />
         <DemoLazyCardSlot size="medium" deferUntilVisible={false} keyboardLabel="Family Calendar">
           <CalendarCard
-            id="calendar.kitchen"
+            id="calendar.home"
             name="Family Calendar"
             room="Kitchen"
             events={calendarEvents}
@@ -1630,21 +1732,21 @@ function RoomShot({ room }: { room: string }) {
       <DashboardGrid>
         <CardSlot size="medium">
           <MediaCard
-            id="media_player.living_room_tv_featured"
+            id="media_player.demo_living_room_tv"
             name="Living Room TV"
             room="Living Room"
-            title="Aerial"
-            artist="Navet Studio"
+            title="Samsung TV Plus"
+            artist="Live"
             entityType="TV"
             entityPicture={sampleArtworkImage}
-            state="playing"
-            volume={42}
+            state="idle"
+            volume={18}
             isMuted={false}
             elapsedSeconds={86}
             durationSeconds={243}
             positionUpdatedAt={new Date('2026-05-16T12:00:00.000Z').toISOString()}
-            supportsGrouping
-            groupMembers={['Kitchen Speaker']}
+            supportsGrouping={false}
+            groupMembers={[]}
             size="medium"
             onSizeChange={noopCardSizeChange}
             isEditMode={false}
@@ -1653,12 +1755,12 @@ function RoomShot({ room }: { room: string }) {
         </CardSlot>
         <CardSlot size="medium">
           <LightCard
-            id="light.sofa_lamp"
-            name="Sofa lamp"
+            id="light.living_room"
+            name="Living Room"
             room="Living Room"
             initialState
-            initialBrightness={58}
-            initialTemp={2900}
+            initialBrightness={68}
+            initialTemp={3200}
             size="medium"
             onSizeChange={noopCardSizeChange}
             isEditMode={false}
@@ -1666,11 +1768,11 @@ function RoomShot({ room }: { room: string }) {
         </CardSlot>
         <CardSlot size="small">
           <CoverCard
-            id="cover.patio_curtains"
-            name="Patio curtains"
+            id="cover.living_room_blind"
+            name="Window blind"
             room="Living Room"
-            initialPosition={62}
-            initialDeviceClass="curtain"
+            initialPosition={72}
+            initialDeviceClass="blind"
             size="small"
             onSizeChange={noopCardSizeChange}
             isEditMode={false}
@@ -1692,62 +1794,13 @@ function RoomShot({ room }: { room: string }) {
     );
   }
 
-  if (room === 'Bedroom' || room === 'Guest room') {
-    return (
-      <DashboardGrid>
-        <CardSlot size="small">
-          <LightCard
-            id={`light.${roomSlug}`}
-            name="Bedside lamp"
-            room={room}
-            initialState={room !== 'Guest room'}
-            initialBrightness={35}
-            initialTemp={2700}
-            size="small"
-            onSizeChange={noopCardSizeChange}
-            isEditMode={false}
-          />
-        </CardSlot>
-        <CardSlot size="small">
-          <ClimateCard
-            id={`climate.${roomSlug}`}
-            name="Climate"
-            room={room}
-            initialTemp={21}
-            initialCurrentTemp={20}
-            initialMode="heat"
-            initialAction="heating"
-            initialState
-            size="small"
-            onSizeChange={noopCardSizeChange}
-            isEditMode={false}
-          />
-        </CardSlot>
-        <CardSlot size="small">
-          <SensorCard
-            id={`sensor.${roomSlug}_humidity`}
-            name="Humidity"
-            room={room}
-            value="47"
-            unit="%"
-            icon="gauge"
-            subtitle="Sensor"
-            size="small"
-            onSizeChange={noopCardSizeChange}
-            isEditMode={false}
-          />
-        </CardSlot>
-      </DashboardGrid>
-    );
-  }
-
   if (room === 'Outside') {
     return (
       <DashboardGrid>
         <CardSlot size="medium">
           <Suspense fallback={<LoadingSpinner />}>
             <CameraCard
-              id="camera.front_door_room"
+              id="camera.front_door"
               name="Front Door Cam"
               room="Outside"
               entityPicture={sampleCameraFallbackImage}
@@ -1761,16 +1814,38 @@ function RoomShot({ room }: { room: string }) {
           </Suspense>
         </CardSlot>
         <CardSlot size="small">
-          <LockCard id="lock.front_door_room" name="Front Door" initialState size="small" />
+          <SensorCard
+            id="sensor.outside_temperature"
+            name="Outdoor temperature"
+            room="Outside"
+            value="16.8"
+            unit="C"
+            icon="thermometer"
+            size="small"
+            onSizeChange={noopCardSizeChange}
+            isEditMode={false}
+          />
         </CardSlot>
         <DemoSwitchCard
           id="switch.porch_lights"
           name="Porch lights"
-          initialState
+          initialState={false}
           size="small"
           isEditMode={false}
         />
-        <DemoWeatherCard id="weather.outside_room" location="Home" size="medium" />
+        <DemoWeatherCard id="weather.home" location="Home" size="medium" />
+      </DashboardGrid>
+    );
+  }
+
+  const namedRoomIds = DEMO_ROOM_ENTITY_IDS[room];
+  if (namedRoomIds) {
+    return (
+      <DashboardGrid>
+        {namedRoomIds.map((id) => {
+          const entity = demoRoomEntities.get(id);
+          return entity ? <DemoRoomEntityCard key={id} entity={entity} /> : null;
+        })}
       </DashboardGrid>
     );
   }

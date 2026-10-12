@@ -1,8 +1,9 @@
 import type { NavetEntity } from '@navet/core/types';
+import { addDemoRoomEntities } from './demo-room-entities';
 
 /** Sample capabilities belong to the public demo, not every isolated story. */
 export function enrichDemoEntities(entities: NavetEntity[]): NavetEntity[] {
-  const enriched = entities.map((entity): NavetEntity => {
+  const enriched = addDemoRoomEntities(entities).map((entity): NavetEntity => {
     if (entity.externalId === 'fan.bedroom_ceiling') {
       return {
         ...entity,

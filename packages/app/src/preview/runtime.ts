@@ -1155,17 +1155,50 @@ export function getPreviewRuntimeScenario(name: 'default' | 'demo' = 'default') 
   if (name === 'demo') {
     const base = clonePreviewScenario(DEFAULT_PREVIEW_SCENARIO);
     const entities = enrichDemoEntities(base.entities);
+    const roomNames = [
+      ...new Set(
+        entities.map((entity) => entity.room).filter((room): room is string => Boolean(room))
+      ),
+    ];
     return withPreviewEntities(
       {
         ...base,
         id: 'demo',
+        rooms: roomNames.map((room) =>
+          createPreviewRoom(
+            room,
+            entities.filter((entity) => entity.room === room).map((entity) => entity.externalId)
+          )
+        ),
         homeAssistant: {
           ...base.homeAssistant,
+          areas: roomNames.map((room) => ({ area_id: slugify(room), name: room })),
+          deviceRegistry: [
+            ...new Map(
+              entities
+                .filter((entity) => typeof entity.attributes.deviceId === 'string')
+                .map((entity) => [
+                  entity.attributes.deviceId as string,
+                  {
+                    id: entity.attributes.deviceId as string,
+                    area_id: entity.room ? slugify(entity.room) : null,
+                    name:
+                      base.homeAssistant.deviceRegistry.find(
+                        (device) => device.id === entity.attributes.deviceId
+                      )?.name ??
+                      entities.find(
+                        (candidate) => candidate.attributes.deviceId === entity.attributes.deviceId
+                      )?.name ??
+                      entity.name,
+                  },
+                ])
+            ).values(),
+          ],
           entityRegistry: entities.map((entity) => ({
             entity_id: entity.externalId,
             device_id:
               typeof entity.attributes.deviceId === 'string' ? entity.attributes.deviceId : null,
-            area_id: null,
+            area_id: entity.room ? slugify(entity.room) : null,
           })),
         },
       },
@@ -1783,6 +1816,14 @@ export function installPreviewRuntime(scenario: PreviewRuntimeScenario) {
         'set_brightness',
         'set_color_temperature',
         'set_fan_speed',
+        'set_temperature',
+        'set_climate_mode',
+        'set_position',
+        'open',
+        'close',
+        'stop',
+        'lock',
+        'unlock',
         'set_number_value',
         'select_option',
         'set_text_value',
