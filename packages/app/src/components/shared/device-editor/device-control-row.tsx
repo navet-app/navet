@@ -63,7 +63,7 @@ export function DeviceControlRow(props: DeviceControlRowProps) {
   );
   const rowClassName = cn(
     'flex min-h-10 w-full items-center gap-3 text-sm',
-    props.kind === 'action' ? 'py-0' : 'py-2',
+    props.kind === 'action' || props.kind === 'toggle' ? 'py-0' : 'py-2',
     surface.textPrimary
   );
   return (
@@ -94,6 +94,7 @@ export function DeviceControlRow(props: DeviceControlRowProps) {
           {heading}
           {props.kind === 'toggle' ? (
             <Switch
+              size="compact"
               aria-label={props.label}
               aria-describedby={descriptionIds}
               checked={props.checked}
@@ -119,7 +120,11 @@ export function DeviceControlRow(props: DeviceControlRowProps) {
           ) : null}
         </div>
       )}
-      {props.status ? <div id={`${id}-status`}>{props.status}</div> : null}
+      {props.status ? (
+        <div id={`${id}-status`} className={cn('pb-2 text-sm', surface.textSecondary)}>
+          {props.status}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 export const nlMessages = {
+  'helpers.title': 'Helpers',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Teller',
   'deviceType.valve': 'Ventiel',

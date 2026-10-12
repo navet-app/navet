@@ -1,5 +1,6 @@
 import { CardActionRow } from '@navet/app/components/patterns/card-action-row';
 import { RoundControlButton } from '@navet/app/components/primitives/round-control-button';
+import { CardControlNumberBadge } from '@navet/app/components/shared/card-control-number-badge';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import { useI18n } from '@navet/app/hooks';
 import type { ThemeType } from '@navet/app/hooks/use-theme';
@@ -166,12 +167,7 @@ export function VacuumControlsSmall({
           >
             <Icon className="h-3 w-3" />
             {action.key === 'fan-speed' && fanSpeedBadge ? (
-              <span
-                className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-white/14 bg-zinc-950 px-1 text-[8px] font-semibold leading-none text-white"
-                aria-hidden="true"
-              >
-                {fanSpeedBadge}
-              </span>
+              <CardControlNumberBadge value={fanSpeedBadge} />
             ) : null}
           </RoundControlButton>
         );

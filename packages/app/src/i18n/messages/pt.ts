@@ -1,4 +1,5 @@
 export const ptMessages = {
+  'helpers.title': 'Ajudantes',
   'deviceType.timer': 'Temporizador',
   'deviceType.counter': 'Contador',
   'deviceType.valve': 'Válvula',

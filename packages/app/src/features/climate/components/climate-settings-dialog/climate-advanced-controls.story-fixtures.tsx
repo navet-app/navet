@@ -106,6 +106,18 @@ export const Supported: Story = {
       'false'
     );
     await expect(dialog.queryByRole('radio', { name: 'Comfort' })).not.toBeInTheDocument();
+    // Measure the complete collapsed row, including status space and its divider.
+    for (const label of [
+      'Preset',
+      'Fan mode',
+      'Vertical swing',
+      'Horizontal swing',
+      'Target humidity',
+    ]) {
+      const row = dialog.getByRole('button', { name: label }).parentElement;
+      if (!row) throw new Error(`Missing control row: ${label}`);
+      await expect(row.getBoundingClientRect().height).toBe(41);
+    }
     await userEvent.click(dialog.getByRole('button', { name: 'Fan mode' }));
     const fanOptions = within(dialog.getByRole('group', { name: 'Fan mode' }));
     const field = fanOptions.getByRole('radio', { name: 'Low' });

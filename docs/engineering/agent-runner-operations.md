@@ -123,6 +123,15 @@ CLI review uses general Codex allowance. Root/scoped instructions and the routed
 review; verify the posted result from `chatgpt-codex-connector[bot]` and its reviewed commit.
 Keep one general reviewer; findings are advisory, CI and maintainer acceptance authoritative.
 
+`Record Codex Review Completion` listens for created or edited summary comments from the
+verified Codex bot. When Code Review completes for an open, non-draft PR's current head, it
+submits a formal `COMMENT` review as `github-actions[bot]`, linking the summary even when
+there are no findings. Runs serialize per PR and skip commits already recorded by this workflow
+or a submitted Codex review. It uses the default-branch script and `pull-requests: write` from
+`GITHUB_TOKEN`. Nisse permissions stay read-only for PRs. Summary format changes fail closed.
+The workflow starts receiving events after merging to the default branch; completion records
+are advisory and grant no approval.
+
 ### Merge protection and previews
 
 Protect `main` with PRs and resolved conversations. For a solo maintainer, required approving

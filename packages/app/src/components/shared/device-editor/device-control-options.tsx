@@ -3,8 +3,10 @@ import {
   SelectableRadioRow,
 } from '@navet/app/components/patterns/selectable-radio-row';
 import { Radio } from '@navet/app/components/primitives/radio';
-import { getRoundControlStyles } from '@navet/app/components/shared/theme/round-control-styles';
-import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import {
+  getSegmentedControlSelectionStyle,
+  getSegmentedControlStyles,
+} from '@navet/app/components/shared/theme/segmented-control-styles';
 import { getThemeFocusRingClassName } from '@navet/app/components/system/tokens';
 import { cn } from '@navet/app/components/ui/utils';
 import { useTheme } from '@navet/app/hooks';
@@ -40,8 +42,7 @@ export function DeviceControlOptions({
   const name = useId();
   const { theme: appTheme, accentColor } = useTheme();
   const theme = themeOverride ?? appTheme;
-  const surface = getThemeSurfaceTokens(theme);
-  const softControl = getRoundControlStyles(theme);
+  const segmented = getSegmentedControlStyles(theme);
   const selectedColor = selectionColor ?? accentColor;
   if (variant === 'list') {
     return (
@@ -82,14 +83,15 @@ export function DeviceControlOptions({
       aria-describedby={statusId}
       className="min-w-0"
     >
-      <div className={cn('flex flex-wrap gap-1 rounded-full border p-1', surface.border)}>
+      <div className={cn('flex flex-wrap', segmented.shell)}>
         {options.map((option, index) => (
           <label
             key={option.value}
             htmlFor={`${name}-${index}`}
             className={cn(
-              'relative flex min-h-9 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2 py-1.5 text-xs',
-              softControl.softButton,
+              segmented.option,
+              segmented.button,
+              'cursor-pointer',
               disabled && 'cursor-not-allowed opacity-50'
             )}
           >
@@ -118,10 +120,7 @@ export function DeviceControlOptions({
               )}
               style={
                 value === option.value
-                  ? {
-                      border: `1px solid ${selectedColor}`,
-                      backgroundColor: `${selectedColor}12`,
-                    }
+                  ? getSegmentedControlSelectionStyle(selectedColor)
                   : undefined
               }
             />

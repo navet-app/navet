@@ -2,7 +2,15 @@ import { Button } from '@navet/app/components/primitives/button';
 import { Input } from '@navet/app/components/primitives/input';
 import { InteractivePill } from '@navet/app/components/primitives/interactive-pill';
 import { EntityRoomSelector } from '@navet/app/components/shared/entity-room-selector';
-import { navetTypographyTokens } from '@navet/app/components/system/tokens';
+import {
+  getSegmentedControlSelectionStyle,
+  getSegmentedControlStyles,
+} from '@navet/app/components/shared/theme/segmented-control-styles';
+import { getThemeColorValue } from '@navet/app/components/shared/theme/theme-colors';
+import {
+  getThemeFocusRingClassName,
+  navetTypographyTokens,
+} from '@navet/app/components/system/tokens';
 import { cn } from '@navet/app/components/ui/utils';
 import { useI18n, useIntegrationStore, useTheme } from '@navet/app/hooks';
 import type { ThemeType } from '@navet/app/hooks/use-theme';
@@ -432,8 +440,17 @@ export function CardDialogTabList({
   children: ReactNode;
   className?: string;
 }) {
+  const { theme } = useTheme();
   return (
-    <div className={cn('mt-1 mb-4 inline-flex items-center gap-1', className)}>{children}</div>
+    <div
+      className={cn(
+        getSegmentedControlStyles(theme).shell,
+        'mt-1 mb-4 flex w-full flex-wrap',
+        className
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -446,18 +463,33 @@ export const CardDialogTabTrigger = memo(function CardDialogTabTrigger({
   className,
   style,
 }: CardDialogTabTriggerProps) {
+  const { theme, accentColor: themeAccentColor, primaryColor } = useTheme();
+  const segmented = getSegmentedControlStyles(theme);
+  const selectedColor = accentColor ?? (themeAccentColor || getThemeColorValue(primaryColor));
+  const Icon = icon;
   return (
-    <InteractivePill
-      active={active}
-      accentColor={accentColor}
-      size="compact"
-      className={cn('text-xs', className)}
-      icon={icon}
+    <button
+      type="button"
+      aria-pressed={active}
+      className={cn(
+        segmented.option,
+        segmented.button,
+        getThemeFocusRingClassName(theme),
+        className
+      )}
       onClick={onClick}
       style={style}
     >
-      {children}
-    </InteractivePill>
+      {Icon ? <Icon aria-hidden="true" className="h-4 w-4 shrink-0" /> : null}
+      <span className="min-w-0 break-words">{children}</span>
+      {active ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 rounded-full"
+          style={getSegmentedControlSelectionStyle(selectedColor)}
+        />
+      ) : null}
+    </button>
   );
 });
 

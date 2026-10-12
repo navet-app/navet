@@ -678,6 +678,24 @@
     --overlay-scrollbar-thumb-hover: rgba(2, 6, 23, 0.38);
   }
 
+  .helper-list-bottom-fade {
+    mask-image: linear-gradient(to bottom, black calc(100% - 1rem), transparent);
+  }
+
+  .helper-list-top-fade {
+    mask-image: linear-gradient(to bottom, transparent, black 1rem);
+  }
+
+  .helper-list-top-fade.helper-list-bottom-fade {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black 1rem,
+      black calc(100% - 1rem),
+      transparent
+    );
+  }
+
   .overlay-scrollbar-track {
     bottom: var(--overlay-scrollbar-track-end);
     background: var(--overlay-scrollbar-track);

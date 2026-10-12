@@ -253,7 +253,7 @@ describe('FanCard', () => {
       'aria-valuenow',
       '66'
     );
-    fireEvent.click(dialog.getByRole('button', { name: 'Fan High' }));
+    fireEvent.click(dialog.getByRole('radio', { name: 'High' }));
     expect(serviceMock.callService).toHaveBeenCalledWith(
       'fan',
       'set_percentage',
@@ -386,7 +386,7 @@ describe('FanCard', () => {
     );
   });
 
-  it('shows direction and oscillation inline plus preset overflow when advanced fan controls are supported', () => {
+  it('shows direction and oscillation inline plus cycling fan speed when advanced fan controls are supported', () => {
     setFanProviderEntity(['toggle', 'fan_speed']);
     homeAssistantStore.setState({
       entities: {
@@ -417,7 +417,7 @@ describe('FanCard', () => {
     expect(screen.getByRole('slider', { name: 'Fan Speed' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fan direction Forward' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fan oscillation On' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'More fan presets' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fan Speed: Medium' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Fan Low' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Fan Medium' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Fan High' })).not.toBeInTheDocument();
@@ -441,12 +441,51 @@ describe('FanCard', () => {
       { entity_id: 'fan.ceiling_fan' }
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'More fan presets' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Fan High' }));
-    expect(serviceMock.callService).toHaveBeenCalledWith(
+    fireEvent.click(screen.getByRole('button', { name: 'Fan Speed: Medium' }));
+    expect(serviceMock.callService).toHaveBeenLastCalledWith(
       'fan',
       'set_percentage',
       { percentage: 100 },
+      { entity_id: 'fan.ceiling_fan' }
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Fan Speed: High' }));
+    expect(serviceMock.callService).toHaveBeenLastCalledWith(
+      'fan',
+      'set_percentage',
+      { percentage: 33 },
+      { entity_id: 'fan.ceiling_fan' }
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Fan Speed: Low' }));
+    expect(serviceMock.callService).toHaveBeenLastCalledWith(
+      'fan',
+      'set_percentage',
+      { percentage: 66 },
+      { entity_id: 'fan.ceiling_fan' }
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings for Ceiling Fan' }));
+    const dialog = within(screen.getByRole('dialog'));
+    const oscillation = dialog.getByRole('switch', { name: 'Fan oscillation' });
+    expect(oscillation).toBeChecked();
+    fireEvent.click(oscillation);
+    expect(serviceMock.callService).toHaveBeenLastCalledWith(
+      'fan',
+      'oscillate',
+      { oscillating: false },
+      { entity_id: 'fan.ceiling_fan' }
+    );
+    const direction = dialog.getByRole('button', { name: 'Fan direction' });
+    expect(direction).toHaveAttribute('aria-expanded', 'false');
+    expect(direction).toHaveTextContent('Forward');
+    fireEvent.click(direction);
+    serviceMock.callService.mockClear();
+    fireEvent.click(dialog.getByRole('radio', { name: 'Forward' }));
+    expect(serviceMock.callService).not.toHaveBeenCalled();
+    fireEvent.click(dialog.getByRole('radio', { name: 'Reverse' }));
+    expect(serviceMock.callService).toHaveBeenCalledWith(
+      'fan',
+      'set_direction',
+      { direction: 'reverse' },
       { entity_id: 'fan.ceiling_fan' }
     );
   });
@@ -483,7 +522,7 @@ describe('FanCard', () => {
     expect(screen.getByText('0%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fan direction Reverse' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Fan oscillation On' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'More fan presets' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Fan Speed: Off' })).toBeDisabled();
   });
 
   it('restores the remembered speed immediately when turning the fan on', () => {

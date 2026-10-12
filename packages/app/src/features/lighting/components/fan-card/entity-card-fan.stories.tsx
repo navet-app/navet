@@ -182,7 +182,7 @@ export const ControlsDialog: Story = {
       'aria-valuenow',
       '66'
     );
-    await userEvent.click(scope.getByRole('button', { name: 'Fan High' }));
+    await userEvent.click(scope.getByRole('radio', { name: 'High' }));
     await expect(scope.getByRole('slider', { name: 'Fan Speed' })).toHaveAttribute(
       'aria-valuenow',
       '100'

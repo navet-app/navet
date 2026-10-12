@@ -2,6 +2,8 @@ import {
   CardDialogSection,
   SelectableCheckboxList,
   SelectableCheckboxRow,
+  SelectableRadioList,
+  SelectableRadioRow,
 } from '@navet/app/components/patterns';
 import { BaseCardDialogWithState } from '@navet/app/components/primitives';
 import { normalizeCustomCardTint } from '@navet/app/components/shared/theme/custom-card-tint-surface';
@@ -9,6 +11,7 @@ import { useI18n } from '@navet/app/hooks';
 import type { ThemeType } from '@navet/app/hooks/use-theme';
 import type { WeatherForecastMode, WeatherMetricId } from '@navet/app/stores/settings-store';
 import { getEntityTypeLabel } from '@navet/app/utils/entity-type-label';
+import { useId } from 'react';
 
 interface WeatherSettingsDialogProps {
   onCloseAutoFocus?: (event: Event) => void;
@@ -60,6 +63,7 @@ export function WeatherSettingsDialog({
   onTintColorChange,
 }: WeatherSettingsDialogProps) {
   const { t } = useI18n();
+  const forecastGroupName = useId();
   const entityType = getEntityTypeLabel(entityId);
   const resolvedTintColor = normalizeCustomCardTint(tintColor);
   const activeAccentColor = resolvedTintColor ?? accentColorValue;
@@ -105,16 +109,16 @@ export function WeatherSettingsDialog({
       controlsTabContent={
         <>
           <CardDialogSection label={t('weather.settings.forecast')} className="mb-4">
-            <SelectableCheckboxList aria-label={t('weather.settings.forecast')}>
+            <SelectableRadioList aria-label={t('weather.settings.forecast')}>
               {(['hourly', 'weekly'] as const).map((option) => (
                 <li key={option}>
-                  <SelectableCheckboxRow
+                  <SelectableRadioRow
                     size="compact"
+                    name={forecastGroupName}
+                    value={option}
                     checked={forecastMode === option}
-                    checkboxPaletteColor={activeAccentColor}
-                    onCheckedChange={(checked) => {
-                      if (checked) onForecastModeChange(option);
-                    }}
+                    radioColor={activeAccentColor}
+                    onValueChange={() => onForecastModeChange(option)}
                     label={
                       option === 'hourly'
                         ? t('weather.settings.hourly')
@@ -123,7 +127,7 @@ export function WeatherSettingsDialog({
                   />
                 </li>
               ))}
-            </SelectableCheckboxList>
+            </SelectableRadioList>
           </CardDialogSection>
 
           <CardDialogSection

@@ -71,6 +71,7 @@ export const enMessages = {
   'common.cancel': 'Cancel',
   'common.skipToMainContent': 'Skip to main content',
   'common.save': 'Save',
+  'helpers.title': 'Helpers',
   'helpers.textLength': 'Use {min}–{max} characters.',
   'helpers.updating': 'Updating…',
   'helpers.updateFailed': 'Unable to update the value. Try again.',

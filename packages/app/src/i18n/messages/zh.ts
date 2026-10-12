@@ -1,4 +1,5 @@
 export const zhMessages = {
+  'helpers.title': '辅助项',
   'deviceType.timer': '计时器',
   'deviceType.counter': '计数器',
   'deviceType.valve': '阀门',

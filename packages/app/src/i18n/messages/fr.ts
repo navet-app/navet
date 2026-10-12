@@ -1,4 +1,5 @@
 export const frMessages = {
+  'helpers.title': 'Assistants',
   'deviceType.timer': 'Minuteur',
   'deviceType.counter': 'Compteur',
   'deviceType.valve': 'Vanne',

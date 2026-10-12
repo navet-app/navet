@@ -1,0 +1,5 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+summary: Device dialogs share consistent advanced-control row heights and segmented navigation, including fan speed, direction, and oscillation controls.

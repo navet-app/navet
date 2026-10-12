@@ -1,0 +1,5 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+summary: Weather dialog forecast choices use radio rows for Hourly and Weekly selection.

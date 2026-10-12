@@ -1,4 +1,5 @@
 export const fiMessages = {
+  'helpers.title': 'Auttajat',
   'deviceType.timer': 'Ajastin',
   'deviceType.counter': 'Laskuri',
   'deviceType.valve': 'Venttiili',

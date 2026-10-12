@@ -70,11 +70,18 @@ export const SelectableControls: Story = {
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'Open weather dialog' }));
     const dialog = within(await within(document.body).findByRole('dialog'));
-    await userEvent.click(dialog.getByRole('checkbox', { name: 'Weekly' }));
-    await expect(dialog.getByRole('checkbox', { name: 'Weekly' })).toBeChecked();
-    await expect(dialog.getByRole('checkbox', { name: 'Hourly' })).not.toBeChecked();
-    await userEvent.click(dialog.getByRole('checkbox', { name: 'Weekly' }));
-    await expect(dialog.getByRole('checkbox', { name: 'Weekly' })).toBeChecked();
+    const hourly = dialog.getByRole('radio', { name: 'Hourly' });
+    const weekly = dialog.getByRole('radio', { name: 'Weekly' });
+    await expect(hourly).toBeChecked();
+    await userEvent.click(weekly);
+    await expect(weekly).toBeChecked();
+    await expect(hourly).not.toBeChecked();
+    await userEvent.click(weekly);
+    await expect(weekly).toBeChecked();
+    await userEvent.keyboard('{ArrowUp}');
+    await expect(hourly).toHaveFocus();
+    await expect(hourly).toBeChecked();
+    await expect(weekly).not.toBeChecked();
     await userEvent.click(dialog.getByRole('checkbox', { name: 'Feels like' }));
     await userEvent.click(dialog.getByRole('checkbox', { name: 'Gusts' }));
     await expect(dialog.getByRole('checkbox', { name: 'Pressure' })).toBeDisabled();

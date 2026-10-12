@@ -3,11 +3,19 @@ import { integrationStore } from '@navet/app/stores/integration-store';
 import type { NavetEntity } from '@navet/core/types';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Sliders } from 'lucide-react';
-import { useEffect } from 'react';
+import { act, useEffect } from 'react';
 import { expect, userEvent, within } from 'storybook/test';
 import { DeviceControlRow } from './device-control-row';
 
-function ParentHelpersDialog({ unavailable = false }: { unavailable?: boolean }) {
+function ParentHelpersDialog({
+  unavailable = false,
+  unavailableAction = false,
+  helperCount = 3,
+}: {
+  unavailable?: boolean;
+  unavailableAction?: boolean;
+  helperCount?: number;
+}) {
   useEffect(() => {
     const previous = integrationStore.getState().providerEntitiesByProviderId;
     const parent: NavetEntity = {
@@ -23,6 +31,17 @@ function ParentHelpersDialog({ unavailable = false }: { unavailable?: boolean })
       capabilities: ['toggle'],
     };
     const helpers: NavetEntity[] = [
+      {
+        ...parent,
+        id: 'home_assistant:button.backup_map',
+        canonicalId: 'home_assistant:button.backup_map',
+        externalId: 'button.backup_map',
+        type: 'helper',
+        name: 'Backup saved map',
+        availability: unavailable || unavailableAction ? 'unavailable' : 'available',
+        attributes: { deviceId: 'kitchen' },
+        capabilities: ['press'],
+      },
       {
         ...parent,
         id: 'home_assistant:number.delay',
@@ -63,6 +82,17 @@ function ParentHelpersDialog({ unavailable = false }: { unavailable?: boolean })
         capabilities: ['select_option'],
       },
     ];
+    const numberHelper = helpers[1];
+    for (let index = helpers.length; index < helperCount; index++) {
+      const externalId = `number.extra_${String(index).padStart(3, '0')}`;
+      helpers.push({
+        ...numberHelper,
+        id: `home_assistant:${externalId}`,
+        canonicalId: `home_assistant:${externalId}`,
+        externalId,
+        name: `Helper ${index + 1}`,
+      });
+    }
     integrationStore.setState({
       providerEntitiesByProviderId: {
         ...previous,
@@ -74,7 +104,7 @@ function ParentHelpersDialog({ unavailable = false }: { unavailable?: boolean })
       },
     });
     return () => integrationStore.setState({ providerEntitiesByProviderId: previous });
-  }, [unavailable]);
+  }, [unavailable, unavailableAction, helperCount]);
   return (
     <BaseCardDialog
       isOpen
@@ -118,5 +148,49 @@ export const ParentDialog: Story = {
     await expect(dialog.getByRole('spinbutton')).toHaveValue(5);
   },
 };
-export const Unavailable: Story = { args: { unavailable: true } };
+export const Unavailable: Story = {
+  args: { unavailable: true },
+  play: async ({ canvasElement }) => {
+    const dialog = within(canvasElement.ownerDocument.body);
+    const label = await dialog.findByText('Backup saved map');
+    await expect(label.closest('div')?.querySelector('svg')).toBeNull();
+    await expect(
+      dialog.queryByRole('button', { name: /Backup saved map/ })
+    ).not.toBeInTheDocument();
+    await expect(dialog.queryByRole('button', { name: 'Turn-off delay' })).not.toBeInTheDocument();
+    await expect(dialog.getAllByText('Unavailable')).toHaveLength(3);
+  },
+};
+export const MixedAvailability: Story = {
+  args: { unavailableAction: true },
+  play: async ({ canvasElement }) => {
+    const dialog = within(canvasElement.ownerDocument.body);
+    const unavailable = await dialog.findByText('Backup saved map');
+    const available = await dialog.findByRole('button', { name: 'Turn-off delay' });
+    await expect(
+      available.compareDocumentPosition(unavailable) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  },
+};
+export const LongList: Story = {
+  args: { helperCount: 60 },
+  play: async ({ canvasElement }) => {
+    const dialog = within(canvasElement.ownerDocument.body);
+    const viewport = await dialog.findByRole('region', { name: 'Helpers' });
+    await expect(getComputedStyle(viewport).maskImage).not.toBe('none');
+    await expect(dialog.queryByRole('button', { name: 'Helper 60' })).not.toBeInTheDocument();
+    await act(async () => {
+      viewport.scrollTop = viewport.scrollHeight;
+      viewport.dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+    await expect(await dialog.findByRole('button', { name: 'Helper 60' })).toBeVisible();
+    await expect(viewport).toHaveClass('helper-list-top-fade');
+    await expect(viewport).not.toHaveClass('helper-list-bottom-fade');
+    await expect(getComputedStyle(viewport).maskImage).not.toBe('none');
+  },
+};
+export const LongListMobile: Story = {
+  ...LongList,
+  globals: { viewport: { value: 'mobile1', isRotated: false } },
+};
 export const Mobile: Story = { globals: { viewport: { value: 'mobile1', isRotated: false } } };

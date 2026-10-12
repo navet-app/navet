@@ -98,7 +98,7 @@ function LightSettingsDialogStory({
 
 const meta = {
   component: LightSettingsDialogStory,
-  render: () => <LightSettingsDialogStory />,
+  render: (args) => <LightSettingsDialogStory {...args} />,
   tags: ['!autodocs'],
   parameters: { layout: 'fullscreen' },
 } satisfies Meta<typeof LightSettingsDialogStory>;
@@ -168,17 +168,24 @@ export const Default: Story = {
       await expect(dialogScope.getByText('63%')).toBeInTheDocument();
     });
     await step(
-      'keeps the handle centered on the fill at low, middle, and full brightness',
+      'keeps the handle inside the drag area at low, middle, and full brightness',
       async () => {
         const fill = dialog.querySelector('[data-light-brightness-fill]');
         const handle = dialog.querySelector('[data-light-brightness-handle]');
-        if (!fill || !handle) throw new Error('Brightness slider geometry is unavailable');
+        const track = fill?.parentElement;
+        if (!fill || !handle || !track)
+          throw new Error('Brightness slider geometry is unavailable');
         const expectAlignment = () => {
           const handleRect = handle.getBoundingClientRect();
           const fillRect = fill.getBoundingClientRect();
+          const trackRect = track.getBoundingClientRect();
+          expect(handleRect.top).toBeGreaterThanOrEqual(trackRect.top + 1);
+          expect(handleRect.bottom).toBeLessThanOrEqual(trackRect.bottom - 1);
+          expect(handleRect.left).toBeGreaterThanOrEqual(trackRect.left);
+          expect(handleRect.right).toBeLessThanOrEqual(trackRect.right);
           expect(
             Math.abs(handleRect.top + handleRect.height / 2 - fillRect.top)
-          ).toBeLessThanOrEqual(1);
+          ).toBeLessThanOrEqual(4);
         };
         expectAlignment();
         brightnessSlider.focus();

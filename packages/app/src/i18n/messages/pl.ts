@@ -1,4 +1,5 @@
 export const plMessages = {
+  'helpers.title': 'Pomocnicy',
   'deviceType.timer': 'Minutnik',
   'deviceType.counter': 'Licznik',
   'deviceType.valve': 'Zawór',

@@ -33,16 +33,22 @@ const WEATHER_ENTITY_PREFIXES = ['sun.', 'weather.'] as const;
 type WeatherForecastState = Record<
   string,
   {
-    daily: PlatformWeatherForecastEntry[];
-    hourly: PlatformWeatherForecastEntry[];
+    daily?: PlatformWeatherForecastEntry[];
+    hourly?: PlatformWeatherForecastEntry[];
   }
 >;
 
 const EMPTY_WEATHER_FORECASTS: WeatherForecastState = {};
-const mergeForecasts = (previous: WeatherForecastState, next: WeatherForecastState) => ({
-  ...previous,
-  ...next,
-});
+const mergeForecasts = (previous: WeatherForecastState, next: WeatherForecastState) =>
+  Object.fromEntries(
+    Object.entries(next).map(([entityId, forecast]) => [
+      entityId,
+      {
+        daily: forecast.daily ?? previous[entityId]?.daily,
+        hourly: forecast.hourly ?? previous[entityId]?.hourly,
+      },
+    ])
+  );
 
 export function useProviderWeatherDevices(
   providerId?: IntegrationProviderId,
@@ -89,8 +95,12 @@ export function useProviderWeatherDevices(
       weatherEntityIds.map(async (entityId) => {
         const scopedEntityId = createProviderScopedId(resolvedProviderId, entityId);
         const [daily, hourly] = await Promise.all([
-          integrationWeatherFeatureService.getForecast(scopedEntityId, 'daily').catch(() => []),
-          integrationWeatherFeatureService.getForecast(scopedEntityId, 'hourly').catch(() => []),
+          integrationWeatherFeatureService
+            .getForecast(scopedEntityId, 'daily')
+            .catch(() => undefined),
+          integrationWeatherFeatureService
+            .getForecast(scopedEntityId, 'hourly')
+            .catch(() => undefined),
         ]);
         return [entityId, { daily, hourly }] as const;
       })
@@ -104,6 +114,7 @@ export function useProviderWeatherDevices(
     empty: EMPTY_WEATHER_FORECASTS,
     load: loadForecasts,
     merge: mergeForecasts,
+    retainWhenDisabled: true,
   });
 
   const resolvedDevices = useMemo(() => {
@@ -124,7 +135,12 @@ export function useProviderWeatherDevices(
           sunEntity: entities[SUN_ENTITY_ID],
           config: null,
           weatherForecastMode,
-          storedForecasts: deferredWeatherForecasts[entityId],
+          storedForecasts: deferredWeatherForecasts[entityId]
+            ? {
+                daily: deferredWeatherForecasts[entityId].daily ?? [],
+                hourly: deferredWeatherForecasts[entityId].hourly ?? [],
+              }
+            : undefined,
           locale,
           t,
           use24HourTime,

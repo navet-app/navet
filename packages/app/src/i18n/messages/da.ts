@@ -1,4 +1,5 @@
 export const daMessages = {
+  'helpers.title': 'Hjælpere',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Tæller',
   'deviceType.valve': 'Ventil',

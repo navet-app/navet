@@ -120,8 +120,8 @@ export function LightDialogControls(props: ControlProps) {
               <span
                 data-light-brightness-handle
                 className="pointer-events-none h-1 w-7 rounded-full bg-white shadow-[0_0_0_1px_#0005]"
-                // Radix insets the 40px touch target; let the visible marker follow the full fill range.
-                style={{ transform: `translateY(${(0.5 - brightnessProgress) * 40}px)` }}
+                // Compensate for the 40px touch target, leaving 4px for the marker and shadow at each end.
+                style={{ transform: `translateY(${(0.5 - brightnessProgress) * 32}px)` }}
               />
             </RadixSlider.Thumb>
           </RadixSlider.Root>
@@ -183,7 +183,13 @@ export function LightDialogControls(props: ControlProps) {
             style={{ gridTemplateColumns: `repeat(${modes.length}, minmax(0, 1fr))` }}
           >
             {modes.map((item) => (
-              <TabTrigger key={item.key} value={item.key} size="small" className="min-w-0 px-2">
+              <TabTrigger
+                variant="segmented"
+                key={item.key}
+                value={item.key}
+                size="small"
+                className="min-w-0 px-2"
+              >
                 {item.label}
               </TabTrigger>
             ))}

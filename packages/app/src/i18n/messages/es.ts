@@ -1,4 +1,5 @@
 export const esMessages = {
+  'helpers.title': 'Asistentes',
   'deviceType.timer': 'Temporizador',
   'deviceType.counter': 'Contador',
   'deviceType.valve': 'Válvula',

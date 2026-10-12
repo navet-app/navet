@@ -2,6 +2,7 @@ import { enMessages } from './en';
 
 export const itMessages = {
   ...enMessages,
+  'helpers.title': 'Aiutanti',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Contatore',
   'deviceType.valve': 'Valvola',

@@ -11,6 +11,7 @@ export function useProviderCollectionData<T>({
   empty,
   load,
   merge,
+  retainWhenDisabled = false,
 }: {
   providerId: IntegrationProviderId;
   enabled: boolean;
@@ -18,11 +19,13 @@ export function useProviderCollectionData<T>({
   empty: T;
   load: () => Promise<T>;
   merge?: (previous: T, next: T) => T;
+  retainWhenDisabled?: boolean;
 }): T {
   const [state, setState] = useState({ providerId, data: empty });
   useEffect(() => {
     let cancelled = false;
     if (!enabled) {
+      if (retainWhenDisabled) return;
       startTransition(() =>
         setState((previous) =>
           previous.providerId === providerId && Object.is(previous.data, empty)
@@ -58,7 +61,7 @@ export function useProviderCollectionData<T>({
       cancelled = true;
       unsubscribe();
     };
-  }, [empty, enabled, interval, load, merge, providerId]);
+  }, [empty, enabled, interval, load, merge, providerId, retainWhenDisabled]);
   const deferred = useDeferredValue(state);
   return enabled && deferred.providerId === providerId ? deferred.data : empty;
 }

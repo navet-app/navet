@@ -1,8 +1,9 @@
-import { Button } from '@navet/app/components/primitives/button';
 import { RoundControlButton } from '@navet/app/components/primitives/round-control-button';
 import { Slider } from '@navet/app/components/primitives/slider';
 import { DeviceControlsDialog } from '@navet/app/components/shared/device-controls-dialog';
 import { CustomCardTintPicker, IconPicker } from '@navet/app/components/shared/device-editor';
+import { DeviceControlOptions } from '@navet/app/components/shared/device-editor/device-control-options';
+import { DeviceControlRow } from '@navet/app/components/shared/device-editor/device-control-row';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useTheme } from '@navet/app/hooks';
 import { Power, RotateCw, Wind } from 'lucide-react';
@@ -34,6 +35,15 @@ export function FanSettingsDialog(props: {
   const { t } = useI18n();
   const { theme } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
+  const oscillationLabel = t('lighting.fanOscillation', { state: '' }).trim();
+  const directionLabel = t('lighting.fanDirection', { direction: '' }).trim();
+  const selectedSpeed = !props.isOn
+    ? null
+    : props.percentage <= 45
+      ? '33'
+      : props.percentage <= 80
+        ? '66'
+        : '100';
   return (
     <DeviceControlsDialog
       entityId={props.entityId}
@@ -87,75 +97,53 @@ export function FanSettingsDialog(props: {
                 thumbClassName={`block h-5 w-5 rounded-full border ${surface.borderStrong} bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2`}
                 rootClassName="relative flex h-10 w-full touch-none select-none items-center"
               />
-              <fieldset
-                className="grid min-w-0 grid-cols-3 gap-2"
-                aria-label={t('lighting.fanPresets')}
-              >
-                {(
-                  [
-                    { value: 33, translationKey: 'lighting.fanSpeed.low' },
-                    { value: 66, translationKey: 'lighting.fanSpeed.medium' },
-                    { value: 100, translationKey: 'lighting.fanSpeed.high' },
-                  ] as const
-                ).map((preset, index) => {
-                  const selected =
-                    props.isOn &&
-                    (index === 0
-                      ? props.percentage <= 45
-                      : index === 1
-                        ? props.percentage > 45 && props.percentage <= 80
-                        : props.percentage > 80);
-                  return (
-                    <Button
-                      key={preset.value}
-                      variant={selected ? 'primary' : 'soft'}
-                      size="compact"
-                      aria-label={t('lighting.fanPreset', { preset: t(preset.translationKey) })}
-                      aria-pressed={selected}
-                      onClick={() => props.onSpeedCommit(preset.value)}
-                      className="min-w-0"
-                    >
-                      {t(preset.translationKey)}
-                    </Button>
-                  );
-                })}
-              </fieldset>
+              <DeviceControlOptions
+                variant="segmented"
+                label={t('lighting.fanPresets')}
+                value={selectedSpeed}
+                options={[
+                  { value: '33', label: t('lighting.fanSpeed.low') },
+                  { value: '66', label: t('lighting.fanSpeed.medium') },
+                  { value: '100', label: t('lighting.fanSpeed.high') },
+                ]}
+                onValueChange={(value) => props.onSpeedCommit(Number(value))}
+              />
             </div>
           )}
           {(props.oscillating !== undefined || props.direction !== undefined) && (
-            <div className={`divide-y ${surface.divider}`}>
+            <div>
               {props.oscillating !== undefined && (
-                <div className="flex items-center justify-between gap-3 py-3">
-                  <span className="flex items-center gap-2 text-sm">
-                    <Wind className="h-4 w-4" />
-                    {t('lighting.fanOscillation')}
-                  </span>
-                  <Button
-                    variant="soft"
-                    size="compact"
-                    aria-pressed={props.oscillating}
-                    onClick={props.onOscillationChange}
-                  >
-                    {t(props.oscillating ? 'common.on' : 'common.off')}
-                  </Button>
-                </div>
+                <DeviceControlRow
+                  kind="toggle"
+                  label={oscillationLabel}
+                  icon={<Wind className="h-4 w-4" />}
+                  checked={props.oscillating}
+                  onCheckedChange={props.onOscillationChange}
+                />
               )}
               {props.direction !== undefined && (
-                <div className="flex items-center justify-between gap-3 py-3">
-                  <RotateCw className="h-4 w-4 shrink-0" />
-                  <Button
-                    variant="soft"
-                    size="compact"
-                    className="min-w-0"
-                    onClick={props.onDirectionChange}
-                  >
-                    {t(
-                      props.direction === 'reverse'
-                        ? 'lighting.fanDirection.reverse'
-                        : 'lighting.fanDirection.forward'
-                    )}
-                  </Button>
-                </div>
+                <DeviceControlRow
+                  kind="disclosure"
+                  label={directionLabel}
+                  icon={<RotateCw className="h-4 w-4" />}
+                  value={t(
+                    props.direction === 'reverse'
+                      ? 'lighting.fanDirection.reverse'
+                      : 'lighting.fanDirection.forward'
+                  )}
+                >
+                  <DeviceControlOptions
+                    label={directionLabel}
+                    value={props.direction}
+                    options={(['forward', 'reverse'] as const).map((value) => ({
+                      value,
+                      label: t(`lighting.fanDirection.${value}`),
+                    }))}
+                    onValueChange={(value) => {
+                      if (value !== props.direction) props.onDirectionChange();
+                    }}
+                  />
+                </DeviceControlRow>
               )}
             </div>
           )}

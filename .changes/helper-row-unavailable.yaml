@@ -1,0 +1,5 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+summary: Device dialogs keep long helper lists in a compact scrolling section and place unavailable helpers last without action affordances.

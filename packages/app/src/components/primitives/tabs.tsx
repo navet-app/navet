@@ -1,3 +1,8 @@
+import {
+  getSegmentedControlSelectionStyle,
+  getSegmentedControlStyles,
+  getTabSelectionStyle,
+} from '@navet/app/components/shared/theme/segmented-control-styles';
 import { getThemeColorValue } from '@navet/app/components/shared/theme/theme-colors';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import {
@@ -116,7 +121,7 @@ export const TabList = forwardRef<HTMLDivElement, TabListProps>(function TabList
       ? isSmall
         ? 'grid min-w-0 items-stretch gap-2 rounded-[22px] border p-1.5'
         : isCompact
-          ? 'grid min-w-0 items-stretch gap-0.75 rounded-[18px] border p-0.75'
+          ? cn('grid items-stretch', getSegmentedControlStyles(theme).shell)
           : 'grid min-w-0 items-stretch gap-2 rounded-[24px] border p-2.5'
       : isSmall
         ? 'flex min-w-0 items-center gap-2 overflow-x-auto scrollbar-hide border rounded-[22px] p-2 md:flex-wrap md:overflow-visible'
@@ -199,8 +204,8 @@ export const TabList = forwardRef<HTMLDivElement, TabListProps>(function TabList
           : variant === 'segmented'
             ? compactShellClassName
             : `tab-list-scrollbar ${compactShellClassName}`,
-        surface.borderStrong,
-        surface.panel,
+        variant === 'segmented' && isCompact ? undefined : surface.borderStrong,
+        variant === 'segmented' && isCompact ? undefined : surface.panel,
         className
       )}
       style={{ ...scrollbarStyle, ...style }}
@@ -214,12 +219,22 @@ export interface TabTriggerProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   value: string;
   children: ReactNode;
   size?: 'default' | 'small' | 'compact';
+  variant?: 'default' | 'segmented';
 }
 
 export type TabTriggerSize = NonNullable<TabTriggerProps['size']>;
 
 export const TabTrigger = forwardRef<HTMLButtonElement, TabTriggerProps>(function TabTrigger(
-  { value, className, children, onClick, onKeyDown, size = 'default', ...props },
+  {
+    value,
+    className,
+    children,
+    onClick,
+    onKeyDown,
+    size = 'default',
+    variant = 'default',
+    ...props
+  },
   ref
 ) {
   const { theme, accentColor, primaryColor } = useTheme();
@@ -230,6 +245,7 @@ export const TabTrigger = forwardRef<HTMLButtonElement, TabTriggerProps>(functio
   const panelId = `${baseId}-${value}-panel`;
   const resolvedAccentColor = accentColor || getThemeColorValue(primaryColor);
 
+  const segmented = getSegmentedControlStyles(theme);
   const inactiveClassName =
     theme === 'light'
       ? 'border-transparent text-gray-700 hover:bg-gray-200'
@@ -290,23 +306,24 @@ export const TabTrigger = forwardRef<HTMLButtonElement, TabTriggerProps>(functio
         onClick?.(event);
       }}
       className={cn(
-        triggerSizeClassName,
-        navetTypographyTokens.control,
+        variant === 'segmented' ? cn(segmented.option, segmented.button) : triggerSizeClassName,
+        variant === 'segmented' ? undefined : navetTypographyTokens.control,
         getThemeFocusRingClassName(theme),
-        isActive ? surface.textPrimary : inactiveClassName,
+        variant === 'segmented' ? undefined : isActive ? surface.textPrimary : inactiveClassName,
         className
       )}
       style={
-        isActive
-          ? {
-              borderColor: `${resolvedAccentColor}55`,
-              backgroundColor: `${resolvedAccentColor}12`,
-              boxShadow: `inset 0 0 0 1px ${resolvedAccentColor}22`,
-            }
-          : undefined
+        variant !== 'segmented' && isActive ? getTabSelectionStyle(resolvedAccentColor) : undefined
       }
     >
       {children}
+      {variant === 'segmented' && isActive ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 rounded-full"
+          style={getSegmentedControlSelectionStyle(resolvedAccentColor)}
+        />
+      ) : null}
     </button>
   );
 });

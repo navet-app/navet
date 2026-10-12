@@ -1,4 +1,5 @@
 export const noMessages = {
+  'helpers.title': 'Hjelpere',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Teller',
   'deviceType.valve': 'Ventil',

@@ -1,4 +1,5 @@
-import { renderHook } from '@testing-library/react';
+import { integrationWeatherFeatureService } from '@navet/app/services/integration-weather-feature.service';
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useProviderWeatherDevices } from '../use-provider-weather-devices';
 
@@ -11,18 +12,37 @@ let mockProviderRuntime = {
   entitiesHydrated: true,
   registriesHydrated: true,
 };
+let refreshForecasts: () => Promise<void>;
+
+vi.mock('@navet/app/utils/visibility-aware-scheduler', () => ({
+  subscribeVisibilityAwareAsyncTask: (task: () => Promise<void>) => {
+    refreshForecasts = task;
+    return () => {};
+  },
+}));
 
 vi.mock('@navet/app/hooks/device-mappers', () => ({
-  mapWeatherDevice: vi.fn((id: string, entity: { state: string }, name: string, room: string) => ({
-    id,
-    name,
-    room,
-    size: 'medium',
-    condition: entity.state,
-    temperature: 20,
-    forecastMode: 'weekly',
-    forecast: [],
-  })),
+  mapWeatherDevice: vi.fn(
+    (
+      id: string,
+      entity: { state: string },
+      name: string,
+      room: string,
+      options: {
+        storedForecasts?: { daily: Record<string, unknown>[]; hourly: Record<string, unknown>[] };
+      }
+    ) => ({
+      id,
+      name,
+      room,
+      size: 'medium',
+      condition: entity.state,
+      temperature: 20,
+      forecastMode: 'weekly',
+      forecast: options.storedForecasts?.daily ?? [],
+      hourlyForecast: options.storedForecasts?.hourly ?? [],
+    })
+  ),
 }));
 
 vi.mock('@navet/app/i18n', () => ({
@@ -99,6 +119,7 @@ describe('useProviderWeatherDevices', () => {
     ]);
   });
   beforeEach(() => {
+    vi.mocked(integrationWeatherFeatureService.getForecast).mockReset().mockResolvedValue([]);
     mockEntities = {
       'weather.home': {
         state: 'sunny',
@@ -162,5 +183,41 @@ describe('useProviderWeatherDevices', () => {
     );
 
     expect(result.current).toEqual([]);
+  });
+
+  it('keeps forecasts after navigating away and back when the next request fails', async () => {
+    const forecast = [{ datetime: '2026-10-12T12:00:00Z', temperature: 18 }];
+    vi.mocked(integrationWeatherFeatureService.getForecast).mockResolvedValue(forecast);
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useProviderWeatherDevices('home_assistant', { enabled }),
+      { initialProps: { enabled: true } }
+    );
+    await act(async () => refreshForecasts());
+    expect(result.current[0].forecast).toEqual(forecast);
+
+    rerender({ enabled: false });
+    expect(result.current).toEqual([]);
+    vi.mocked(integrationWeatherFeatureService.getForecast).mockRejectedValue(new Error('offline'));
+    rerender({ enabled: true });
+    expect(result.current[0].forecast).toEqual(forecast);
+    await act(async () => refreshForecasts());
+    expect(result.current[0].forecast).toEqual(forecast);
+  });
+
+  it('retains only failed forecast types and accepts successful empty forecasts', async () => {
+    const daily = [{ datetime: '2026-10-12T12:00:00Z', temperature: 18 }];
+    const hourly = [{ datetime: '2026-10-12T13:00:00Z', temperature: 19 }];
+    const request = vi.mocked(integrationWeatherFeatureService.getForecast);
+    request.mockImplementation(async (_id, type) => (type === 'daily' ? daily : hourly));
+    const { result } = renderHook(() => useProviderWeatherDevices('home_assistant'));
+    await act(async () => refreshForecasts());
+
+    request.mockImplementation(async (_id, type) => {
+      if (type === 'daily') throw new Error('daily forecast unavailable');
+      return [];
+    });
+    await act(async () => refreshForecasts());
+    expect(result.current[0].forecast).toEqual(daily);
+    expect(result.current[0]).toHaveProperty('hourlyForecast', []);
   });
 });

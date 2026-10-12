@@ -112,13 +112,6 @@
     "reason": "Existing feature styling retained during source-catalog rollout; new occurrences must reuse Navet foundations."
   },
   {
-    "file": "packages/app/src/features/lighting/components/fan-card/index.tsx",
-    "rule": "card-hardcoded-foundation",
-    "anchor": "b3a7c03e767c230266f8bdf0dcb5e921c791af7c35debbb3da4c9fa781fae199",
-    "occurrence": 1,
-    "reason": "Existing feature styling retained during source-catalog rollout; new occurrences must reuse Navet foundations."
-  },
-  {
     "file": "packages/app/src/features/lighting/components/light-card/kelvin-color-trigger.tsx",
     "rule": "card-hardcoded-foundation",
     "anchor": "3f65144df31f5a6666807ed28d2c6c6c11cb0fefeb3360a05f71322df02ddd26",

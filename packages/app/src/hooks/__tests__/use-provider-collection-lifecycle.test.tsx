@@ -95,6 +95,32 @@ describe('provider collection lifecycle', () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it('can retain paused data without exposing it to a different provider', async () => {
+    const load = vi.fn<() => Promise<string[]>>().mockResolvedValue(['forecast']);
+    const { result, rerender } = renderHook(
+      ({ enabled, providerId }: { enabled: boolean; providerId: 'home_assistant' | 'homey' }) =>
+        useProviderCollectionData({
+          providerId,
+          enabled,
+          interval: 1000,
+          empty,
+          load,
+          retainWhenDisabled: true,
+        }),
+      { initialProps: { enabled: true, providerId: 'home_assistant' } }
+    );
+    await act(async () => refresh());
+    rerender({ enabled: false, providerId: 'home_assistant' });
+    expect(result.current).toBe(empty);
+    rerender({ enabled: true, providerId: 'home_assistant' });
+    expect(result.current).toEqual(['forecast']);
+    rerender({ enabled: true, providerId: 'homey' });
+    expect(result.current).toBe(empty);
+    load.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => refresh());
+    expect(result.current).toBe(empty);
+  });
+
   it('retains reconnecting collections only for their own provider', () => {
     let providerId: 'home_assistant' | 'homey' = 'home_assistant';
     let devices = ['weather'];

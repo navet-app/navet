@@ -1,15 +1,11 @@
 import { dispatchEntityCommand } from '@navet/app/commands';
 import { CardActionRow, CardActionRowGroup } from '@navet/app/components/patterns/card-action-row';
-import {
-  getPortalActionDockAnchorRect,
-  PortalActionDock,
-  type PortalActionDockAnchorRect,
-} from '@navet/app/components/patterns/portal-action-dock';
 import { BaseCard } from '@navet/app/components/primitives';
 import { Button } from '@navet/app/components/primitives/button';
 import { EntityCardHeader } from '@navet/app/components/primitives/entity-card-header';
 import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-card-header-icon';
 import { getCardActionControlSizes } from '@navet/app/components/shared/card-action-control-sizes';
+import { CardControlNumberBadge } from '@navet/app/components/shared/card-control-number-badge';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
 import { BrightnessSlider } from '@navet/app/components/shared/device-editor';
@@ -34,8 +30,8 @@ import type { TranslationKey } from '@navet/app/i18n';
 import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
-import { Fan, MoreHorizontal, RotateCcw, RotateCw, Wind } from 'lucide-react';
-import { type MouseEvent, memo, useCallback, useEffect, useState } from 'react';
+import { Fan, RotateCcw, RotateCw, Wind } from 'lucide-react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { getLightCardSurfaceTokens } from '../light-card/light-card-surface-tokens';
 import { useSwitchCardAppearance } from '../use-switch-card-appearance';
 import type { SwitchSiblingEntity } from '../use-switch-card-controller';
@@ -103,20 +99,12 @@ function resolveFanCardSize(size: CardSize): CardSize {
 
 function FanSpeedPresetContent({ speed, isSmall }: { speed: FanSpeed; isSmall: boolean }) {
   const iconSize = getCardActionControlSizes(isSmall ? 'small' : 'medium').icon;
+  const speedNumber = FAN_SPEED_ACTIONS.findIndex((preset) => preset.speed === speed) + 1;
 
   return (
-    <span
-      aria-hidden="true"
-      className="relative isolate flex h-full w-full items-center justify-center overflow-hidden rounded-full"
-    >
-      <Fan className={`${iconSize} absolute z-0 opacity-[0.42]`} />
-      <span
-        className={`relative z-10 ${
-          isSmall ? 'text-[10px]' : 'text-[11px]'
-        } font-bold leading-none tracking-[-0.04em] drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)] tabular-nums`}
-      >
-        {FAN_SPEED_PERCENTAGES[speed]}
-      </span>
+    <span aria-hidden="true" className="flex h-full w-full items-center justify-center">
+      <Fan className={iconSize} />
+      <CardControlNumberBadge value={speedNumber} />
     </span>
   );
 }
@@ -128,105 +116,6 @@ function readFanDirection(value: unknown): string | undefined {
 function supportsOscillation(value: unknown): value is boolean {
   return typeof value === 'boolean';
 }
-
-interface FanPresetOverflowButtonProps {
-  presets: typeof FAN_SPEED_ACTIONS;
-  activeSpeed: FanSpeed | null;
-  activeColor: string;
-  buttonClassName: string;
-  buttonIconClassName: string;
-  isOn: boolean;
-  isSmall: boolean;
-  onSelect: (speed: FanSpeed) => void;
-  theme: ReturnType<typeof useTheme>['theme'];
-}
-
-const FanPresetOverflowButton = memo(function FanPresetOverflowButton({
-  presets,
-  activeSpeed,
-  activeColor,
-  buttonClassName,
-  buttonIconClassName,
-  isOn,
-  isSmall,
-  onSelect,
-  theme,
-}: FanPresetOverflowButtonProps) {
-  const { t } = useI18n();
-  const roundControl = getRoundControlStyles(theme);
-  const [isOpen, setIsOpen] = useState(false);
-  const [anchorRect, setAnchorRect] = useState<PortalActionDockAnchorRect | null>(null);
-
-  const handleOpen = useCallback((event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    setAnchorRect(getPortalActionDockAnchorRect(event.currentTarget));
-    setIsOpen(true);
-  }, []);
-
-  const handleClose = useCallback(() => {
-    setIsOpen(false);
-    setAnchorRect(null);
-  }, []);
-
-  return (
-    <>
-      {isOpen ? (
-        <PortalActionDock
-          accentColor={activeColor}
-          anchorRect={anchorRect}
-          onClose={handleClose}
-          title={t('lighting.fanSpeed')}
-        >
-          <fieldset
-            className="flex flex-wrap items-center justify-center gap-2"
-            aria-label={t('lighting.fanPresets')}
-          >
-            {presets.map(({ speed, labelKey }) => {
-              const active = activeSpeed === speed;
-
-              return (
-                <button
-                  key={speed}
-                  type="button"
-                  aria-label={t('lighting.fanPreset', { preset: t(labelKey) })}
-                  aria-pressed={active}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onSelect(speed);
-                    handleClose();
-                  }}
-                  style={
-                    active ? getBrightnessPresetSelectedStyle(theme, activeColor, true) : undefined
-                  }
-                  className={`${buttonClassName} relative flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 ${
-                    active
-                      ? roundControl.selectedText
-                      : `${roundControl.softButton} cursor-pointer hover:scale-105 active:scale-95`
-                  }`}
-                >
-                  <FanSpeedPresetContent speed={speed} isSmall={isSmall} />
-                </button>
-              );
-            })}
-          </fieldset>
-        </PortalActionDock>
-      ) : null}
-      <button
-        type="button"
-        disabled={!isOn}
-        aria-label={t('lighting.moreFanPresets')}
-        onClick={handleOpen}
-        className={`${buttonClassName} rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 flex items-center justify-center ${
-          !isOn
-            ? roundControl.softDisabledButton
-            : `${roundControl.softButton} cursor-pointer hover:scale-105 active:scale-95`
-        }`}
-      >
-        <MoreHorizontal className={buttonIconClassName} />
-      </button>
-    </>
-  );
-});
 
 export const FanCard = memo(function FanCard({
   id,
@@ -441,17 +330,14 @@ export const FanCard = memo(function FanCard({
   const sliderSize = resolvedSize === 'extra-small' ? 'extra-small' : isSmall ? 'small' : 'medium';
   const disabledSelectedClasses = 'cursor-not-allowed text-white opacity-70';
   const showFanPresets = supportsFanSpeed && !hasAdvancedFanControls;
-  const showPresetOverflow = supportsFanSpeed && hasAdvancedFanControls;
+  const showSpeedCycle = supportsFanSpeed && hasAdvancedFanControls;
   const directionLabel = t(
     fanDirection === 'reverse' ? 'lighting.fanDirection.reverse' : 'lighting.fanDirection.forward'
   );
   const directionIsReverse = fanDirection === 'reverse';
   const isExtraSmall = resolvedSize === 'extra-small';
   const hasActionRowButtons =
-    fanDirection !== undefined ||
-    fanOscillating !== undefined ||
-    showFanPresets ||
-    showPresetOverflow;
+    fanDirection !== undefined || fanOscillating !== undefined || showFanPresets || showSpeedCycle;
 
   const setFanDirection = useCallback(
     async (direction: 'forward' | 'reverse') => {
@@ -694,18 +580,39 @@ export const FanCard = memo(function FanCard({
                                 );
                               })
                             : null}
-                          {showPresetOverflow ? (
-                            <FanPresetOverflowButton
-                              presets={FAN_SPEED_ACTIONS}
-                              activeSpeed={activeSpeed}
-                              activeColor={activeSpeedColor}
-                              buttonClassName={actionSize.button}
-                              buttonIconClassName={actionSize.icon}
-                              isOn={isOn}
-                              isSmall={isSmall}
-                              onSelect={updateSpeedPreset}
-                              theme={effectiveTheme}
-                            />
+                          {showSpeedCycle ? (
+                            <button
+                              type="button"
+                              disabled={!isOn}
+                              aria-label={`${t('lighting.fanSpeed')}: ${
+                                activeSpeed
+                                  ? t(`lighting.fanSpeed.${activeSpeed}`)
+                                  : t('common.off')
+                              }`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                const currentIndex = FAN_SPEED_ACTIONS.findIndex(
+                                  (preset) => preset.speed === activeSpeed
+                                );
+                                const next =
+                                  FAN_SPEED_ACTIONS[(currentIndex + 1) % FAN_SPEED_ACTIONS.length];
+                                updateSpeedPreset(next.speed);
+                              }}
+                              className={`${actionSize.button} relative flex shrink-0 items-center justify-center rounded-full transition-colors ${
+                                isOn ? roundControl.softButton : roundControl.softDisabledButton
+                              }`}
+                            >
+                              <Fan className={actionSize.icon} aria-hidden="true" />
+                              {activeSpeed ? (
+                                <CardControlNumberBadge
+                                  value={
+                                    FAN_SPEED_ACTIONS.findIndex(
+                                      (preset) => preset.speed === activeSpeed
+                                    ) + 1
+                                  }
+                                />
+                              ) : null}
+                            </button>
                           ) : null}
                         </CardActionRowGroup>
                       ) : undefined

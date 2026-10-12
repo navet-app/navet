@@ -72,6 +72,7 @@ rerun as a tagged-release publishing gate. Storybook browser coverage is a separ
 
 | Group | Why it exists | Status |
 |---|---|---|
+| `scripts/codex-review-completion.test.mjs` | Verified Codex completion produces a current-head COMMENT receipt; stale summaries, forged authors and duplicate events cannot create extra reviews | Keep |
 | `packages/app/src/features/dashboard/**` | Largest user-facing regression surface for layout, editing, widgets, and navigation | Keep |
 | `packages/app/src/features/media/**`, `lighting/**`, `security/**`, `energy/**`, `climate/**`, `rss/**`, `tasks/**`, `settings/**`, `sensors/**`, `vacuum/**`, `calendar/**`, `notifications/**` | User-visible feature regressions and UI behavior | Keep |
 | `packages/app/src/components/**` | Shared UI and interaction regressions | Keep |

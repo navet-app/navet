@@ -48,6 +48,7 @@ type HelperValueControlProps = {
   providerId?: IntegrationProviderId;
   surfaceTheme?: ThemeType;
   unavailable?: boolean;
+  layout?: 'standalone' | 'inline';
   onSaved?: () => void;
 };
 
@@ -69,9 +70,11 @@ function HelperValueControlContent({
   providerId,
   surfaceTheme,
   unavailable = false,
+  layout = 'standalone',
   onSaved,
 }: HelperValueControlProps) {
   const { t } = useI18n();
+  const inline = layout === 'inline';
   const { theme } = useTheme();
   const surface = getThemeSurfaceTokens(surfaceTheme ?? theme);
   const fieldId = useId();
@@ -152,6 +155,7 @@ function HelperValueControlContent({
   const saveButton = (
     <Button
       type="submit"
+      className={inline ? 'shrink-0' : undefined}
       disabled={
         onSaved && unchanged && pending === null
           ? false
@@ -165,73 +169,78 @@ function HelperValueControlContent({
   return (
     <form
       onSubmit={save}
-      className={`space-y-3 ${surface.textPrimary}`}
+      className={`${inline ? 'grid gap-2' : 'space-y-3'} ${surface.textPrimary}`}
       aria-busy={pending !== null}
     >
-      <label htmlFor={fieldId} className="block text-sm font-medium">
+      <label htmlFor={fieldId} className={inline ? 'sr-only' : 'block text-sm font-medium'}>
         {helper.helperType === 'datetime' && helper.timeZone
           ? `${name} (${helper.timeZone})`
           : name}
       </label>
-      {helper.helperType === 'select' ? (
-        <Select
-          id={fieldId}
-          value={draft}
-          disabled={disabled || helper.options.length === 0}
-          aria-describedby={descriptionId}
-          onChange={(event) => {
-            dirty.current = true;
-            setDraft(event.target.value);
-            setError(false);
-          }}
-        >
-          {optionMissing ? (
-            <option value={draft} disabled>
-              {draft || t('helpers.noOptions')}
-            </option>
-          ) : null}
-          {helper.options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </Select>
-      ) : (
-        <Input
-          id={fieldId}
-          value={draft}
-          disabled={disabled}
-          required={helper.helperType !== 'text'}
-          aria-describedby={descriptionId}
-          type={
-            helper.helperType === 'number'
-              ? 'number'
-              : helper.helperType === 'datetime'
-                ? 'datetime-local'
-                : helper.helperType === 'text'
-                  ? helper.mode
-                  : helper.helperType
-          }
-          min={helper.helperType === 'number' ? helper.min : undefined}
-          max={helper.helperType === 'number' ? helper.max : undefined}
-          step={
-            helper.helperType === 'number'
-              ? helper.step
-              : helper.helperType === 'time' || helper.helperType === 'datetime'
-                ? 1
-                : undefined
-          }
-          invalid={textLengthInvalid}
-          pattern={helper.helperType === 'text' ? helper.pattern : undefined}
-          trailing={helper.helperType === 'number' ? helper.unit : undefined}
-          onChange={(event) => {
-            dirty.current = true;
-            setDraft(event.target.value);
-            setError(false);
-          }}
-        />
-      )}
-      <div id={descriptionId} aria-live="polite" className="text-sm">
+      <div className={inline ? 'flex items-center gap-2' : undefined}>
+        <div className={inline ? 'min-w-0 flex-1' : undefined}>
+          {helper.helperType === 'select' ? (
+            <Select
+              id={fieldId}
+              value={draft}
+              disabled={disabled || helper.options.length === 0}
+              aria-describedby={descriptionId}
+              onChange={(event) => {
+                dirty.current = true;
+                setDraft(event.target.value);
+                setError(false);
+              }}
+            >
+              {optionMissing ? (
+                <option value={draft} disabled>
+                  {draft || t('helpers.noOptions')}
+                </option>
+              ) : null}
+              {helper.options.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Input
+              id={fieldId}
+              value={draft}
+              disabled={disabled}
+              required={helper.helperType !== 'text'}
+              aria-describedby={descriptionId}
+              type={
+                helper.helperType === 'number'
+                  ? 'number'
+                  : helper.helperType === 'datetime'
+                    ? 'datetime-local'
+                    : helper.helperType === 'text'
+                      ? helper.mode
+                      : helper.helperType
+              }
+              min={helper.helperType === 'number' ? helper.min : undefined}
+              max={helper.helperType === 'number' ? helper.max : undefined}
+              step={
+                helper.helperType === 'number'
+                  ? helper.step
+                  : helper.helperType === 'time' || helper.helperType === 'datetime'
+                    ? 1
+                    : undefined
+              }
+              invalid={textLengthInvalid}
+              pattern={helper.helperType === 'text' ? helper.pattern : undefined}
+              trailing={helper.helperType === 'number' ? helper.unit : undefined}
+              onChange={(event) => {
+                dirty.current = true;
+                setDraft(event.target.value);
+                setError(false);
+              }}
+            />
+          )}
+        </div>
+        {inline ? saveButton : null}
+      </div>
+      <div id={descriptionId} aria-live="polite" className="text-sm empty:hidden">
         {textLengthInvalid && helper.helperType === 'text' ? (
           t('helpers.textLength', { min: helper.minLength, max: helper.maxLength })
         ) : unavailable ? (
@@ -248,7 +257,7 @@ function HelperValueControlContent({
           )
         ) : null}
       </div>
-      {onSaved ? <CardDialogFooter>{saveButton}</CardDialogFooter> : saveButton}
+      {inline ? null : onSaved ? <CardDialogFooter>{saveButton}</CardDialogFooter> : saveButton}
     </form>
   );
 }

@@ -62,6 +62,81 @@ describe('parent helper controls', () => {
     expect(selectRelatedHelpers({ ...parent, attributes: {} }, { helper })).toEqual([]);
     expect(selectRelatedHelpers(helper, { helper })).toEqual([]);
   });
+  it('sorts helper names naturally within each availability group', () => {
+    const first = { ...helper, name: 'alpha 2', canonicalId: 'home_assistant:number.z' };
+    const second = { ...helper, name: 'Alpha 10', canonicalId: 'home_assistant:number.y' };
+    const unavailable = {
+      ...helper,
+      name: 'Beta',
+      canonicalId: 'home_assistant:number.a',
+      availability: 'unavailable' as const,
+    };
+    const unknown = {
+      ...helper,
+      name: 'Alpha',
+      canonicalId: 'home_assistant:number.b',
+      availability: 'unknown' as const,
+    };
+    expect(selectRelatedHelpers(parent, { unavailable, second, unknown, helper, first })).toEqual([
+      first,
+      second,
+      helper,
+      unknown,
+      unavailable,
+    ]);
+  });
+  it('virtualizes long lists, reaches the final helper and preserves an edited draft while scrolling', () => {
+    const helpers = Array.from(
+      { length: 60 },
+      (_, index): NavetEntity => ({
+        ...helper,
+        id: `home_assistant:number.helper_${String(index).padStart(2, '0')}`,
+        canonicalId: `home_assistant:number.helper_${String(index).padStart(2, '0')}`,
+        externalId: `number.helper_${String(index).padStart(2, '0')}`,
+        name: `Helper ${index + 1}`,
+      })
+    );
+    integrationStore.setState({
+      providerEntitiesByProviderId: {
+        home_assistant: {
+          [parent.canonicalId]: parent,
+          ...Object.fromEntries(helpers.map((entity) => [entity.canonicalId, entity])),
+        },
+      },
+    });
+    renderWithProviders(<EntityHelperControls entityId={parent.canonicalId} />);
+    const viewport = screen.getByRole('region');
+    expect(viewport).toHaveClass('helper-list-bottom-fade');
+    expect(viewport).not.toHaveClass('helper-list-top-fade');
+    expect(screen.getAllByRole('button', { name: /^Helper \d+$/ }).length).toBeLessThan(20);
+    expect(screen.queryByRole('button', { name: 'Helper 60' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Helper 1' }));
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '7' } });
+    fireEvent.scroll(viewport, { target: { scrollTop: 10000 } });
+    expect(viewport).toHaveClass('helper-list-top-fade');
+    expect(viewport).not.toHaveClass('helper-list-bottom-fade');
+    expect(screen.getByRole('button', { name: 'Helper 60' })).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton')).toHaveValue(7);
+    fireEvent.scroll(viewport, { target: { scrollTop: 0 } });
+    expect(viewport).not.toHaveClass('helper-list-top-fade');
+    expect(viewport).toHaveClass('helper-list-bottom-fade');
+    expect(screen.getByRole('button', { name: 'Helper 1' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+    expect(screen.getByRole('spinbutton')).toHaveValue(7);
+  });
+
+  it('keeps short helper lists in the existing inline layout', () => {
+    integrationStore.setState({
+      providerEntitiesByProviderId: {
+        home_assistant: { [parent.canonicalId]: parent, [helper.canonicalId]: helper },
+      },
+    });
+    renderWithProviders(<EntityHelperControls entityId={parent.canonicalId} />);
+    expect(screen.getByRole('button', { name: 'Delay' })).toBeInTheDocument();
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
+  });
   it('expands the helper editor, retains its draft on collapse, and routes Save to its owner', async () => {
     integrationStore.setState({
       providerEntitiesByProviderId: {
@@ -72,6 +147,11 @@ describe('parent helper controls', () => {
     const row = screen.getByRole('button', { name: 'Delay' });
     expect(row).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(row);
+    const input = screen.getByRole('spinbutton', { name: 'Delay' });
+    expect(input.closest('form')?.querySelector('label')).toHaveClass('sr-only');
+    expect(screen.getByRole('button', { name: 'Save' }).parentElement).toContainElement(
+      screen.getByRole('spinbutton')
+    );
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '7' } });
     fireEvent.click(row);
     fireEvent.click(row);
@@ -108,6 +188,8 @@ describe('parent helper controls', () => {
       />
     );
     expect(screen.getByText('Main light controls')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Controls' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Helpers' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delay' })).toBeInTheDocument();
     unmount();
     renderWithProviders(
@@ -220,7 +302,49 @@ describe('parent helper controls', () => {
     }
   );
 
-  it('disables an unavailable helper and masks password text in the collapsed row', () => {
+  it.each(['press', 'toggle'] as const)(
+    'shows an unavailable %s helper as a non-interactive reading and restores its control when available',
+    (capability) => {
+      const actionHelper: NavetEntity = {
+        ...helper,
+        name: 'Related control',
+        availability: 'unavailable',
+        attributes: { deviceId: 'shared-device' },
+        capabilities: [capability],
+      };
+      const setHelper = (entity: NavetEntity) =>
+        integrationStore.setState({
+          providerEntitiesByProviderId: {
+            home_assistant: {
+              [parent.canonicalId]: parent,
+              [entity.canonicalId]: entity,
+            },
+          },
+        });
+      setHelper(actionHelper);
+      renderWithProviders(<EntityHelperControls entityId={parent.canonicalId} />);
+      expect(
+        screen.queryByRole(capability === 'press' ? 'button' : 'switch', {
+          name: /Related control/,
+        })
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByText('Unavailable')).toHaveLength(1);
+      expect(screen.queryByText('Run')).not.toBeInTheDocument();
+      const row = screen.getByText('Related control').closest('div');
+      expect(row).toContainElement(screen.getByText('Unavailable'));
+      expect(row?.querySelector('svg')).toBeNull();
+      fireEvent.click(screen.getByText('Related control'));
+      expect(dispatch).not.toHaveBeenCalled();
+      act(() => setHelper({ ...actionHelper, availability: 'available' }));
+      expect(
+        screen.getByRole(capability === 'press' ? 'button' : 'switch', { name: /Related control/ })
+      ).not.toBeDisabled();
+      expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
+      if (capability === 'press') expect(screen.getByText('Run')).toBeInTheDocument();
+    }
+  );
+
+  it('renders an unavailable writable helper without an editor and masks available password text', () => {
     const password: NavetEntity = {
       ...helper,
       name: 'Password',
@@ -253,7 +377,8 @@ describe('parent helper controls', () => {
       },
     });
     renderWithProviders(<EntityHelperControls entityId={parent.canonicalId} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Delay' }));
-    expect(screen.getByRole('spinbutton')).toBeDisabled();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delay' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
   });
 });

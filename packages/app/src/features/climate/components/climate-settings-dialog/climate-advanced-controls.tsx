@@ -135,6 +135,7 @@ function ClimateOptionControl({
   const { t } = useI18n();
   const fieldId = useId();
   const action = useClimateControlAction(control.value ?? '', writable, providerId);
+  const hasStatus = !writable || action.pending || action.failed;
   // Only literal on/off pairs are boolean. Directional swing modes remain choices.
   const off = control.options.find((option) => option.toLowerCase() === 'off');
   const on = control.options.find((option) => option.toLowerCase() === 'on');
@@ -154,7 +155,9 @@ function ClimateOptionControl({
     theme: 'dark' as const,
     value: control.value ?? t('providerDetails.unknown'),
     icon: <Icon className="h-4 w-4" />,
-    status: <ControlStatus {...action} writable={writable} id={`${fieldId}-status`} />,
+    status: hasStatus ? (
+      <ControlStatus {...action} writable={writable} id={`${fieldId}-status`} />
+    ) : undefined,
   };
   if (isToggle)
     return (
@@ -177,7 +180,7 @@ function ClimateOptionControl({
         value={control.value}
         disabled={action.disabled}
         pending={action.pending}
-        statusId={`${fieldId}-status`}
+        statusId={hasStatus ? `${fieldId}-status` : undefined}
         options={control.options.map((option) => ({ value: option, label: option }))}
         onValueChange={(value) => {
           if (control.options.includes(value))
@@ -205,6 +208,7 @@ function ClimateHumidityControl({
   const [draft, setDraft] = useState(current);
   const dirty = useRef(false);
   const action = useClimateControlAction(current, writable, providerId);
+  const hasStatus = !writable || action.pending || action.failed;
   useEffect(() => {
     if (Number(draft) === control.value && draft !== '') dirty.current = false;
     if (!dirty.current) setDraft(current);
@@ -224,7 +228,11 @@ function ClimateHumidityControl({
       label={t('climate.advanced.targetHumidity')}
       value={control.value === null ? t('providerDetails.unknown') : `${control.value}%`}
       icon={<Droplets className="h-4 w-4" />}
-      status={<ControlStatus {...action} writable={writable} id={`${fieldId}-status`} />}
+      status={
+        hasStatus ? (
+          <ControlStatus {...action} writable={writable} id={`${fieldId}-status`} />
+        ) : undefined
+      }
     >
       <form onSubmit={save} className="space-y-2" aria-busy={action.pending}>
         <Input
@@ -238,7 +246,7 @@ function ClimateHumidityControl({
           required
           disabled={action.disabled}
           trailing="%"
-          aria-describedby={`${fieldId}-status`}
+          aria-describedby={hasStatus ? `${fieldId}-status` : undefined}
           onChange={(event) => {
             dirty.current = true;
             setDraft(event.target.value);

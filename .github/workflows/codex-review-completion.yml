@@ -1,0 +1,34 @@
+name: Record Codex Review Completion
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+concurrency:
+  group: codex-review-completion-${{ github.repository }}-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  record:
+    if: >-
+      github.event.issue.pull_request != null &&
+      github.event.comment.user.login == 'chatgpt-codex-connector[bot]' &&
+      github.event.comment.user.id == 199175422 &&
+      github.event.comment.user.type == 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # issue_comment checks out trusted default-branch code, never the PR head.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Submit current-head completion review
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { recordCodexReviewCompletion } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/codex-review-completion.mjs`);
+            await recordCodexReviewCompletion({ github, context, core });

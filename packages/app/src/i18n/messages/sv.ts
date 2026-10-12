@@ -645,6 +645,7 @@ export const svMessages = {
   'helpers.updateFailed': 'Det gick inte att uppdatera värdet. Försök igen.',
   'helpers.noOptions': 'Inga alternativ tillgängliga',
   'helpers.chooseOption': 'Välj ett tillgängligt alternativ',
+  'helpers.title': 'Hjälpare',
   'common.controls': 'Kontroller',
   'common.custom': 'Anpassad',
   'common.customize': 'Anpassa',
