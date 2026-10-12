@@ -56,7 +56,6 @@ Current-state note:
 - most current UI regression coverage still lives in app-owned tests under
   `packages/app/src/components/**`, `packages/app/src/features/**`, `packages/app/src/hooks/**`,
   and Storybook coverage
-- that is the current implementation reality, not a reason to collapse the `@navet/ui` boundary
 
 ### Provider packages
 

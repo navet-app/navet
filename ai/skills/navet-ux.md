@@ -132,13 +132,12 @@ Review the result against the named reference, not only against the request:
 - realistic long names, translated copy, missing artwork, and missing optional data
 - high and reduced effects quality when visual effects are involved
 
-Compare rendered output with the named reference. Discovery preserves review status; structural
-checks establish neither rendered acceptance nor design fidelity. If a visual review surface is
-available, inspect it and correct visible hierarchy, overflow, alignment and theme mismatches
-before calling the work complete.
+Ask the maintainer to compare rendered output with the named reference using this matrix.
+Agents perform visual comparisons only when the maintainer explicitly requests them.
+Keep rendered acceptance pending until the maintainer completes the manual review.
 
 For small UI-only tweaks, run the closest focused validation, usually a targeted Storybook test,
-`pnpm check:stories`, or `pnpm test <path>`, and inspect the rendered state. For broader or
+`pnpm check:stories`, or `pnpm test <path>`. For broader or
 responsive UI work, follow `docs/agents/commands.md`, use the smallest routeable validation that
 covers the change, and run `pnpm test:visual-review` when shared layout or overflow can change.
 

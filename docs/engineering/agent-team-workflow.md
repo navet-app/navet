@@ -12,8 +12,7 @@ For UI tickets, design and implementation specialists use the
 use the [UX evidence guidance](../../ai/skills/navet-ux.md) for reproducible rendered
 evidence and `pnpm check:ui-kit` for focused source guardrails. Attach findings and retest evidence
 to the existing ticket and approval package. Choose coverage from the changed surface, its direct
-consumers and acceptance criteria; these tools do not require an additional audit programme or
-specialist for every task.
+consumers and acceptance criteria.
 
 ## Source Ownership
 

@@ -25,6 +25,9 @@ change alters them. A code change alone does not require documentation.
    code nor a documentation cleanup authorizes a new direction.
 4. Give each rule one owner. Replace duplicate explanations with precise links; retain unique
    privacy, compatibility, approval and evidence boundaries.
+   Keep agent entrypoints brief and ordinary tasks self-contained; route exceptional detail
+   through task-specific links. Remove task narratives, repeated checklists and superseded
+   guidance from touched sections instead of appending another explanation.
 5. Check inbound references, paths and commands after moves/removals. Build affected public docs
    and review the surrounding text for coherence. Recheck volatile operational status for the
    current task instead of preserving dated readiness claims in permanent instructions.

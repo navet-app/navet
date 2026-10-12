@@ -65,9 +65,7 @@ marketing/
 pnpm marketing:wip:clean -- --area <community|tutorials|videos> --id <task-id>
 ```
 
-The cleanup command intentionally accepts one task at a time. Do not add a broad `--all` mode.
-Never clean a deliverables directory through the WIP cleanup command.
-Do not delete a long-lived `planning/` roadmap as part of routine WIP cleanup.
+Cleanup applies only to the selected WIP task; retain its deliverables and long-lived roadmap.
 
 ## Publication boundary
 
@@ -79,7 +77,6 @@ Do not delete a long-lived `planning/` roadmap as part of routine WIP cleanup.
   for releases, features, tips and general Navet discussion.
 - Store the final public URL, public copy, timestamps, platform status, and media checksums beside
   the local deliverable when useful.
-- Do not treat publication receipts as a reason to keep internal planning in Git.
 - External-community submissions and moderation actions remain user-controlled unless the user
   explicitly authorizes the exact action.
 

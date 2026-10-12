@@ -54,26 +54,22 @@ media players, cameras, energy, calendars, weather, notifications, updates, Assi
 supported task or automation surfaces. Home Assistant also provides the advanced dashboard and administration
 services marked **Yes** in the matrix above.
 
-Supported household helpers include numeric values, dropdown options, text, and dates or times.
-Home Assistant validates text patterns when saving; its Python patterns are not applied as browser regexes.
-Native `datetime` values display and save in UTC, with the zone shown on the control. Date/time helpers retain their Home Assistant wall-clock semantics.
-Their controls follow the entity's available options and limits. Configuration-category entities
-retain their existing metric presentation. Boolean and button helpers keep their existing controls.
+Supported household helpers include toggles, buttons, numeric values, dropdown options, text,
+and dates or times. Controls follow the entity's available options and limits.
+Native `datetime` values display and save in UTC, with the zone shown on the control.
+Date/time helpers use Home Assistant's local time.
 
 Room names and entity assignments refresh after external Home Assistant registry edits and after
 reconnection. A failed metadata refresh retains the last loaded rooms and entities. These features
-use the existing authenticated connection in standalone, Ingress, and custom panel installations.
+work in standalone, Ingress, and custom panel installations.
 
 Climate dialogs offer thermostat presets, climate fan modes, vertical and horizontal swing,
 and target humidity when the owning device advertises them. These controls use the climate
-device's options and limits; separate fans and humidifiers keep their existing controls.
+device's options and limits.
 
-The Tasks workspace keeps Home Assistant lists separate from routines and Navet chores. Select
-**Lists** to view a connected source's shopping or to-do items. Supported lists allow adding,
+Open **Household → Lists** to view a connected source's shopping or to-do items. Supported lists allow adding,
 completing or reopening, editing, and removing items. Description and due-date fields appear only
-when that list supports them. Shared item updates refresh without relying on the incomplete-item
-count changing. See Home Assistant's [to-do list documentation](https://www.home-assistant.io/integrations/todo/)
-for the backend's list behavior.
+when that list supports them.
 
 ### Homey
 

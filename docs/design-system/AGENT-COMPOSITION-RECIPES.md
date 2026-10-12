@@ -25,7 +25,7 @@ capabilities, provider routing, validation and persistence; templates use Navet'
 | Mobile detail or command sheet | `SheetSurface` directly containing `SheetSurfaceHeader` and body | [Sheet surface](../../packages/app/src/components/primitives/sheet-surface.stories.tsx): open on a phone, dismissal, scroll, long content and desktop visibility. |
 | Sidebar-to-detail navigation | `NavigationWorkspace.Frame` with its named parts; catalog query: `NavigationWorkspace.Frame` | [Navigation workspace](../../packages/app/src/components/patterns/navigation-workspace.stories.tsx): frame context, labeled navigation, `aria-current`, explicit sidebar/detail grid and owned scroll regions. The namespace is a composition object. |
 | Settings form | Existing settings-dialog shell; `FieldBlock` around control primitives | [Field states](../../packages/app/src/components/patterns/field-block.stories.tsx): hint, required, error and disabled. Inspect a neighboring feature's settings dialog for save and cancellation behavior. |
-| Dashboard summary | Existing feature summary inside the shared dashboard layout | [Dashboard guidance](../product/dashboard-principles.md) and the nearest summary implementation: reading order, condensed/expanded presentation and no-data behavior. Select its actual feature composition rather than assuming a generic summary-bar component. |
+| Dashboard summary | Existing feature summary inside the shared dashboard layout | [Dashboard guidance](../product/dashboard-principles.md) and the nearest summary implementation: reading order, condensed/expanded presentation and no-data behavior. |
 | Empty card or section | `CardEmptyState` inside `BaseCard`; `DashboardEmptyState` for sections | [Card empty states](../../packages/app/src/components/patterns/card-empty-state.stories.tsx) and [dashboard empty states](../../packages/app/src/components/patterns/dashboard-empty-state.stories.tsx): small/large sizes, optional action, no matches versus unconfigured content. |
 | Unavailable device | Existing entity-card unavailable composition with normalized state | [Vacuum states](../../packages/app/src/features/vacuum/components/vacuum-card/entity-card-vacuum.stories.tsx): unavailable and missing data. Inspect the actual target device family; unavailable is distinct from empty or switched off. |
 
@@ -147,6 +147,6 @@ awaits maintainer design acceptance; it is not a generic template for sensors, l
 Record the selected recipe, source contract, current commit and actual story IDs. Review realistic
 data, the relevant sizes, touch and keyboard behavior, reduced motion and all four themes: glass,
 dark, light and black. Include empty, unavailable, error and permission states where applicable.
-Run relevant checks and rendered review on the changed surface and direct consumers of modified
-shared components. State which cases were inspected and which remain outstanding. A default-state
-test or an importable example proves only that narrow case.
+Run relevant checks on the changed surface and direct consumers of modified shared components.
+Use the [UX handoff rules](../../ai/skills/navet-ux.md#review-before-handoff) for maintainer visual
+comparison. State which cases were inspected and which remain outstanding.

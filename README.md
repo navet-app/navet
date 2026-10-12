@@ -26,7 +26,7 @@
   <p>
     <a href="https://docs.navet.app/security/"><img src="https://img.shields.io/badge/local--first-self--hosted-14b8a6" alt="Local-first and self-hosted"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-f97316" alt="AGPL-3.0 license"></a>
-    <a href="https://github.com/navet-app/navet/stargazers"><img src="https://img.shields.io/github/stars/awesomestvi/navet?style=flat" alt="GitHub stars"></a>
+    <a href="https://github.com/navet-app/navet/stargazers"><img src="https://img.shields.io/github/stars/navet-app/navet?style=flat" alt="GitHub stars"></a>
   </p>
 </div>
 

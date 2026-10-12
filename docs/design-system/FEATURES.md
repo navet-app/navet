@@ -1,13 +1,13 @@
 # Navet feature map
 
-Current product/UI ownership. App-owned shared UI remains a migration seam; root `AGENTS.md`
+Current product/UI ownership. Root `AGENTS.md`
 owns package direction and the [shared UI map](README.md#current-shared-ui-layers) owns authoring
 and import locations. Use [provider coverage](../integrations.md#capability-matrix) for capabilities.
 
 ## Active Feature Folders
 
 Under `packages/app/src/features/`: `auth`, `calendar`, `chores`, `climate`, `dashboard`, `energy`,
-`lighting`, `media`, `notifications`, `person`, `rss`, `scenes`, `security`, `sensors`, `settings`,
+`household-controls`, `lighting`, `media`, `notifications`, `person`, `rss`, `scenes`, `security`, `sensors`, `settings`,
 `tasks`, `vacuum`, `weather`. Search the owning feature, then its direct callers.
 
 ## App Shell
@@ -57,6 +57,8 @@ see [chores architecture](../architecture/household-chores.md).
 
 Tasks owns provider routines under Household. Automation details summarize triggers, conditions,
 actions, diagnostics and dependent entities from provider configuration.
+It also owns provider-backed shopping and to-do lists under **Lists**. Household controls owns
+timer, counter, valve and remote cards; lighting owns helper value controls.
 
 ## Energy Dashboard
 

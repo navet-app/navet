@@ -36,7 +36,7 @@ incrementally; do not move code merely to complete this tree.
 | Home Assistant release surfaces | `platform/home-assistant` |
 | Local marketing work | `marketing` |
 
-Search the owner with `rg`, then direct callers; there is no assumed root `src/`.
+Search the owning paths with `rg`, then their direct callers.
 
 ## Task router
 
@@ -113,6 +113,19 @@ Community work follows `docs/engineering/request-workflows.md`; writing skills s
 Inspect the owner/callers, routed guide and nearest implementation/test/story; make the smallest
 coherent change. Stop reading once rules/verification are clear. Plans are leads, not proof.
 Use bounded excerpts and compact output.
+
+### Waiting and weekly budget
+
+- Finish independent work, check CI/previews once, then stop for pending CI, previews or
+  maintainer input/acceptance. Hand off commit/PR, results, pending dependency and resume condition.
+- The maintainer requests pausing goals during these waits. Use the pause control when
+  lifecycle rules permit; ending a turn may auto-resume. Report unsupported pausing;
+  never claim unfinished work complete or manufacture idle work.
+- Give subagents bounded assignments; they return findings and finish when done or waiting.
+  The parent resumes them only for actionable changes. No sleep/poll loops or repeated messages.
+- Resume on dependency completion or maintainer request. Continuous monitoring requires an
+  explicit request and bounded duration/check count. Reuse evidence; rerun only affected
+  checks for relevant changes, actionable findings, failures or newly available artifacts.
 
 Run focused validation; use `pnpm validate -- --dry-run` if scope is unclear.
 New worktrees: `pnpm install --frozen-lockfile` before dependency-backed checks; on registry failure,

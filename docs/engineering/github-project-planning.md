@@ -117,23 +117,6 @@ belong to approved public delivery; private draft bodies link their own dependen
 or a roadmap view only for an actual planning need; target dates express expectations and require
 review when scope changes.
 
-### Research behind this routine
-
-These primary sources were reviewed on 2026-10-10. The Navet practices above are adaptations
-for a small maintainer-led project; they are not claims about these teams' effectiveness or
-unpublished processes. Some board contents require sign-in or do not render in public fetches.
-
-| Project | Documented GitHub Projects practice | Navet adaptation |
-| --- | --- | --- |
-| [Home Assistant / Open Home Foundation](https://github.com/OpenHomeFoundation/roadmap#-roadmap-process) | Community requests feed curated opportunities; approved opportunities enter project boards and delivery work | Link feedback to one shaped proposal and retain a separate approved delivery brief |
-| [Wagtail](https://github.com/wagtail/roadmap#roadmap-reports) | Curates significant roadmap items and uses Project reports for releases and sponsorship | Use focused views of one item set; add release grouping only when needed |
-| [Rust async working group](https://rust-lang.github.io/wg-async/triage.html#triage-process) | Reviews completed, active, blocked and claimed work before new intake | Review acceptance and blockers before starting more work; this is a documented group practice, not a verified current schedule |
-| [GitHub public roadmap](https://github.com/github/roadmap#roadmap-stages) | Uses a Project board for expected shipping horizons and states that plans can change | Treat targets as expectations and review them when scope changes |
-
-[VS Code issue tracking](https://github.com/microsoft/vscode/wiki/Issue-Tracking#iteration-planning)
-also documents issue-based iteration plans and separate verification queues. It is a useful
-adjacent example, rather than evidence here of a current Projects board configuration.
-
 ### Project access and scope
 
 GitHub CLI must be authenticated with Projects access (`project` for updates, `read:project` for
