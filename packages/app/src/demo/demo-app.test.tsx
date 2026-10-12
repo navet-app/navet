@@ -1,6 +1,7 @@
 import { dispatchEntityCommand } from '@navet/app/commands';
 import { EntityHelperControls } from '@navet/app/components/shared/device-editor/entity-helper-controls';
 import { UpsWidget } from '@navet/app/features/dashboard/components/widgets/ups-widget';
+import { SwitchCard } from '@navet/app/features/lighting/components/switch-card';
 import { getProviderRuntimeRegistration } from '@navet/app/provider-runtime-registry';
 import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
 import { integrationStore } from '@navet/app/stores/integration-store';
@@ -115,6 +116,44 @@ describe('demo preview runtime', () => {
         'home_assistant:climate.bathroom_floor'
       ]?.attributes.temperature
     ).toBe(24);
+  });
+
+  it('renders boolean switches from live snapshots and retains commanded on/off state', async () => {
+    document.documentElement.dataset.navetPreviewRuntime = 'demo';
+    const scenario = getPreviewRuntimeScenario('demo');
+    expect(scenario.homeAssistant.entities?.['switch.espresso']?.state).toBe('on');
+    expect(scenario.homeAssistant.entities?.['switch.spare_plug']?.state).toBe('off');
+    installPreviewRuntime(scenario);
+    const runtime = getProviderRuntimeRegistration('home_assistant').entityRuntimeService;
+    expect(runtime?.getEntitySnapshot?.('switch.laundry')?.state).toBe('on');
+    expect(runtime?.getEntitySnapshot?.('switch.gym_air_purifier')?.state).toBe('on');
+    expect(runtime?.getEntitySnapshot?.('input_boolean.guest_mode')?.state).toBe('on');
+    expect(runtime?.getEntitySnapshot?.('switch.kitchen_night_mode')?.state).toBe('off');
+    renderWithProviders(
+      <SwitchCard
+        id="switch.espresso"
+        name="Espresso machine"
+        initialState={false}
+        size="small"
+        isEditMode={false}
+      />
+    );
+    const card = screen.getByRole('button', { name: 'Espresso machine' });
+    await waitFor(() => expect(card).toHaveAttribute('aria-pressed', 'true'));
+    await act(() =>
+      dispatchEntityCommand({ type: 'turn_off', entityId: 'home_assistant:switch.espresso' })
+    );
+    expect(runtime?.getEntitySnapshot?.('switch.espresso')?.state).toBe('off');
+    await waitFor(() => expect(card).toHaveAttribute('aria-pressed', 'false'));
+    await act(() =>
+      dispatchEntityCommand({ type: 'turn_on', entityId: 'home_assistant:switch.espresso' })
+    );
+    expect(runtime?.getEntitySnapshot?.('switch.espresso')?.state).toBe('on');
+    await waitFor(() => expect(card).toHaveAttribute('aria-pressed', 'true'));
+    expect(
+      integrationStore.getState().providerEntitiesByCanonicalId['home_assistant:switch.espresso']
+        ?.primaryState
+    ).toBe(true);
   });
 
   it('saves linked helper values and keeps unavailable helpers without an editor', async () => {

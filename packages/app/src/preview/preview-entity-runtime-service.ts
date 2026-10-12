@@ -56,6 +56,13 @@ export function getPreviewSnapshotAttributes(entity: NavetEntity) {
   return attributes;
 }
 
+export function getPreviewSnapshotState(entity: NavetEntity): string {
+  const state = entity.primaryState;
+  if (state === null || state === undefined) return 'unknown';
+  if (typeof state === 'boolean') return state ? 'on' : 'off';
+  return String(state);
+}
+
 function buildEntitySnapshotMap(
   entities: NavetEntity[],
   timestamp: string
@@ -65,12 +72,7 @@ function buildEntitySnapshotMap(
       entity.externalId,
       {
         entityId: entity.externalId,
-        state:
-          entity.primaryState === null || entity.primaryState === undefined
-            ? 'unknown'
-            : typeof entity.primaryState === 'string'
-              ? entity.primaryState
-              : String(entity.primaryState),
+        state: getPreviewSnapshotState(entity),
         attributes: getPreviewSnapshotAttributes(entity),
         lastChanged: timestamp,
         lastUpdated: entity.lastUpdated ?? timestamp,

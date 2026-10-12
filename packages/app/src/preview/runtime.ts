@@ -41,6 +41,7 @@ import { applyPreviewCommandToEntity } from './preview-command-model';
 import {
   createPreviewEntityRuntimeService,
   getPreviewSnapshotAttributes,
+  getPreviewSnapshotState,
   resetPreviewEntityRuntimeCaches,
 } from './preview-entity-runtime-service';
 
@@ -170,12 +171,7 @@ function createPreviewRoom(name: string, memberEntityIds: string[]): NavetProvid
 }
 
 function createHomeAssistantCompatEntity(entity: NavetEntity) {
-  const state =
-    entity.primaryState === null || entity.primaryState === undefined
-      ? 'unknown'
-      : typeof entity.primaryState === 'string'
-        ? entity.primaryState
-        : String(entity.primaryState);
+  const state = getPreviewSnapshotState(entity);
 
   return {
     entity_id: entity.externalId,
