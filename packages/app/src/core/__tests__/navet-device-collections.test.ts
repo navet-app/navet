@@ -6,6 +6,7 @@ import {
 } from '@navet/core/household-device-state';
 import type { NavetEntity } from '@navet/core/types';
 import { describe, expect, it } from 'vitest';
+import { buildDashboardVisibilityResult } from '../../hooks/use-dashboard-devices';
 import { mapNavetEntitiesToDeviceCollection } from '../navet-device-collections';
 
 function createEntity({
@@ -244,7 +245,7 @@ describe('mapNavetEntitiesToDeviceCollection', () => {
     );
   });
 
-  it('suppresses helper and sensor cards when a device already has a primary switch card', () => {
+  it('retains related helpers for dashboard visibility while suppressing grouped sensors', () => {
     const devices = mapNavetEntitiesToDeviceCollection([
       createEntity({
         canonicalId: 'home_assistant:switch.kitchen_main',
@@ -284,8 +285,15 @@ describe('mapNavetEntitiesToDeviceCollection', () => {
     expect(devices.switches.map((device) => device.id)).toEqual([
       'home_assistant:switch.kitchen_main',
     ]);
-    expect(devices.helpers).toHaveLength(0);
+    expect(devices.helpers.map((device) => device.id)).toEqual([
+      'home_assistant:input_boolean.kitchen_timer',
+    ]);
     expect(devices.sensors).toHaveLength(0);
+    expect(buildDashboardVisibilityResult(devices, []).availableDevices.helpers).toEqual([]);
+    expect(
+      buildDashboardVisibilityResult(devices, ['home_assistant:switch.kitchen_main'])
+        .availableDevices.helpers
+    ).toEqual(devices.helpers);
   });
 
   it.each([
@@ -530,7 +538,7 @@ describe('mapNavetEntitiesToDeviceCollection', () => {
     ]);
   });
 
-  it('suppresses helper buttons attached to sensor devices', () => {
+  it('retains helper buttons attached to sensor devices', () => {
     const devices = mapNavetEntitiesToDeviceCollection([
       createEntity({
         canonicalId: 'home_assistant:sensor.aqara_humidity_sensor_humidity',
@@ -562,7 +570,38 @@ describe('mapNavetEntitiesToDeviceCollection', () => {
     expect(devices.sensors.map((device) => device.id)).toEqual([
       'home_assistant:sensor.aqara_humidity_sensor_humidity',
     ]);
-    expect(devices.helpers).toHaveLength(0);
+    expect(devices.helpers.map((device) => device.id)).toEqual([
+      'home_assistant:button.aqara_humidity_sensor_identify',
+    ]);
+  });
+
+  it('offers a non-security action helper attached to a lock in All cards', () => {
+    const identify = createEntity({
+      canonicalId: 'home_assistant:button.front_door_identify',
+      externalId: 'button.front_door_identify',
+      type: 'helper',
+      name: 'Identify',
+      attributes: { value: '', deviceId: 'device-front-door', entityType: 'button' },
+    });
+    identify.capabilities = ['press'];
+    const devices = mapNavetEntitiesToDeviceCollection([
+      createEntity({
+        canonicalId: 'home_assistant:lock.front_door',
+        externalId: 'lock.front_door',
+        type: 'lock',
+        name: 'Front Door',
+        attributes: { value: 'locked', deviceId: 'device-front-door', securityKind: 'lock' },
+      }),
+      identify,
+    ]);
+    expect(devices.helpers).toHaveLength(1);
+    expect(devices.helpers[0].securityKind).toBeUndefined();
+    const visibility = buildDashboardVisibilityResult(devices, []);
+    expect(visibility.visibleDevices.helpers).toEqual([]);
+    expect(visibility.availableDevices.helpers).toEqual(devices.helpers);
+    expect(
+      buildDashboardVisibilityResult(devices, [], [], [identify.canonicalId]).visibleDevices.helpers
+    ).toEqual(devices.helpers);
   });
 
   it('keeps the underlying device id on camera devices', () => {
