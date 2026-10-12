@@ -2,4 +2,4 @@ type: fixed
 audiences:
   - standalone
   - home-assistant
-summary: Fan speed controls show numbered corner badges, and fans with direction or oscillation controls cycle speeds directly instead of opening a preset menu.
+summary: Fan speed controls show numbered corner badges and cycle speeds directly when direction or oscillation controls are available.
