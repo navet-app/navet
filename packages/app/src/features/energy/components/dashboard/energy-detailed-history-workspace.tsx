@@ -6,6 +6,7 @@ import {
 } from '@navet/app/components/primitives';
 import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-card-header-icon';
 import { CardEditActionButton } from '@navet/app/components/shared/card-edit-action-button';
+import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { cn } from '@navet/app/components/ui/utils';
 import { STORAGE_KEYS } from '@navet/app/constants/storage-keys';
@@ -24,6 +25,7 @@ import type {
   EnergySeriesPoint,
 } from '@navet/app/features/energy/types/energy.types';
 import { formatEnergyValue } from '@navet/app/features/energy/utils/energy-formatters';
+import { SmallSensorDisplay } from '@navet/app/features/sensors/components/sensors/small-sensor-display';
 import {
   useI18n,
   useIntegrationStore,
@@ -169,6 +171,7 @@ export function EnergyDetailedHistoryWorkspace({
     DEFAULT_ENERGY_KPI_PREFERENCES
   );
   const surface = getThemeSurfaceTokens(theme);
+  const sourceSummaryText = getCardReadableTextTokens({ theme, tone: 'neutral' });
   const [chartMode, setChartMode] = useState<'live' | 'insights'>(
     insightsRange === 'today' ? 'live' : 'insights'
   );
@@ -872,13 +875,16 @@ export function EnergyDetailedHistoryWorkspace({
           >
             <BaseCard
               size="medium"
-              surfaceVariant="muted"
               className={detailCardClassName}
+              disableDefaultSheen={theme !== 'light'}
+              contentClassName="flex min-h-0 items-end"
               title={t('energy.historyWorkspace.sourceSummary', {
                 source: selectedSource?.label ?? t('media.source'),
               })}
               subtitle={detailLabel}
-              headerLayout="title-first"
+              headerLayout="eyebrow-first"
+              headerTitleOverflow="wrap"
+              headerTone="neutral"
               headerLeading={
                 <EntityCardHeaderIcon
                   IconComponent={Gauge}
@@ -888,24 +894,41 @@ export function EnergyDetailedHistoryWorkspace({
                 />
               }
             >
-              <dl className="grid grid-cols-2 gap-3">
-                <SourceSummaryMetric
-                  label={t('energy.band.eyebrow')}
-                  value={`${formatEnergyValue(metricEnergyKWh)} kWh`}
-                />
-                <SourceSummaryMetric
-                  label={t('energy.history.average')}
-                  value={formatPowerValue(metricAveragePowerW)}
-                />
-                <SourceSummaryMetric
-                  label={t('energy.history.low')}
-                  value={formatPowerValue(metricLowPowerW)}
-                />
-                <SourceSummaryMetric
-                  label={t('energy.dashboard.mode.peak')}
-                  value={formatPowerValue(metricPeakPowerW)}
-                />
-              </dl>
+              <SmallSensorDisplay
+                size="medium"
+                textPrimaryColor={sourceSummaryText.titleColor}
+                textSecondaryColor={sourceSummaryText.subtitleColor}
+                sensors={[
+                  {
+                    id: 'total',
+                    label: t('energy.band.eyebrow'),
+                    value: formatEnergyValue(metricEnergyKWh),
+                    unit: 'kWh',
+                    icon: 'zap',
+                  },
+                  {
+                    id: 'average',
+                    label: t('energy.history.average'),
+                    value: formatPowerValue(metricAveragePowerW),
+                    unit: '',
+                    icon: 'gauge',
+                  },
+                  {
+                    id: 'low',
+                    label: t('energy.history.low'),
+                    value: formatPowerValue(metricLowPowerW),
+                    unit: '',
+                    icon: 'trend-down',
+                  },
+                  {
+                    id: 'peak',
+                    label: t('energy.dashboard.mode.peak'),
+                    value: formatPowerValue(metricPeakPowerW),
+                    unit: '',
+                    icon: 'trend-up',
+                  },
+                ]}
+              />
             </BaseCard>
           </section>
         ) : null}
@@ -1150,19 +1173,6 @@ function HistoryMetric({
         <div className={`text-sm font-semibold tabular-nums ${surface.textPrimary}`}>{value}</div>
         <div className={`text-[10px] ${surface.textSecondary}`}>{label}</div>
       </div>
-    </div>
-  );
-}
-
-function SourceSummaryMetric({ label, value }: { label: string; value: string }) {
-  const { theme } = useTheme();
-  const surface = getThemeSurfaceTokens(theme);
-  return (
-    <div className={cn('rounded-2xl border p-3', surface.border, surface.subtleBg)}>
-      <dt className={`text-[10px] ${surface.textSecondary}`}>{label}</dt>
-      <dd className={`mt-1 text-base font-semibold tabular-nums ${surface.textPrimary}`}>
-        {value}
-      </dd>
     </div>
   );
 }
