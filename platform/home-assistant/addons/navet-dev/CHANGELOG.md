@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.18.0-beta.1
+
+## New features
+
+- Use supported thermostat modes and humidity controls, and manage Home Assistant shopping and to-do lists separately from routines and chores.
+- Added integration reload for Home Assistant entities, including unavailable cards.
+- Home Assistant timers, counters, valves, and remotes now have dashboard cards with their supported controls.
+- Control supported household helpers and refresh room and entity metadata after external Home Assistant edits.
+
+## Improvements and bug fixes
+
+- Keep after-completion chores actionable until finished, restart each person's interval independently, and move superseded scheduled chores into missed history.
+- Fixed stale provider state after reconnecting and missed openHAB live updates.
+
 ## 0.17.8-beta.2
 
 ## Improvements and bug fixes
