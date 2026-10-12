@@ -19,7 +19,6 @@ import { ClimateCard } from '@navet/app/features/climate/components/climate-card
 import { HumidifierCard } from '@navet/app/features/climate/components/humidifier-card';
 import type { ClimateDashboardSection } from '@navet/app/features/climate/types/climate-dashboard';
 import type { CardTemplate } from '@navet/app/features/dashboard/components/add-entity-dialog/types';
-import type { DashboardLibraryCard } from '@navet/app/features/dashboard/components/dashboard-library-list';
 import { HomeEditCommandBar } from '@navet/app/features/dashboard/components/home-edit-command-bar';
 import { WidgetCard } from '@navet/app/features/dashboard/components/widget-card';
 import { useProgressiveBatching } from '@navet/app/features/dashboard/hooks/use-progressive-batching';
@@ -71,6 +70,7 @@ import {
   useState,
 } from 'react';
 import type { CameraDevice, DeviceWithType, LockDevice, SensorDevice } from '../types/device.types';
+import { DEMO_CARD_TEMPLATE_IDS, demoHomeLibraryCards } from './demo-card-library';
 import { installDemoDeviceAuthority } from './demo-device-authority';
 import { PHOTO_FRAME_DEMO_IMAGES } from './photo-frame-demo-images';
 
@@ -760,6 +760,22 @@ const calendarEvents = [
 
 const demoHomeWidgets: CustomCard[] = [
   {
+    id: 'demo-widget-ups',
+    type: 'ups',
+    size: 'medium',
+    room: 'Home',
+    createdAt: 0,
+    data: {
+      deviceId: 'device-ups',
+      statusEntityId: 'sensor.nutdev1_status',
+      metricEntityIds: [
+        'sensor.nutdev1_battery_charge',
+        'sensor.nutdev1_load',
+        'sensor.nutdev1_battery_runtime',
+      ],
+    },
+  },
+  {
     id: 'demo-widget-note',
     type: 'note',
     size: 'medium',
@@ -909,54 +925,6 @@ const demoHomeWidgets: CustomCard[] = [
       ],
       accentColor: 'teal',
     },
-  },
-];
-
-const demoHomeLibraryCards: DashboardLibraryCard[] = [
-  {
-    id: 'home_assistant:light.kitchen_island',
-    title: 'Kitchen island',
-    subtitle: 'Kitchen',
-    room: 'Kitchen',
-    meta: 'Light',
-    kind: 'device',
-    entityType: 'light',
-    entityTypeLabel: 'Light',
-    icon: Lightbulb,
-    idSearchText: 'light.kitchen_island',
-  },
-  {
-    id: 'home_assistant:climate.main_floor',
-    title: 'Main floor climate',
-    subtitle: 'Living Room',
-    room: 'Living Room',
-    meta: 'Climate',
-    kind: 'device',
-    entityType: 'climate',
-    entityTypeLabel: 'Climate',
-    idSearchText: 'climate.main_floor',
-  },
-  {
-    id: 'home_assistant:camera.front_door',
-    title: 'Front Door camera',
-    subtitle: 'Entrance',
-    room: 'Entrance',
-    meta: 'Camera',
-    kind: 'device',
-    entityType: 'camera',
-    entityTypeLabel: 'Camera',
-    idSearchText: 'camera.front_door',
-  },
-  {
-    id: 'home_assistant:input_boolean.guest_mode',
-    title: 'Guest mode',
-    subtitle: 'Home',
-    room: 'Home',
-    meta: 'Helper',
-    kind: 'device',
-    entityType: 'helper',
-    entityTypeLabel: 'Helper',
-    idSearchText: 'input_boolean.guest_mode',
   },
 ];
 
@@ -1522,9 +1490,14 @@ function ProductGrid({ addedWidgets }: { addedWidgets: CustomCard[] }) {
 }
 
 function DemoWidgetCard({ card }: { card: CustomCard }) {
+  const [currentCard, setCurrentCard] = useState(card);
   return (
-    <CardSlot size={card.size}>
-      <WidgetCard card={card} isEditMode={false} onUpdate={() => undefined} />
+    <CardSlot size={currentCard.size}>
+      <WidgetCard
+        card={currentCard}
+        isEditMode={false}
+        onUpdate={(_id, updates) => setCurrentCard((current) => ({ ...current, ...updates }))}
+      />
     </CardSlot>
   );
 }
@@ -1938,7 +1911,10 @@ function DemoContent() {
         type: template.cardType,
         size,
         room: 'Home',
-        data: template.initialData,
+        data: {
+          ...demoHomeWidgets.find((card) => card.type === template.cardType)?.data,
+          ...template.initialData,
+        },
         createdAt: Date.now(),
       },
     ]);
@@ -2005,7 +1981,7 @@ function DemoContent() {
               (card) => !addedWidgets.some((widget) => widget.data?.entityId === card.id)
             )}
             description="Choose a sample device or add a Navet content card."
-            allowedTemplateIds={['note', 'info']}
+            allowedTemplateIds={DEMO_CARD_TEMPLATE_IDS}
           />
         </Suspense>
       ) : null}

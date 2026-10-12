@@ -2,6 +2,11 @@
 
 This workspace builds the public Navet demo at `https://demo.navet.app`.
 
+The sample home includes fan direction and oscillation, advanced Main floor climate controls,
+linked Kitchen island helpers, and a configured UPS monitor. Home edit mode exposes sample
+entities and content card templates through Add card. Controls and widget settings update local
+sample state; reloading restores the demo defaults.
+
 ## Local commands
 
 - `pnpm demo:dev`

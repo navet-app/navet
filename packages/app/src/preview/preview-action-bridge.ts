@@ -5,7 +5,7 @@ import type { HassEntities, HassEntity } from 'home-assistant-js-websocket';
 
 type PreviewRuntimeKind = 'storybook' | 'demo';
 
-type PreviewServiceCallRequest = {
+export type PreviewServiceCallRequest = {
   entityId?: string;
   domain: string;
   service: string;
@@ -22,10 +22,17 @@ const PREVIEW_COMMAND_RESULT: CommandResult = {
 
 type PreviewCommandHandler = (command: NavetCommand) => Promise<CommandResult | null>;
 let installedPreviewCommandHandler: PreviewCommandHandler | null = null;
+let installedPreviewServiceHandler:
+  | ((entityId: string, request: PreviewServiceCallRequest) => boolean)
+  | null = null;
 
 // Runtime registration keeps preview fixtures out of the production command import graph.
 export function setInstalledPreviewCommandHandler(handler: PreviewCommandHandler | null) {
   installedPreviewCommandHandler = handler;
+}
+
+export function setInstalledPreviewServiceHandler(handler: typeof installedPreviewServiceHandler) {
+  installedPreviewServiceHandler = handler;
 }
 
 function getPreviewRuntimeKind(): PreviewRuntimeKind | null {
@@ -461,7 +468,9 @@ export async function maybeHandlePreviewServiceCall(
   }
 
   for (const entityId of entityIds) {
-    applyPreviewServiceToEntity(entityId, request);
+    if (!installedPreviewServiceHandler?.(entityId, request)) {
+      applyPreviewServiceToEntity(entityId, request);
+    }
   }
 
   return true;
