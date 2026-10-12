@@ -6,6 +6,7 @@ export function useDashboardEntityVisibility() {
     useShallow((state) => ({
       hiddenEntityIds: state.hiddenEntityIds,
       shownSensorEntityIds: state.shownSensorEntityIds,
+      explicitlyShownEntityIds: state.explicitlyShownEntityIds,
       hideAutoEntity: state.hideEntity,
       showAutoEntity: state.showEntity,
     }))

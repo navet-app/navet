@@ -785,6 +785,7 @@ export const CameraSettingsDialog = memo(function CameraSettingsDialog({
 
   return (
     <BaseCardDialogWithState
+      excludeHelperEntityIds={[...selects, ...numbers].map(({ id }) => id)}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title={name}

@@ -575,7 +575,17 @@ describe('homeassistant-mappers', () => {
       ],
     });
 
-    expect(entities.map((entity) => entity.externalId)).toEqual(['switch.kitchen_outlet']);
+    expect(entities.map((entity) => entity.externalId)).toEqual([
+      'switch.kitchen_outlet',
+      'select.kitchen_outlet_mode',
+      'number.kitchen_outlet_delay',
+    ]);
+    expect(
+      entities.find((entity) => entity.externalId === 'select.kitchen_outlet_mode')
+    ).toMatchObject({
+      type: 'helper',
+      attributes: { deviceId: 'device-kitchen-outlet', helperType: 'select' },
+    });
     expect(
       entities.find((entity) => entity.externalId === 'switch.kitchen_outlet')?.attributes
     ).toEqual(

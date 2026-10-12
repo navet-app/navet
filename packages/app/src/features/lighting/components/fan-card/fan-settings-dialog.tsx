@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 
 export function FanSettingsDialog(props: {
   entityId: string;
+  excludeHelperEntityIds?: string[];
   name: string;
   room: string;
   isOpen: boolean;
@@ -36,6 +37,7 @@ export function FanSettingsDialog(props: {
   return (
     <DeviceControlsDialog
       entityId={props.entityId}
+      excludeHelperEntityIds={props.excludeHelperEntityIds}
       name={props.name}
       room={props.room}
       status={t(props.isOn ? 'common.on' : 'common.off')}

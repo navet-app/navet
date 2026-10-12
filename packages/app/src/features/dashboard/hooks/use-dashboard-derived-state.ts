@@ -42,10 +42,15 @@ export function useDashboardDerivedState({
   const absorbedEntityIdSet = useMemo(() => new Set(absorbedEntityIds), [absorbedEntityIds]);
   const addableEntityIds = useMemo(
     () =>
-      (hiddenEntityIds.length > 0 ? hiddenEntityIds : allEntityIds).filter(
-        (entityId) => !absorbedEntityIdSet.has(entityId)
-      ),
-    [absorbedEntityIdSet, allEntityIds, hiddenEntityIds]
+      [
+        ...new Set([
+          ...(hiddenEntityIds.length > 0 ? hiddenEntityIds : allEntityIds),
+          ...allEntityIds.filter(
+            (id) => availableDeviceMap.get(id)?.type === 'helpers' && !deviceMap.has(id)
+          ),
+        ]),
+      ].filter((entityId) => !absorbedEntityIdSet.has(entityId)),
+    [absorbedEntityIdSet, allEntityIds, hiddenEntityIds, availableDeviceMap, deviceMap]
   );
 
   const lightDeviceMap = useMemo(

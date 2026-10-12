@@ -14,6 +14,7 @@ import { CardSettingsActionButton } from '@navet/app/components/shared/card-sett
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
 import { BrightnessSlider } from '@navet/app/components/shared/device-editor';
 import { getBrightnessPresetSelectedStyle } from '@navet/app/components/shared/device-editor/brightness-preset-styles';
+import { selectRelatedHelpers } from '@navet/app/components/shared/device-editor/entity-helper-controls';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { useEntityCardInteractionController } from '@navet/app/components/shared/entity-card-interaction-controller';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
@@ -299,8 +300,19 @@ export const FanCard = memo(function FanCard({
       return entity ? { id: entityId, entity } : null;
     })
     .filter((entry): entry is SwitchSiblingEntity => entry !== null);
+  const hasRelatedHelpers = useIntegrationStore(
+    (state) =>
+      selectRelatedHelpers(
+        providerEntity,
+        state.providerEntitiesByProviderId[resolvedProviderId] ?? {}
+      ).length > 0
+  );
   const showsSettingsButton =
-    supportsFanSpeed || hasAdvancedFanControls || siblingEntities.length > 0 || isEditMode;
+    supportsFanSpeed ||
+    hasAdvancedFanControls ||
+    siblingEntities.length > 0 ||
+    hasRelatedHelpers ||
+    isEditMode;
 
   useEffect(() => {
     if (!providerState) {
@@ -739,6 +751,7 @@ export const FanCard = memo(function FanCard({
 
       {showsSettingsButton ? (
         <FanSettingsDialog
+          excludeHelperEntityIds={siblingEntities.map(({ id }) => id)}
           entityId={id}
           name={name}
           room={room}

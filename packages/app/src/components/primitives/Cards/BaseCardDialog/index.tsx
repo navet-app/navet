@@ -16,6 +16,7 @@ import { TabPanel, Tabs } from '@navet/app/components/primitives/tabs';
 import { CompactRoomSelector } from '@navet/app/components/shared/device-editor/compact-room-selector';
 import { CustomCardTintPicker } from '@navet/app/components/shared/device-editor/custom-card-tint-picker';
 import { CustomScrollbar } from '@navet/app/components/shared/device-editor/custom-scrollbar';
+import { EntityHelperControls } from '@navet/app/components/shared/device-editor/entity-helper-controls';
 import { getDialogReturnFocus } from '@navet/app/components/shared/dialog-return-focus';
 import { EntityRoomSelector } from '@navet/app/components/shared/entity-room-selector';
 import { getBaseCardDialogSurface } from '@navet/app/components/shared/theme/base-card-dialog-surface';
@@ -79,6 +80,9 @@ interface BaseCardDialogCardProps extends BaseCardDialogSharedProps {
   mobileFitContent?: boolean;
   entityId?: string;
   entityType?: string;
+  /** Helpers already rendered by the consuming dialog's existing controls. */
+  excludeHelperEntityIds?: string[];
+  helperControlsTheme?: ThemeType;
   tabs: BaseCardDialogTab[];
   tintColor?: string;
   onTintColorChange?: (color: string) => void;
@@ -558,6 +562,8 @@ function BaseCardDialogCardVariant({
   title,
   entityId,
   entityType,
+  excludeHelperEntityIds,
+  helperControlsTheme,
   description,
   tabs,
   theme,
@@ -768,6 +774,18 @@ function BaseCardDialogCardVariant({
     </header>
   );
 
+  const renderControlsContent = (tab: BaseCardDialogTab) => (
+    <>
+      {tab.content}
+      {tab.key === firstTabKey && entityId && isOpen ? (
+        <EntityHelperControls
+          entityId={entityId}
+          excludeEntityIds={excludeHelperEntityIds}
+          theme={helperControlsTheme ?? theme}
+        />
+      ) : null}
+    </>
+  );
   const renderSectionContent = (tab: BaseCardDialogTab) =>
     overflowNavigation && tab.key !== firstTabKey ? (
       <div className="space-y-4">
@@ -779,10 +797,10 @@ function BaseCardDialogCardVariant({
         >
           {t('common.backToControls')}
         </Button>
-        {tab.content}
+        {renderControlsContent(tab)}
       </div>
     ) : (
-      tab.content
+      renderControlsContent(tab)
     );
   const cardBody = (
     <CardDialogBody className={bodyClassName}>
@@ -795,10 +813,12 @@ function BaseCardDialogCardVariant({
         : shouldRenderTabs
           ? dialogTabs.map((tab) => (
               <TabPanel key={tab.key} value={tab.key}>
-                {tab.content}
+                {renderControlsContent(tab)}
               </TabPanel>
             ))
-          : (dialogTabs[0]?.content ?? null)}
+          : dialogTabs[0]
+            ? renderControlsContent(dialogTabs[0])
+            : null}
 
       {footerContent ? (
         footerContent

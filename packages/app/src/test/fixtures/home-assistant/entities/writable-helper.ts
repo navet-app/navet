@@ -51,3 +51,13 @@ export const writableHelperEntities: Record<string, HassEntity> = Object.fromEnt
     }),
   ])
 );
+
+/** Device-owned configuration helpers exposed in the parent's controls. */
+export const writableHelperRegistry = [
+  {
+    entity_id: 'number.threshold',
+    device_id: 'device-kitchen',
+    entity_category: 'config' as const,
+  },
+  { entity_id: 'select.profile', device_id: 'device-kitchen', entity_category: 'config' as const },
+];

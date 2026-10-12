@@ -319,6 +319,8 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
 
   return (
     <BaseCardDialog
+      helperControlsTheme={theme === 'light' ? 'dark' : theme}
+      excludeHelperEntityIds={siblingEntities.map(({ id }) => id)}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title={name}

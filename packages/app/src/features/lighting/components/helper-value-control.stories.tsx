@@ -1,6 +1,6 @@
+import { HelperValueControl } from '@navet/app/components/shared/device-editor/helper-value-control';
 import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { HelperValueControl } from './helper-card';
 
 const meta = {
   title: 'Components/Shared/Helper Controls',

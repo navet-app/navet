@@ -44,6 +44,13 @@ sorting, and device-type navigation as Home. The list contains entities eligible
 dashboard; adding an entity keeps the dashboard’s existing behavior. Custom-card authoring
 remains available through **Add Card**.
 
+## Helpers
+
+Helpers are added only when you choose them in **All cards**. Standalone helpers keep their own
+cards and controls. Helpers attached to a device with a visible parent card appear in that
+card’s dialog instead. Expand a value row to edit it, then choose **Save**. Supported device
+configuration value helpers are available there too.
+
 ## Timers, counters, valves, and remotes
 
 Home Assistant timers, counters, valves, and remotes appear in **All cards**. Add one to

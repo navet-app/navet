@@ -9,11 +9,13 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 interface DashboardEntitiesState {
   hiddenEntityIds: string[];
   shownSensorEntityIds: string[];
+  explicitlyShownEntityIds: string[];
   lockedCardIds: string[];
   onboardingCompleted: boolean;
   replaceDashboardEntitiesState: (state: {
     hiddenEntityIds: string[];
     shownSensorEntityIds?: string[];
+    explicitlyShownEntityIds?: string[];
     lockedCardIds?: string[];
     onboardingCompleted: boolean;
   }) => void;
@@ -55,17 +57,20 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
     (set) => ({
       hiddenEntityIds: [],
       shownSensorEntityIds: [],
+      explicitlyShownEntityIds: [],
       lockedCardIds: [],
       onboardingCompleted: false,
       replaceDashboardEntitiesState: ({
         hiddenEntityIds,
         shownSensorEntityIds = [],
+        explicitlyShownEntityIds = [],
         lockedCardIds = [],
         onboardingCompleted,
       }) =>
         set({
           hiddenEntityIds: ensureCanonicalEntityIds(hiddenEntityIds),
           shownSensorEntityIds: normalizeStringArray(shownSensorEntityIds),
+          explicitlyShownEntityIds: normalizeStringArray(explicitlyShownEntityIds),
           lockedCardIds: normalizeLockedCardIds(lockedCardIds),
           onboardingCompleted,
         }),
@@ -75,6 +80,7 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
           shownSensorEntityIds: startBlank
             ? []
             : ensureCanonicalEntityIds(entityIds.filter(isSensorEntityId)),
+          explicitlyShownEntityIds: [],
           onboardingCompleted: true,
         }),
       markOnboardingCompleted: () => set({ onboardingCompleted: true }),
@@ -82,6 +88,9 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
         set((state) => {
           const canonicalEntityId = ensureCanonicalEntityId(entityId);
           return {
+            explicitlyShownEntityIds: state.explicitlyShownEntityIds.filter(
+              (id) => id !== canonicalEntityId
+            ),
             hiddenEntityIds: state.hiddenEntityIds.includes(canonicalEntityId)
               ? state.hiddenEntityIds
               : [...state.hiddenEntityIds, canonicalEntityId],
@@ -94,6 +103,9 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
         set((state) => {
           const canonicalEntityId = ensureCanonicalEntityId(entityId);
           return {
+            explicitlyShownEntityIds: state.explicitlyShownEntityIds.includes(canonicalEntityId)
+              ? state.explicitlyShownEntityIds
+              : [...state.explicitlyShownEntityIds, canonicalEntityId],
             hiddenEntityIds: state.hiddenEntityIds.filter((id) => id !== canonicalEntityId),
             shownSensorEntityIds:
               isSensorEntityId(canonicalEntityId) &&
@@ -145,6 +157,7 @@ export const useDashboardEntitiesStore = create<DashboardEntitiesState>()(
           ...persisted,
           hiddenEntityIds,
           shownSensorEntityIds,
+          explicitlyShownEntityIds: normalizeStringArray(persisted.explicitlyShownEntityIds),
           lockedCardIds,
           onboardingCompleted,
         };

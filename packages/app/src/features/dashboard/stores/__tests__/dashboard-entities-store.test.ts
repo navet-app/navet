@@ -7,6 +7,24 @@ describe('useDashboardEntitiesStore', () => {
     useDashboardEntitiesStore.setState(useDashboardEntitiesStore.getInitialState(), true);
   });
 
+  it('requires an explicit add for helpers, including after onboarding and visibility resets', async () => {
+    const store = () => useDashboardEntitiesStore.getState();
+    store().completeOnboarding(['light.kitchen', 'input_number.target'], false);
+    expect(store().explicitlyShownEntityIds).toEqual([]);
+    store().showAllEntities();
+    expect(store().explicitlyShownEntityIds).toEqual([]);
+    store().showEntity('input_number.target');
+    store().showEntity('input_number.target');
+    expect(store().explicitlyShownEntityIds).toEqual(['home_assistant:input_number.target']);
+    await useDashboardEntitiesStore.persist.rehydrate();
+    expect(store().explicitlyShownEntityIds).toEqual(['home_assistant:input_number.target']);
+    store().hideEntity('input_number.target');
+    store().resetHiddenEntities();
+    expect(store().explicitlyShownEntityIds).toEqual([]);
+    store().replaceDashboardEntitiesState({ hiddenEntityIds: [], onboardingCompleted: true });
+    expect(store().explicitlyShownEntityIds).toEqual([]);
+  });
+
   it('locks, unlocks, and toggles cards without duplicating ids', () => {
     useDashboardEntitiesStore.getState().lockCard('light.kitchen');
     useDashboardEntitiesStore.getState().lockCard('light.kitchen');

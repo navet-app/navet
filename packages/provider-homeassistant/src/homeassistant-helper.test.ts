@@ -1,4 +1,7 @@
-import { writableHelperEntities } from '@navet/app/test/fixtures/home-assistant/entities/writable-helper';
+import {
+  writableHelperEntities,
+  writableHelperRegistry,
+} from '@navet/app/test/fixtures/home-assistant/entities/writable-helper';
 import { readNavetHelperState } from '@navet/core/helper-state';
 import type { NavetCommand } from '@navet/core/types';
 import { describe, expect, it } from 'vitest';
@@ -20,6 +23,20 @@ function entity(id: string) {
 }
 
 describe('Home Assistant writable helper boundary', () => {
+  it('retains device-owned configuration helpers for secondary controls', () => {
+    const entities = mapHomeAssistantEntitiesToNavetEntities({
+      entities: writableHelperEntities,
+      areas: [],
+      deviceRegistry: [],
+      entityRegistry: writableHelperRegistry,
+    });
+    for (const id of ['number.threshold', 'select.profile']) {
+      const entity = entities.find((entity) => entity.externalId === id);
+      expect(entity).toMatchObject({ type: 'helper', attributes: { deviceId: 'device-kitchen' } });
+      expect(readNavetHelperState(entity)?.writable).toBe(true);
+    }
+  });
+
   it('maps native datetime instants as explicitly UTC controls and writes UTC instants', () => {
     const [helper] = mapped({
       'datetime.departure': {
@@ -75,7 +92,7 @@ describe('Home Assistant writable helper boundary', () => {
       ).toEqual({ domain: 'text', service: 'set_value', data: { value: 'hello world' } });
     }
   );
-  it('excludes config-category controls while preserving the device configuration metric', () => {
+  it('retains config value controls alongside the device configuration metric', () => {
     const entities = {
       ...writableHelperEntities,
       'switch.heater': {
@@ -100,7 +117,7 @@ describe('Home Assistant writable helper boundary', () => {
         (value) =>
           value.externalId === 'number.threshold' || value.externalId === 'input_select.house_mode'
       )
-    ).toBe(false);
+    ).toBe(true);
     expect(
       mappedEntities.find((value) => value.externalId === 'switch.heater')?.attributes.metrics
     ).toEqual(

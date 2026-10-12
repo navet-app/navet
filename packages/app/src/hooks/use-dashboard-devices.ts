@@ -15,6 +15,10 @@ const ABSORBING_PARENT_KEYS = [
   'persons',
   'vacuums',
   'cameras',
+  'timers',
+  'counters',
+  'valves',
+  'remotes',
 ] as const;
 const ABSORBABLE_CHILD_KEYS = ['helpers', 'sensors'] as const;
 
@@ -95,7 +99,7 @@ function collectVisibleParentDeviceIds(
         continue;
       }
 
-      parentDeviceIds.add(device.underlyingDeviceId);
+      parentDeviceIds.add(`${device.providerId ?? 'home_assistant'}:${device.underlyingDeviceId}`);
     }
   }
 
@@ -109,16 +113,6 @@ function isAbsorbableSecurityChild(
     typeof device.securityKind === 'string' &&
     typeof device.underlyingDeviceId === 'string' &&
     device.underlyingDeviceId.length > 0
-  );
-}
-
-function isAlwaysAbsorbedSecurityHelper(
-  device: Pick<BaseDevice, 'securityKind'>,
-  collectionKey: (typeof ABSORBABLE_CHILD_KEYS)[number]
-) {
-  return (
-    collectionKey === 'helpers' &&
-    (device.securityKind === 'button' || device.securityKind === 'event')
   );
 }
 
@@ -172,15 +166,12 @@ export function getAbsorbedDashboardEntityIds(
 
   for (const key of ABSORBABLE_CHILD_KEYS) {
     for (const device of devices[key]) {
-      if (isAlwaysAbsorbedSecurityHelper(device, key)) {
-        absorbedEntityIds.push(device.id);
-        continue;
-      }
-
       if (
-        isAbsorbableSecurityChild(device) &&
+        (key === 'helpers' || isAbsorbableSecurityChild(device)) &&
         typeof device.underlyingDeviceId === 'string' &&
-        visibleParentDeviceIds.has(device.underlyingDeviceId)
+        visibleParentDeviceIds.has(
+          `${device.providerId ?? 'home_assistant'}:${device.underlyingDeviceId}`
+        )
       ) {
         absorbedEntityIds.push(device.id);
       }
@@ -193,11 +184,13 @@ export function getAbsorbedDashboardEntityIds(
 export function buildDashboardVisibilityResult(
   devices: DeviceCollection,
   hiddenEntityIds: string[],
-  shownSensorEntityIds: string[] = []
+  shownSensorEntityIds: string[] = [],
+  explicitlyShownEntityIds: string[] = []
 ): DashboardVisibilityResult {
   const expandedHiddenEntityIds = getExpandedHiddenDashboardEntityIds(devices, hiddenEntityIds);
   const hiddenIds = new Set(expandedHiddenEntityIds);
   const shownSensorIds = new Set(shownSensorEntityIds);
+  const explicitlyShownIds = new Set(explicitlyShownEntityIds);
   const absorbedEntityIds = getAbsorbedDashboardEntityIds(devices, expandedHiddenEntityIds);
   const absorbedIds = new Set(absorbedEntityIds);
 
@@ -213,7 +206,10 @@ export function buildDashboardVisibilityResult(
     counters: filterVisibleDevices(devices.counters, hiddenIds),
     valves: filterVisibleDevices(devices.valves, hiddenIds),
     remotes: filterVisibleDevices(devices.remotes, hiddenIds),
-    helpers: filterAbsorbedDevices(filterVisibleDevices(devices.helpers, hiddenIds), absorbedIds),
+    helpers: filterAbsorbedDevices(
+      filterVisibleSensors(devices.helpers, hiddenIds, explicitlyShownIds),
+      absorbedIds
+    ),
     covers: filterVisibleDevices(devices.covers, hiddenIds),
     locks: filterVisibleDevices(devices.locks, hiddenIds),
     scenes: filterVisibleDevices(devices.scenes, hiddenIds),
@@ -247,13 +243,15 @@ export function buildDashboardVisibilityResult(
 export const useDashboardDevices = (
   devices: DeviceCollection,
   hiddenEntityIds: string[],
-  shownSensorEntityIds: string[] = []
+  shownSensorEntityIds: string[] = [],
+  explicitlyShownEntityIds: string[] = []
 ): DeviceCollection => {
   return useMemo(() => {
     const { visibleDevices } = buildDashboardVisibilityResult(
       devices,
       hiddenEntityIds,
-      shownSensorEntityIds
+      shownSensorEntityIds,
+      explicitlyShownEntityIds
     );
 
     const unchanged =
@@ -280,5 +278,5 @@ export const useDashboardDevices = (
       visibleDevices['grouped-sensors'] === devices['grouped-sensors'];
 
     return unchanged ? devices : visibleDevices;
-  }, [devices, hiddenEntityIds, shownSensorEntityIds]);
+  }, [devices, hiddenEntityIds, shownSensorEntityIds, explicitlyShownEntityIds]);
 };

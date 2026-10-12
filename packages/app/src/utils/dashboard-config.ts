@@ -71,7 +71,7 @@ export interface DashboardConfigPayload {
   dashboardEntities?: Pick<
     ReturnType<typeof useDashboardEntitiesStore.getState>,
     'hiddenEntityIds' | 'lockedCardIds' | 'onboardingCompleted'
-  >;
+  > & { explicitlyShownEntityIds?: string[] };
   entityRoomOverrides?: ReturnType<
     typeof useEntityRoomOverridesStore.getState
   >['roomIdsByEntityId'];
@@ -231,9 +231,11 @@ export const exportDashboardConfig = (): DashboardConfigPayload => {
     dashboardEntities:
       dashboardEntitiesState.hiddenEntityIds.length > 0 ||
       dashboardEntitiesState.lockedCardIds.length > 0 ||
+      dashboardEntitiesState.explicitlyShownEntityIds.length > 0 ||
       dashboardEntitiesState.onboardingCompleted
         ? {
             hiddenEntityIds: dashboardEntitiesState.hiddenEntityIds,
+            explicitlyShownEntityIds: dashboardEntitiesState.explicitlyShownEntityIds,
             lockedCardIds: dashboardEntitiesState.lockedCardIds,
             onboardingCompleted: dashboardEntitiesState.onboardingCompleted,
           }
@@ -714,6 +716,7 @@ export const importDashboardConfig = (
 
   useDashboardEntitiesStore.getState().replaceDashboardEntitiesState({
     hiddenEntityIds: sanitizeStringArray(dashboardEntities.hiddenEntityIds),
+    explicitlyShownEntityIds: sanitizeStringArray(dashboardEntities.explicitlyShownEntityIds),
     lockedCardIds: sanitizeStringArray(dashboardEntities.lockedCardIds),
     onboardingCompleted:
       typeof dashboardEntities.onboardingCompleted === 'boolean'

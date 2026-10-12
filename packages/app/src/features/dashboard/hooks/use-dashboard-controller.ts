@@ -200,8 +200,13 @@ export function useDashboardController(): DashboardComposition {
   );
   const roomWorkspace = useRoomWorkspaceStore((state) => state.workspace);
 
-  const { hiddenEntityIds, shownSensorEntityIds, hideAutoEntity, showAutoEntity } =
-    useDashboardEntityVisibility();
+  const {
+    hiddenEntityIds,
+    shownSensorEntityIds,
+    explicitlyShownEntityIds,
+    hideAutoEntity,
+    showAutoEntity,
+  } = useDashboardEntityVisibility();
 
   const activeDashboard = useDashboardCollectionStore(
     (state) => state.collection.dashboardsById[state.activeDashboardId]
@@ -235,9 +240,10 @@ export function useDashboardController(): DashboardComposition {
       buildDashboardVisibilityResult(
         allDevices,
         hiddenEntityIds,
-        resolveDashboardShownSensorEntityIds(activeSection, allDevices, shownSensorEntityIds)
+        resolveDashboardShownSensorEntityIds(activeSection, allDevices, shownSensorEntityIds),
+        explicitlyShownEntityIds
       ),
-    [activeSection, allDevices, hiddenEntityIds, shownSensorEntityIds]
+    [activeSection, allDevices, hiddenEntityIds, shownSensorEntityIds, explicitlyShownEntityIds]
   );
   const devices = dashboardVisibility.visibleDevices;
   const availableDevices = dashboardVisibility.availableDevices;

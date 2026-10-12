@@ -4,6 +4,7 @@ import { Button } from '@navet/app/components/primitives/button';
 import { ModalSurface } from '@navet/app/components/primitives/modal-surface';
 import { SheetSurface, SheetSurfaceHeader } from '@navet/app/components/primitives/sheet-surface';
 import { TabPanel, Tabs } from '@navet/app/components/primitives/tabs';
+import { EntityHelperControls } from '@navet/app/components/shared/device-editor/entity-helper-controls';
 import { EntityRoomSelector } from '@navet/app/components/shared/entity-room-selector';
 import { useEntityProviderFeature, useI18n, useMediaQuery } from '@navet/app/hooks';
 import * as Popover from '@radix-ui/react-popover';
@@ -540,6 +541,7 @@ export function MediaDialogContent({
             musicPlaybackPanel
           )}
           {editingRoom ? null : speakerQuickActions}
+          {!editingRoom && isOpen ? <EntityHelperControls entityId={entityId} /> : null}
         </div>
       </div>
     </ModalSurface>

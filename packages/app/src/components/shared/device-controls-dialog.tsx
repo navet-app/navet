@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 /** Compact controls-first shell shared by device dialogs with secondary configuration. */
 export function DeviceControlsDialog({
   entityId,
+  excludeHelperEntityIds,
   name,
   room,
   status,
@@ -18,6 +19,7 @@ export function DeviceControlsDialog({
   tintColor,
 }: {
   entityId: string;
+  excludeHelperEntityIds?: string[];
   name: string;
   room?: string;
   status: string;
@@ -37,6 +39,7 @@ export function DeviceControlsDialog({
       roomSelectorFallbackRoomName={room}
       title={name}
       entityId={entityId}
+      excludeHelperEntityIds={excludeHelperEntityIds}
       theme={theme}
       tintColor={tintColor}
       defaultTintAccent={accentColor}

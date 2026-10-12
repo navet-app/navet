@@ -1664,7 +1664,8 @@ function mapHomeAssistantEntity(
     return null;
   }
 
-  if (getEntityCategory(entityEntry) === 'config') {
+  // Writable value helpers remain available as secondary controls in their device dialog.
+  if (getEntityCategory(entityEntry) === 'config' && !mapHomeAssistantHelper(entity)) {
     return null;
   }
 

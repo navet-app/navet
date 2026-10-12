@@ -16,6 +16,25 @@ function createDevice(overrides: Partial<DeviceWithType> & Pick<DeviceWithType, 
 }
 
 describe('useDashboardDerivedState', () => {
+  it('offers standalone helpers for adding when other cards are hidden', () => {
+    const light = createDevice({ id: 'light.kitchen', type: 'lights' });
+    const helper = createDevice({ id: 'input_number.target', type: 'helpers' });
+    const { result } = renderHook(() =>
+      useDashboardDerivedState({
+        activeRoom: 'Hallway',
+        availableDeviceMap: new Map([
+          [light.id, light],
+          [helper.id, helper],
+        ]),
+        deviceMap: new Map(),
+        cardOrders: {},
+        hiddenEntityIds: [light.id],
+        rooms: ['Hallway'],
+      })
+    );
+    expect(result.current.addableEntityIds).toEqual([light.id, helper.id]);
+  });
+
   it('limits addable dashboard entities to the active room', () => {
     const kitchenLight = createDevice({
       id: 'light.kitchen',
