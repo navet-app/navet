@@ -44,10 +44,18 @@ jobs:
       - name: Checkout verified release source
         env:
           RELEASE_SHA: ${{ inputs.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
         run: |
           set -euo pipefail
           [[ "${RELEASE_SHA}" =~ ^[a-f0-9]{40}$ ]] || { echo "Release source must be a full commit SHA."; exit 1; }
-          git merge-base --is-ancestor "${RELEASE_SHA}" refs/remotes/origin/main || { echo "Release source is not in protected main."; exit 1; }
+          if ! git merge-base --is-ancestor "${RELEASE_SHA}" refs/remotes/origin/main; then
+            [[ "${RELEASE_CHANNEL}" == dev && "${GITHUB_REF}" == "refs/tags/navet-dev-${RELEASE_VERSION}" ]] || { echo "Off-main release source requires its matching Dev tag."; exit 1; }
+            [[ "$(git cat-file -t "${GITHUB_REF}")" == tag ]] || { echo "Navet Dev source must be an annotated tag."; exit 1; }
+            [[ "$(git rev-parse --verify "${GITHUB_REF}^{commit}")" == "${RELEASE_SHA}" ]] || { echo "Release source does not match the Dev tag."; exit 1; }
+            SOURCE_BRANCH="$(git for-each-ref --format='%(contents)' "${GITHUB_REF}" | sed -n 's/^Source-Branch: //p' | tail -n 1)"
+            [[ -n "${SOURCE_BRANCH}" ]] || { echo "Navet Dev tag is missing Source-Branch provenance."; exit 1; }
+          fi
           git checkout --detach "${RELEASE_SHA}"
       - uses: actions/setup-node@v7
         with:
