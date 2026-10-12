@@ -22,8 +22,7 @@ Maintainers can also send selected issues through Navet's
 - Provider packages own provider authentication, transport, mapping, and command translation.
 - `@navet/app` owns product composition, runtime selection, settings, and persistence.
 
-Home Assistant is the reference adapter, not the application architecture. New shared work should
-depend on Navet-owned contracts rather than raw provider payloads.
+Home Assistant is the reference adapter. Shared work depends on Navet-owned contracts.
 
 The app can retain multiple implemented provider sessions and aggregate selected provider
 collections. Each adapter declares the services and controls it supports; see the

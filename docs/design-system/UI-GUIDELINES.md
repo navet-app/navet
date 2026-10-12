@@ -174,7 +174,7 @@ organize operational content; they should not become marketing-style hero blocks
 
 ## Visual Acceptance
 
-Before handoff, compare the rendered result with the named canonical reference across:
+For maintainer visual acceptance, prepare the named canonical reference and coverage across:
 
 - normal, active, unavailable, loading, empty, and error states supported by the feature
 - smallest and largest card sizes or viewport widths
@@ -182,5 +182,5 @@ Before handoff, compare the rendered result with the named canonical reference a
 - accent contrast, keyboard focus, touch/no-hover use, and reduced motion
 - high and reduced effects quality when effects are present
 
-Correct visible hierarchy, overflow, alignment, and surface mismatches before treating the design
-as complete.
+Follow the [UX handoff rules](../../ai/skills/navet-ux.md#review-before-handoff) for automated
+checks, manual comparison and acceptance.

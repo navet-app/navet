@@ -22,7 +22,7 @@ builds the HA panel; `pnpm build:ha-panel` is not a standard local release-prepa
 | Bundle investigation | `pnpm check:bundle-budget`, `pnpm report:bundle` |
 | Release surfaces | `pnpm release:check` |
 
-For small UI polish, use the closest story/test and inspect the rendered state. Responsive layout,
+For small UI polish, use the closest story/test. Responsive layout,
 overflow or shared dashboard composition changes need `pnpm test:visual-review`. Structural checks
 alone do not establish rendered acceptance; follow the [UX guide](../../ai/skills/navet-ux.md).
 

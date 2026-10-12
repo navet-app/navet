@@ -2,17 +2,7 @@
 
 Use this page as the map for the documentation set.
 
-## Keep guidance matched to the product
-
-Follow [documentation policy and drift audit](agents/documentation.md). Verify product/tutorial/
-marketing claims against current owners and supported provider/deployment behavior; inspect the
-actual product or story where needed. A preset demo is not a connected-installation workflow.
-
-## Document lifecycle
-
-Current guides describe lasting behavior; open roadmaps describe unshipped scope. Remove shipped
-items and completed plans after capturing durable contracts. History belongs in changelogs,
-issues, PRs and Git. Existing Markdown, screenshots and plans are evidence to verify.
+For edits, follow the [documentation policy and drift audit](agents/documentation.md).
 
 ## Start Here
 
@@ -103,8 +93,8 @@ issues, PRs and Git. Existing Markdown, screenshots and plans are evidence to ve
 
 ## Repo Map
 
-Use [root ownership routing](../AGENTS.md#product-and-ownership). Search the owner and direct
-callers; there is no root `src/`. `apps/docs/src/content.config.ts` selects public Markdown.
+Use [root ownership routing](../AGENTS.md#product-and-ownership) to find the owner and direct
+callers. `apps/docs/src/content.config.ts` selects public Markdown.
 [Shared UI layers](design-system/README.md#current-shared-ui-layers) distinguish current app-owned
 paths and stable imports from the incremental `@navet/ui` target.
 

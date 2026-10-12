@@ -4,6 +4,9 @@ This folder contains Navet's public logos, install icons, social-preview asset, 
 small runtime bootstrap/fallback files. Brand guidance applies to the logo, font, and social assets;
 `config.js`, `boot-i18n.js`, `offline.html`, and `site.webmanifest` are application runtime files.
 
+Use the [visual identity guide](../../docs/branding/VISUAL_IDENTITY.md#space-and-size) for logo
+placement, clear space and size; the [asset system](../../docs/branding/ASSET_SYSTEM.md) owns exports.
+
 ## Files
 
 ### Logos
@@ -43,81 +46,6 @@ small runtime bootstrap/fallback files. Brand guidance applies to the logo, font
 - **offline.html** - PWA offline fallback
 - **site.webmanifest** - canonical install metadata consumed by the standalone PWA build
 
-## Logo Concept
-
-The Navet logo represents **"the hub"** - a central node with 8 radiating connections:
-
-- **Center circle** → Your smart home (Navet as the hub)
-- **8 connections** → Your connected devices and systems
-- **Network pattern** → Interconnected, unified control
-- **Orange gradient** → Warm, welcoming, and energetic (#f97316 to #ea580c)
-
-## Usage Guidelines
-
-### When to Use Each Logo
-
-**logo.svg**
-- App icons
-- Social media avatars
-- Square placements
-- Mobile app icons
-
-**logo-horizontal.svg**
-- Website headers (light backgrounds)
-- Documentation
-- Presentations
-- Email signatures
-
-**logo-horizontal-light.svg**
-- Website headers (dark backgrounds)
-- Dark mode interfaces
-- Slides with dark backgrounds
-
-**favicon.svg**
-- Browser tab icons
-- PWA icons
-- Bookmark icons
-
-**apple-touch-icon.svg**
-- Rounded compatibility preview and Home Assistant add-on icon source
-
-**apple-touch-icon.png**
-- iOS home screen icon
-- iOS shortcuts
-
-**pwa-192.png / pwa-512.png**
-- Android install prompt
-- PWA manifest icons
-- Desktop install surfaces
-
-**pwa-maskable-192.png / pwa-maskable-512.png**
-- Cropped Android and PWA install surfaces
-- Use only with the manifest `maskable` purpose
-
-### Design Principles
-
-✅ **Do:**
-- Use on clean, neutral backgrounds
-- Maintain aspect ratio
-- Keep minimum clear space (10% of logo size)
-- Use SVG format when possible
-
-❌ **Don't:**
-- Change colors or gradient
-- Rotate or distort
-- Add effects or shadows
-- Use on busy backgrounds
-
-## Brand Colors
-
-**Primary Orange Gradient:**
-- Start: `#f97316` (orange-500)
-- End: `#ea580c` (orange-600)
-
-**Supporting Colors:**
-- White: `#ffffff` (logo elements)
-- Transparent backgrounds supported
-
 ## Generation and validation
 
 Do not edit raster outputs by hand. From the repository root:
@@ -128,13 +56,6 @@ pnpm check:brand
 ```
 
 The source/output contract is in [`../brand/source/asset-manifest.json`](../brand/source/asset-manifest.json).
-
-## Technical Specs
-
-- **Format:** SVG for vector logos and PNG for raster install icons
-- **Color Space:** sRGB
-- **Minimum Size:** 32px (favicon), 60px (full logo)
-- **Recommended Clear Space:** 10% of logo width/height
 
 ## License
 

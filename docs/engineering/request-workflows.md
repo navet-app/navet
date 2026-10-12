@@ -61,7 +61,7 @@ Community publication uses enabled browser control and authenticated Navet accou
 channel-specific Discord incoming webhook. Verify the account or webhook identity and exact
 destination before sending. The configured Discord URL identifies the Navet
 server; inspect its actual announcement channel. Missing login or ambiguous destination blocks
-that channel with final content retained. Publication does not require a separate generation API key.
+that channel with final content retained.
 Discord webhook delivery requires a private local webhook URL rather than browser login. The
 maintainer creates it in Server Settings → Integrations, selects the announcements channel and
 sets the reviewed name/avatar. Store its URL in `marketing/private/discord-webhook-url` with

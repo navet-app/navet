@@ -94,6 +94,8 @@ Run cheap classification and focused checks first. Load root plus routed guidanc
 relevant contracts; scope reviewers by changed paths/labels. Reuse current CI and previews.
 Keep one general-purpose reviewer unless measured misses justify duplication.
 
+Follow [root waiting and weekly-budget rules](../../AGENTS.md#waiting-and-weekly-budget).
+
 ## Requests And State
 
 For label/command authority and reply resumption, read

@@ -41,8 +41,8 @@ for their own purpose; use same-family product references for dashboard work.
    patterns. Resolve typography, spacing, surfaces, controls and motion through shared tokens/helpers.
 4. Record any coverage gap. New arrangements of existing primitives are permitted; a new visual
    pattern requires explicit maintainer approval before implementation.
-5. Compare rendered output with the reference at supported sizes, states and themes; exercise the
-   relevant keyboard and touch interactions. Structural checks support this review.
+5. Exercise relevant keyboard and touch interactions. Prepare rendered references for the
+   maintainer's comparison under the [UX handoff rules](../../ai/skills/navet-ux.md#review-before-handoff).
 
 Card-consumer guards in `pnpm check:ui-kit` reject detectable copied surfaces and literal foundation
 values in arbitrary Tailwind classes and inline styles. An occurrence-specific baseline records
@@ -97,8 +97,8 @@ configuration workflow uses forecast/metric choices and its existing dialog. Att
 3. Mark a building block `draft` or a feature-derived product `pending`. Include the owner and
    executable reference. A product item must declare a source-derived feature contract and a
    reference from that feature family.
-4. Exercise relevant states and interactions, run structural checks, then compare rendered output
-   with the named reference across relevant sizes and themes.
+4. Exercise relevant states and interactions, run structural checks, and prepare the named
+   reference across relevant sizes and themes for maintainer review.
 5. Maintainer design acceptance changes `reviewStatus` to `approved` and records an `acceptance`
    evidence link. Automated checks cannot grant this acceptance. Deprecated items retain an
    explicit status and are excluded from approved discovery.
@@ -160,7 +160,7 @@ revision and example links only when payload coverage matches its manifest.
 ## Codex MCP
 
 Keep client configuration in the user's Codex configuration, outside Git. Add the pinned shadcn
-server with the Navet working directory while retaining the existing Storybook connection:
+server with the Navet working directory:
 
 ```toml
 [mcp_servers.shadcn]
