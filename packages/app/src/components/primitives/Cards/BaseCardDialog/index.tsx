@@ -761,6 +761,7 @@ function BaseCardDialogCardVariant({
         <CardDialogTabList segmented className="mt-3 mb-0">
           {dialogTabs.map((tab) => (
             <CardDialogTabTrigger
+              segmented
               key={tab.key}
               active={resolvedActiveTab === tab.key}
               icon={tab.icon}

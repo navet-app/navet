@@ -1,4 +1,4 @@
-import { CardDialogHeader } from '@navet/app/components/patterns/card-dialog';
+import { CardDialogHeader, CardDialogTabTrigger } from '@navet/app/components/patterns/card-dialog';
 import { renderWithProviders } from '@navet/app/test/render';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Sliders } from 'lucide-react';
@@ -7,6 +7,22 @@ import { describe, expect, it, vi } from 'vitest';
 import { BaseCardDialog } from '.';
 
 describe('BaseCardDialog', () => {
+  it('preserves compact pill triggers unless segmented styling is requested', () => {
+    renderWithProviders(
+      <>
+        <CardDialogTabTrigger active icon={Sliders}>
+          Playback
+        </CardDialogTabTrigger>
+        <CardDialogTabTrigger active segmented icon={Sliders}>
+          Controls
+        </CardDialogTabTrigger>
+      </>
+    );
+    expect(screen.getByRole('button', { name: 'Playback' })).toHaveClass('h-9', 'px-3');
+    expect(screen.getByRole('button', { name: 'Playback' })).not.toHaveClass('flex-1');
+    expect(screen.getByRole('button', { name: 'Controls' })).toHaveClass('flex-1', 'min-h-9');
+  });
+
   it.each([
     [true, false],
     [false, false],
@@ -284,6 +300,8 @@ describe('BaseCardDialog', () => {
         }}
       />
     );
+
+    expect(screen.getByRole('button', { name: 'Controls' })).toHaveClass('flex-1', 'min-h-9');
 
     const editButton = screen.getByRole('button', { name: /edit plant light/i });
     expect(editButton.parentElement).toHaveClass('items-center');

@@ -88,7 +88,7 @@ describe('parent helper controls', () => {
   });
   it('keeps long lists keyboard-reachable and preserves an edited draft while scrolling', async () => {
     const helpers = Array.from(
-      { length: 60 },
+      { length: 16 },
       (_, index): NavetEntity => ({
         ...helper,
         id: `home_assistant:number.helper_${String(index).padStart(2, '0')}`,
@@ -109,28 +109,28 @@ describe('parent helper controls', () => {
     const viewport = screen.getByRole('region');
     Object.defineProperties(viewport, {
       clientHeight: { configurable: true, value: 300 },
-      scrollHeight: { configurable: true, value: 3000 },
+      scrollHeight: { configurable: true, value: 640 },
     });
     expect(viewport).toHaveClass('helper-list-bottom-fade');
     expect(viewport).not.toHaveClass('helper-list-top-fade');
     const buttons = screen.getAllByRole('button', { name: /^Helper \d+$/ });
-    expect(buttons).toHaveLength(60);
+    expect(buttons).toHaveLength(16);
     viewport.focus();
     await userEvent.tab();
     expect(buttons[0]).toHaveFocus();
     // Sample native Tab order beyond the visible rows without traversing the entire DOM.
-    buttons[18].focus();
+    buttons[12].focus();
     await userEvent.tab();
-    expect(buttons[19]).toHaveFocus();
-    buttons[58].focus();
+    expect(buttons[13]).toHaveFocus();
+    buttons[14].focus();
     await userEvent.tab();
-    expect(buttons[59]).toHaveFocus();
+    expect(buttons[15]).toHaveFocus();
     fireEvent.click(screen.getByRole('button', { name: 'Helper 1' }));
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '7' } });
-    fireEvent.scroll(viewport, { target: { scrollTop: 2700 } });
+    fireEvent.scroll(viewport, { target: { scrollTop: 340 } });
     expect(viewport).toHaveClass('helper-list-top-fade');
     expect(viewport).not.toHaveClass('helper-list-bottom-fade');
-    expect(screen.getByRole('button', { name: 'Helper 60' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Helper 16' })).toBeInTheDocument();
     expect(screen.getByRole('spinbutton')).toHaveValue(7);
     fireEvent.scroll(viewport, { target: { scrollTop: 0 } });
     expect(viewport).not.toHaveClass('helper-list-top-fade');

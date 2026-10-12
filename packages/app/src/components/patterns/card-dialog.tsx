@@ -77,6 +77,7 @@ interface CardDialogTabTriggerProps {
   onClick?: () => void;
   className?: string;
   style?: CSSProperties;
+  segmented?: boolean;
 }
 
 interface CardDialogChoicePillProps
@@ -465,18 +466,34 @@ export const CardDialogTabTrigger = memo(function CardDialogTabTrigger({
   onClick,
   className,
   style,
+  segmented = false,
 }: CardDialogTabTriggerProps) {
   const { theme, accentColor: themeAccentColor, primaryColor } = useTheme();
-  const segmented = getSegmentedControlStyles(theme);
+  const segmentedStyles = getSegmentedControlStyles(theme);
   const selectedColor = accentColor ?? (themeAccentColor || getThemeColorValue(primaryColor));
   const Icon = icon;
+  if (!segmented) {
+    return (
+      <InteractivePill
+        active={active}
+        accentColor={accentColor}
+        size="compact"
+        className={cn('text-xs', className)}
+        icon={icon}
+        onClick={onClick}
+        style={style}
+      >
+        {children}
+      </InteractivePill>
+    );
+  }
   return (
     <button
       type="button"
       aria-pressed={active}
       className={cn(
-        segmented.option,
-        segmented.button,
+        segmentedStyles.option,
+        segmentedStyles.button,
         getThemeFocusRingClassName(theme),
         className
       )}

@@ -1,9 +1,9 @@
 import { dispatchEntityCommand } from '@navet/app/commands';
 import { EntityHelperControls } from '@navet/app/components/shared/device-editor/entity-helper-controls';
 import { UpsWidget } from '@navet/app/features/dashboard/components/widgets/ups-widget';
+import { FanCard } from '@navet/app/features/lighting/components/fan-card';
 import { SwitchCard } from '@navet/app/features/lighting/components/switch-card';
 import { getProviderRuntimeRegistration } from '@navet/app/provider-runtime-registry';
-import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
 import { integrationStore } from '@navet/app/stores/integration-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
@@ -249,18 +249,29 @@ describe('demo preview runtime', () => {
       entityId: 'home_assistant:fan.bedroom_ceiling',
       percentage: 33,
     });
-    await invokeIntegrationNativeAction({
-      entityId: 'home_assistant:fan.bedroom_ceiling',
-      domain: 'fan',
-      service: 'set_direction',
-      serviceData: { direction: 'reverse' },
-    });
-    await invokeIntegrationNativeAction({
-      entityId: 'fan.bedroom_ceiling',
-      domain: 'fan',
-      service: 'oscillate',
-      serviceData: { oscillating: false },
-    });
+    renderWithProviders(
+      <FanCard
+        id="fan.bedroom_ceiling"
+        name="Bedroom fan"
+        room="Bedroom"
+        initialState
+        initialPercentage={66}
+        size="small"
+        isEditMode={false}
+        onSizeChange={() => {}}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings for Bedroom fan' }));
+    const dialog = within(screen.getByRole('dialog'));
+    fireEvent.click(dialog.getByRole('button', { name: 'Fan direction' }));
+    fireEvent.click(dialog.getByRole('radio', { name: 'Reverse' }));
+    await waitFor(() =>
+      expect(dialog.getByRole('button', { name: 'Fan direction' })).toHaveTextContent('Reverse')
+    );
+    fireEvent.click(dialog.getByRole('switch', { name: 'Fan oscillation' }));
+    await waitFor(() =>
+      expect(dialog.getByRole('switch', { name: 'Fan oscillation' })).not.toBeChecked()
+    );
     expect(
       getProviderRuntimeRegistration('home_assistant').entityRuntimeService?.getEntitySnapshot?.(
         'fan.bedroom_ceiling'
