@@ -49,6 +49,26 @@ it.each(['../escape', '/tmp/escape', 'youtube/../../escape', 'youtube\\escape'])
   }
 );
 
+// Keep: a remote generation response cannot choose arbitrary output files, even
+// when it supplies an otherwise well-formed draft.
+it.each(['../escape', 'unconfigured-channel'])('rejects remote draft destination %s before writing', async (channelId) => {
+  const cacheRoot = path.join(repoRoot, '.cache', 'content-workflow-tests');
+  fs.mkdirSync(cacheRoot, { recursive: true });
+  const root = fs.mkdtempSync(path.join(cacheRoot, 'navet-remote-content-'));
+  temporaryDirectories.push(root);
+  const briefPath = path.join(root, 'brief.yml');
+  const output = path.join(root, 'output');
+  writeYaml(briefPath, makeBrief());
+  const fetchImpl = async () => ({ ok: true, json: async () => ({
+    output_text: JSON.stringify({ drafts: [validDraft(channelId)] }),
+  }) });
+  await expect(generateContentPack({ briefPath, outputPath: output,
+    env: { OPENAI_API_KEY: 'synthetic-test-key' }, fetchImpl, now: fixedNow,
+  })).rejects.toThrow('Draft channel must match a configured channel');
+  expect(fs.existsSync(output)).toBe(false);
+  expect(fs.readdirSync(root)).toEqual(['brief.yml']);
+});
+
 it('generates all three transports from one master without rewriting wording or links', async () => {
   const cacheRoot = path.join(repoRoot, '.cache', 'content-workflow-tests');
   fs.mkdirSync(cacheRoot, { recursive: true });

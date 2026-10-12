@@ -239,7 +239,8 @@ export async function verifyValidationReceipt({ receiptFile, expectedHead, repos
     if (!Number.isSafeInteger(count) || count < 0) {
       throw new Error('Native receipt test counts must be non-negative integers.');
     }
-    if (!new RegExp(`\\bTests\\s+${count} passed \\(${count}\\)`).test(section)) {
+    const summaries = [...section.matchAll(/\bTests\s+(\d+) passed \((\d+)\)/g)];
+    if (!summaries.some(([, passed, total]) => Number(passed) === count && Number(total) === count)) {
       throw new Error('Native receipt test counts are not a complete passing tier.');
     }
   }

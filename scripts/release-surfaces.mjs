@@ -30,7 +30,7 @@ export function readJson(filePath) {
 
 export function readYaml(filePath) {
   const content = readText(filePath);
-  const result = Object.create(null);
+  const result = new Map();
 
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -53,10 +53,10 @@ export function readYaml(filePath) {
       value = value.slice(1, -1);
     }
 
-    result[key] = value;
+    result.set(key, value);
   }
 
-  return result;
+  return Object.assign(Object.create(null), Object.fromEntries(result));
 }
 
 export function writeJson(filePath, value) {

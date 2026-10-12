@@ -20,6 +20,7 @@ permissions:
 jobs:
   runtime:
     name: Test published digests (${{ matrix.arch }})
+    if: github.repository == 'navet-app/navet' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/navet-dev-'))
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -32,13 +33,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.sha }}
+          ref: main
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: main
           path: .release-tools
           persist-credentials: false
+      - name: Checkout verified release source
+        env:
+          RELEASE_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          [[ "${RELEASE_SHA}" =~ ^[a-f0-9]{40}$ ]] || { echo "Release source must be a full commit SHA."; exit 1; }
+          git merge-base --is-ancestor "${RELEASE_SHA}" refs/remotes/origin/main || { echo "Release source is not in protected main."; exit 1; }
+          git checkout --detach "${RELEASE_SHA}"
       - uses: actions/setup-node@v7
         with:
           node-version: 22

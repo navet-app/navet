@@ -96,19 +96,17 @@ export function parseReleaseFragment(content, file = 'release fragment') {
       } else {
         throw new Error(`${file} audiences must be a YAML list.`);
       }
+    } else if (key === 'type') {
+      fragment.type = rawValue.replace(/^(['"])(.*)\1$/, '$2');
+    } else if (key === 'summary') {
+      fragment.summary = rawValue.replace(/^(['"])(.*)\1$/, '$2');
     } else {
-      fragment[key] = rawValue.replace(/^(['"])(.*)\1$/, '$2');
+      throw new Error(`${file} contains unsupported fields: ${key}.`);
     }
   }
 
   if (Object.keys(fragment).length === 0) {
     throw new Error(`${file} must contain a YAML object.`);
-  }
-
-  const allowedFields = new Set(['type', 'audiences', 'summary']);
-  const unknownFields = Object.keys(fragment).filter((field) => !allowedFields.has(field));
-  if (unknownFields.length > 0) {
-    throw new Error(`${file} contains unsupported fields: ${unknownFields.join(', ')}.`);
   }
 
   if (!RELEASE_FRAGMENT_TYPES.includes(fragment.type)) {

@@ -185,7 +185,7 @@ class NavetHomeAssistantProxyCompatibilityView(HomeAssistantView):
             return _json_error(400, "Invalid Home Assistant resource path")
 
         if request.query_string:
-            target = f"{target}?{request.query_string}"
+            target = target + "?" + request.query_string
 
         raise web.HTTPFound(target)
 

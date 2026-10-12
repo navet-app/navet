@@ -66,7 +66,7 @@ const INVENTED_METRIC_PATTERN =
   /\b(?:\d[\d,.]*|thousands?|millions?)\s+(?:users?|customers?|households?|installs?|downloads?)\b/i;
 
 export function parseCliArgs(argv) {
-  const options = Object.create(null);
+  const options = new Map();
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -77,21 +77,21 @@ export function parseCliArgs(argv) {
 
     const equalsIndex = argument.indexOf('=');
     if (equalsIndex !== -1) {
-      options[argument.slice(2, equalsIndex)] = argument.slice(equalsIndex + 1);
+      options.set(argument.slice(2, equalsIndex), argument.slice(equalsIndex + 1));
       continue;
     }
 
     const key = argument.slice(2);
     const next = argv[index + 1];
     if (next && !next.startsWith('--')) {
-      options[key] = next;
+      options.set(key, next);
       index += 1;
     } else {
-      options[key] = true;
+      options.set(key, true);
     }
   }
 
-  return options;
+  return Object.assign(Object.create(null), Object.fromEntries(options));
 }
 
 export function readYaml(filePath) {

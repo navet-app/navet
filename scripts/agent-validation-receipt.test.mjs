@@ -278,10 +278,16 @@ describe('native validation receipt verification', () => {
     const hook = await fixture(() => {}, (receipt) => { receipt.hook.sourceAtHead = 'a'.repeat(40); });
     await expect(verifyValidationReceipt(hook.input)).rejects.toThrow('provenance mismatch');
   });
-  // Keep: counts interpolated into the summary matcher must be validated as integers.
+  // Keep: receipt counts must be integers matching a complete passing summary.
   it.each(['10|.*', '(a+)+$', '.*', -1, 1.5])('rejects unsafe test counts: %s', async (count) => {
     const value = await fixture(() => {}, (receipt) => { receipt.tier1Tests = count; });
     await expect(verifyValidationReceipt(value.input)).rejects.toThrow('counts or provenance mismatch');
+  });
+  it('rejects a passing count that does not equal the tier total', async () => {
+    const value = await fixture((record) => {
+      record.payload.item.aggregated_output = record.payload.item.aggregated_output.replace('10 passed (10)', '10 passed (11)');
+    });
+    await expect(verifyValidationReceipt(value.input)).rejects.toThrow('test counts');
   });
   it('isolates inherited hook Git variables for verifier reads and temporary repository creation', async () => {
     const value = await fixture();

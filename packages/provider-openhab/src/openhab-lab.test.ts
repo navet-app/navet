@@ -30,12 +30,12 @@ function labSnapshot(): OpenHABSnapshot {
       match[2].replace(/^"|"$/g, ''),
     ])
   );
-  const items: Record<string, OpenHABItem> = Object.create(null);
+  const items = new Map<string, OpenHABItem>();
   for (const match of declarations.matchAll(
     /^(Group|Switch|Dimmer|Color|Contact|String|DateTime|Rollershutter|Number(?::\w+)?)\s+(\w+)\s+"([^"]+)"(?:\s+<([^>]+)>)?(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?/gm
   )) {
     const [, type, name, label, category, groups, tags] = match;
-    items[name] = {
+    items.set(name, {
       name,
       type,
       label,
@@ -43,9 +43,9 @@ function labSnapshot(): OpenHABSnapshot {
       groupNames: groups?.split(',').map((group) => group.trim()) ?? [],
       tags: [...(tags ?? '').matchAll(/"([^"]+)"/g)].map((tag) => tag[1]),
       state: type === 'DateTime' ? '2026-09-14T20:00:00Z' : (seeds.get(name) ?? 'NULL'),
-    };
+    });
   }
-  return { connected: true, items };
+  return { connected: true, items: Object.fromEntries(items) };
 }
 
 describe('openHAB provider lab coverage', () => {

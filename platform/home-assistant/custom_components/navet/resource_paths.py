@@ -10,4 +10,4 @@ def compatibility_resource_path(requested_path: str) -> str | None:
         or any(ord(character) < 32 or ord(character) == 127 for character in requested_path)
     ):
         return None
-    return f"/{requested_path}"
+    return "/" + requested_path

@@ -136,16 +136,24 @@ jobs:
     needs: [release-context, source-evidence]
     environment: ${{ needs.release-context.outputs.release_environment }}
     steps:
-      - name: Checkout
+      - name: Checkout trusted release tooling
         uses: actions/checkout@v5
         with:
-          ref: ${{ needs.release-context.outputs.release_sha }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
           path: .release-tools
           persist-credentials: false
+      - name: Checkout verified release source
+        env:
+          RELEASE_SHA: ${{ needs.release-context.outputs.release_sha }}
+        run: |
+          set -euo pipefail
+          [[ "${RELEASE_SHA}" =~ ^[a-f0-9]{40}$ ]] || { echo "Release source must be a full commit SHA."; exit 1; }
+          git merge-base --is-ancestor "${RELEASE_SHA}" refs/remotes/origin/main || { echo "Release source is not in protected main."; exit 1; }
+          git checkout --detach "${RELEASE_SHA}"
       - name: Reuse an already published panel archive
         id: existing
         env:
