@@ -2,4 +2,4 @@ type: fixed
 audiences:
   - standalone
   - home-assistant
-summary: Device dialogs share consistent advanced-control row heights and segmented navigation, including fan speed, direction, and oscillation controls.
+summary: Device dialogs gain consistent, accessible controls and weather forecasts recover reliably. The demo adds advanced controls, helpers, and cards.

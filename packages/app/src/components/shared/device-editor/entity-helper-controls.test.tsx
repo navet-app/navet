@@ -5,6 +5,7 @@ import { resetAppStores } from '@navet/app/test/store-reset';
 import type { NavetEntity } from '@navet/core/types';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { Sliders } from 'lucide-react';
+import { userEvent } from 'storybook/test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EntityHelperControls, selectRelatedHelpers } from './entity-helper-controls';
 
@@ -85,7 +86,7 @@ describe('parent helper controls', () => {
       unavailable,
     ]);
   });
-  it('virtualizes long lists, reaches the final helper and preserves an edited draft while scrolling', () => {
+  it('keeps long lists keyboard-reachable and preserves an edited draft while scrolling', async () => {
     const helpers = Array.from(
       { length: 60 },
       (_, index): NavetEntity => ({
@@ -106,13 +107,25 @@ describe('parent helper controls', () => {
     });
     renderWithProviders(<EntityHelperControls entityId={parent.canonicalId} />);
     const viewport = screen.getByRole('region');
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 3000 },
+    });
     expect(viewport).toHaveClass('helper-list-bottom-fade');
     expect(viewport).not.toHaveClass('helper-list-top-fade');
-    expect(screen.getAllByRole('button', { name: /^Helper \d+$/ }).length).toBeLessThan(20);
-    expect(screen.queryByRole('button', { name: 'Helper 60' })).not.toBeInTheDocument();
+    const buttons = screen.getAllByRole('button', { name: /^Helper \d+$/ });
+    expect(buttons).toHaveLength(60);
+    viewport.focus();
+    for (const button of buttons.slice(0, 20)) {
+      await userEvent.tab();
+      expect(button).toHaveFocus();
+    }
+    buttons[58].focus();
+    await userEvent.tab();
+    expect(buttons[59]).toHaveFocus();
     fireEvent.click(screen.getByRole('button', { name: 'Helper 1' }));
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '7' } });
-    fireEvent.scroll(viewport, { target: { scrollTop: 10000 } });
+    fireEvent.scroll(viewport, { target: { scrollTop: 2700 } });
     expect(viewport).toHaveClass('helper-list-top-fade');
     expect(viewport).not.toHaveClass('helper-list-bottom-fade');
     expect(screen.getByRole('button', { name: 'Helper 60' })).toBeInTheDocument();

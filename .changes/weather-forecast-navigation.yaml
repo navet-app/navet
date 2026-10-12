@@ -1,5 +1,0 @@
-type: fixed
-audiences:
-  - standalone
-  - home-assistant
-summary: Weather forecasts survive navigation pauses and temporary forecast request failures.

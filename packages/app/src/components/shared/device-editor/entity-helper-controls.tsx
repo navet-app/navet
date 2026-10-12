@@ -10,7 +10,7 @@ import { useProviderEntityModel } from '@navet/app/hooks/use-provider-device';
 import type { ThemeType } from '@navet/app/hooks/use-theme';
 import { readNavetHelperState } from '@navet/core/helper-state';
 import type { NavetEntity } from '@navet/core/types';
-import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { shallow } from 'zustand/shallow';
 import { DeviceControlRow } from './device-control-row';
 import { HelperValueControl } from './helper-value-control';
@@ -48,47 +48,9 @@ const EMPTY_IDS: string[] = [];
 const HELPER_ROW_ESTIMATE = 41;
 const HELPER_VISIBLE_ROWS = 8;
 const HELPER_VIEWPORT_HEIGHT = (HELPER_VISIBLE_ROWS - 0.5) * HELPER_ROW_ESTIMATE;
-const HELPER_VIRTUALIZATION_THRESHOLD = 12;
-const HELPER_OVERSCAN = 2;
+const HELPER_SCROLL_THRESHOLD = 12;
 
-function MeasuredHelperRow({
-  id,
-  top,
-  onMeasure,
-  onRetain,
-  children,
-}: {
-  id: string;
-  top: number;
-  onMeasure: (id: string, height: number) => void;
-  onRetain: (id: string) => void;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const row = ref.current;
-    if (!row) return;
-    const measure = () => onMeasure(id, row.getBoundingClientRect().height);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(row);
-    return () => observer.disconnect();
-  }, [id, onMeasure]);
-  return (
-    <div
-      ref={ref}
-      className="absolute left-0 right-0 [&>div]:!border-b"
-      style={{ top }}
-      onFocusCapture={() => onRetain(id)}
-      onClickCapture={() => onRetain(id)}
-    >
-      {children}
-    </div>
-  );
-}
-
-function VirtualizedHelperControls({
+function ScrollableHelperControls({
   helpers,
   theme,
   headingId,
@@ -97,34 +59,25 @@ function VirtualizedHelperControls({
   theme?: ThemeType;
   headingId: string;
 }) {
+  const contentRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
-  const [visibleHeight, setVisibleHeight] = useState(HELPER_VIEWPORT_HEIGHT);
-  const [heights, setHeights] = useState<Record<string, number>>({});
-  const measuredHeights = useRef<Record<string, number>>({});
-  const [retained, setRetained] = useState<Set<string>>(() => new Set());
-  const measure = useCallback((id: string, height: number) => {
-    if (height <= 0 || measuredHeights.current[id] === height) return;
-    measuredHeights.current[id] = height;
-    setHeights((previous) => ({ ...previous, [id]: height }));
+  const [hasMoreBelow, setHasMoreBelow] = useState(true);
+  useEffect(() => {
+    const content = contentRef.current;
+    const viewport = content?.closest<HTMLElement>('[role="region"]');
+    if (!content || !viewport) return;
+    const update = () => {
+      if (!viewport.clientHeight) return;
+      setScrollTop(viewport.scrollTop);
+      setHasMoreBelow(viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 1);
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(update);
+    observer.observe(content);
+    observer.observe(viewport);
+    return () => observer.disconnect();
   }, []);
-  // Keep interacted rows alive so scrolling cannot discard drafts, focus or pending commands.
-  const retain = useCallback((id: string) => {
-    setRetained((previous) => (previous.has(id) ? previous : new Set([...previous, id])));
-  }, []);
-  const { rows, totalHeight } = useMemo(() => {
-    let top = 0;
-    const rows = helpers.map((entity) => {
-      const height = heights[entity.canonicalId] ?? HELPER_ROW_ESTIMATE;
-      const row = { entity, top, height };
-      top += height;
-      return row;
-    });
-    return { rows, totalHeight: top };
-  }, [helpers, heights]);
-  const viewportHeight = HELPER_VIEWPORT_HEIGHT;
-  const hasMoreBelow = scrollTop + visibleHeight < totalHeight - 1;
-  const start = Math.min(scrollTop, Math.max(0, totalHeight - viewportHeight));
-  const overscan = HELPER_OVERSCAN * HELPER_ROW_ESTIMATE;
   return (
     <OverlayScrollArea
       className="-mr-3"
@@ -137,31 +90,19 @@ function VirtualizedHelperControls({
         role: 'region',
         'aria-labelledby': headingId,
         tabIndex: 0,
-        style: { height: `min(${viewportHeight}px, 60dvh)` },
+        style: { height: `min(${HELPER_VIEWPORT_HEIGHT}px, 60dvh)` },
         onScroll: (event) => {
-          setScrollTop(event.currentTarget.scrollTop);
-          setVisibleHeight(event.currentTarget.clientHeight || viewportHeight);
+          const viewport = event.currentTarget;
+          setScrollTop(viewport.scrollTop);
+          setHasMoreBelow(viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 1);
         },
       }}
     >
-      <div className="relative" style={{ height: totalHeight }}>
-        {rows
-          .filter(
-            ({ entity, top, height }) =>
-              retained.has(entity.canonicalId) ||
-              (top + height >= start - overscan && top <= start + viewportHeight + overscan)
-          )
-          .map(({ entity, top }) => (
-            <MeasuredHelperRow
-              key={entity.canonicalId}
-              id={entity.canonicalId}
-              top={top}
-              onMeasure={measure}
-              onRetain={retain}
-            >
-              <EntityHelperRow entity={entity} theme={theme} />
-            </MeasuredHelperRow>
-          ))}
+      <div ref={contentRef}>
+        {/* Keep every control mounted for native Tab and screen-reader navigation. */}
+        {helpers.map((entity) => (
+          <EntityHelperRow key={entity.canonicalId} entity={entity} theme={theme} />
+        ))}
       </div>
     </OverlayScrollArea>
   );
@@ -203,8 +144,8 @@ export function EntityHelperControls({
       }
       labelClassName={`border-b pb-2 text-xs ${surface.textSecondary} ${surface.dividerBorder}`}
     >
-      {helpers.length > HELPER_VIRTUALIZATION_THRESHOLD ? (
-        <VirtualizedHelperControls
+      {helpers.length > HELPER_SCROLL_THRESHOLD ? (
+        <ScrollableHelperControls
           key={entityId}
           helpers={helpers}
           theme={theme}

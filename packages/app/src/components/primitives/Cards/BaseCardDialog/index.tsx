@@ -758,7 +758,7 @@ function BaseCardDialogCardVariant({
       />
 
       {shouldRenderTabs && showTabList && !overflowNavigation ? (
-        <CardDialogTabList className="mt-3 mb-0">
+        <CardDialogTabList segmented className="mt-3 mb-0">
           {dialogTabs.map((tab) => (
             <CardDialogTabTrigger
               key={tab.key}

@@ -178,12 +178,16 @@ export const LongList: Story = {
     const dialog = within(canvasElement.ownerDocument.body);
     const viewport = await dialog.findByRole('region', { name: 'Helpers' });
     await expect(getComputedStyle(viewport).maskImage).not.toBe('none');
-    await expect(dialog.queryByRole('button', { name: 'Helper 60' })).not.toBeInTheDocument();
+    const finalHelper = await dialog.findByRole('button', { name: 'Helper 60' });
+    await expect(finalHelper).toBeInTheDocument();
     await act(async () => {
       viewport.scrollTop = viewport.scrollHeight;
       viewport.dispatchEvent(new Event('scroll', { bubbles: true }));
     });
-    await expect(await dialog.findByRole('button', { name: 'Helper 60' })).toBeVisible();
+    await expect(finalHelper).toBeVisible();
+    dialog.getByRole('button', { name: 'Helper 59' }).focus();
+    await userEvent.tab();
+    await expect(finalHelper).toHaveFocus();
     await expect(viewport).toHaveClass('helper-list-top-fade');
     await expect(viewport).not.toHaveClass('helper-list-bottom-fade');
     await expect(getComputedStyle(viewport).maskImage).not.toBe('none');

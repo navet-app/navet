@@ -436,16 +436,19 @@ export const CardDialogSection = memo(function CardDialogSection({
 export function CardDialogTabList({
   children,
   className,
+  segmented = false,
 }: {
   children: ReactNode;
   className?: string;
+  segmented?: boolean;
 }) {
   const { theme } = useTheme();
   return (
     <div
       className={cn(
-        getSegmentedControlStyles(theme).shell,
-        'mt-1 mb-4 flex w-full flex-wrap',
+        segmented
+          ? cn(getSegmentedControlStyles(theme).shell, 'mt-1 mb-4 flex w-full flex-wrap')
+          : 'mt-1 mb-4 inline-flex items-center gap-1',
         className
       )}
     >
