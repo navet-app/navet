@@ -1,5 +1,7 @@
 import { STORAGE_KEYS } from '@navet/app/constants/storage-keys';
 import { useI18n, usePersistedState, useProviderCalendarDevicesCollection } from '@navet/app/hooks';
+import { ensureCanonicalEntityId } from '@navet/app/utils/provider-entity-id';
+import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
 import { subscribeVisibilityAwareTask } from '@navet/app/utils/visibility-aware-scheduler';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -24,7 +26,11 @@ const CALENDAR_TIME_WINDOW_REFRESH_MS = 60 * 1000;
 
 export function useCalendarCardSources(cardId?: string, fallbackEvents: CalendarEvent[] = []) {
   const { t } = useI18n();
-  const calendars = useProviderCalendarDevicesCollection();
+  const canonicalCardId = cardId ? ensureCanonicalEntityId(cardId) : undefined;
+  const providerId = canonicalCardId
+    ? parseProviderScopedId(canonicalCardId)?.providerId
+    : undefined;
+  const calendars = useProviderCalendarDevicesCollection(providerId);
   const [timeWindowTick, setTimeWindowTick] = useState(() => Date.now());
   const [calendarSources, setCalendarSources] = usePersistedState<PersistedCalendarSources>(
     STORAGE_KEYS.calendarCardSources,
@@ -70,16 +76,16 @@ export function useCalendarCardSources(cardId?: string, fallbackEvents: Calendar
 
     const stored = calendarSources[cardId];
     if (Array.isArray(stored) && stored.length > 0) {
-      return stored;
+      return stored.map((id) => ensureCanonicalEntityId(id));
     }
 
-    const aggregateCard = calendars.find((calendar) => calendar.id === cardId);
+    const aggregateCard = calendars.find((calendar) => calendar.id === canonicalCardId);
     if (aggregateCard?.sourceIds?.length) {
       return aggregateCard.sourceIds;
     }
 
-    return [cardId];
-  }, [calendarSources, calendars, cardId]);
+    return [canonicalCardId ?? cardId];
+  }, [calendarSources, calendars, cardId, canonicalCardId]);
   const viewMode = useMemo<CalendarViewMode>(() => {
     if (!cardId) {
       return 'week';

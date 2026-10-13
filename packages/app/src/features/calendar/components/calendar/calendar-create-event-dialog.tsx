@@ -48,6 +48,9 @@ export function CalendarCreateEventDialog({
   return (
     <BaseCardDialog
       variant="modal"
+      height="capped"
+      contentClassName="flex flex-col"
+      bodyClassName="min-h-0 overflow-y-auto overscroll-contain"
       isOpen
       onOpenChange={(open) => {
         if (!open && !submitting.current) onClose();
