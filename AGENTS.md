@@ -75,12 +75,9 @@ Workflow: `docs/engineering/request-workflows.md`.
 
 ## Writing skills
 
-After the routed guide, read only the matching `.agents/skills/<name>/SKILL.md`:
-- New marketing or website copy: `copywriting`.
-- Editing existing marketing copy: `copy-editing`.
-- Interface labels, help text, errors, empty states and onboarding: `ux-writing`.
-- Substantial new documents needing collaborative structure or reader testing: `doc-coauthoring`.
-  Routine documentation updates use `docs/agents/documentation.md` directly.
+After the routed guide, use `.agents/skills/ux-writing/SKILL.md` for interface labels, help text,
+errors, empty states and onboarding. Documentation updates use `docs/agents/documentation.md`
+directly.
 
 Use `docs/branding/VOICE_AND_MESSAGING.md` as the shared writing context; do not create a
 parallel product-marketing or voice document. Navet's authority, factual claims, terminology
