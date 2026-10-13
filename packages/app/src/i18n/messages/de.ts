@@ -1,5 +1,6 @@
 export const deMessages = {
   'history.title': 'Verlauf und Aktivitäten',
+  'history.userAction': 'Benutzeraktion',
   'history.entity': 'Entität',
   'history.chooseEntity': 'Entität auswählen',
   'history.search': 'Entität suchen',

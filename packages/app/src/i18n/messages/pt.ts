@@ -1,5 +1,6 @@
 export const ptMessages = {
   'history.title': 'Histórico e atividade',
+  'history.userAction': 'Ação do usuário',
   'history.entity': 'Entidade',
   'history.chooseEntity': 'Escolher uma entidade',
   'history.search': 'Procurar uma entidade',

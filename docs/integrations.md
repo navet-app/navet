@@ -53,8 +53,10 @@ it in its own interface.
 
 Open the user menu → **History and activity**, choose an entity, select a date/time range,
 and choose **State history** or **Activity**. Times use the display's time zone, shown in the form.
-State history preserves numeric readings and nonnumeric states; a retained state from before the
-range is labelled **State at the start of the range**. Numeric energy statistics remain in Energy.
+State history preserves numeric readings and nonnumeric states; a retained state supplied at the
+range boundary is labelled **State at the start of the range**. Activity includes recorded cause
+details, such as an automation, service, or user action, when the source supplies them. Numeric
+energy statistics remain in Energy.
 
 Each request targets the entity's owning source. Home Assistant supplies state history and recorded
 activity; Homey supplies history for supported Insights entities. Unsupported sources show an
@@ -62,8 +64,9 @@ unavailable message. Activity follows Home Assistant's filters and can omit freq
 numeric sensors. An empty result can mean there were no records, the entity is excluded, or the
 source no longer retains that period. Navet cannot reconstruct deleted records.
 
-Requests cover up to 31 days at a time. Results show the newest records first, with **Show more**
-for additional rows and an explicit limit at 1,000 records. Choose a shorter range for more detail.
+Queries cover up to 31 days. Navet reads recent windows first and stops once the newest 1,000
+records and the limit indicator are known. Results offer **Show more** for additional rows within
+that limit. Choose a shorter range for more detail.
 Home Assistant uses the existing authenticated transport in standalone, Ingress and custom panel.
 
 ### Home Assistant

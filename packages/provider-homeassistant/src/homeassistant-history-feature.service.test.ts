@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { homeAssistantActivityFixture } from '../../app/src/test/fixtures/home-assistant/activity';
+import { homeAssistantHistoryBoundaryFixture } from '../../app/src/test/fixtures/home-assistant/history-boundary';
 
 const { callHomeAssistantApiMock, getHomeAssistantConnectionMock } = vi.hoisted(() => ({
   callHomeAssistantApiMock: vi.fn(),
@@ -20,6 +21,27 @@ describe('homeAssistantHistoryFeatureService', () => {
     callHomeAssistantApiMock.mockReset();
     getHomeAssistantConnectionMock.mockReset();
     getHomeAssistantConnectionMock.mockReturnValue(null);
+  });
+
+  it('marks the synthesized boundary state without labeling a later real change as initial', async () => {
+    callHomeAssistantApiMock.mockResolvedValueOnce(homeAssistantHistoryBoundaryFixture);
+    const result = await homeAssistantHistoryFeatureService.getEntityHistory?.({
+      entityId: 'switch.kitchen',
+      startTime: '2026-10-13T10:00:00Z',
+      endTime: '2026-10-13T12:00:00Z',
+    });
+    expect(result?.points[0]).toMatchObject({ state: 'off', atStart: true });
+    expect(result?.points[1].atStart).toBeUndefined();
+
+    callHomeAssistantApiMock.mockResolvedValueOnce([
+      [{ entity_id: 'switch.kitchen', state: 'on', last_changed: '2026-10-13T10:30:00Z' }],
+    ]);
+    const withoutRetainedState = await homeAssistantHistoryFeatureService.getEntityHistory?.({
+      entityId: 'switch.kitchen',
+      startTime: '2026-10-13T10:00:00Z',
+      endTime: '2026-10-13T12:00:00Z',
+    });
+    expect(withoutRetainedState?.points[0].atStart).toBeUndefined();
   });
 
   it('reads entity-filtered activity over the existing authenticated WebSocket', async () => {
@@ -43,7 +65,17 @@ describe('homeAssistantHistoryFeatureService', () => {
         name: 'Kitchen',
         message: 'Evening routine started',
       },
-      { entityId: 'switch.kitchen', timestamp: '2026-10-13T10:30:00.000Z', state: 'on' },
+      {
+        entityId: 'switch.kitchen',
+        timestamp: '2026-10-13T10:30:00.000Z',
+        state: 'on',
+        context: {
+          name: 'Evening routine',
+          message: 'started',
+          service: 'turn_on',
+          userId: 'household-user',
+        },
+      },
     ]);
   });
 
@@ -144,6 +176,7 @@ describe('homeAssistantHistoryFeatureService', () => {
           state: 'off',
           changedAt: '2026-07-14T08:00:00+00:00',
           updatedAt: '2026-07-14T08:00:01+00:00',
+          atStart: true,
         },
         {
           state: 'on',
@@ -189,6 +222,7 @@ describe('homeAssistantHistoryFeatureService', () => {
         state: '21.4',
         changedAt: '2026-07-14T08:00:00Z',
         attributes: { unit_of_measurement: '°C' },
+        atStart: true,
       },
     ]);
     const path = callHomeAssistantApiMock.mock.calls[0]?.[1] as string;

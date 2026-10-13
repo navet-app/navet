@@ -1,5 +1,6 @@
 export const zhMessages = {
   'history.title': '历史与活动',
+  'history.userAction': '用户操作',
   'history.entity': '实体',
   'history.chooseEntity': '选择实体',
   'history.search': '查找实体',

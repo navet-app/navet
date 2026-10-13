@@ -163,7 +163,7 @@ export function CalendarCreateEventDialog({
                 <Input
                   id={`${prefix}-start`}
                   type={allDay ? 'date' : 'datetime-local'}
-                  inputClassName="calendar-event-native-input"
+                  inputClassName="native-date-time-input"
                   style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
                   aria-describedby={allDay ? undefined : `${prefix}-time-zone`}
                   value={start}
@@ -181,7 +181,7 @@ export function CalendarCreateEventDialog({
                 <Input
                   id={`${prefix}-end`}
                   type={allDay ? 'date' : 'datetime-local'}
-                  inputClassName="calendar-event-native-input"
+                  inputClassName="native-date-time-input"
                   style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
                   aria-describedby={allDay ? undefined : `${prefix}-time-zone`}
                   value={end}

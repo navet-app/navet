@@ -62,6 +62,7 @@ export const TEST_TIERS = {
       'scripts/prepare-addon-release-metadata.test.mjs',
       'packages/provider-homeassistant/src/homeassistant-contract.test.ts',
       'packages/provider-homeassistant/src/homeassistant-energy-helpers.test.ts',
+      'packages/provider-homeassistant/src/homeassistant-calendar-feature.service.lazy.test.ts',
       'packages/provider-homeassistant/src/homeassistant-chore-projection-feature.service.test.ts',
       'packages/provider-homey/src/homey-contract.test.ts',
       'packages/provider-openhab/src/openhab-contract.test.ts',

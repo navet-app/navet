@@ -7,7 +7,7 @@ import { HistoryExplorerDialog } from './history-explorer-dialog';
 const entities = [
   {
     id: 'home_assistant:sensor.temperature',
-    name: 'Kitchen temperature',
+    name: 'Kitchen temperature — main floor climate and ventilation sensor',
     source: 'Home Assistant',
     connected: true,
   },
@@ -36,7 +36,14 @@ function HistoryStory({
       if (scenario === 'unsupported') return null;
       if (scenario === 'empty') return [];
       if (query.mode === 'activity')
-        return [{ timestamp: query.startTime, value: 'Evening routine started', name: 'Kitchen' }];
+        return [
+          {
+            timestamp: query.startTime,
+            value: 'Evening routine started',
+            name: 'Kitchen',
+            context: { name: 'Evening routine', userId: 'household-user' },
+          },
+        ];
       return [
         { timestamp: query.startTime, value: query.entityId.includes('sensor') ? '21.4' : 'on' },
         {
@@ -70,8 +77,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 const screenFor = (element: HTMLElement) => within(element.ownerDocument.body);
+async function expectLayout(element: HTMLElement) {
+  const screen = screenFor(element);
+  const content = screen.getByRole('region', { name: 'History and activity' });
+  const loadButton = screen.getByRole('button', { name: 'Load records' });
+  const view = element.ownerDocument.defaultView;
+  if (!view) throw new Error('History story requires a browser viewport');
+  await expect(content.scrollWidth).toBeLessThanOrEqual(content.clientWidth + 1);
+  await expect(loadButton.getBoundingClientRect().bottom).toBeLessThanOrEqual(view.innerHeight);
+}
 async function chooseAndLoad(element: HTMLElement) {
   const screen = screenFor(element);
+  await expectLayout(element);
   await userEvent.selectOptions(
     screen.getByRole('combobox', { name: /^Entity/ }),
     'home_assistant:sensor.temperature'
@@ -94,6 +111,8 @@ export const StateAndActivity: Story = {
     await userEvent.click(screen.getByRole('button', { name: 'Activity' }));
     await userEvent.click(screen.getByRole('button', { name: 'Load records' }));
     await expect(screen.getByText('Kitchen: Evening routine started')).toBeInTheDocument();
+    await expect(screen.getByText('Evening routine · User action')).toBeInTheDocument();
+    await expectLayout(canvasElement);
   },
 };
 export const Empty: Story = {

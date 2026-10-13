@@ -1,5 +1,6 @@
 export const esMessages = {
   'history.title': 'Historial y actividad',
+  'history.userAction': 'Acción del usuario',
   'history.entity': 'Entidad',
   'history.chooseEntity': 'Elegir una entidad',
   'history.search': 'Buscar una entidad',

@@ -49,10 +49,11 @@ function throwIfHistoryRequestAborted(signal?: AbortSignal) {
 
 function parseEntityHistoryPoints(
   entries: HomeAssistantHistoryState[],
-  includeAttributes: boolean
+  includeAttributes: boolean,
+  startTime: string
 ): PlatformEntityHistoryPoint[] {
   return entries
-    .map((entry) => {
+    .map((entry, index) => {
       const changedAt = parseTimestamp(entry.last_changed ?? entry.last_updated);
       if (typeof entry.state !== 'string' || !changedAt) {
         return null;
@@ -72,6 +73,7 @@ function parseEntityHistoryPoints(
         changedAt,
         ...(updatedAt ? { updatedAt } : {}),
         ...(attributes ? { attributes } : {}),
+        ...(index === 0 && Date.parse(changedAt) <= Date.parse(startTime) ? { atStart: true } : {}),
       };
     })
     .filter((point): point is PlatformEntityHistoryPoint => point !== null);
@@ -122,7 +124,8 @@ async function loadEntityHistories(
     entityId,
     points: parseEntityHistoryPoints(
       entriesByEntityId.get(entityId) ?? [],
-      request.includeAttributes === true
+      request.includeAttributes === true,
+      request.startTime
     ),
   }));
 }
@@ -197,6 +200,19 @@ export const homeAssistantHistoryFeatureService: ProviderHistoryFeatureService =
         const date = new Date(entry.when * 1000);
         if (!Number.isFinite(date.getTime()) || date.getTime() < startMs || date.getTime() >= endMs)
           return [];
+        const context: NonNullable<PlatformActivityEntry['context']> = {};
+        const contextFields = {
+          name: entry.context_name ?? entry.context_entity_id_name,
+          message: entry.context_message,
+          service: entry.context_service,
+          source: entry.context_source,
+          userId: entry.context_user_id,
+        };
+        for (const [key, value] of Object.entries(contextFields)) {
+          if (typeof value === 'string' && value.trim()) {
+            context[key as keyof typeof context] = value;
+          }
+        }
         return [
           {
             entityId: entry.entity_id,
@@ -204,6 +220,7 @@ export const homeAssistantHistoryFeatureService: ProviderHistoryFeatureService =
             ...(typeof entry.state === 'string' ? { state: entry.state } : {}),
             ...(typeof entry.name === 'string' ? { name: entry.name } : {}),
             ...(typeof entry.message === 'string' ? { message: entry.message } : {}),
+            ...(Object.keys(context).length ? { context } : {}),
           },
         ];
       })

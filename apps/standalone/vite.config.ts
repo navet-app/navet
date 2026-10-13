@@ -152,6 +152,17 @@ export default defineConfig(({ command, mode }) => {
         codeSplitting: {
           groups: [
             {
+              // Synchronous capability checks must not pull deferred calendar commands into startup.
+              name: 'provider-calendar-capabilities',
+              test(id: string) {
+                return id.endsWith(
+                  '/packages/provider-homeassistant/src/homeassistant-calendar-capabilities.ts'
+                );
+              },
+              entriesAware: true,
+              includeDependenciesRecursively: false,
+            },
+            {
               // Keep eager room references out of the deferred admin service chunk.
               name: 'provider-room-management',
               test(id: string) {

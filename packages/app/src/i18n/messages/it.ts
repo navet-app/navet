@@ -3,6 +3,7 @@ import { enMessages } from './en';
 export const itMessages = {
   ...enMessages,
   'history.title': 'Cronologia e attività',
+  'history.userAction': 'Azione utente',
   'history.entity': 'Entità',
   'history.chooseEntity': 'Scegli un’entità',
   'history.search': 'Cerca un’entità',

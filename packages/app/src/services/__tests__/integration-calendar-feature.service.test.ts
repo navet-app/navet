@@ -10,6 +10,7 @@ vi.mock('../home-assistant.service', () => ({
   homeAssistantService: {
     getConnection: getConnectionMock,
     getEntities: getEntitiesMock,
+    getPanelHass: () => null,
   },
 }));
 

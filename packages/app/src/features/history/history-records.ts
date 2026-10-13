@@ -2,6 +2,11 @@ import {
   getIntegrationActivity,
   getIntegrationEntityHistories,
 } from '@navet/app/services/integration-history.service';
+import type { PlatformActivityEntry } from '@navet/core/provider-feature-models';
+
+export const HISTORY_RECORD_LIMIT = 1000;
+const FETCH_LIMIT = HISTORY_RECORD_LIMIT + 1;
+const HISTORY_WINDOW_MS = 60 * 60 * 1000;
 
 export type HistoryMode = 'states' | 'activity';
 export interface HistoryQuery {
@@ -15,6 +20,7 @@ export interface HistoryRecord {
   value: string;
   name?: string;
   atStart?: boolean;
+  context?: PlatformActivityEntry['context'];
 }
 
 export function toLocalDateTime(date: Date): string {
@@ -42,44 +48,67 @@ export async function loadHistoryRecords(
   query: HistoryQuery,
   signal: AbortSignal
 ): Promise<HistoryRecord[] | null> {
-  if (query.mode === 'activity') {
-    const entries = await getIntegrationActivity({
-      entityIds: [query.entityId],
-      startTime: query.startTime,
-      endTime: query.endTime,
-      signal,
-    });
-    return (
-      entries?.map((entry) => ({
-        timestamp: entry.timestamp,
-        value: entry.message ?? entry.state ?? '',
-        name: entry.name,
-      })) ?? null
-    );
-  }
-  const series = await getIntegrationEntityHistories(
-    {
-      entityIds: [query.entityId],
-      startTime: query.startTime,
-      endTime: query.endTime,
-      significantChangesOnly: false,
-      includeAttributes: false,
-      signal,
-    },
-    { requireComplete: true }
-  );
-  const selected = series.find((entry) => entry.entityId === query.entityId);
-  if (!selected) return null;
   const start = Date.parse(query.startTime);
   const end = Date.parse(query.endTime);
-  return selected.points
-    .filter(
-      (point) => Number.isFinite(Date.parse(point.changedAt)) && Date.parse(point.changedAt) < end
-    )
-    .map((point) => ({
-      timestamp: point.changedAt,
-      value: point.state,
-      atStart: Date.parse(point.changedAt) < start,
-    }))
-    .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp));
+  const records: HistoryRecord[] = [];
+  const trim = () => {
+    records.sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp));
+    records.length = Math.min(records.length, FETCH_LIMIT);
+  };
+  const append = (record: HistoryRecord) => {
+    records.push(record);
+    // Bound allocations and sorting even when a source returns a dense or unordered window.
+    if (records.length >= FETCH_LIMIT * 2) trim();
+  };
+
+  for (let windowEnd = end; windowEnd > start; ) {
+    signal.throwIfAborted();
+    const windowStart = Math.max(start, windowEnd - HISTORY_WINDOW_MS);
+    const range = {
+      entityIds: [query.entityId],
+      // Overlap by one millisecond so strict provider endpoints retain boundary changes.
+      startTime: new Date(windowStart === start ? start : windowStart - 1).toISOString(),
+      endTime: new Date(windowEnd).toISOString(),
+      signal,
+    };
+    if (query.mode === 'activity') {
+      const entries = await getIntegrationActivity(range);
+      signal.throwIfAborted();
+      if (entries === null) return null;
+      for (const entry of entries) {
+        const timestamp = Date.parse(entry.timestamp);
+        if (!Number.isFinite(timestamp) || timestamp < windowStart || timestamp >= windowEnd)
+          continue;
+        append({
+          timestamp: entry.timestamp,
+          value: entry.message ?? entry.state ?? '',
+          name: entry.name,
+          context: entry.context,
+        });
+      }
+    } else {
+      const series = await getIntegrationEntityHistories(
+        { ...range, significantChangesOnly: false, includeAttributes: false },
+        { requireComplete: true }
+      );
+      signal.throwIfAborted();
+      const selected = series.find((entry) => entry.entityId === query.entityId);
+      if (!selected) return null;
+      for (const point of selected.points) {
+        const timestamp = Date.parse(point.changedAt);
+        if (!Number.isFinite(timestamp) || timestamp >= windowEnd) continue;
+        // Intermediate windows carry snapshots, not additional state changes.
+        if (windowStart > start && (point.atStart || timestamp < windowStart)) continue;
+        append({
+          timestamp: point.changedAt,
+          value: point.state,
+          atStart: point.atStart === true || timestamp < start,
+        });
+      }
+    }
+    trim();
+    if (records.length >= FETCH_LIMIT) break;
+    windowEnd = windowStart;
+  }
+  return records;
 }

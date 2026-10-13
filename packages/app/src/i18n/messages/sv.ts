@@ -1,5 +1,6 @@
 export const svMessages = {
   'history.title': 'Historik och aktivitet',
+  'history.userAction': 'Användaråtgärd',
   'history.entity': 'Entitet',
   'history.chooseEntity': 'Välj en entitet',
   'history.search': 'Sök efter en entitet',

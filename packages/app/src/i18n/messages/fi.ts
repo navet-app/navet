@@ -1,5 +1,6 @@
 export const fiMessages = {
   'history.title': 'Historia ja tapahtumat',
+  'history.userAction': 'Käyttäjän toiminto',
   'history.entity': 'Entiteetti',
   'history.chooseEntity': 'Valitse entiteetti',
   'history.search': 'Etsi entiteetti',

@@ -1,5 +1,6 @@
 export const enMessages = {
   'history.title': 'History and activity',
+  'history.userAction': 'User action',
   'history.entity': 'Entity',
   'history.chooseEntity': 'Choose an entity',
   'history.search': 'Find an entity',

@@ -1,5 +1,6 @@
 export const plMessages = {
   'history.title': 'Historia i aktywność',
+  'history.userAction': 'Działanie użytkownika',
   'history.entity': 'Encja',
   'history.chooseEntity': 'Wybierz encję',
   'history.search': 'Znajdź encję',

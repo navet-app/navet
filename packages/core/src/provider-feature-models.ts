@@ -161,6 +161,8 @@ export interface PlatformEntityHistoryPoint {
   changedAt: string;
   updatedAt?: string;
   attributes?: Record<string, unknown>;
+  /** A retained initial state supplied at the requested range boundary. */
+  atStart?: boolean;
 }
 
 export interface PlatformEntityHistorySeries {
@@ -181,6 +183,13 @@ export interface PlatformActivityEntry {
   state?: string;
   name?: string;
   message?: string;
+  context?: {
+    name?: string;
+    message?: string;
+    service?: string;
+    source?: string;
+    userId?: string;
+  };
 }
 
 export type PlatformStatisticsPeriod = '5minute' | 'hour' | 'day' | 'week' | 'month' | 'year';

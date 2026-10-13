@@ -1,5 +1,6 @@
 export const daMessages = {
   'history.title': 'Historik og aktivitet',
+  'history.userAction': 'Brugerhandling',
   'history.entity': 'Entitet',
   'history.chooseEntity': 'Vælg en entitet',
   'history.search': 'Find en entitet',

@@ -1,5 +1,6 @@
 export const noMessages = {
   'history.title': 'Historikk og aktivitet',
+  'history.userAction': 'Brukerhandling',
   'history.entity': 'Entitet',
   'history.chooseEntity': 'Velg en entitet',
   'history.search': 'Finn en entitet',

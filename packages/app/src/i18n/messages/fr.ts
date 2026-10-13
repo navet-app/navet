@@ -1,5 +1,6 @@
 export const frMessages = {
   'history.title': 'Historique et activité',
+  'history.userAction': 'Action utilisateur',
   'history.entity': 'Entité',
   'history.chooseEntity': 'Choisir une entité',
   'history.search': 'Rechercher une entité',

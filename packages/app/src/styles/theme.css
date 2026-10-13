@@ -565,12 +565,12 @@
   @supports (-webkit-touch-callout: none) {
     /* WebKit 301648: iOS adds inline padding to the width of native date/time inputs. */
     .chore-schedule-native-input,
-    input.calendar-event-native-input {
+    input.native-date-time-input {
       padding-inline: 0;
     }
 
     .chore-schedule-native-input::-webkit-datetime-edit,
-    .calendar-event-native-input::-webkit-datetime-edit {
+    .native-date-time-input::-webkit-datetime-edit {
       margin-inline: 1rem;
     }
 

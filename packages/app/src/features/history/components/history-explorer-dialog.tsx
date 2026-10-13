@@ -1,4 +1,5 @@
 import { FieldBlock } from '@navet/app/components/patterns';
+import { CardDialogFooter } from '@navet/app/components/patterns/card-dialog';
 import {
   BaseCardDialog,
   Button,
@@ -14,6 +15,7 @@ import { navetTypographyTokens } from '@navet/app/components/system/tokens';
 import { useI18n, useTheme } from '@navet/app/hooks';
 import { useId, useState } from 'react';
 import {
+  HISTORY_RECORD_LIMIT,
   type HistoryMode,
   type HistoryQuery,
   historyRange,
@@ -34,12 +36,13 @@ interface Props {
   load?: typeof loadHistoryRecords;
 }
 const PAGE_SIZE = 50;
-const RECORD_LIMIT = 1000;
+const RECORD_LIMIT = HISTORY_RECORD_LIMIT;
 
 export function HistoryExplorerDialog({ entities, onClose, load = loadHistoryRecords }: Props) {
   const { theme } = useTheme();
   const { t, locale } = useI18n();
   const surface = getThemeSurfaceTokens(theme);
+  const fieldLabelClassName = `${navetTypographyTokens.caption} ${surface.textSecondary}`;
   const prefix = useId();
   const [entityId, setEntityId] = useState('');
   const [search, setSearch] = useState('');
@@ -72,9 +75,13 @@ export function HistoryExplorerDialog({ entities, onClose, load = loadHistoryRec
   return (
     <BaseCardDialog
       variant="modal"
+      mobileCoverSheet
+      persistentMobileDismiss
+      titleInContent
       height="capped"
       contentClassName="flex flex-col"
-      bodyClassName="min-h-0 overflow-y-auto overscroll-contain"
+      shellBodyClassName="flex min-h-0 min-w-0 flex-1 flex-col"
+      bodyClassName="flex min-h-0 min-w-0 flex-1 flex-col"
       isOpen
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -82,10 +89,16 @@ export function HistoryExplorerDialog({ entities, onClose, load = loadHistoryRec
       title={t('history.title')}
       theme={theme}
     >
-      <DialogHeader title={t('history.title')} isOn={theme !== 'light'} />
-      <div className={`space-y-4 ${surface.textPrimary}`}>
+      <div className="shrink-0">
+        <DialogHeader title={t('history.title')} isOn={theme !== 'light'} />
+      </div>
+      <section
+        aria-label={t('history.title')}
+        className={`min-h-0 min-w-0 max-w-full space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain ${surface.textPrimary}`}
+      >
         <form
-          className="space-y-4"
+          id={`${prefix}-query`}
+          className="min-w-0 space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (!selected?.connected) return;
@@ -100,89 +113,113 @@ export function HistoryExplorerDialog({ entities, onClose, load = loadHistoryRec
             }
           }}
         >
-          <FieldBlock label={t('history.search')} htmlFor={`${prefix}-search`}>
-            <Input
-              id={`${prefix}-search`}
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.currentTarget.value)}
-            />
-          </FieldBlock>
-          <FieldBlock label={t('history.entity')} htmlFor={`${prefix}-entity`} required>
-            <Select
-              id={`${prefix}-entity`}
-              value={entityId}
-              required
-              onChange={(event) => {
-                setEntityId(event.currentTarget.value);
-                reset();
-              }}
+          <div className="min-w-0 space-y-3">
+            <FieldBlock
+              label={t('history.search')}
+              htmlFor={`${prefix}-search`}
+              labelClassName={fieldLabelClassName}
             >
-              <option value="">{t('history.chooseEntity')}</option>
-              {filtered.map((entity) => (
-                <option key={entity.id} value={entity.id}>
-                  {entity.source} · {entity.name}
-                </option>
-              ))}
-            </Select>
-          </FieldBlock>
-          <fieldset className="flex flex-wrap gap-2" aria-label={t('history.view')}>
-            {(['states', 'activity'] as const).map((value) => (
-              <InteractivePill
-                key={value}
-                type="button"
-                active={mode === value}
-                aria-pressed={mode === value}
-                onClick={() => {
-                  setMode(value);
+              <Input
+                id={`${prefix}-search`}
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.currentTarget.value)}
+              />
+            </FieldBlock>
+            <FieldBlock
+              label={t('history.entity')}
+              htmlFor={`${prefix}-entity`}
+              labelClassName={fieldLabelClassName}
+            >
+              <Select
+                id={`${prefix}-entity`}
+                containerClassName="min-w-0 max-w-full"
+                selectClassName="min-w-0 max-w-full"
+                value={entityId}
+                required
+                onChange={(event) => {
+                  setEntityId(event.currentTarget.value);
                   reset();
                 }}
               >
-                {t(value === 'states' ? 'history.states' : 'history.activity')}
-              </InteractivePill>
-            ))}
-          </fieldset>
-          <p className={`${navetTypographyTokens.helper} ${surface.textSecondary}`}>
-            {t('calendar.create.timeZone', { timeZone })}
-          </p>
-          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-            <FieldBlock label={t('calendar.create.start')} htmlFor={`${prefix}-start`} required>
-              <Input
-                id={`${prefix}-start`}
-                type="datetime-local"
-                style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
-                required
-                value={start}
-                onChange={(event) => {
-                  setStart(event.currentTarget.value);
-                  reset();
-                }}
-              />
+                <option value="">{t('history.chooseEntity')}</option>
+                {filtered.map((entity) => (
+                  <option key={entity.id} value={entity.id}>
+                    {entity.source} · {entity.name}
+                  </option>
+                ))}
+              </Select>
             </FieldBlock>
-            <FieldBlock label={t('calendar.create.end')} htmlFor={`${prefix}-end`} required>
-              <Input
-                id={`${prefix}-end`}
-                type="datetime-local"
-                style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
-                required
-                value={end}
-                onChange={(event) => {
-                  setEnd(event.currentTarget.value);
-                  reset();
-                }}
-              />
-            </FieldBlock>
+          </div>
+          <div className={`min-w-0 space-y-3 border-t pt-4 ${surface.dividerBorder}`}>
+            <fieldset className="flex min-w-0 flex-wrap gap-2" aria-label={t('history.view')}>
+              {(['states', 'activity'] as const).map((value) => (
+                <InteractivePill
+                  key={value}
+                  type="button"
+                  active={mode === value}
+                  aria-pressed={mode === value}
+                  onClick={() => {
+                    setMode(value);
+                    reset();
+                  }}
+                >
+                  {t(value === 'states' ? 'history.states' : 'history.activity')}
+                </InteractivePill>
+              ))}
+            </fieldset>
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+              <FieldBlock
+                label={t('calendar.create.start')}
+                htmlFor={`${prefix}-start`}
+                className="min-w-0"
+                labelClassName={fieldLabelClassName}
+              >
+                <Input
+                  id={`${prefix}-start`}
+                  type="datetime-local"
+                  inputClassName="native-date-time-input"
+                  style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
+                  aria-describedby={`${prefix}-time-zone`}
+                  required
+                  value={start}
+                  onChange={(event) => {
+                    setStart(event.currentTarget.value);
+                    reset();
+                  }}
+                />
+              </FieldBlock>
+              <FieldBlock
+                label={t('calendar.create.end')}
+                htmlFor={`${prefix}-end`}
+                className="min-w-0"
+                labelClassName={fieldLabelClassName}
+              >
+                <Input
+                  id={`${prefix}-end`}
+                  type="datetime-local"
+                  inputClassName="native-date-time-input"
+                  style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
+                  aria-describedby={`${prefix}-time-zone`}
+                  required
+                  value={end}
+                  onChange={(event) => {
+                    setEnd(event.currentTarget.value);
+                    reset();
+                  }}
+                />
+              </FieldBlock>
+            </div>
+            <p
+              id={`${prefix}-time-zone`}
+              className={`${navetTypographyTokens.compactHelper} ${surface.textSecondary}`}
+            >
+              {t('calendar.create.timeZone', { timeZone })}
+            </p>
           </div>
           {validationError ? (
             <MessageBar tone="error">{t('history.invalidRange')}</MessageBar>
           ) : null}
-          <Button
-            type="submit"
-            size="small"
-            disabled={!selected?.connected || result.status === 'loading'}
-          >
-            {t('history.load')}
-          </Button>
         </form>
         {entities.length === 0 ? (
           <MessageBar>{t('history.noEntities')}</MessageBar>
@@ -236,6 +273,21 @@ export function HistoryExplorerDialog({ entities, onClose, load = loadHistoryRec
                         {t('history.atStart')}
                       </p>
                     ) : null}
+                    {record.context ? (
+                      <p
+                        className={`${navetTypographyTokens.compactHelper} ${surface.textSecondary}`}
+                      >
+                        {[
+                          record.context.name,
+                          record.context.message,
+                          record.context.service,
+                          record.context.source,
+                          record.context.userId ? t('history.userAction') : undefined,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    ) : null}
                   </div>
                   <time
                     dateTime={record.timestamp}
@@ -260,7 +312,19 @@ export function HistoryExplorerDialog({ entities, onClose, load = loadHistoryRec
             ) : null}
           </div>
         ) : null}
-      </div>
+      </section>
+      <CardDialogFooter className={`mt-4 shrink-0 border-t pt-4 ${surface.dividerBorder}`}>
+        <Button type="button" variant="soft" onClick={onClose}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          type="submit"
+          form={`${prefix}-query`}
+          disabled={!selected?.connected || result.status === 'loading'}
+        >
+          {t('history.load')}
+        </Button>
+      </CardDialogFooter>
     </BaseCardDialog>
   );
 }

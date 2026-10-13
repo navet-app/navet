@@ -1,5 +1,6 @@
 export const nlMessages = {
   'history.title': 'Geschiedenis en activiteit',
+  'history.userAction': 'Gebruikersactie',
   'history.entity': 'Entiteit',
   'history.chooseEntity': 'Kies een entiteit',
   'history.search': 'Zoek een entiteit',
