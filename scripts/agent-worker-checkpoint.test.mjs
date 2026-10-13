@@ -6,11 +6,12 @@ import { afterEach, expect, it } from 'vitest';
 import { AgentTaskStore } from './agent-task-store.mjs';
 import { createGitWorkerCheckpointService } from './agent-worker-checkpoint.mjs';
 import { createCodexWorkerAdapter } from './agent-codex-worker.mjs';
+import { directorySeed } from './test-fixtures/directory-seed.mjs';
 
 const directories = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))); });
-async function setup() {
-  const directory = await mkdtemp(path.join(tmpdir(), 'navet-checkpoint-')); directories.push(directory);
+// Keep: scenarios capture and verify actual Git and persisted checkpoint state.
+const checkpointSeed = directorySeed(async (directory) => {
   const worktree = path.join(directory, 'worktree');
   const { mkdir } = await import('node:fs/promises'); await mkdir(worktree);
   const git = (...args) => execFileSync('git', args, { cwd: worktree, encoding: 'utf8',
@@ -28,6 +29,20 @@ async function setup() {
   const dispatched = await act('dispatch-intent', { authority: { ...authority, observedAt: tick() } });
   await act('bind', { token: dispatched.dispatch.token, threadId: 'worker' });
   await act('context', { context: { worktree, branch: 'feature/worker', nextAction: 'Review preserved changes' } });
+  return { time, task, authority, dispatched };
+}, { stateFiles: ['store/tasks.json'] });
+
+async function setup() {
+  const directory = await mkdtemp(path.join(tmpdir(), 'navet-checkpoint-')); directories.push(directory);
+  const seed = await checkpointSeed(directory);
+  let { time } = seed;
+  const { task, dispatched } = seed;
+  const worktree = path.join(directory, 'worktree');
+  const git = (...args) => execFileSync('git', args, { cwd: worktree, encoding: 'utf8',
+    env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } }).trim();
+  const now = () => time; const tick = () => ++time;
+  const store = new AgentTaskStore(path.join(directory, 'store'), { now });
+  const act = (action, input = {}) => store.mutate(task.id, action, { owner: 'coordinator', ...input });
   const worker = () => ({ taskId: task.id, dispatchToken: dispatched.dispatch.token, threadId: 'worker', runId: 'turn',
     status: 'stopped', reference: 'native-stop-observation', observedAt: tick() });
   const service = createGitWorkerCheckpointService({ store, owner: 'coordinator', now, readWorker: async () => worker() });

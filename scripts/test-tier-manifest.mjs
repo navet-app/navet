@@ -1,6 +1,6 @@
 export const TEST_TIER_CONFIG = {
   config: 'vitest.unit.config.ts',
-  project: 'unit',
+  project: 'unit*',
 };
 
 export const TEST_TIERS = {

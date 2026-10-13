@@ -5,10 +5,12 @@ import { TEST_TIERS } from './test-tier-manifest.mjs';
 import { testTierArgs } from './test-tier-args.mjs';
 
 const [tierName, ...extraArgs] = process.argv.slice(2);
-const tier = TEST_TIERS[tierName];
+const tier = tierName === 'blocking'
+  ? { files: [...new Set([...TEST_TIERS.tier1.files, ...TEST_TIERS.tier2.files])] }
+  : TEST_TIERS[tierName];
 
 if (!tier) {
-  const tierNames = Object.keys(TEST_TIERS).join(', ');
+  const tierNames = [...Object.keys(TEST_TIERS), 'blocking'].join(', ');
   console.error(`Unknown test tier "${tierName ?? ''}". Expected one of: ${tierNames}`);
   process.exit(1);
 }

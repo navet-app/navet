@@ -15,6 +15,7 @@ pnpm typecheck &&
   printf '%s\n' "$navet_push_refs" | while read -r navet_local_ref navet_local_sha navet_remote_ref navet_remote_sha; do
     printf 'Navet validated push: %s %s\n' "$navet_local_sha" "$navet_remote_ref"
   done`;
+const COMBINED_HOOK = BOUND_HOOK.replace('pnpm test:tier1 &&\n  pnpm test:tier2', 'pnpm test:blocking');
 const normalizeHook = (value) => value.replace(/\s+/g, ' ').trim();
 const sha = (value) => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
 
@@ -200,7 +201,8 @@ export async function verifyValidationReceipt({ receiptFile, expectedHead, repos
     `git@github.com:${repository}`, `git@github.com:${repository}.git`];
   if (!acceptedRemotes.includes(remote)) throw new Error('Validation receipt repository mismatch.');
   const hook = await git(root, ['show', `${expectedHead}:.husky/pre-push`]);
-  if (![HOOK, normalizeHook(BOUND_HOOK)].includes(normalizeHook(hook))) throw new Error('Unsupported commit-bound pre-push hook.');
+  const combined = normalizeHook(hook) === normalizeHook(COMBINED_HOOK);
+  if (![HOOK, normalizeHook(BOUND_HOOK), normalizeHook(COMBINED_HOOK)].includes(normalizeHook(hook))) throw new Error('Unsupported commit-bound pre-push hook.');
   const record = await nativeRecord(source.file, source.line, threadId, source.recordSha256);
   if (record.timestamp !== source.timestamp || !Number.isFinite(Date.parse(record.timestamp)) || Date.parse(record.timestamp) > Date.now()) {
     throw new Error('Native receipt is not the matching successful ordinary push command.');
@@ -228,20 +230,41 @@ export async function verifyValidationReceipt({ receiptFile, expectedHead, repos
   const end = output.indexOf(endMarker, start + startMarker.length);
   if (start < 0 || end < start) throw new Error('Native receipt clean-checkout validation bounds are missing.');
   const validationOutput = output.slice(start + startMarker.length, end);
-  const stages = ['$ tsc --noEmit', '$ node scripts/run-test-tier.mjs tier1', '$ node scripts/run-test-tier.mjs tier2'];
+  const stages = combined
+    ? ['$ tsc --noEmit', '$ node scripts/run-test-tier.mjs blocking']
+    : ['$ tsc --noEmit', '$ node scripts/run-test-tier.mjs tier1', '$ node scripts/run-test-tier.mjs tier2'];
   const positions = stages.map((stage) => validationOutput.indexOf(stage));
-  if (positions.some((position) => position < 0) || !(positions[0] < positions[1] && positions[1] < positions[2])) {
+  if (positions.some((position, index) => position < 0 || index > 0 && position <= positions[index - 1])) {
     throw new Error('Native receipt validation chain is incomplete.');
   }
-  const tier1 = validationOutput.slice(positions[1], positions[2]);
-  const tier2 = validationOutput.slice(positions[2]);
-  for (const [section, count] of [[tier1, receipt.tier1Tests], [tier2, receipt.tier2Tests]]) {
-    if (!Number.isSafeInteger(count) || count < 0) {
-      throw new Error('Native receipt test counts must be non-negative integers.');
+  if (combined) {
+    const section = validationOutput.slice(positions[1]);
+    const summaries = [...section.matchAll(/^Navet blocking coverage: (.+)$/gm)];
+    let coverage;
+    try { coverage = summaries.length === 1 ? JSON.parse(summaries[0][1]) : null; }
+    catch { throw new Error('Native receipt combined test counts are invalid.'); }
+    for (const [name, count] of [['tier1', receipt.tier1Tests], ['tier2', receipt.tier2Tests]]) {
+      if (!coverage || coverage[name]?.tests !== count ||
+          !Number.isSafeInteger(coverage[name]?.files) || coverage[name].files <= 0) {
+        throw new Error('Native receipt test counts are not a complete passing tier.');
+      }
     }
-    const summaries = [...section.matchAll(/\bTests\s+(\d+) passed \((\d+)\)/g)];
-    if (!summaries.some(([, passed, total]) => Number(passed) === count && Number(total) === count)) {
-      throw new Error('Native receipt test counts are not a complete passing tier.');
+    const tests = receipt.tier1Tests + receipt.tier2Tests;
+    const files = coverage.tier1.files + coverage.tier2.files;
+    for (const [label, count] of [['Tests', tests], ['Test Files', files]]) {
+      const totals = [...section.matchAll(new RegExp(`\\b${label}\\s+(\\d+) passed \\((\\d+)\\)`, 'g'))];
+      if (totals.length !== 1 || totals.some(([, passed, total]) => Number(passed) !== count || Number(total) !== count)) {
+        throw new Error('Native receipt combined test counts are not a complete passing run.');
+      }
+    }
+  } else {
+    const tier1 = validationOutput.slice(positions[1], positions[2]);
+    const tier2 = validationOutput.slice(positions[2]);
+    for (const [section, count] of [[tier1, receipt.tier1Tests], [tier2, receipt.tier2Tests]]) {
+      const summaries = [...section.matchAll(/\bTests\s+(\d+) passed \((\d+)\)/g)];
+      if (!summaries.some(([, passed, total]) => Number(passed) === count && Number(total) === count)) {
+        throw new Error('Native receipt test counts are not a complete passing tier.');
+      }
     }
   }
   const escaped = branch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -257,8 +280,8 @@ export async function verifyValidationReceipt({ receiptFile, expectedHead, repos
     }
   } else {
     const validated = new RegExp(`^Navet validated push: ([a-f0-9]{40}) refs/heads/${escaped}\\s*$`, 'm').exec(validationOutput);
-    if (normalizeHook(hook) !== normalizeHook(BOUND_HOOK) || !validated || validated[1] !== expectedHead ||
-        validationOutput.indexOf(validated[0]) < positions[2]) {
+    if ((!combined && normalizeHook(hook) !== normalizeHook(BOUND_HOOK)) || !validated || validated[1] !== expectedHead ||
+        validationOutput.indexOf(validated[0]) < positions.at(-1)) {
       throw new Error('Native receipt new branch lacks immutable push-time commit evidence.');
     }
   }

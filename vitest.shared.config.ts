@@ -30,7 +30,6 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    setupFiles: [path.resolve(configDir, './packages/app/src/setupTests.ts')],
     coverage: {
       provider: 'v8',
       include: ['packages/app/src/**/*.{ts,tsx}'],

@@ -1,7 +1,9 @@
 import { TEST_TIER_CONFIG, TEST_TIERS } from './test-tier-manifest.mjs';
 
 export function testTierArgs(tierName, extraArgs = []) {
-  const tier = TEST_TIERS[tierName];
+  const tier = tierName === 'blocking'
+    ? { files: [...new Set([...TEST_TIERS.tier1.files, ...TEST_TIERS.tier2.files])] }
+    : TEST_TIERS[tierName];
   if (!tier) throw new Error(`Unknown test tier ${tierName}.`);
   const passthrough = extraArgs[0] === '--' ? extraArgs.slice(1) : extraArgs;
   const excludeBlocking = passthrough.includes('--exclude-blocking');
@@ -19,6 +21,9 @@ export function testTierArgs(tierName, extraArgs = []) {
   if (excludeBlocking) {
     for (const file of new Set([...TEST_TIERS.tier1.files, ...TEST_TIERS.tier2.files]))
       args.push('--exclude', file);
+  }
+  if (tierName === 'blocking') {
+    args.push('--reporter=default', '--reporter=./scripts/blocking-test-reporter.mjs');
   }
   return [...args, ...passthrough.filter((arg) => arg !== '--exclude-blocking')];
 }

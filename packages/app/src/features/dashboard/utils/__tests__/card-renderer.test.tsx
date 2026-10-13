@@ -6,7 +6,7 @@ import { renderHookWithProviders, renderWithProviders } from '@navet/app/test/re
 import { resetAppStores } from '@navet/app/test/store-reset';
 import type { NavetEntity } from '@navet/core/types';
 import { act, fireEvent, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderCard, useCardIsUnavailable } from '../card-renderer';
 
 const { householdDispatch } = vi.hoisted(() => ({ householdDispatch: vi.fn() }));
@@ -39,6 +39,12 @@ vi.mock('@navet/app/features/vacuum', () => ({
 }));
 
 describe('card availability lookup', () => {
+  beforeAll(async () => {
+    // Keep: prepare the asynchronous lighting fixture before interaction assertions.
+    // Resolve the partial mock before React.lazy starts the DOM query's wait.
+    await import('@navet/app/features/lighting');
+  });
+
   beforeEach(async () => {
     vi.restoreAllMocks();
     await resetAppStores();

@@ -3,6 +3,15 @@ import { TEST_TIERS } from './test-tier-manifest.mjs';
 import { testTierArgs } from './test-tier-args.mjs';
 
 describe('CI test partition', () => {
+  // Keep: combining execution must preserve the exact blocking file selection.
+  it('runs the complete blocking union once across both unit environments', () => {
+    const args = testTierArgs('blocking');
+    const files = args.slice(args.indexOf('--run') + 1).filter((arg) => !arg.startsWith('--'));
+    expect(files).toEqual([...new Set([...TEST_TIERS.tier1.files, ...TEST_TIERS.tier2.files])]);
+    expect(args[args.indexOf('--project') + 1]).toBe('unit*');
+    expect(args).toContain('--reporter=./scripts/blocking-test-reporter.mjs');
+    expect(() => testTierArgs('blocking', ['--exclude-blocking'])).toThrow();
+  });
   it('keeps the local broad regression command complete', () => {
     expect(testTierArgs('tier3')).toContain('--run');
     expect(testTierArgs('tier3')).not.toContain('--exclude');
