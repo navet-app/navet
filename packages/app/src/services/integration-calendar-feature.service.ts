@@ -26,10 +26,15 @@ function resolveCalendar(entityId: string) {
 
 export const integrationCalendarFeatureService = {
   getCapabilities(entityId) {
-    const { nativeEntityId, service } = resolveCalendar(entityId);
-    return nativeEntityId && service.getCapabilities
-      ? service.getCapabilities(nativeEntityId)
-      : { canCreate: false, available: false };
+    // Viewing/demo snapshots may exist without a writable feature service.
+    try {
+      const { nativeEntityId, service } = resolveCalendar(entityId);
+      return nativeEntityId && service.getCapabilities
+        ? service.getCapabilities(nativeEntityId)
+        : { canCreate: false, available: false };
+    } catch {
+      return { canCreate: false, available: false };
+    }
   },
   async createEvent(
     entityId: string,

@@ -1,3 +1,4 @@
+import * as runtimeRegistry from '@navet/app/provider-runtime-registry';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getConnectionMock, getEntitiesMock } = vi.hoisted(() => ({
@@ -28,6 +29,25 @@ describe('integrationCalendarFeatureService', () => {
       'calendar.family': calendarEntityFactory(),
       'calendar.holidays': readOnlyCalendarEntityFixture,
     });
+  });
+
+  it('keeps viewing snapshots safe when no writable calendar service is registered', () => {
+    const registration = runtimeRegistry.getProviderRuntimeRegistration('home_assistant');
+    const spy = vi
+      .spyOn(runtimeRegistry, 'getProviderRuntimeRegistration')
+      .mockReturnValueOnce({ ...registration, calendarFeatureService: undefined });
+    try {
+      expect(integrationCalendarFeatureService.getCapabilities('calendar.family')).toEqual({
+        canCreate: false,
+        available: false,
+      });
+      expect(integrationCalendarFeatureService.getCapabilities('homey:calendar.family')).toEqual({
+        canCreate: false,
+        available: false,
+      });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('loads calendar events through the HA adapter contract', async () => {
