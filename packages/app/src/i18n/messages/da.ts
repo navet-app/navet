@@ -1,4 +1,18 @@
 export const daMessages = {
+  'calendar.create.title': 'Tilføj begivenhed',
+  'calendar.create.name': 'Titel',
+  'calendar.create.start': 'Start',
+  'calendar.create.end': 'Slut',
+  'calendar.create.lastDay': 'Sidste dag',
+  'calendar.create.location': 'Sted (valgfrit)',
+  'calendar.create.description': 'Beskrivelse (valgfri)',
+  'calendar.create.timeZone': 'Tiderne er i {timeZone}.',
+  'calendar.create.save': 'Opret begivenhed',
+  'calendar.create.saving': 'Opretter…',
+  'calendar.create.invalid': 'Angiv en titel, en gyldig start og en senere slutning.',
+  'calendar.create.failed':
+    'Begivenheden kunne ikke oprettes. Dine oplysninger er bevaret her; prøv igen.',
+  'calendar.create.unavailable': 'Denne kalender er utilgængelig. Vælg en anden eller prøv senere.',
   'helpers.title': 'Hjælpere',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Tæller',

@@ -1,4 +1,19 @@
 export const plMessages = {
+  'calendar.create.title': 'Dodaj wydarzenie',
+  'calendar.create.name': 'Tytuł',
+  'calendar.create.start': 'Początek',
+  'calendar.create.end': 'Koniec',
+  'calendar.create.lastDay': 'Ostatni dzień',
+  'calendar.create.location': 'Miejsce (opcjonalnie)',
+  'calendar.create.description': 'Opis (opcjonalnie)',
+  'calendar.create.timeZone': 'Godziny są w strefie {timeZone}.',
+  'calendar.create.save': 'Utwórz wydarzenie',
+  'calendar.create.saving': 'Tworzenie…',
+  'calendar.create.invalid': 'Podaj tytuł, prawidłowy początek i późniejszy koniec.',
+  'calendar.create.failed':
+    'Nie udało się utworzyć wydarzenia. Dane pozostają tutaj; spróbuj ponownie.',
+  'calendar.create.unavailable':
+    'Ten kalendarz jest niedostępny. Wybierz inny lub spróbuj później.',
   'helpers.title': 'Pomocnicy',
   'deviceType.timer': 'Minutnik',
   'deviceType.counter': 'Licznik',

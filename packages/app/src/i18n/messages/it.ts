@@ -2,6 +2,21 @@ import { enMessages } from './en';
 
 export const itMessages = {
   ...enMessages,
+  'calendar.create.title': 'Aggiungi evento',
+  'calendar.create.name': 'Titolo',
+  'calendar.create.start': 'Inizio',
+  'calendar.create.end': 'Fine',
+  'calendar.create.lastDay': 'Ultimo giorno',
+  'calendar.create.location': 'Luogo (facoltativo)',
+  'calendar.create.description': 'Descrizione (facoltativa)',
+  'calendar.create.timeZone': 'Gli orari sono in {timeZone}.',
+  'calendar.create.save': 'Crea evento',
+  'calendar.create.saving': 'Creazione…',
+  'calendar.create.invalid': 'Inserisci un titolo, un inizio valido e una fine successiva.',
+  'calendar.create.failed':
+    'Impossibile creare questo evento. I dati sono conservati qui; riprova.',
+  'calendar.create.unavailable':
+    'Questo calendario non è disponibile. Scegli un altro calendario o riprova più tardi.',
   'helpers.title': 'Aiutanti',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Contatore',

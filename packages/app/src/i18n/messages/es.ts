@@ -1,4 +1,19 @@
 export const esMessages = {
+  'calendar.create.title': 'Añadir evento',
+  'calendar.create.name': 'Título',
+  'calendar.create.start': 'Inicio',
+  'calendar.create.end': 'Fin',
+  'calendar.create.lastDay': 'Último día',
+  'calendar.create.location': 'Ubicación (opcional)',
+  'calendar.create.description': 'Descripción (opcional)',
+  'calendar.create.timeZone': 'Las horas corresponden a {timeZone}.',
+  'calendar.create.save': 'Crear evento',
+  'calendar.create.saving': 'Creando…',
+  'calendar.create.invalid': 'Introduce un título, un inicio válido y un final posterior.',
+  'calendar.create.failed':
+    'No se pudo crear el evento. Tus datos siguen aquí; inténtalo de nuevo.',
+  'calendar.create.unavailable':
+    'Este calendario no está disponible. Elige otro calendario o inténtalo más tarde.',
   'helpers.title': 'Asistentes',
   'deviceType.timer': 'Temporizador',
   'deviceType.counter': 'Contador',

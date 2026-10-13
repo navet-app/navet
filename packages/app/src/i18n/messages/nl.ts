@@ -1,5 +1,20 @@
 export const nlMessages = {
-  'helpers.title': 'Helpers',
+  'calendar.create.title': 'Evenement toevoegen',
+  'calendar.create.name': 'Titel',
+  'calendar.create.start': 'Begin',
+  'calendar.create.end': 'Einde',
+  'calendar.create.lastDay': 'Laatste dag',
+  'calendar.create.location': 'Locatie (optioneel)',
+  'calendar.create.description': 'Beschrijving (optioneel)',
+  'calendar.create.timeZone': 'Tijden zijn in {timeZone}.',
+  'calendar.create.save': 'Evenement maken',
+  'calendar.create.saving': 'Bezig met maken…',
+  'calendar.create.invalid': 'Voer een titel, een geldig begin en een later einde in.',
+  'calendar.create.failed':
+    'Het evenement kon niet worden gemaakt. Je gegevens blijven hier staan; probeer het opnieuw.',
+  'calendar.create.unavailable':
+    'Deze kalender is niet beschikbaar. Kies een andere kalender of probeer het later opnieuw.',
+  'helpers.title': 'Hulpmiddelen',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Teller',
   'deviceType.valve': 'Ventiel',

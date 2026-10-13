@@ -1,0 +1,5 @@
+type: new
+audiences:
+  - standalone
+  - home-assistant
+summary: Create timed and all-day events from calendar cards when the selected calendar supports writing.

@@ -2,6 +2,8 @@ import type { EnergySourceConfig } from './energy-types';
 import type { IntegrationServiceTarget } from './integration-service-target';
 import type {
   PlatformAutomationDetails,
+  PlatformCalendarCapabilities,
+  PlatformCalendarCreateEvent,
   PlatformCalendarEvent,
   PlatformCalendarRequestOptions,
   PlatformCameraCapabilities,
@@ -239,6 +241,12 @@ export interface ProviderEntityRuntimeService {
 }
 
 export interface ProviderCalendarFeatureService {
+  getCapabilities?: (entityId: string) => PlatformCalendarCapabilities;
+  createEvent?: (
+    entityId: string,
+    event: PlatformCalendarCreateEvent,
+    options?: PlatformCalendarRequestOptions
+  ) => Promise<void>;
   getEvents: (
     entityId: string,
     options?: PlatformCalendarRequestOptions

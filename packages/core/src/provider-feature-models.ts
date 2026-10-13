@@ -247,6 +247,21 @@ export interface PlatformAutomationDetails {
   config: Record<string, unknown>;
 }
 
+export interface PlatformCalendarCapabilities {
+  canCreate: boolean;
+  available: boolean;
+}
+
+/** Dates use YYYY-MM-DD; timed events require an explicit UTC offset. End is exclusive. */
+export type PlatformCalendarCreateEvent = {
+  title: string;
+  description?: string;
+  location?: string;
+} & (
+  | { allDay: true; startDate: string; endDate: string }
+  | { allDay: false; startDateTime: string; endDateTime: string }
+);
+
 export interface PlatformCalendarRequestOptions extends PlatformFeatureRequestOptions {
   startDateTime?: string;
   endDateTime?: string;

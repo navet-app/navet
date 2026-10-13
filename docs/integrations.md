@@ -35,6 +35,7 @@ on the capabilities of your devices.
 | Energy configuration and statistics | Yes | No | No |
 | Entity sensor history | Yes | Insights logs | No |
 | Calendar and weather data | Yes | No | No |
+| Calendar event creation (writable calendars) | Yes | No | No |
 | Notifications | Yes | Read and hide locally | No |
 | Updates and restart actions | Yes | No | No |
 | Runnable scenes, Flows, and Moods | Yes | Yes | No |
@@ -53,6 +54,11 @@ Navet maps Home Assistant rooms and realtime entities for lights, switches, sens
 media players, cameras, energy, calendars, weather, notifications, updates, Assist pipelines, and
 supported task or automation surfaces. Home Assistant also provides the advanced dashboard and administration
 services marked **Yes** in the matrix above.
+
+Calendar cards can create events in selected writable Home Assistant calendars. Read-only calendars
+continue to show events. Timed events use the display's time zone, shown in the form; all-day events
+use calendar dates with a last included day. A failed create keeps the form details for retry.
+The owning adapter uses the existing authenticated transport in standalone, Ingress and custom panel.
 
 Supported household helpers include toggles, buttons, numeric values, dropdown options, text,
 and dates or times. Controls follow the entity's available options and limits.

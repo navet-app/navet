@@ -1,4 +1,19 @@
 export const frMessages = {
+  'calendar.create.title': 'Ajouter un événement',
+  'calendar.create.name': 'Titre',
+  'calendar.create.start': 'Début',
+  'calendar.create.end': 'Fin',
+  'calendar.create.lastDay': 'Dernier jour',
+  'calendar.create.location': 'Lieu (facultatif)',
+  'calendar.create.description': 'Description (facultative)',
+  'calendar.create.timeZone': 'Les heures sont en {timeZone}.',
+  'calendar.create.save': 'Créer un événement',
+  'calendar.create.saving': 'Création…',
+  'calendar.create.invalid': 'Saisissez un titre, un début valide et une fin ultérieure.',
+  'calendar.create.failed':
+    'Impossible de créer cet événement. Vos données sont conservées ici ; réessayez.',
+  'calendar.create.unavailable':
+    'Ce calendrier est indisponible. Choisissez un autre calendrier ou réessayez plus tard.',
   'helpers.title': 'Assistants',
   'deviceType.timer': 'Minuteur',
   'deviceType.counter': 'Compteur',

@@ -286,6 +286,8 @@ export interface CalendarDevice extends BaseDevice {
   room: string;
   sourceIds?: string[];
   sources?: Array<{
+    canCreate?: boolean;
+    available?: boolean;
     id: string;
     name: string;
     room: string;

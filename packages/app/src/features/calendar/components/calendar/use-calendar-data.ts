@@ -22,7 +22,9 @@ function groupEventsByDay(events: CalendarEvent[]): CalendarEventGroup[] {
   for (const event of events) {
     const eventDate = event.sortKey ? new Date(event.sortKey) : null;
     const isValidDate = eventDate && !Number.isNaN(eventDate.getTime());
-    const key = isValidDate ? eventDate.toISOString().slice(0, 10) : `unknown-${event.id}`;
+    const key = isValidDate
+      ? [eventDate.getFullYear(), eventDate.getMonth() + 1, eventDate.getDate()].join('-')
+      : `unknown-${event.id}`;
 
     const existing = groups.get(key);
     if (existing) {

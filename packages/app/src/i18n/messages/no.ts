@@ -1,4 +1,19 @@
 export const noMessages = {
+  'calendar.create.title': 'Legg til hendelse',
+  'calendar.create.name': 'Tittel',
+  'calendar.create.start': 'Start',
+  'calendar.create.end': 'Slutt',
+  'calendar.create.lastDay': 'Siste dag',
+  'calendar.create.location': 'Sted (valgfritt)',
+  'calendar.create.description': 'Beskrivelse (valgfritt)',
+  'calendar.create.timeZone': 'Tidene er i {timeZone}.',
+  'calendar.create.save': 'Opprett hendelse',
+  'calendar.create.saving': 'Oppretter…',
+  'calendar.create.invalid': 'Skriv inn en tittel, en gyldig start og en senere slutt.',
+  'calendar.create.failed':
+    'Kunne ikke opprette hendelsen. Opplysningene dine er beholdt her; prøv igjen.',
+  'calendar.create.unavailable':
+    'Denne kalenderen er utilgjengelig. Velg en annen eller prøv senere.',
   'helpers.title': 'Hjelpere',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Teller',

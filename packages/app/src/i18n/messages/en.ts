@@ -1,4 +1,18 @@
 export const enMessages = {
+  'calendar.create.title': 'Add event',
+  'calendar.create.name': 'Event title',
+  'calendar.create.start': 'Start',
+  'calendar.create.end': 'End',
+  'calendar.create.lastDay': 'Last day',
+  'calendar.create.location': 'Location (optional)',
+  'calendar.create.description': 'Description (optional)',
+  'calendar.create.timeZone': 'Times are in {timeZone}.',
+  'calendar.create.save': 'Create event',
+  'calendar.create.saving': 'Creating…',
+  'calendar.create.invalid': 'Enter a title, a valid start and a later end.',
+  'calendar.create.failed': 'Could not create the event. Your details are still here; try again.',
+  'calendar.create.unavailable':
+    'This calendar is unavailable. Choose another calendar or try again later.',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Counter',
   'deviceType.valve': 'Valve',

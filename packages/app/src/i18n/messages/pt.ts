@@ -1,4 +1,19 @@
 export const ptMessages = {
+  'calendar.create.title': 'Adicionar evento',
+  'calendar.create.name': 'Título',
+  'calendar.create.start': 'Início',
+  'calendar.create.end': 'Fim',
+  'calendar.create.lastDay': 'Último dia',
+  'calendar.create.location': 'Local (opcional)',
+  'calendar.create.description': 'Descrição (opcional)',
+  'calendar.create.timeZone': 'Os horários estão em {timeZone}.',
+  'calendar.create.save': 'Criar evento',
+  'calendar.create.saving': 'A criar…',
+  'calendar.create.invalid': 'Introduza um título, um início válido e um fim posterior.',
+  'calendar.create.failed':
+    'Não foi possível criar o evento. Os dados ficam guardados aqui; tente novamente.',
+  'calendar.create.unavailable':
+    'Este calendário está indisponível. Escolha outro ou tente mais tarde.',
   'helpers.title': 'Ajudantes',
   'deviceType.timer': 'Temporizador',
   'deviceType.counter': 'Contador',

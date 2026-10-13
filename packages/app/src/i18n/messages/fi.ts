@@ -1,4 +1,18 @@
 export const fiMessages = {
+  'calendar.create.title': 'Lisää tapahtuma',
+  'calendar.create.name': 'Otsikko',
+  'calendar.create.start': 'Alku',
+  'calendar.create.end': 'Loppu',
+  'calendar.create.lastDay': 'Viimeinen päivä',
+  'calendar.create.location': 'Paikka (valinnainen)',
+  'calendar.create.description': 'Kuvaus (valinnainen)',
+  'calendar.create.timeZone': 'Ajat ovat aikavyöhykkeellä {timeZone}.',
+  'calendar.create.save': 'Luo tapahtuma',
+  'calendar.create.saving': 'Luodaan…',
+  'calendar.create.invalid': 'Anna otsikko, kelvollinen alku ja myöhempi loppu.',
+  'calendar.create.failed': 'Tapahtumaa ei voitu luoda. Tiedot säilyvät tässä; yritä uudelleen.',
+  'calendar.create.unavailable':
+    'Kalenteri ei ole käytettävissä. Valitse toinen tai yritä myöhemmin.',
   'helpers.title': 'Auttajat',
   'deviceType.timer': 'Ajastin',
   'deviceType.counter': 'Laskuri',

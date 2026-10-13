@@ -55,6 +55,8 @@ export function useCalendarCardSources(cardId?: string, fallbackEvents: Calendar
 
         return sources.map((source, index) => ({
           ...source,
+          canCreate: 'canCreate' in source && source.canCreate === true,
+          available: 'available' in source && source.available === true,
           color: SOURCE_COLOR_CLASSES[index % SOURCE_COLOR_CLASSES.length],
         }));
       }),

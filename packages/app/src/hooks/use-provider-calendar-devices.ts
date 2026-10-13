@@ -5,14 +5,17 @@ import type {
   PlatformCalendarDevice,
   PlatformCalendarEvent,
 } from '@navet/app/platform/provider-feature-models';
-import { integrationCalendarFeatureService } from '@navet/app/services/integration-calendar-feature.service';
+import {
+  integrationCalendarFeatureService,
+  subscribeCalendarChanges,
+} from '@navet/app/services/integration-calendar-feature.service';
 import { settingsSelectors } from '@navet/app/stores/selectors';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import { UNKNOWN_ROOM_LABEL } from '@navet/app/utils/device-location';
 import { createProviderScopedId } from '@navet/app/utils/provider-ids';
 import { areStringArraysEqual } from '@navet/app/utils/structural-equality';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   resolveProviderFeatureEntityName,
   resolveProviderFeatureEntityRoom,
@@ -79,7 +82,22 @@ export function useProviderCalendarDevices(
     () => new Map(entityRegistry.map((entry) => [entry.entityId, entry])),
     [entityRegistry]
   );
+  const [eventsRevision, setEventsRevision] = useState(0);
+  useEffect(
+    () =>
+      subscribeCalendarChanges((entityId) => {
+        if (
+          stableCalendarEntityIds.some(
+            (id) => createProviderScopedId(resolvedProviderId, id) === entityId
+          )
+        ) {
+          setEventsRevision((revision) => revision + 1);
+        }
+      }),
+    [resolvedProviderId, stableCalendarEntityIds]
+  );
   const loadEvents = useCallback(async () => {
+    void eventsRevision;
     const entries = await Promise.all(
       stableCalendarEntityIds.map(async (entityId) => {
         const events = await integrationCalendarFeatureService
@@ -89,7 +107,7 @@ export function useProviderCalendarDevices(
       })
     );
     return Object.fromEntries(entries);
-  }, [resolvedProviderId, stableCalendarEntityIds]);
+  }, [resolvedProviderId, stableCalendarEntityIds, eventsRevision]);
   const deferredCalendarEvents = useProviderCollectionData({
     providerId: resolvedProviderId,
     enabled: supportsCalendar && stableCalendarEntityIds.length > 0,
@@ -124,7 +142,10 @@ export function useProviderCalendarDevices(
             t,
             use24HourTime,
           }
-        )
+        ).map((source) => ({
+          ...source,
+          ...integrationCalendarFeatureService.getCapabilities?.(scopedEntityId),
+        }))
       );
     }
 

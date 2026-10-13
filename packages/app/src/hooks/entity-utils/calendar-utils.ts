@@ -10,17 +10,16 @@ const calendarTimeFormatterCache = new LruCache<string, Intl.DateTimeFormat>(
 );
 
 export function parseCalendarDate(value: unknown): Date | null {
-  if (typeof value === 'string' && value) {
-    const parsed = new Date(value);
+  const raw =
+    typeof value === 'string'
+      ? value
+      : value && typeof value === 'object'
+        ? ((value as Record<string, unknown>).dateTime ?? (value as Record<string, unknown>).date)
+        : null;
+  if (typeof raw === 'string' && raw) {
+    // A calendar date is a household day, not midnight UTC in the display's zone.
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    const raw = record.dateTime ?? record.date;
-    if (typeof raw === 'string' && raw) {
-      const parsed = new Date(raw);
-      return Number.isNaN(parsed.getTime()) ? null : parsed;
-    }
   }
   return null;
 }

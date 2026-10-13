@@ -1,4 +1,19 @@
 export const deMessages = {
+  'calendar.create.title': 'Termin hinzufügen',
+  'calendar.create.name': 'Titel',
+  'calendar.create.start': 'Beginn',
+  'calendar.create.end': 'Ende',
+  'calendar.create.lastDay': 'Letzter Tag',
+  'calendar.create.location': 'Ort (optional)',
+  'calendar.create.description': 'Beschreibung (optional)',
+  'calendar.create.timeZone': 'Zeiten gelten für {timeZone}.',
+  'calendar.create.save': 'Termin erstellen',
+  'calendar.create.saving': 'Wird erstellt…',
+  'calendar.create.invalid': 'Gib einen Titel, einen gültigen Beginn und ein späteres Ende ein.',
+  'calendar.create.failed':
+    'Der Termin konnte nicht erstellt werden. Deine Angaben bleiben erhalten; versuche es erneut.',
+  'calendar.create.unavailable':
+    'Dieser Kalender ist nicht verfügbar. Wähle einen anderen Kalender oder versuche es später.',
   'helpers.title': 'Helfer',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Zähler',

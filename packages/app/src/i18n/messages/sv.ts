@@ -1,4 +1,19 @@
 export const svMessages = {
+  'calendar.create.title': 'Lägg till händelse',
+  'calendar.create.name': 'Händelsens titel',
+  'calendar.create.start': 'Börjar',
+  'calendar.create.end': 'Slut',
+  'calendar.create.lastDay': 'Sista dagen',
+  'calendar.create.location': 'Plats (valfritt)',
+  'calendar.create.description': 'Beskrivning (valfritt)',
+  'calendar.create.timeZone': 'Tiderna anges i {timeZone}.',
+  'calendar.create.save': 'Skapa händelse',
+  'calendar.create.saving': 'Skapar…',
+  'calendar.create.invalid': 'Ange en titel, en giltig start och ett senare slut.',
+  'calendar.create.failed':
+    'Händelsen kunde inte skapas. Dina uppgifter finns kvar här; försök igen.',
+  'calendar.create.unavailable':
+    'Kalendern är inte tillgänglig. Välj en annan kalender eller försök senare.',
   'deviceType.timer': 'Timer',
   'deviceType.counter': 'Räknare',
   'deviceType.valve': 'Ventil',

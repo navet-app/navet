@@ -31,6 +31,7 @@ vi.mock('@navet/app/i18n', () => ({
 }));
 
 vi.mock('@navet/app/services/integration-calendar-feature.service', () => ({
+  subscribeCalendarChanges: () => () => undefined,
   integrationCalendarFeatureService: {
     getEvents: vi.fn().mockResolvedValue([]),
   },
