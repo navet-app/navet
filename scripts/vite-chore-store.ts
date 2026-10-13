@@ -463,6 +463,7 @@ export function createViteChoreStoreRequestHandler(options: {
         revision: Number(value.revision),
         updatedAt: value.updatedAt,
         data: migrateChoreWorkspaceData(value.data),
+        ...(value.storageMaintenanceVersion === 1 ? { storageMaintenanceVersion: 1 } : {}),
       }
     } catch {
       return null

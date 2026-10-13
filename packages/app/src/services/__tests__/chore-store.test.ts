@@ -2263,7 +2263,7 @@ describe('automatic chore storage upgrade', () => {
     choreStore.resetChoreStoreForTests();
     vi.useRealTimers();
   });
-  function seedLegacy() {
+  function seedLegacy(schemaVersion = 2) {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-13T10:00:00.000Z'));
     const mockFs = createMockFs();
@@ -2271,7 +2271,11 @@ describe('automatic chore storage upgrade', () => {
     choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
     const { document, events } = continuousMaterializationFixture();
     const hash = (value: string) => createHash('sha256').update(value).digest('hex');
-    const stored = durableStorage.encode(document, 2 * 1024 * 1024, hash, (key, chunk) => {
+    const legacyDocument =
+      schemaVersion === 1
+        ? { ...document, data: { ...document.data, schemaVersion: 1, outbox: undefined } }
+        : document;
+    const stored = durableStorage.encode(legacyDocument, 2 * 1024 * 1024, hash, (key, chunk) => {
       mockFs.writeFileSync(
         `${CHORE_PATH}.chunk-${key}`,
         JSON.stringify(durableStorage.unpack(chunk, hash))
@@ -2332,6 +2336,32 @@ describe('automatic chore storage upgrade', () => {
     choreStore.handle(complete);
     expect(complete.return).toHaveBeenCalledWith(200, expect.any(String));
     expect(parseResponse(complete).data.occurrencesById[outstanding.id].status).toBe('done');
+  });
+
+  it('repairs supported schema-v1 data before recording maintenance as complete', () => {
+    const { mockFs, document, events, hash } = seedLegacy(1);
+    const read = createRequest();
+    choreStore.handle(read);
+    expect(read.return).toHaveBeenCalledWith(200, expect.any(String));
+    const saved = parseResponse(read);
+    expect(saved.data.schemaVersion).toBe(2);
+    expect(Object.values(saved.data.occurrencesById)).toEqual(
+      Object.values(document.data.occurrencesById).filter((item) => item.status !== 'available')
+    );
+    const persisted = durableStorage.decode(
+      JSON.parse(mockFs.getFile(CHORE_PATH) ?? 'null'),
+      hash,
+      (key) => JSON.parse(mockFs.getFile(`${CHORE_PATH}.chunk-${key}`) ?? 'null')
+    );
+    expect(persisted).toMatchObject({ storageMaintenanceVersion: 1 });
+    const history = createRequest({ uri: '/__navet_chores__/history' });
+    choreStore.handle(history);
+    expect(parseResponse(history).events).toEqual(events);
+    mockFs.writeFileSync.mockClear();
+    const again = createRequest();
+    choreStore.handle(again);
+    expect(parseResponse(again)).toEqual(saved);
+    expect(mockFs.writeFileSync).not.toHaveBeenCalled();
   });
 
   it('retries an interrupted upgrade without losing the old workspace, history or chunks', () => {

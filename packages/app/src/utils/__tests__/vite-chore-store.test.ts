@@ -6,6 +6,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -1122,6 +1123,10 @@ describe('Vite automatic chore storage repair', () => {
     const feed = createResponse();
     await handler(createRequest('GET', '/events?after=50&limit=1'), feed.response);
     expect(JSON.parse(feed.body)).toMatchObject({ cursor: '101', events: [events[100]] });
+    const filesBeforeReload = readdirSync(directory).map((name) => {
+      const stats = statSync(join(directory, name));
+      return { name, inode: stats.ino, modified: stats.mtimeMs };
+    });
     const restarted = createViteChoreStoreRequestHandler({
       filePath,
       resolvePrincipal: () => PRINCIPAL,
@@ -1129,6 +1134,12 @@ describe('Vite automatic chore storage repair', () => {
     const reload = createResponse();
     await restarted(createRequest('GET', '/workspace'), reload.response);
     expect(JSON.parse(reload.body)).toEqual(saved);
+    expect(
+      readdirSync(directory).map((name) => {
+        const stats = statSync(join(directory, name));
+        return { name, inode: stats.ino, modified: stats.mtimeMs };
+      })
+    ).toEqual(filesBeforeReload);
     const outstanding = Object.values(document.data.occurrencesById).find(
       (item) => item.status === 'missed'
     );

@@ -2623,7 +2623,7 @@ function readDocumentCandidate(path) {
 }
 
 function persistDocument(previous, next) {
-  next.storageMaintenanceVersion = 1;
+  if (previous.storageMaintenanceVersion === 1) next.storageMaintenanceVersion = 1;
   writeStoredDocument(CHORE_LAST_GOOD_WORKSPACE_PATH, previous);
   writeStoredDocument(CHORE_WORKSPACE_PATH, next);
   collectUnreferencedChunks();
@@ -2664,7 +2664,7 @@ function collectUnreferencedChunks() {
   } catch (_error) { /* Committed data remains usable; the next write retries collection. */ }
 }
 
-function repairStoredWorkspace(document) {
+function repairStoredWorkspace(document, previous) {
   if (document.storageMaintenanceVersion === 1) return document;
   const timestamp = nowIso();
   const now = Date.parse(timestamp);
@@ -2682,17 +2682,18 @@ function repairStoredWorkspace(document) {
     rangeEnd: new Date(now + 45 * 86400000).toISOString(),
   }, timestamp);
   const removed = Object.create(null);
-  const occurrences = Object.assign({}, document.data.occurrencesById);
-  const occurrenceIds = Object.keys(occurrences);
+  const occurrences = Object.create(null);
+  const occurrenceIds = Object.keys(document.data.occurrencesById);
   for (let occurrenceIndex = 0; occurrenceIndex < occurrenceIds.length; occurrenceIndex += 1) {
     const id = occurrenceIds[occurrenceIndex];
-    const item = occurrences[id];
+    const item = document.data.occurrencesById[id];
     const definition = document.data.definitionsById[item.definitionId];
     if (definition && definition.schedule.frequency === 'after_completion' &&
         item.status === 'available' && Date.parse(item.scheduledAt) > now &&
         !candidate.occurrencesById[id]) {
-      delete occurrences[id];
       recordSafety.setOwnRecordValue(removed, id, true);
+    } else {
+      recordSafety.setOwnRecordValue(occurrences, id, item);
     }
   }
   const changed = Object.keys(removed).length > 0;
@@ -2707,7 +2708,7 @@ function repairStoredWorkspace(document) {
       }),
     }) : document.data,
   });
-  persistDocument(document, next);
+  persistDocument(previous || document, next);
   appendEventHistory(next.data.activity, next.data.historyRetention);
   return next;
 }
@@ -2899,9 +2900,7 @@ function readDocument() {
         updatedAt: timestamp,
         data: scheduled.data,
       });
-      persistDocument(document, migratedDocument);
-      appendEventHistory(migratedDocument.data.activity, migratedDocument.data.historyRetention);
-      return migratedDocument;
+      return repairStoredWorkspace(migratedDocument, document);
     }
   }
   const backup = readDocumentCandidate(CHORE_LAST_GOOD_WORKSPACE_PATH);
@@ -2912,7 +2911,7 @@ function readDocument() {
     });
     writeStoredDocument(CHORE_WORKSPACE_PATH, recovered);
     appendEventHistory(recovered.data.activity, recovered.data.historyRetention);
-    return recovered;
+    return applyScheduledState(repairStoredWorkspace(recovered));
   }
   const error = new Error('Chore workspace document is invalid');
   error.code = 'NAVET_CHORE_WORKSPACE_INVALID';
