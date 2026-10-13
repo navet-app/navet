@@ -472,6 +472,39 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
                 restored = await self.authority._decode_storage(_Store.values[name])
                 self.assertIn("manager", restored["data"]["participantsById"])
 
+    async def test_oversized_expanded_manifest_is_rejected_without_replacing_healthy_storage(self):
+        await self._create_manager()
+        before = copy.deepcopy(_Store.values)
+        original = copy.deepcopy(self.authority.data)
+        imported = copy.deepcopy(original)
+        template = _continuous_materialization_fixture()[0]["data"]["definitionsById"]["tank"]
+        imported["definitionsById"] = {
+            f"definition-{index}": {**template, "id": f"definition-{index}", "enabled": False}
+            for index in range(6000)
+        }
+        oversized = {"contractVersion": 1, "revision": self.authority.revision + 1,
+            "updatedAt": chores._iso(chores._now()), "data": imported}
+        self.assertGreater(chores._storage_size(oversized), chores.MAX_WORKSPACE_BYTES)
+        self.assertLess(chores._storage_size(chores._pack_storage(oversized)), chores.MAX_WORKSPACE_BYTES)
+        with self.assertRaises(chores.ChoreStorageError):
+            await self.authority.async_restore({"commandId": "oversized-restore",
+                "baseRevision": self.authority.revision, "actorParticipantId": "manager", "mode": "replace",
+                "document": {"contract": "navet.chores", "version": 1,
+                    "exportedAt": chores._iso(chores._now()), "workspace": imported, "events": []}}, "ha-user-1")
+        self.assertEqual(_Store.values, before)
+        self.assertEqual(self.authority.data, original)
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        self.assertEqual(restarted.data, original)
+        self.assertEqual(restarted.revision, self.authority.revision)
+        # A subsequent successful save must leave both committed copies readable.
+        await restarted.async_command({"commandId": "healthy-after-rejection", "baseRevision": restarted.revision,
+            "action": {"type": "experience_points_adjust", "actorParticipantId": "manager",
+                "participantId": "manager", "pointsDelta": 1}}, "ha-user-1")
+        for key in (chores.WORKSPACE_KEY, chores.LAST_GOOD_KEY):
+            decoded = await restarted._decode_storage(_Store.values[key])
+            self.assertEqual(decoded["data"]["definitionsById"], original["definitionsById"])
+
     async def test_large_ledger_survives_restart_and_chunk_failure(self):
         await self._create_manager()
         data = copy.deepcopy(self.authority.data)

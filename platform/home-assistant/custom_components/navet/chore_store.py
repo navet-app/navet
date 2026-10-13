@@ -1507,9 +1507,12 @@ class ChoreAuthority:
                 size += item_size
             flush()
             references[name] = chunks
-        return _pack_storage({**document, "durableCollections": references, "data": {
+        manifest = {**document, "durableCollections": references, "data": {
             **document["data"], "occurrencesById": {}, "activity": [], "outbox": [], "experience": {
-                **document["data"]["experience"], "pointTransactions": [], "progressAwards": [], "rewardRequestsById": {}}}}), prepared_chunks
+                **document["data"]["experience"], "pointTransactions": [], "progressAwards": [], "rewardRequestsById": {}}}}
+        if _storage_size(manifest) > MAX_WORKSPACE_BYTES:
+            raise ChoreStorageError("Chore workspace manifest is too large")
+        return _pack_storage(manifest), prepared_chunks
 
     async def _encode_storage(self, document: dict[str, Any]) -> dict[str, Any]:
         """Compute storage framing off-loop; keep HA Store calls on the event loop."""
