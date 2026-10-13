@@ -71,6 +71,24 @@ assert(
     JSON.stringify(doc.data.experience.pointTransactions),
   'Ledger preserved through native framing'
 );
+const historyRows = [];
+for (let index = 0; index < 2000; index++) historyRows.push({
+  id: 'activity:legacy:' + index, commandId: 'legacy:' + index,
+  type: 'workspace_materialized', timestamp, reason: 'Preserve åäö and event order',
+});
+const historyDocument = { contractVersion: 1, events: historyRows };
+const compressedHistory = storage.pack(historyDocument, hash);
+assert(compressedHistory.storageEncoding === 'deflate-v1', 'Native history uses deflate');
+assert(JSON.stringify(compressedHistory).length < JSON.stringify(historyDocument).length * 0.3, 'Native history compression shrinks repeated writes');
+assert(JSON.stringify(storage.unpack(compressedHistory, hash)) === JSON.stringify(historyDocument), 'Native deflate preserves every event and UTF-8 text');
+let deflateRejected = false;
+try { storage.unpack(Object.assign({}, compressedHistory, { checksum: '0'.repeat(64) }), hash); }
+catch (_error) { deflateRejected = true; }
+assert(deflateRejected, 'Native compressed storage rejects corrupt checksums');
+deflateRejected = false;
+try { storage.unpack(compressedHistory, hash, 1024); }
+catch (_error) { deflateRejected = true; }
+assert(deflateRejected, 'Native compressed storage validates expanded size before decoding');
 const paths = { '/data/navet-chore-workspace.json': JSON.stringify(manifest) };
 for (const key in files)
   paths['/data/navet-chore-workspace.json.chunk-' + key] = JSON.stringify(files[key]);
@@ -99,6 +117,9 @@ choreStore.setChoreStoreFsForTests({
   closeSync: (descriptor) => {
     delete descriptors[descriptor];
   },
+  readdirSync: (directory) => Object.keys(paths)
+    .filter(function (path) { return path.indexOf(directory + '/') === 0; })
+    .map(function (path) { return path.slice(directory.length + 1); }),
   statSync: (path) =>
     paths[path] === undefined ? missing() : { size: Buffer.byteLength(paths[path]) },
   readFileSync: (path) => (paths[path] === undefined ? missing() : paths[path]),

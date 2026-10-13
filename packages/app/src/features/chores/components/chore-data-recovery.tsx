@@ -52,7 +52,7 @@ export function ChoreDataRecovery({
       setFeedback(t('household.data.exportFailed'));
       return;
     }
-    const blob = new Blob([JSON.stringify(result.value, null, 2)], {
+    const blob = new Blob([JSON.stringify(result.value)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);

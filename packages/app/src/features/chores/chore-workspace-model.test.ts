@@ -77,4 +77,46 @@ describe('chore workspace materialization', () => {
       )
     ).toBe(true);
   });
+  it('does not request another write for a historical slot retained by the authority', () => {
+    const participant: ChoreParticipant = {
+      id: 'alice',
+      displayName: 'Alice',
+      capabilities: ['complete', 'manage'],
+      createdAt: '2026-08-01T08:00:00.000Z',
+      updatedAt: '2026-08-01T08:00:00.000Z',
+    };
+    const definition: ChoreDefinition = {
+      id: 'once',
+      title: 'Once',
+      enabled: true,
+      assignment: { mode: 'person', participantIds: [participant.id] },
+      schedule: { frequency: 'once', date: '2026-09-02', time: '09:00', timeZone: 'UTC' },
+      dueWindowMinutes: 60,
+      approval: { required: false, approverIds: [] },
+      createdAt: participant.createdAt,
+      updatedAt: participant.updatedAt,
+    };
+    const workspace = {
+      ...createEmptyChoreWorkspace(),
+      participantsById: { alice: participant },
+      definitionsById: { once: definition },
+      occurrencesById: {
+        'legacy-shared-slot': {
+          id: 'legacy-shared-slot',
+          definitionId: 'once',
+          assignmentSlot: 'shared',
+          assigneeIds: ['alice'],
+          scheduledAt: '2026-09-02T09:00:00.000Z',
+          dueAt: '2026-09-02T10:00:00.000Z',
+          status: 'done' as const,
+          completedBy: 'alice',
+          completedAt: '2026-09-02T09:30:00.000Z',
+          updatedAt: '2026-09-02T09:30:00.000Z',
+        },
+      },
+    };
+    const result = materializeChoreWorkspace(workspace, new Date('2026-09-03T08:00:00.000Z'));
+    expect(result.changed).toBe(false);
+    expect(result.data).toBe(workspace);
+  });
 });

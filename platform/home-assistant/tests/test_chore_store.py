@@ -13,8 +13,9 @@ import json
 import pathlib
 import sys
 import types
+import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock
 
 _TRACKED_INTERVALS = []
@@ -70,6 +71,10 @@ class _Hass:
         self.data = {}
         self.bus = _Bus()
         self.services = _Services()
+        self.config = types.SimpleNamespace(path=lambda _name: "/nonexistent-navet-test-storage")
+
+    async def async_add_executor_job(self, function, *args):
+        return function(*args)
 
 
 class _Connection:
@@ -252,6 +257,29 @@ def _participant(participant_id="manager", *, destination=None):
     return participant
 
 
+def _continuous_materialization_fixture():
+    root = pathlib.Path(__file__).parents[3]
+    document = json.loads((root / "testing/fixtures/chores/continuous-materialization.json").read_text())
+    document["data"] = {**chores._empty_data(), **document["data"]}
+    start = datetime(2026, 10, 12, tzinfo=timezone.utc)
+    events = [{"id": f"activity:chore:legacy-materialization:{index}",
+        "commandId": f"chore:legacy-materialization:{index}", "type": "workspace_materialized",
+        "timestamp": chores._iso(start + timedelta(seconds=index))} for index in range(37_288)]
+    completed = [item for item in document["data"]["occurrencesById"].values() if item["status"] == "done"]
+    for index, item in enumerate(completed):
+        events[100 if index == 0 else 30_000] = {"id": f"activity:completion:{item['id']}",
+            "commandId": f"completion:{item['id']}", "type": "completed", "timestamp": item["completedAt"],
+            "occurrenceId": item["id"], "definitionId": item["definitionId"], "actorParticipantId": "manager"}
+    for item in document["data"]["occurrencesById"].values():
+        if item["status"] != "available":
+            events.append({"id": f"activity:scheduler:due:{item['id']}", "commandId": f"scheduler:due:{item['id']}",
+                "type": "due", "timestamp": item["dueAt"], "occurrenceId": item["id"],
+                "definitionId": item["definitionId"], "assigneeIds": item["assigneeIds"]})
+    document["data"]["activity"] = events[-5000:]
+    document["data"]["outbox"] = [chores._outbox(event) for event in document["data"]["activity"]]
+    return document, events
+
+
 class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         _Store.values.clear()
@@ -271,6 +299,89 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             },
             "ha-user-1",
         )
+
+    def _seed_continuous_writes(self):
+        original_now = chores._now
+        chores._now = lambda: datetime(2026, 10, 13, 10, tzinfo=timezone.utc)
+        self.addCleanup(setattr, chores, "_now", original_now)
+        document, events = _continuous_materialization_fixture()
+        _Store.values[chores.WORKSPACE_KEY] = copy.deepcopy(document)
+        _Store.values[chores.HISTORY_KEY] = {"contractVersion": 1, "events": copy.deepcopy(events)}
+        return document, events
+
+    async def test_deflates_affected_storage_and_preserves_history_completion_and_recovery(self):
+        document, events = self._seed_continuous_writes()
+        before_bytes = len(json.dumps(_Store.values, separators=(",", ":")).encode())
+        await self.authority.async_initialize()
+        expected = {key: item for key, item in document["data"]["occurrencesById"].items() if item["status"] != "available"}
+        self.assertEqual(self.authority.data["occurrencesById"], expected)
+        self.assertEqual(self.authority._history, events)
+        after_bytes = len(json.dumps(_Store.values, separators=(",", ":")).encode())
+        self.assertLess(after_bytes, before_bytes * 0.3)
+        backup = await self.authority._decode_storage(_Store.values[chores.LAST_GOOD_KEY])
+        self.assertEqual(backup["data"], document["data"])
+        history = await self.authority.async_handle_ws({"type": "navet/chores/history/get"}, "ha-user-1")
+        self.assertEqual(history["events"], events)
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        self.assertEqual(restarted.data, self.authority.data)
+        self.assertEqual(restarted.revision, self.authority.revision)
+        missed = next(item for item in expected.values() if item["status"] == "missed")
+        result = await restarted.async_command({"commandId": "complete-upgraded", "baseRevision": restarted.revision,
+            "action": {"type": "occurrence_action", "occurrenceId": missed["id"],
+                "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
+        self.assertEqual(result["data"]["occurrencesById"][missed["id"]]["status"], "done")
+
+    async def test_interrupted_storage_repair_retries_without_replacing_original_data(self):
+        document, events = self._seed_continuous_writes()
+        original_save = _Store.async_save
+        async def fail_history(store, value):
+            if store.key == chores.HISTORY_KEY:
+                raise OSError("Interrupted repair")
+            await original_save(store, value)
+        _Store.async_save = fail_history
+        try:
+            with self.assertRaises(chores.ChoreStorageError):
+                await self.authority.async_initialize()
+            self.assertEqual(_Store.values[chores.WORKSPACE_KEY], document)
+            self.assertEqual(_Store.values[chores.HISTORY_KEY]["events"], events)
+        finally:
+            _Store.async_save = original_save
+        await self.authority.async_initialize()
+        self.assertEqual(self.authority._history, events)
+        self.assertEqual(self.authority.data["participantsById"], document["data"]["participantsById"])
+
+    async def test_compressed_storage_checks_integrity_and_bounded_inflation(self):
+        _document, events = self._seed_continuous_writes()
+        packed = chores._pack_storage({"contractVersion": 1, "events": events})
+        self.assertEqual(packed["storageEncoding"], "deflate-v1")
+        self.assertEqual(chores._unpack_storage(packed)["events"], events)
+        legacy_text = {"events": events, "note": "åäö\ud800"}
+        self.assertEqual(chores._unpack_storage(chores._pack_storage(legacy_text)), legacy_text)
+        with self.assertRaises(chores.ChoreStorageError):
+            chores._unpack_storage({**packed, "checksum": "0" * 64})
+        with self.assertRaises(chores.ChoreStorageError):
+            chores._unpack_storage({**packed, "uncompressedBytes": 65 * 1024 * 1024})
+        await self.authority.async_initialize()
+        _Store.values[chores.WORKSPACE_KEY] = {**packed, "checksum": "0" * 64}
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        self.assertEqual(restarted.data["participantsById"], self.authority.data["participantsById"])
+        self.assertEqual(restarted._history, events)
+
+    async def test_collects_only_chunks_unreferenced_by_both_committed_copies(self):
+        self._seed_continuous_writes()
+        with tempfile.TemporaryDirectory() as directory:
+            self.hass.config = types.SimpleNamespace(path=lambda _name: directory)
+            orphan_key = "f" * 64
+            orphan_store_key = f"{chores.WORKSPACE_KEY}.chunk.{orphan_key}"
+            pathlib.Path(directory, orphan_store_key).touch()
+            _Store.values[orphan_store_key] = {"orphan": True}
+            await self.authority.async_initialize()
+            self.assertNotIn(orphan_store_key, _Store.values)
+            for name in (chores.WORKSPACE_KEY, chores.LAST_GOOD_KEY):
+                restored = await self.authority._decode_storage(_Store.values[name])
+                self.assertIn("manager", restored["data"]["participantsById"])
 
     async def test_large_ledger_survives_restart_and_chunk_failure(self):
         await self._create_manager()

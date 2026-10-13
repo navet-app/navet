@@ -1,3 +1,5 @@
+import zlib from 'zlib';
+
 // Storage-only framing. Public workspace and interchange documents stay hydrated.
 const COLLECTIONS = [
   'occurrencesById',
@@ -7,6 +9,38 @@ const COLLECTIONS = [
   'outbox',
   'rewardRequestsById',
 ];
+const COMPRESSION_BYTES = 32 * 1024;
+const MAX_INFLATED_BYTES = 64 * 1024 * 1024;
+
+function pack(value, hash) {
+  const serialized = JSON.stringify(value);
+  const bytes = Buffer.byteLength(serialized, 'utf8');
+  if (bytes > MAX_INFLATED_BYTES) throw new Error('Chore expanded storage is too large');
+  if (bytes < COMPRESSION_BYTES) return value;
+  const compressed = {
+    storageEncoding: 'deflate-v1',
+    uncompressedBytes: bytes,
+    checksum: hash(serialized),
+    payload: zlib.deflateSync(serialized).toString('base64'),
+  };
+  return Buffer.byteLength(JSON.stringify(compressed), 'utf8') < bytes * 0.9 ? compressed : value;
+}
+
+function unpack(value, hash, maxBytes) {
+  if (!value || !Object.prototype.hasOwnProperty.call(value, 'storageEncoding')) return value;
+  if (value.storageEncoding !== 'deflate-v1' ||
+      !Number.isSafeInteger(value.uncompressedBytes) || value.uncompressedBytes < 0 ||
+      value.uncompressedBytes > (maxBytes || MAX_INFLATED_BYTES) ||
+      typeof value.checksum !== 'string' || !/^[a-f0-9]{64}$/.test(value.checksum) ||
+      typeof value.payload !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value.payload)) {
+    throw new Error('Chore compressed storage is invalid');
+  }
+  const inflated = zlib.inflateSync(Buffer.from(value.payload, 'base64'));
+  if (inflated.length !== value.uncompressedBytes || hash(inflated.toString('utf8')) !== value.checksum)
+    throw new Error('Chore compressed storage is corrupt');
+  return JSON.parse(inflated.toString('utf8'));
+}
+
 const CHUNK_BYTES = 2 * 1024 * 1024;
 const TARGET_CHUNK_BYTES = 256 * 1024;
 
@@ -28,7 +62,7 @@ function encodeCollection(records, name, hash, writeChunk) {
     if (!items.length) return;
     const chunk = { version: 1, collection: name, items };
     const key = hash(JSON.stringify(chunk));
-    writeChunk(key, chunk);
+    writeChunk(key, pack(chunk, hash));
     chunks.push(key);
     items = [];
     bytes = 128;
@@ -46,7 +80,7 @@ function encodeCollection(records, name, hash, writeChunk) {
 }
 
 function encode(document, maxBytes, hash, writeChunk) {
-  if (Buffer.byteLength(JSON.stringify(document), 'utf8') <= maxBytes) return document;
+  if (Buffer.byteLength(JSON.stringify(document), 'utf8') <= maxBytes) return pack(document, hash);
   const references = { version: 1 };
   for (let collectionIndex = 0; collectionIndex < COLLECTIONS.length; collectionIndex++) {
     const name = COLLECTIONS[collectionIndex];
@@ -68,6 +102,7 @@ function encode(document, maxBytes, hash, writeChunk) {
 }
 
 function decode(document, hash, readChunk) {
+  document = unpack(document, hash, CHUNK_BYTES);
   if (!document || !Object.prototype.hasOwnProperty.call(document, 'durableCollections'))
     return document;
   const references = document.durableCollections;
@@ -82,7 +117,7 @@ function decode(document, hash, readChunk) {
       const key = references[name][referenceIndex];
       if (typeof key !== 'string' || !/^[a-f0-9]{64}$/.test(key))
         throw new Error('Chore durable reference is invalid');
-      const chunk = readChunk(key);
+      const chunk = unpack(readChunk(key), hash, CHUNK_BYTES);
       if (
         !chunk ||
         chunk.version !== 1 ||
@@ -145,4 +180,4 @@ function decode(document, hash, readChunk) {
   return hydrated;
 }
 
-export default { encode, decode, CHUNK_BYTES };
+export default { encode, decode, pack, unpack, CHUNK_BYTES };

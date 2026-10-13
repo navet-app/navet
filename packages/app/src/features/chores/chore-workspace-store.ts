@@ -238,38 +238,51 @@ export const useChoreWorkspaceStore = create<ChoreWorkspaceState>((set, get) => 
     return false;
   },
   deleteAll: async (actorParticipantId) => {
-    const current = get();
-    if (!current.data || current.revision === null) return false;
-    set({ error: null, status: 'saving' });
-    const result = await resetChoreWorkspace({
-      commandId: createChoreCommandId(),
-      baseRevision: current.revision,
-      actorParticipantId,
-      confirmation: 'DELETE ALL CHORES',
-      managementSessionToken: managementSessionToken ?? undefined,
-    });
-    if (result.saved && result.document) {
-      const pinConfigured = result.document.management?.pinConfigured === true;
-      if (!pinConfigured) managementSessionToken = null;
-      set({
-        data: result.document.data,
-        error: null,
-        managementPinConfigured: pinConfigured,
-        managementUnlocked: pinConfigured && Boolean(managementSessionToken),
-        recovery: null,
-        revision: result.document.revision,
-        status: 'ready',
-      });
-      return true;
-    }
-    const managementLocked = relockManagementIfNeeded(result.error);
-    set({
-      error: result.unauthorized ? null : (result.error ?? 'Chore workspace reset failed'),
-      managementError: managementLocked ? result.error : get().managementError,
-      managementUnlocked: managementLocked ? false : get().managementUnlocked,
-      status: result.unauthorized ? 'unauthorized' : 'ready',
-    });
-    return false;
+    const run = async () => {
+      const commandId = createChoreCommandId();
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const current = get();
+        if (!current.data || current.revision === null) return false;
+        set({ error: null, status: 'saving' });
+        const result = await resetChoreWorkspace({
+          commandId,
+          baseRevision: current.revision,
+          actorParticipantId,
+          confirmation: 'DELETE ALL CHORES',
+          managementSessionToken: managementSessionToken ?? undefined,
+        });
+        if (result.saved && result.document) {
+          const pinConfigured = result.document.management?.pinConfigured === true;
+          if (!pinConfigured) managementSessionToken = null;
+          set({
+            data: result.document.data,
+            error: null,
+            managementPinConfigured: pinConfigured,
+            managementUnlocked: pinConfigured && Boolean(managementSessionToken),
+            recovery: null,
+            revision: result.document.revision,
+            status: 'ready',
+          });
+          return true;
+        }
+        if (result.preconditionFailed && attempt === 0) {
+          await get().load({ force: true });
+          if (get().status === 'ready') continue;
+        }
+        const managementLocked = relockManagementIfNeeded(result.error);
+        set({
+          error: result.unauthorized ? null : (result.error ?? 'Chore workspace reset failed'),
+          managementError: managementLocked ? result.error : get().managementError,
+          managementUnlocked: managementLocked ? false : get().managementUnlocked,
+          status: result.unauthorized ? 'unauthorized' : 'ready',
+        });
+        return false;
+      }
+      return false;
+    };
+    const queued = mutationQueue.then(run, run);
+    mutationQueue = queued;
+    return queued;
   },
   recover: async (action) => {
     set({ error: null, status: 'loading' });

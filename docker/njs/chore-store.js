@@ -543,11 +543,12 @@ function createOutboxItem(activity) {
 
 function readEventHistory(fallbackEvents) {
   try {
-    const history = readJson(
+    const stored = readJson(
       CHORE_EVENT_HISTORY_PATH,
       { contractVersion: CONTRACT_VERSION, events: [] },
       MAX_CHORE_EVENT_HISTORY_BYTES
     );
+    const history = choreDurableStorage.unpack(stored, durableHash, MAX_CHORE_EVENT_HISTORY_BYTES);
     if (
       !isRecord(history) ||
       history.contractVersion !== CONTRACT_VERSION ||
@@ -555,13 +556,21 @@ function readEventHistory(fallbackEvents) {
     ) {
       throw new Error('Chore event history is invalid');
     }
+    if (!stored.storageEncoding) {
+      const compact = choreDurableStorage.pack(history, durableHash);
+      if (compact !== history) {
+        // A failed atomic rewrite leaves the legacy history intact for the next read.
+        try { writeJson(CHORE_EVENT_HISTORY_PATH, compact, MAX_CHORE_EVENT_HISTORY_BYTES); }
+        catch (_writeError) { /* Retry on the next read without rebuilding valid history. */ }
+      }
+    }
     return history;
   } catch (_error) {
     const repaired = {
       contractVersion: CONTRACT_VERSION,
       events: Array.isArray(fallbackEvents) ? fallbackEvents.slice(-DEFAULT_HISTORY_RETENTION.maxEvents) : [],
     };
-    writeJson(CHORE_EVENT_HISTORY_PATH, repaired, MAX_CHORE_EVENT_HISTORY_BYTES);
+    writeJson(CHORE_EVENT_HISTORY_PATH, choreDurableStorage.pack(repaired, durableHash), MAX_CHORE_EVENT_HISTORY_BYTES);
     return repaired;
   }
 }
@@ -588,7 +597,7 @@ function appendEventHistory(events, policy) {
   }).slice(-retention.maxEvents);
   writeJson(
     CHORE_EVENT_HISTORY_PATH,
-    { contractVersion: CONTRACT_VERSION, events: retainedEvents },
+    choreDurableStorage.pack({ contractVersion: CONTRACT_VERSION, events: retainedEvents }, durableHash),
     MAX_CHORE_EVENT_HISTORY_BYTES
   );
 }
@@ -596,7 +605,7 @@ function appendEventHistory(events, policy) {
 function replaceEventHistory(events) {
   writeJson(
     CHORE_EVENT_HISTORY_PATH,
-    { contractVersion: CONTRACT_VERSION, events },
+    choreDurableStorage.pack({ contractVersion: CONTRACT_VERSION, events }, durableHash),
     MAX_CHORE_EVENT_HISTORY_BYTES
   );
 }
@@ -2443,7 +2452,7 @@ function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefi
   }
   const occurrencesById = Object.assign({}, data.occurrencesById);
   const occurrenceCreatedActivities = [];
-  const recurrenceIds = Object.create(null);
+  const scheduledIdsByDefinition = Object.create(null);
   const definitionIds = Object.keys(data.definitionsById);
   for (let definitionIndex = 0; definitionIndex < definitionIds.length; definitionIndex += 1) {
     const definition = data.definitionsById[definitionIds[definitionIndex]];
@@ -2462,9 +2471,9 @@ function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefi
       completed.length > 0 ? completed[completed.length - 1] : undefined,
       definition.id === recurrenceDefinitionId
     );
-    if (definition.id === recurrenceDefinitionId) {
-      for (let index = 0; index < materialized.length; index += 1) recordSafety.setOwnRecordValue(recurrenceIds, materialized[index].id, true);
-    }
+    const scheduledIds = Object.create(null);
+    for (let index = 0; index < materialized.length; index += 1) recordSafety.setOwnRecordValue(scheduledIds, materialized[index].id, true);
+    recordSafety.setOwnRecordValue(scheduledIdsByDefinition, definition.id, scheduledIds);
     if (materialized.filter(function (item) { return !occurrencesById[item.id]; }).length > 5000) {
       throw new Error('Too many chore occurrences');
     }
@@ -2516,8 +2525,12 @@ function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefi
   const removedRecurrenceIds = Object.create(null);
   for (const id in occurrencesById) {
     const item = occurrencesById[id];
-    if (item.definitionId === recurrenceDefinitionId && !recurrenceIds[id] &&
-        item.status === 'available' && !item.carriedForwardFrom && Date.parse(item.scheduledAt) > Date.parse(timestamp) &&
+    const scheduledIds = scheduledIdsByDefinition[item.definitionId];
+    const scheduledAt = Date.parse(item.scheduledAt);
+    if (scheduledIds && !scheduledIds[id] &&
+        (item.definitionId === recurrenceDefinitionId ||
+          (data.definitionsById[item.definitionId].schedule.frequency === 'after_completion' && scheduledAt >= rangeStart && scheduledAt <= rangeEnd)) &&
+        item.status === 'available' && !item.carriedForwardFrom && scheduledAt > Date.parse(timestamp) &&
         !item.assigneeIds.some(function (participantId) {
           const participant = data.participantsById[participantId];
           return participant && isParticipantPausedAt(participant, item.scheduledAt);
@@ -2610,8 +2623,93 @@ function readDocumentCandidate(path) {
 }
 
 function persistDocument(previous, next) {
+  next.storageMaintenanceVersion = 1;
   writeStoredDocument(CHORE_LAST_GOOD_WORKSPACE_PATH, previous);
   writeStoredDocument(CHORE_WORKSPACE_PATH, next);
+  collectUnreferencedChunks();
+}
+
+function collectUnreferencedChunks() {
+  // The Nginx authority has one worker and publishes synchronously before collecting.
+  try {
+    if (typeof fsModule.readdirSync !== 'function') return;
+    const retained = Object.create(null);
+    const paths = [CHORE_WORKSPACE_PATH, CHORE_LAST_GOOD_WORKSPACE_PATH];
+    for (let pathIndex = 0; pathIndex < paths.length; pathIndex += 1) {
+      const path = paths[pathIndex];
+      const stored = choreDurableStorage.unpack(readJson(path, null, MAX_CHORE_WORKSPACE_BYTES), durableHash, MAX_CHORE_WORKSPACE_BYTES);
+      if (!stored) return;
+      const manifest = stored.durableCollections;
+      if (!manifest) continue;
+      if (manifest.version !== 1) return;
+      const names = Object.keys(manifest);
+      for (let nameIndex = 0; nameIndex < names.length; nameIndex += 1) {
+        const name = names[nameIndex];
+        if (name === 'version') continue;
+        if (!Array.isArray(manifest[name])) return;
+        for (let keyIndex = 0; keyIndex < manifest[name].length; keyIndex += 1)
+          recordSafety.setOwnRecordValue(retained, manifest[name][keyIndex], true);
+      }
+    }
+    const prefix = 'navet-chore-workspace.json.chunk-';
+    const entries = fsModule.readdirSync('/data');
+    // Failed-file snapshots may reference chunks that cannot be safely enumerated.
+    if (entries.some(function (name) { return name.indexOf('navet-chore-workspace.json.failed-') === 0; })) return;
+    for (let entryIndex = 0; entryIndex < entries.length; entryIndex += 1) {
+      const name = entries[entryIndex];
+      if (name.indexOf(prefix) !== 0) continue;
+      const key = name.slice(prefix.length);
+      if (/^[a-f0-9]{64}$/.test(key) && !retained[key]) deleteFile('/data/' + name);
+    }
+  } catch (_error) { /* Committed data remains usable; the next write retries collection. */ }
+}
+
+function repairStoredWorkspace(document) {
+  if (document.storageMaintenanceVersion === 1) return document;
+  const timestamp = nowIso();
+  const now = Date.parse(timestamp);
+  appendEventHistory(document.data.activity, document.data.historyRetention);
+  const repeatDefinitions = Object.create(null);
+  const definitionIds = Object.keys(document.data.definitionsById);
+  for (let index = 0; index < definitionIds.length; index += 1) {
+    const definition = document.data.definitionsById[definitionIds[index]];
+    if (definition.schedule.frequency === 'after_completion')
+      recordSafety.setOwnRecordValue(repeatDefinitions, definition.id, definition);
+  }
+  const candidate = applyWorkspaceAction(Object.assign({}, document.data, { definitionsById: repeatDefinitions }), 'upgrade:chore-storage-v1', {
+    type: 'materialize_occurrences',
+    rangeStart: new Date(now - 90 * 86400000).toISOString(),
+    rangeEnd: new Date(now + 45 * 86400000).toISOString(),
+  }, timestamp);
+  const removed = Object.create(null);
+  const occurrences = Object.assign({}, document.data.occurrencesById);
+  const occurrenceIds = Object.keys(occurrences);
+  for (let occurrenceIndex = 0; occurrenceIndex < occurrenceIds.length; occurrenceIndex += 1) {
+    const id = occurrenceIds[occurrenceIndex];
+    const item = occurrences[id];
+    const definition = document.data.definitionsById[item.definitionId];
+    if (definition && definition.schedule.frequency === 'after_completion' &&
+        item.status === 'available' && Date.parse(item.scheduledAt) > now &&
+        !candidate.occurrencesById[id]) {
+      delete occurrences[id];
+      recordSafety.setOwnRecordValue(removed, id, true);
+    }
+  }
+  const changed = Object.keys(removed).length > 0;
+  const next = Object.assign({}, document, {
+    storageMaintenanceVersion: 1,
+    revision: document.revision + (changed ? 1 : 0),
+    updatedAt: changed ? timestamp : document.updatedAt,
+    data: changed ? Object.assign({}, document.data, {
+      occurrencesById: occurrences,
+      outbox: document.data.outbox.filter(function (item) {
+        return item.status === 'delivered' || !removed[item.occurrenceId];
+      }),
+    }) : document.data,
+  });
+  persistDocument(document, next);
+  appendEventHistory(next.data.activity, next.data.historyRetention);
+  return next;
 }
 
 function applyScheduledState(document) {
@@ -2783,7 +2881,7 @@ function readDocument() {
       data: emptyData(),
     };
   }
-  if (isValidDocument(document)) return applyScheduledState(document);
+  if (isValidDocument(document)) return applyScheduledState(repairStoredWorkspace(document));
   if (
     isRecord(document) &&
     document.contractVersion === CONTRACT_VERSION &&

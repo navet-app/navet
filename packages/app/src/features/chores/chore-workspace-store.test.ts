@@ -443,6 +443,66 @@ describe('chore workspace store', () => {
     });
   });
 
+  it('refreshes and retries a reset once with the same command identity after a conflict', async () => {
+    useChoreWorkspaceStore.getState().setPreviewDocument({ data: emptyWorkspace, revision: 5 });
+    resetChoreWorkspace
+      .mockResolvedValueOnce({
+        saved: false,
+        unauthorized: false,
+        preconditionFailed: true,
+        error: 'Chore workspace changed on another client',
+        document: null,
+      })
+      .mockResolvedValueOnce({
+        saved: true,
+        unauthorized: false,
+        preconditionFailed: false,
+        error: null,
+        document: { data: emptyWorkspace, revision: 7 },
+      });
+    loadChoreWorkspace.mockResolvedValue({
+      available: true,
+      unauthorized: false,
+      notModified: false,
+      document: { data: emptyWorkspace, revision: 6 },
+    });
+    expect(await useChoreWorkspaceStore.getState().deleteAll('participant-manager')).toBe(true);
+    expect(resetChoreWorkspace).toHaveBeenCalledTimes(2);
+    const first = resetChoreWorkspace.mock.calls[0][0];
+    expect(resetChoreWorkspace.mock.calls[1][0]).toEqual({ ...first, baseRevision: 6 });
+    expect(loadChoreWorkspace).toHaveBeenCalledWith(undefined);
+    expect(useChoreWorkspaceStore.getState()).toMatchObject({
+      revision: 7,
+      error: null,
+      status: 'ready',
+    });
+  });
+
+  it('stops after a second reset conflict and preserves the refreshed workspace', async () => {
+    useChoreWorkspaceStore.getState().setPreviewDocument({ data: emptyWorkspace, revision: 5 });
+    resetChoreWorkspace.mockResolvedValue({
+      saved: false,
+      unauthorized: false,
+      preconditionFailed: true,
+      error: 'Revision changed',
+      document: null,
+    });
+    loadChoreWorkspace.mockResolvedValue({
+      available: true,
+      unauthorized: false,
+      notModified: false,
+      document: { data: emptyWorkspace, revision: 6 },
+    });
+    expect(await useChoreWorkspaceStore.getState().deleteAll('participant-manager')).toBe(false);
+    expect(resetChoreWorkspace).toHaveBeenCalledTimes(2);
+    expect(useChoreWorkspaceStore.getState()).toMatchObject({
+      data: emptyWorkspace,
+      revision: 6,
+      error: 'Revision changed',
+      status: 'ready',
+    });
+  });
+
   it('clears the visible workspace after a manager reset', async () => {
     useChoreWorkspaceStore.getState().setPreviewDocument({ data: emptyWorkspace, revision: 5 });
     resetChoreWorkspace.mockResolvedValue({

@@ -1,0 +1,171 @@
+{
+  "contractVersion": 1,
+  "revision": 55,
+  "updatedAt": "2026-10-13T10:00:00.000Z",
+  "data": {
+    "schemaVersion": 2,
+    "participantsById": {
+      "manager": {
+        "id": "manager",
+        "displayName": "Person",
+        "capabilities": [
+          "manage",
+          "complete",
+          "approve"
+        ],
+        "createdAt": "2026-09-01T08:00:00.000Z",
+        "updatedAt": "2026-10-13T10:00:00.000Z"
+      }
+    },
+    "definitionsById": {
+      "tank": {
+        "id": "tank",
+        "title": "Chore tank",
+        "enabled": true,
+        "assignment": {
+          "mode": "person",
+          "participantIds": [
+            "manager"
+          ]
+        },
+        "schedule": {
+          "frequency": "after_completion",
+          "startDate": "2026-09-01",
+          "time": "18:00",
+          "timeZone": "Europe/Stockholm",
+          "intervalDays": 3
+        },
+        "dueWindowMinutes": 60,
+        "approval": {
+          "required": false,
+          "approverIds": []
+        },
+        "createdAt": "2026-09-01T08:00:00.000Z",
+        "updatedAt": "2026-10-13T10:00:00.000Z"
+      },
+      "plants": {
+        "id": "plants",
+        "title": "Chore plants",
+        "enabled": true,
+        "assignment": {
+          "mode": "person",
+          "participantIds": [
+            "manager"
+          ]
+        },
+        "schedule": {
+          "frequency": "after_completion",
+          "startDate": "2026-09-01",
+          "time": "18:00",
+          "timeZone": "Europe/Stockholm",
+          "intervalDays": 14
+        },
+        "dueWindowMinutes": 60,
+        "approval": {
+          "required": false,
+          "approverIds": []
+        },
+        "createdAt": "2026-09-01T08:00:00.000Z",
+        "updatedAt": "2026-10-13T10:00:00.000Z"
+      }
+    },
+    "occurrencesById": {
+      "tank:2026-10-03T16:00:00.000Z:manager": {
+        "id": "tank:2026-10-03T16:00:00.000Z:manager",
+        "definitionId": "tank",
+        "scheduledAt": "2026-10-03T16:00:00.000Z",
+        "dueAt": "2026-10-03T17:00:00.000Z",
+        "assigneeIds": [
+          "manager"
+        ],
+        "assignmentSlot": "manager",
+        "status": "done",
+        "updatedAt": "2026-10-03T16:00:00.000Z",
+        "completedBy": "manager",
+        "completedAt": "2026-10-03T16:00:00.000Z"
+      },
+      "tank:2026-10-07T16:00:00.000Z:manager": {
+        "id": "tank:2026-10-07T16:00:00.000Z:manager",
+        "definitionId": "tank",
+        "scheduledAt": "2026-10-07T16:00:00.000Z",
+        "dueAt": "2026-10-07T17:00:00.000Z",
+        "assigneeIds": [
+          "manager"
+        ],
+        "assignmentSlot": "manager",
+        "status": "missed",
+        "updatedAt": "2026-10-07T16:00:00.000Z",
+        "missedAt": "2026-10-07T17:00:00.000Z"
+      },
+      "plants:2026-10-03T16:00:00.000Z:manager": {
+        "id": "plants:2026-10-03T16:00:00.000Z:manager",
+        "definitionId": "plants",
+        "scheduledAt": "2026-10-03T16:00:00.000Z",
+        "dueAt": "2026-10-03T17:00:00.000Z",
+        "assigneeIds": [
+          "manager"
+        ],
+        "assignmentSlot": "manager",
+        "status": "done",
+        "updatedAt": "2026-10-03T16:00:00.000Z",
+        "completedBy": "manager",
+        "completedAt": "2026-10-03T16:00:00.000Z"
+      },
+      "plants:2026-10-08T16:00:00.000Z:manager": {
+        "id": "plants:2026-10-08T16:00:00.000Z:manager",
+        "definitionId": "plants",
+        "scheduledAt": "2026-10-08T16:00:00.000Z",
+        "dueAt": "2026-10-08T17:00:00.000Z",
+        "assigneeIds": [
+          "manager"
+        ],
+        "assignmentSlot": "manager",
+        "status": "missed",
+        "updatedAt": "2026-10-08T16:00:00.000Z",
+        "missedAt": "2026-10-08T17:00:00.000Z"
+      },
+      "plants:2026-10-13T16:00:00.000Z:manager": {
+        "id": "plants:2026-10-13T16:00:00.000Z:manager",
+        "definitionId": "plants",
+        "scheduledAt": "2026-10-13T16:00:00.000Z",
+        "dueAt": "2026-10-13T17:00:00.000Z",
+        "assigneeIds": [
+          "manager"
+        ],
+        "assignmentSlot": "manager",
+        "status": "available",
+        "updatedAt": "2026-10-13T16:00:00.000Z"
+      },
+      "plants:2026-10-18T16:00:00.000Z:manager": {
+        "id": "plants:2026-10-18T16:00:00.000Z:manager",
+        "definitionId": "plants",
+        "scheduledAt": "2026-10-18T16:00:00.000Z",
+        "dueAt": "2026-10-18T17:00:00.000Z",
+        "assigneeIds": [
+          "manager"
+        ],
+        "assignmentSlot": "manager",
+        "status": "available",
+        "updatedAt": "2026-10-18T16:00:00.000Z"
+      },
+      "plants:2026-10-23T16:00:00.000Z:manager": {
+        "id": "plants:2026-10-23T16:00:00.000Z:manager",
+        "definitionId": "plants",
+        "scheduledAt": "2026-10-23T16:00:00.000Z",
+        "dueAt": "2026-10-23T17:00:00.000Z",
+        "assigneeIds": [
+          "manager"
+        ],
+        "assignmentSlot": "manager",
+        "status": "available",
+        "updatedAt": "2026-10-23T16:00:00.000Z"
+      }
+    },
+    "activity": [],
+    "outbox": [],
+    "historyRetention": {
+      "maxAgeDays": 730,
+      "maxEvents": 50000
+    }
+  }
+}

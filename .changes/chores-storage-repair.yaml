@@ -1,0 +1,3 @@
+type: fixed
+audiences: [standalone, home-assistant, hacs]
+summary: Fix stuck chore completion and reset, and automatically repair and compress affected storage on upgrade without losing history.

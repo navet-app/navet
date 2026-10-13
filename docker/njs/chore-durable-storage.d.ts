@@ -1,5 +1,7 @@
 declare const storage: {
   CHUNK_BYTES: number;
+  pack(value: unknown, hash: (value: string) => string): unknown;
+  unpack(value: unknown, hash: (value: string) => string, maxBytes?: number): unknown;
   encode(
     document: unknown,
     maxBytes: number,

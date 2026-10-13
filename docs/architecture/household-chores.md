@@ -91,13 +91,29 @@ returns `412`; the client loads the newest document, rebuilds the mutation again
 once. The command journal and activity log both detect retries after a partially successful durable
 write.
 
-The workspace revision is the authority. Small workspaces are stored inline. When a workspace
-exceeds 2 MiB, the storage authority writes occurrences, point transactions, progress awards, reward
-requests, activity, and delivery work into immutable chunks targeting 256 KiB, with a 2 MiB hard limit per chunk to preserve large legacy records. The workspace
-manifest records each chunk's SHA-256 identity. Records are written before the manifest is committed;
-reads verify and hydrate every referenced chunk before accepting the revision. The public workspace
-and backup formats contain the complete hydrated data. Core owns the unchanged domain contracts;
-Docker/NJS, the Vite development authority, and the Home Assistant integration own this storage framing.
+The workspace revision is the authority. Small workspaces are stored inline. When the hydrated
+workspace exceeds 2 MiB, the storage authority writes occurrences, point transactions, progress
+awards, reward requests, activity, and delivery work into immutable chunks targeting 256 KiB, with
+a 2 MiB hard limit per hydrated chunk to preserve large legacy records. The manifest records each
+chunk's SHA-256 identity. Records are written before the manifest is committed; reads verify and
+hydrate every referenced chunk before accepting the revision.
+
+Workspace documents, chunks, recovery copies, and immutable history use a versioned deflate
+storage envelope when records exceed 32 KiB and compression saves at least 10%. The envelope
+records the expanded byte count and SHA-256 checksum. Readers retain support for uncompressed
+inline documents and chunk manifests. Public workspace, history, and backup formats remain
+complete hydrated JSON; compression does not remove or reorder events or change automation
+cursor offsets.
+
+On the first load after upgrading, the authority compresses existing records and reconciles
+obsolete future available after-completion repeats. Outstanding work, completions, people,
+definitions, points, and history remain intact. It saves the pre-repair workspace as the healthy
+recovery copy before committing the maintenance marker. Interrupted writes can retry the repair;
+representation-only changes preserve the workspace revision. After a successful write, the
+serialized authority collects chunks referenced by neither the current manifest nor its recovery
+copy. Failed-file diagnostic snapshots prevent collection when their references cannot be verified.
+Core owns the unchanged domain contracts; Docker/NJS, Vite, and the Home Assistant integration own
+this storage framing.
 
 Command-journal and event-history files are reconstructable sidecars and cannot take the whole
 feature offline. Durable record chunks are authoritative and must be included with the workspace
