@@ -16,7 +16,10 @@ import durableStorage from '@docker/njs/chore-durable-storage.js';
 import { createChoreExperienceState } from '@navet/core/chore-experience';
 import { createViteChoreStoreRequestHandler } from '@scripts/vite-chore-store';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { continuousMaterializationFixture } from '../../../../../testing/chore-storage-fixture';
+import {
+  continuousMaterializationFixture,
+  longIntervalRepairFixture,
+} from '../../../../../testing/chore-storage-fixture';
 
 const TENANT_ID = `hat_${'a'.repeat(64)}`;
 const PRINCIPAL = {
@@ -1076,13 +1079,15 @@ describe('Vite chore workspace store', () => {
 
 describe('Vite automatic chore storage repair', () => {
   afterEach(() => vi.useRealTimers());
-  function seedLegacy() {
+  function seedLegacy(longIntervals = false) {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-13T10:00:00.000Z'));
     const directory = mkdtempSync(join(tmpdir(), 'navet-chore-upgrade-'));
     tempDirs.push(directory);
     const filePath = join(directory, 'chores.json');
-    const { document, events } = continuousMaterializationFixture();
+    const { document, events } = longIntervals
+      ? longIntervalRepairFixture()
+      : continuousMaterializationFixture();
     const hash = (value: string) => createHash('sha256').update(value).digest('hex');
     const stored = durableStorage.encode(document, 2 * 1024 * 1024, hash, (key, chunk) =>
       writeFileSync(`${filePath}.chunk-${key}`, JSON.stringify(durableStorage.unpack(chunk, hash)))
@@ -1164,6 +1169,19 @@ describe('Vite automatic chore storage repair', () => {
     );
     expect(complete.status).toBe(200);
     expect(JSON.parse(complete.body).data.occurrencesById[outstanding.id].status).toBe('done');
+  });
+
+  it('reconciles obsolete long-interval repeats while preserving protected future work', async () => {
+    const { handler } = seedLegacy(true);
+    const { document, obsoleteIds } = longIntervalRepairFixture();
+    const read = createResponse();
+    await handler(createRequest('GET', '/workspace'), read.response);
+    expect(read.status).toBe(200);
+    expect(JSON.parse(read.body).data.occurrencesById).toEqual(
+      Object.fromEntries(
+        Object.entries(document.data.occurrencesById).filter(([id]) => !obsoleteIds.includes(id))
+      )
+    );
   });
 
   it('retains the legacy primary and retries a failed upgrade commit', async () => {

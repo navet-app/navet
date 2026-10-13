@@ -17,6 +17,8 @@ import {
   createEmptyChoreWorkspace,
   DEFAULT_CHORE_HISTORY_RETENTION,
   migrateChoreWorkspaceData,
+  materializeChoreOccurrences,
+  isChoreParticipantPausedAt,
   runChoreWorkspaceScheduler,
 } from '../packages/core/src/chores.ts'
 import { applyChoreHistoryRetention } from '../packages/core/src/chore-insights.ts'
@@ -575,24 +577,24 @@ export function createViteChoreStoreRequestHandler(options: {
     const timestamp = new Date().toISOString()
     if (document.storageMaintenanceVersion !== 1) {
       appendEventHistory(document.data.activity, document.data.historyRetention)
-      const preview = applyChoreWorkspaceAction({
-        workspace: {
-          ...document.data,
-          definitionsById: Object.fromEntries(
-            Object.entries(document.data.definitionsById).filter(
-              ([, definition]) => definition.schedule.frequency === 'after_completion',
-            ),
-          ),
-        },
-        commandId: 'upgrade:chore-storage-v1',
-        timestamp,
-        action: {
-          type: 'materialize_occurrences',
+      const definitionsById = document.data.definitionsById
+      const participantsById = document.data.participantsById
+      const scheduledByDefinition = new Map<string, Set<string>>()
+      for (const definition of Object.values(definitionsById)) {
+        if (definition.schedule.frequency !== 'after_completion') continue
+        const latestCompletedAt = Object.values(document.data.occurrencesById)
+          .filter((item) => item.definitionId === definition.id)
+          .flatMap((item) => item.completedAt ? [item.completedAt] : [])
+          .sort((left, right) => Date.parse(left) - Date.parse(right))
+          .at(-1)
+        const scheduled = materializeChoreOccurrences({
+          definition, participantsById,
+          existingOccurrences: document.data.occurrencesById, latestCompletedAt,
           rangeStart: new Date(Date.parse(timestamp) - 90 * 86400000).toISOString(),
           rangeEnd: new Date(Date.parse(timestamp) + 45 * 86400000).toISOString(),
-        },
-      })
-      const definitionsById = document.data.definitionsById
+        }, true)
+        scheduledByDefinition.set(definition.id, new Set(scheduled.map((item) => item.id)))
+      }
       const removed = new Set(
         Object.values(document.data.occurrencesById)
           .filter(
@@ -600,7 +602,12 @@ export function createViteChoreStoreRequestHandler(options: {
               definitionsById[item.definitionId]?.schedule.frequency === 'after_completion' &&
               item.status === 'available' &&
               Date.parse(item.scheduledAt) > Date.parse(timestamp) &&
-              !preview.data.occurrencesById[item.id],
+              !scheduledByDefinition.get(item.definitionId)?.has(item.id) &&
+              item.carriedForwardFrom === undefined &&
+              !item.assigneeIds.some((participantId) => {
+                const participant = participantsById[participantId]
+                return participant && isChoreParticipantPausedAt(participant, item.scheduledAt)
+              }),
           )
           .map((item) => item.id),
       )

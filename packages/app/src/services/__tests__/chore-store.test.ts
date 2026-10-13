@@ -7,7 +7,10 @@ import conformanceVectors from '@navet/core/chore-conformance-vectors.json';
 import { createChoreExperienceState } from '@navet/core/chore-experience';
 import type { ApplyChoreCommandInput, ChoreOccurrence } from '@navet/core/chores';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { continuousMaterializationFixture } from '../../../../../testing/chore-storage-fixture';
+import {
+  continuousMaterializationFixture,
+  longIntervalRepairFixture,
+} from '../../../../../testing/chore-storage-fixture';
 import { fileDescriptorFixture } from '../../../../../testing/file-descriptors';
 import {
   getChoreMaterializationRange,
@@ -2263,13 +2266,15 @@ describe('automatic chore storage upgrade', () => {
     choreStore.resetChoreStoreForTests();
     vi.useRealTimers();
   });
-  function seedLegacy(schemaVersion = 2) {
+  function seedLegacy(schemaVersion = 2, longIntervals = false) {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-13T10:00:00.000Z'));
     const mockFs = createMockFs();
     choreStore.setChoreStoreFsForTests(mockFs);
     choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
-    const { document, events } = continuousMaterializationFixture();
+    const { document, events } = longIntervals
+      ? longIntervalRepairFixture()
+      : continuousMaterializationFixture();
     const hash = (value: string) => createHash('sha256').update(value).digest('hex');
     const legacyDocument =
       schemaVersion === 1
@@ -2362,6 +2367,19 @@ describe('automatic chore storage upgrade', () => {
     choreStore.handle(again);
     expect(parseResponse(again)).toEqual(saved);
     expect(mockFs.writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it('reconciles obsolete long-interval repeats while preserving protected future work', () => {
+    seedLegacy(2, true);
+    const { document, obsoleteIds } = longIntervalRepairFixture();
+    const read = createRequest();
+    choreStore.handle(read);
+    expect(read.return).toHaveBeenCalledWith(200, expect.any(String));
+    expect(parseResponse(read).data.occurrencesById).toEqual(
+      Object.fromEntries(
+        Object.entries(document.data.occurrencesById).filter(([id]) => !obsoleteIds.includes(id))
+      )
+    );
   });
 
   it('retries an interrupted upgrade without losing the old workspace, history or chunks', () => {

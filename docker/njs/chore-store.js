@@ -2669,18 +2669,23 @@ function repairStoredWorkspace(document, previous) {
   const timestamp = nowIso();
   const now = Date.parse(timestamp);
   appendEventHistory(document.data.activity, document.data.historyRetention);
-  const repeatDefinitions = Object.create(null);
+  const scheduledByDefinition = Object.create(null);
   const definitionIds = Object.keys(document.data.definitionsById);
   for (let index = 0; index < definitionIds.length; index += 1) {
     const definition = document.data.definitionsById[definitionIds[index]];
-    if (definition.schedule.frequency === 'after_completion')
-      recordSafety.setOwnRecordValue(repeatDefinitions, definition.id, definition);
+    if (definition.schedule.frequency !== 'after_completion') continue;
+    const completed = Object.values(document.data.occurrencesById)
+      .filter(function (item) { return item.definitionId === definition.id && typeof item.completedAt === 'string'; })
+      .map(function (item) { return item.completedAt; })
+      .sort(function (left, right) { return Date.parse(left) - Date.parse(right); });
+    const scheduled = materializeDefinition(definition, document.data.participantsById,
+      new Date(now - 90 * 86400000).toISOString(), new Date(now + 45 * 86400000).toISOString(),
+      document.data.occurrencesById, completed[completed.length - 1], true);
+    const ids = Object.create(null);
+    for (let itemIndex = 0; itemIndex < scheduled.length; itemIndex += 1)
+      recordSafety.setOwnRecordValue(ids, scheduled[itemIndex].id, true);
+    recordSafety.setOwnRecordValue(scheduledByDefinition, definition.id, ids);
   }
-  const candidate = applyWorkspaceAction(Object.assign({}, document.data, { definitionsById: repeatDefinitions }), 'upgrade:chore-storage-v1', {
-    type: 'materialize_occurrences',
-    rangeStart: new Date(now - 90 * 86400000).toISOString(),
-    rangeEnd: new Date(now + 45 * 86400000).toISOString(),
-  }, timestamp);
   const removed = Object.create(null);
   const occurrences = Object.create(null);
   const occurrenceIds = Object.keys(document.data.occurrencesById);
@@ -2690,7 +2695,11 @@ function repairStoredWorkspace(document, previous) {
     const definition = document.data.definitionsById[item.definitionId];
     if (definition && definition.schedule.frequency === 'after_completion' &&
         item.status === 'available' && Date.parse(item.scheduledAt) > now &&
-        !candidate.occurrencesById[id]) {
+        !scheduledByDefinition[item.definitionId][id] && !item.carriedForwardFrom &&
+        !item.assigneeIds.some(function (participantId) {
+          const participant = document.data.participantsById[participantId];
+          return participant && isParticipantPausedAt(participant, item.scheduledAt);
+        })) {
       recordSafety.setOwnRecordValue(removed, id, true);
     } else {
       recordSafety.setOwnRecordValue(occurrences, id, item);

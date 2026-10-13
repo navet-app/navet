@@ -50,3 +50,35 @@ export function continuousMaterializationFixture() {
   document.data.outbox = document.data.activity.map(createChoreOutboxItem)
   return { document, events }
 }
+
+export function longIntervalRepairFixture() {
+  const result = continuousMaterializationFixture()
+  const { data } = result.document
+  const obsoleteIds = Object.values(data.occurrencesById)
+    .filter((item) => item.status === 'available').map((item) => item.id)
+  const tank = data.definitionsById.tank
+  if (tank.schedule.frequency !== 'after_completion') throw new Error('Expected repeating fixture')
+  tank.schedule = { ...tank.schedule, intervalDays: 120 }
+  for (const item of Object.values(data.occurrencesById)) {
+    if (item.definitionId === 'tank' && item.status !== 'done') delete data.occurrencesById[item.id]
+  }
+  const add = (definitionId: string, scheduledAt: string, fields: Partial<ChoreWorkspaceData['occurrencesById'][string]> = {}) => {
+    const id = `${definitionId}:${scheduledAt}:manager`
+    data.occurrencesById[id] = {
+      id, definitionId, scheduledAt,
+      dueAt: new Date(Date.parse(scheduledAt) + 3600000).toISOString(),
+      assigneeIds: ['manager'], assignmentSlot: 'manager', status: 'available',
+      updatedAt: scheduledAt, ...fields,
+    }
+    return id
+  }
+  // Keep the next valid long-interval recurrence and protected future work.
+  add('tank', '2027-01-31T17:00:00.000Z')
+  obsoleteIds.push(add('tank', '2027-02-10T17:00:00.000Z'))
+  obsoleteIds.push(add('plants', '2027-02-01T17:00:00.000Z'))
+  add('plants', '2027-02-05T17:00:00.000Z', { carriedForwardFrom: 'plants:2026-10-08T16:00:00.000Z:manager' })
+  add('plants', '2027-02-06T17:00:00.000Z', { status: 'claimed', claimedBy: 'manager', claimedAt: '2026-10-13T10:00:00.000Z' })
+  data.participantsById.manager.pausedAt = '2027-03-01T00:00:00.000Z'
+  add('plants', '2027-03-05T17:00:00.000Z')
+  return { ...result, obsoleteIds }
+}
