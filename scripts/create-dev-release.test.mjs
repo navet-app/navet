@@ -10,7 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 const sourceScriptsDirectory = dirname(fileURLToPath(import.meta.url));
 const temporaryDirectories = [];
@@ -28,7 +28,7 @@ function readRemoteRef(fixture, ref) {
   return runGit(fixture.remote, fixture.environment, ['rev-parse', ref]);
 }
 
-function createReleaseFixture() {
+function buildReleaseFixture() {
   const root = mkdtempSync(join(tmpdir(), 'navet-dev-release-'));
   const repository = join(root, 'repository');
   const remote = join(root, 'remote.git');
@@ -44,7 +44,6 @@ function createReleaseFixture() {
     GIT_CONFIG_NOSYSTEM: '1',
   };
 
-  temporaryDirectories.push(root);
   mkdirSync(repository, { recursive: true });
   mkdirSync(remote, { recursive: true });
   mkdirSync(emptyHooksDirectory, { recursive: true });
@@ -119,6 +118,25 @@ function createReleaseFixture() {
     environment,
     remote,
     repository,
+  };
+}
+
+// Keep: publishing scenarios retain independent repositories, indexes and bare remotes.
+let releaseSeed;
+beforeAll(() => { releaseSeed = buildReleaseFixture(); });
+afterAll(() => { if (releaseSeed) rmSync(dirname(releaseSeed.repository), { recursive: true, force: true }); });
+function createReleaseFixture() {
+  const root = mkdtempSync(join(tmpdir(), 'navet-dev-release-'));
+  temporaryDirectories.push(root);
+  const source = dirname(releaseSeed.repository);
+  cpSync(source, root, { recursive: true });
+  const repository = join(root, 'repository');
+  const config = join(repository, '.git/config');
+  writeFileSync(config, readFileSync(config, 'utf8').replaceAll(source + '/', root + '/'));
+  return {
+    repository,
+    remote: join(root, 'remote.git'),
+    environment: { ...releaseSeed.environment, GIT_CONFIG_GLOBAL: join(root, 'global.gitconfig') },
   };
 }
 

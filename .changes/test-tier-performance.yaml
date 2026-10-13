@@ -1,0 +1,3 @@
+type: internal
+audiences: []
+summary: Speed up test tiers with separate environments, combined blocking validation and isolated fixture seeds; stabilise dashboard recovery coverage.

@@ -14,6 +14,12 @@ For assertions, fixtures and Keep/Rewrite/Delete decisions, use the
 - Runtime-impacting PRs require tiers 1, 2, 3 and Docker validation. Non-runtime PRs retain
   quality/script checks and affected site builds. Verify applicability in `.github/workflows/ci.yml`
   and `scripts/pipeline-impact.mjs` rather than inferring it from a tier name.
+- The pre-push hook runs typecheck and `pnpm test:blocking`, which executes the complete Tier 1/2
+  union once and reports passing file/test counts for each tier. Individual tier commands and CI
+  lanes keep their existing membership.
+- Unit tests use `unit-node` for scripts and pure core contracts, and `unit-browser` for remaining
+  suites with jsdom and app browser setup. Use `--project 'unit*'` to select both environments;
+  Storybook retains its separate browser project and setup.
 - Local `pnpm test:tier3` runs the full unit suite; CI uses `--exclude-blocking` without deleting
   tests. Storybook interaction coverage is a separate browser surface.
 - Dev publication runs Tier 1 source checks and verifies published image digests. Later release

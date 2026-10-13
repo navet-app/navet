@@ -6,12 +6,12 @@ import { AgentTaskStore, resourceStatus } from './agent-task-store.mjs';
 import { createPlanningBinding } from './agent-planning-scope.mjs';
 import { dispatchPlanningDelivery } from './agent-planning-delivery-dispatch.mjs';
 import { monitorPlanningWorker } from './agent-worker-monitor.mjs';
+import { directorySeed } from './test-fixtures/directory-seed.mjs';
 
 const directories = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))); });
-async function setup() {
-  const directory = await mkdtemp(path.join(tmpdir(), 'navet-worker-monitor-'));
-  directories.push(directory);
+// Keep: all monitor scenarios still use the real durable store after isolated setup.
+const monitorSeed = directorySeed(async (directory) => {
   let time = 1_700_000_000_000;
   const now = () => time;
   const tick = () => ++time;
@@ -40,6 +40,22 @@ async function setup() {
     findDelivery: async () => ({ status: 'missing' }) });
   expect(result.status).toBe('bound');
   const identity = { taskId: task.id, dispatchToken: result.dispatch.token, threadId: 'worker', runId: 'run-1' };
+  return { time, task, request, issue, identity };
+}, { stateFiles: ['tasks.json'] });
+
+async function setup() {
+  const directory = await mkdtemp(path.join(tmpdir(), 'navet-worker-monitor-'));
+  directories.push(directory);
+  const seed = await monitorSeed(directory);
+  let { time } = seed;
+  const { task, request, issue, identity } = seed;
+  const now = () => time; const tick = () => ++time;
+  const store = new AgentTaskStore(directory, { now });
+  const owner = 'coordinator';
+  const act = (action, input = {}) => store.mutate(task.id, action, { owner, ...input });
+  const readRequest = async () => ({ status: 'authorized', request: { ...structuredClone(request),
+    authority: { ...request.authority, observedAt: tick() } } });
+  const readIssue = async () => ({ status: 'available', issue: structuredClone(issue), reference: 'live-proposal', observedAt: tick() });
   const commands = [];
   let stopped = false;
   const worker = () => ({ ...identity, status: stopped ? 'stopped' : 'running', reference: 'worker-service', observedAt: tick(),

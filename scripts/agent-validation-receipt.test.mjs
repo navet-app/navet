@@ -87,6 +87,55 @@ async function currentFixture({ continued = false, direct = false, mutate = () =
 }
 
 describe('native validation receipt verification', () => {
+  // Keep: accept complete combined evidence without accepting partial or failed tiers.
+  it('verifies combined blocking coverage and rejects incomplete evidence', async () => {
+    const priorHook = await readFile(path.join(root, '.husky/pre-push'), 'utf8');
+    const priorHead = head;
+    await writeFile(path.join(root, '.husky/pre-push'), await readFile(path.join(process.cwd(), '.husky/pre-push'), 'utf8'));
+    await git(['add', '.husky/pre-push']);
+    await git(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'test: combined push hook']);
+    head = await git(['rev-parse', 'HEAD']);
+    const summary = 'Navet blocking coverage: {"tier1":{"files":2,"tests":10},"tier2":{"files":1,"tests":5}}';
+    const combinedOutput = `$ node scripts/run-test-tier.mjs blocking\nTest Files  3 passed (3)\nTests  15 passed (15)\n${summary}\n`;
+    try {
+      const replacements = [
+        null,
+        [summary, 'missing'],
+        [summary, `${summary}\n${summary}`],
+        ['"tests":5', '"tests":4'],
+        ['"files":1', '"files":0'],
+        ['15 passed (15)', '1 failed | 14 passed (15)'],
+        ['3 passed (3)', '1 failed | 2 passed (3)'],
+        ['15 passed (15)', '15 passed (16)'],
+        ['$ tsc --noEmit', 'missing'],
+        ['$ node scripts/run-test-tier.mjs blocking', 'missing'],
+      ];
+      for (const replacement of replacements) {
+        const { input } = await fixture((record) => {
+          const item = record.payload.item;
+          item.aggregated_output = item.aggregated_output.replace(
+            /\$ node scripts\/run-test-tier\.mjs tier1[\s\S]*?(?=Navet validation complete:)/,
+            () => combinedOutput,
+          );
+          if (replacement) item.aggregated_output = item.aggregated_output.replace(...replacement);
+        });
+        if (replacement) await expect(verifyValidationReceipt(input)).rejects.toThrow();
+        else expect((await verifyValidationReceipt(input)).result).toBe('pass');
+      }
+      const firstPush = await fixture((record) => {
+        const item = record.payload.item;
+        item.aggregated_output = item.aggregated_output.replace(
+          /\$ node scripts\/run-test-tier\.mjs tier1[\s\S]*?(?=Navet validation complete:)/,
+          () => `${combinedOutput}Navet validated push: ${head} refs/heads/${branch}\n`,
+        ).replace(`abcdef0..${head.slice(0, 8)}`, '* [new branch]');
+      });
+      expect((await verifyValidationReceipt(firstPush.input)).result).toBe('pass');
+    } finally {
+      head = priorHead;
+      await writeFile(path.join(root, '.husky/pre-push'), priorHook);
+    }
+  });
+
   it.each([false, true])('correlates current native call/output records with continuations=%s', async (continued) => {
     const { input } = await currentFixture({ continued });
     const result = await verifyValidationReceipt(input);
@@ -134,7 +183,8 @@ describe('native validation receipt verification', () => {
   });
 
   it('binds first branch pushes to immutable hook output and rejects rebinding the receipt to a later commit', async () => {
-    const boundHook = await readFile(path.join(process.cwd(), '.husky/pre-push'), 'utf8');
+    // Keep: receipts for previously committed sequential hooks remain verifiable.
+    const boundHook = `navet_push_refs="$(cat)"\n${hook.trim()} &&\n  printf '%s\\n' "$navet_push_refs" | while read -r navet_local_ref navet_local_sha navet_remote_ref navet_remote_sha; do\n    printf 'Navet validated push: %s %s\\n' "$navet_local_sha" "$navet_remote_ref"\n  done\n`;
     await writeFile(path.join(root, '.husky/pre-push'), boundHook);
     await git(['add', '.husky/pre-push']);
     await git(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'test: bound push hook']);
@@ -162,7 +212,7 @@ describe('native validation receipt verification', () => {
   it('prints the captured Git push head only after the complete validation chain passes', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'navet-push-hook-')); directories.push(dir);
     const pnpm = path.join(dir, 'pnpm');
-    await writeFile(pnpm, '#!/bin/sh\n[ "$1" != "test:tier2" ] || [ "$NAVET_TEST_FAIL_TIER" != "yes" ]\n');
+    await writeFile(pnpm, '#!/bin/sh\n[ "$1" != "test:blocking" ] || [ "$NAVET_TEST_FAIL_TIER" != "yes" ]\n');
     await chmod(pnpm, 0o755);
     const hookFile = path.join(process.cwd(), '.husky/pre-push');
     const refs = `refs/heads/${branch} ${head} refs/heads/${branch} ${'0'.repeat(40)}\n`;

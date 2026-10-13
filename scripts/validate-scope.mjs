@@ -12,7 +12,7 @@ const SCOPE_COMMANDS = {
   dashboard: [
     ['pnpm', ['check:ui-kit']],
     ['pnpm', ['check:stories']],
-    ['pnpm', ['exec', 'vitest', '--config', 'vitest.unit.config.ts', '--project', 'unit', '--run', 'packages/app/src/features/dashboard']],
+    ['pnpm', ['exec', 'vitest', '--config', 'vitest.unit.config.ts', '--project', 'unit*', '--run', 'packages/app/src/features/dashboard']],
   ],
   provider: [
     ['pnpm', ['check:provider-boundaries']],

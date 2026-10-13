@@ -1,7 +1,6 @@
 navet_push_refs="$(cat)"
 pnpm typecheck &&
-  pnpm test:tier1 &&
-  pnpm test:tier2 &&
+  pnpm test:blocking &&
   printf '%s\n' "$navet_push_refs" | while read -r navet_local_ref navet_local_sha navet_remote_ref navet_remote_sha; do
     printf 'Navet validated push: %s %s\n' "$navet_local_sha" "$navet_remote_ref"
   done

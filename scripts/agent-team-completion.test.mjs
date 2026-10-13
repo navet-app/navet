@@ -9,17 +9,27 @@ import { createPlanningBinding } from './agent-planning-scope.mjs';
 import { linearResultBodyHash } from './agent-linear-result-reader.mjs';
 import { invalidateTeamHeadEvidence } from './agent-team-state.mjs';
 import { finishTeamArtifact, acceptTeamDelivery } from './agent-team-delivery.mjs';
+import { directorySeed } from './test-fixtures/directory-seed.mjs';
 const directories = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))); });
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+// Keep: completion assertions and native accounting run against isolated real stores.
+const completionSeed = directorySeed(async (directory, key) => {
+  const [proposal, settleWorkers] = JSON.parse(key);
+  return (await completionHarness(directory, proposal, settleWorkers)).seedMetadata;
+}, { stateFiles: ['tasks.json'] });
 async function setup(proposal = false, settleWorkers = true) {
-  let time = 1_700_000_000_000; const now = () => time; const tick = () => ++time;
   const directory = await mkdtemp(path.join(tmpdir(), 'navet-team-delivery-')); directories.push(directory);
+  const seed = await completionSeed(directory, JSON.stringify([proposal, settleWorkers]));
+  return completionHarness(directory, proposal, settleWorkers, seed);
+}
+async function completionHarness(directory, proposal, settleWorkers, seed = null) {
+  let time = seed?.time ?? 1_700_000_000_000; const now = () => time; const tick = () => ++time;
   const store = new AgentTaskStore(directory, { now }); const owner = 'coordinator';
   const issue = { uuid: id(7), teamId: id(2), projectId: id(3), title: 'Private idea', description: 'Scope',
     attachments: [], labels: [proposal ? 'Captured' : 'Approved'], archivedAt: null, canceledAt: null };
   const binding = createPlanningBinding(issue);
-  const request = { resourceLimits: { maxElapsedMs: 100_000, maxModelTokens: 10_000, maxToolCalls: 100 }, source: 'human', requestId: proposal ? 'idea' : 'approved', revision: 'scope', mode: proposal ? 'research' : 'implement',
+  const request = seed?.request ?? { resourceLimits: { maxElapsedMs: 100_000, maxModelTokens: 10_000, maxToolCalls: 100 }, source: 'human', requestId: proposal ? 'idea' : 'approved', revision: 'scope', mode: proposal ? 'research' : 'implement',
     ...(proposal ? { proposalBinding: binding } : { planningBinding: binding }),
     authority: { actor: id(6), reference: 'human:request', revision: 'scope', observedAt: time,
       ...(proposal ? { kind: 'maintainer-idea-request', proposalRevision: binding.revision } : { planningRevision: binding.revision }) },
@@ -27,15 +37,15 @@ async function setup(proposal = false, settleWorkers = true) {
       visibility: proposal ? 'private-planning' : 'public-delivery-approved',
       ...(proposal ? { purpose: 'proposal-development', resultDestination: 'linear-proposal',
         destination: { kind: 'linear', issueId: id(7), teamId: id(2), projectId: id(3) } } : {}) } };
-  const task = await store.enqueue(request);
+  const task = seed?.task ?? await store.enqueue(request);
   const act = (action, input) => store.mutate(task.id, action, { owner, ...input });
-  await act('claim', { durationMs: 100_000 });
+  if (!seed) await act('claim', { durationMs: 100_000 });
   const policy = { organizationId: id(1), teamId: id(2), projectId: id(3), readerAppUserId: id(4), writerAppUserId: id(5), humanActorIds: [id(6)] };
   const identity = { taskId: task.id, issueId: id(7), scopeRevision: binding.revision, planRevision: 'plan-a',
     head: proposal ? null : 'head-a', revision: 'scope', phase: proposal ? 'proposal' : 'delivery' };
   const receipt = () => ({ status: 'available', reference: 'service:readback', observedAt: tick(), ...identity });
   const destination = () => ({ status: 'available', ...policy, issueId: id(7), readerIsApp: true, private: true, active: true, synced: false, observedAt: tick() });
-  const writes = []; let available = true; const members = []; let inventoryComplete = true;
+  const writes = []; let available = true; const members = seed?.members ?? []; let inventoryComplete = true;
   const writeSession = async (member, total = 100) => {
     const at = tick();
     const event = (type, timestamp, payload) => ({ type: 'event_msg', timestamp: new Date(timestamp).toISOString(), payload: { type, ...payload } });
@@ -47,7 +57,7 @@ async function setup(proposal = false, settleWorkers = true) {
     await writeFile(member.sessionFile, records.map((record) => JSON.stringify(record)).join('\n') + '\n');
   };
   const body = proposal ? 'source:observation Observed friction Keep current Selected option Owning module Compatibility Intended behavior private:prototype' : 'https://github.com/owner/repo/pull/1 https://preview.example check:behavior';
-  const artifact = {
+  const artifact = seed?.artifact ?? {
     body, bodyHash: linearResultBodyHash(body),
     manifest: { sources: ['source:observation'], findings: ['Observed friction'], options: ['Keep current', 'Selected option'],
       recommendedScope: 'Selected option', implementationSlices: ['Owning module'], risks: ['Compatibility'], acceptanceCriteria: ['Intended behavior'],
@@ -83,37 +93,40 @@ async function setup(proposal = false, settleWorkers = true) {
     readAcceptance: async () => ({ ...receipt(), prUrl: artifact.pr.url, actor: id(6), actorIsApp: false,
       result: 'accepted', kind: 'merge', merged: true, checks: 'pass', review: 'pass', unresolvedThreads: 0 }),
   };
-  await act(proposal ? 'proposal-observation' : 'planning-observation', { observation: await adapters.readIssue() });
-  if (!proposal) await act('head', { head: identity.head });
-  const assignments = proposal ? [{ id: 'research', role: 'researcher', dependsOn: [], files: [], brief: { purpose: 'Sourced options' } }]
-    : [{ id: 'build', role: 'developer', dependsOn: [], files: ['scripts/example.mjs'], brief: { purpose: 'Approved scope' } },
-      { id: 'test', role: 'tester', dependsOn: ['build'], files: [], brief: { purpose: 'Intended behavior' } },
-      { id: 'review', role: 'independent-reviewer', dependsOn: ['test'], files: [], brief: { purpose: 'Independent assessment' } }];
-  await act('team-event', { event: { eventId: 'plan', type: 'plan', revision: identity.planRevision, phase: identity.phase, assignments } });
-  members.push({ role: 'coordinator', threadId: owner, runId: 'coordinator-turn', status: 'running', dedicated: true, sessionFile: path.join(directory, 'coordinator.jsonl') });
-  await writeSession(members[0]);
   const accountingOptions = { store, owner, taskId: task.id, adapters, now };
-  expect(await runTeamAccounting(accountingOptions)).toMatchObject({ complete: true });
-  for (const assignment of assignments) {
-    const allocation = await act('reserve-resources', { event: `fixture-worker:${assignment.id}`, modelTokens: 100, toolCalls: 1 });
-    const event = (value) => act('team-event', { event: value, resourceToken: allocation.resourceDecision.reservation.token, authority: { ...request.authority, observedAt: tick() } });
-    const intentId = assignment.id;
-    await event({ eventId: `intent:${intentId}`, type: 'worker-intent', assignmentId: assignment.id, intentId });
-    await event({ eventId: `attempt:${intentId}`, type: 'worker-attempt', intentId });
-    await event({ eventId: `bind:${intentId}`, type: 'worker-bind', intentId, workerId: `worker:${intentId}` });
-    members.push({ role: 'worker', threadId: `worker:${intentId}`, workerId: `worker:${intentId}`, intentId, runId: `${intentId}-turn`, status: 'stopped', dedicated: true, sessionFile: path.join(directory, `${intentId}.jsonl`) });
-    await writeSession(members.at(-1));
-    await writeSession(members[0], 100 + members.length);
-    await event({ eventId: `complete:${intentId}`, type: 'worker-observation', intentId,
-      observation: { status: 'completed', reference: 'worker:result', observedAt: tick(), workerId: `worker:${intentId}` },
-      evidence: [{ gate: assignment.role === 'independent-reviewer' ? 'independent-review' : 'focused-check', result: 'pass', artifact: 'check:behavior',
-        head: identity.head, revision: identity.revision, observedAt: tick() }] });
-    if (settleWorkers) expect(await runTeamAccounting(accountingOptions)).toMatchObject({ complete: true });
+  if (!seed) {
+    await act(proposal ? 'proposal-observation' : 'planning-observation', { observation: await adapters.readIssue() });
+    if (!proposal) await act('head', { head: identity.head });
+    const assignments = proposal ? [{ id: 'research', role: 'researcher', dependsOn: [], files: [], brief: { purpose: 'Sourced options' } }]
+      : [{ id: 'build', role: 'developer', dependsOn: [], files: ['scripts/example.mjs'], brief: { purpose: 'Approved scope' } },
+        { id: 'test', role: 'tester', dependsOn: ['build'], files: [], brief: { purpose: 'Intended behavior' } },
+        { id: 'review', role: 'independent-reviewer', dependsOn: ['test'], files: [], brief: { purpose: 'Independent assessment' } }];
+    await act('team-event', { event: { eventId: 'plan', type: 'plan', revision: identity.planRevision, phase: identity.phase, assignments } });
+    members.push({ role: 'coordinator', threadId: owner, runId: 'coordinator-turn', status: 'running', dedicated: true, sessionFile: path.join(directory, 'coordinator.jsonl') });
+    await writeSession(members[0]);
+    expect(await runTeamAccounting(accountingOptions)).toMatchObject({ complete: true });
+    for (const assignment of assignments) {
+      const allocation = await act('reserve-resources', { event: `fixture-worker:${assignment.id}`, modelTokens: 100, toolCalls: 1 });
+      const event = (value) => act('team-event', { event: value, resourceToken: allocation.resourceDecision.reservation.token, authority: { ...request.authority, observedAt: tick() } });
+      const intentId = assignment.id;
+      await event({ eventId: `intent:${intentId}`, type: 'worker-intent', assignmentId: assignment.id, intentId });
+      await event({ eventId: `attempt:${intentId}`, type: 'worker-attempt', intentId });
+      await event({ eventId: `bind:${intentId}`, type: 'worker-bind', intentId, workerId: `worker:${intentId}` });
+      members.push({ role: 'worker', threadId: `worker:${intentId}`, workerId: `worker:${intentId}`, intentId, runId: `${intentId}-turn`, status: 'stopped', dedicated: true, sessionFile: path.join(directory, `${intentId}.jsonl`) });
+      await writeSession(members.at(-1));
+      await writeSession(members[0], 100 + members.length);
+      await event({ eventId: `complete:${intentId}`, type: 'worker-observation', intentId,
+        observation: { status: 'completed', reference: 'worker:result', observedAt: tick(), workerId: `worker:${intentId}` },
+        evidence: [{ gate: assignment.role === 'independent-reviewer' ? 'independent-review' : 'focused-check', result: 'pass', artifact: 'check:behavior',
+          head: identity.head, revision: identity.revision, observedAt: tick() }] });
+      if (settleWorkers) expect(await runTeamAccounting(accountingOptions)).toMatchObject({ complete: true });
+    }
   }
-  let reservationNumber = 0;
+  let reservationNumber = seed?.reservationNumber ?? 0;
   const reserve = async () => { const value = await act('reserve-resources', { event: `fixture-ticket:${reservationNumber++}`, modelTokens: 0, toolCalls: 1 }); return value.resourceDecision.reservation.token; };
-  const resourceToken = await reserve(); const stageResourceToken = await reserve();
-  return { store, task, request, act, now, tick, members, reserve, writeSession, accountingOptions, setInventoryComplete: (value) => { inventoryComplete = value; }, artifact, adapters, writes, directory, identity,
+  const resourceToken = seed?.resourceToken ?? await reserve(); const stageResourceToken = seed?.stageResourceToken ?? await reserve();
+  return { seedMetadata: { time, task, request, members, artifact, reservationNumber, resourceToken, stageResourceToken },
+    store, task, request, act, now, tick, members, reserve, writeSession, accountingOptions, setInventoryComplete: (value) => { inventoryComplete = value; }, artifact, adapters, writes, directory, identity,
     setAvailable: (value) => { available = value; }, options: { store, owner, taskId: task.id, adapters, policy, now, resourceToken, stageResourceToken } };
 }
 async function prepared(proposal, settleWorkers = true) {
