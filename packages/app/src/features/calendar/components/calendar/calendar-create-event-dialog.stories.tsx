@@ -21,7 +21,7 @@ function CreateEventStory({
       calendars={[
         {
           id: 'home_assistant:calendar.family',
-          name: 'Family',
+          name: 'Family calendar — appointments, school activities and birthdays',
           canCreate: true,
           available: !unavailable,
         },
@@ -62,9 +62,47 @@ async function fillAllDay(canvasElement: HTMLElement) {
   return screen;
 }
 
+export const Timed: Story = {
+  play: async ({ canvasElement }) => {
+    const screen = within(canvasElement.ownerDocument.body);
+    const dialog = screen.getByRole('dialog');
+    const fields = screen.getByRole('region', { name: 'Details' });
+    const createButton = screen.getByRole('button', { name: 'Create event' });
+    const view = canvasElement.ownerDocument.defaultView;
+    if (!view) throw new Error('Calendar story requires a browser viewport');
+    const viewportHeight = view.innerHeight;
+    await expect(dialog.scrollWidth).toBeLessThanOrEqual(dialog.clientWidth + 1);
+    await expect(fields.scrollWidth).toBeLessThanOrEqual(fields.clientWidth + 1);
+    await expect(createButton.getBoundingClientRect().bottom).toBeLessThanOrEqual(viewportHeight);
+    await userEvent.type(screen.getByLabelText(/Event title/), 'Family dinner');
+    fireEvent.change(screen.getByLabelText(/Start/), { target: { value: '2026-10-25T18:00' } });
+    fireEvent.change(screen.getByLabelText(/End/), { target: { value: '2026-10-25T19:00' } });
+    await userEvent.type(screen.getByLabelText(/Location/), 'Kitchen');
+    fireEvent.change(screen.getByLabelText(/Description/), {
+      target: { value: 'Bring dessert\nTea afterwards' },
+    });
+    await expect(dialog.scrollWidth).toBeLessThanOrEqual(dialog.clientWidth + 1);
+    await expect(fields.scrollWidth).toBeLessThanOrEqual(fields.clientWidth + 1);
+    await expect(createButton.getBoundingClientRect().bottom).toBeLessThanOrEqual(viewportHeight);
+    await userEvent.click(createButton);
+    await expect(createEvent).toHaveBeenCalledWith(
+      'home_assistant:calendar.family',
+      expect.objectContaining({
+        allDay: false,
+        title: 'Family dinner',
+        location: 'Kitchen',
+        description: 'Bring dessert\nTea afterwards',
+      })
+    );
+    await expect(screen.getByText('Event created')).toBeInTheDocument();
+  },
+};
+
 export const AllDay: Story = {
   play: async ({ canvasElement }) => {
     const screen = await fillAllDay(canvasElement);
+    const fields = screen.getByRole('region', { name: 'Details' });
+    await expect(fields.scrollWidth).toBeLessThanOrEqual(fields.clientWidth + 1);
     await expect(screen.queryByRole('option', { name: 'Holidays' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Create event' }));
     await expect(createEvent).toHaveBeenCalledWith(
