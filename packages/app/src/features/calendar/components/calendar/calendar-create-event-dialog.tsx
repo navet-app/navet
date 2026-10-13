@@ -1,6 +1,8 @@
 import { FieldBlock } from '@navet/app/components/patterns';
 import { BaseCardDialog, Button, Input, Select, Switch } from '@navet/app/components/primitives';
 import { DialogHeader } from '@navet/app/components/shared/device-editor';
+import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import { navetTypographyTokens } from '@navet/app/components/system/tokens';
 import { useI18n } from '@navet/app/hooks';
 import type { ThemeType } from '@navet/app/hooks/use-theme';
 import type { PlatformCalendarCreateEvent } from '@navet/core/provider-feature-models';
@@ -29,6 +31,7 @@ export function CalendarCreateEventDialog({
 }: CalendarCreateEventDialogProps) {
   const { t } = useI18n();
   const prefix = useId();
+  const surface = getThemeSurfaceTokens(theme);
   const [sourceId, setSourceId] = useState(
     () => calendars.find((source) => source.canCreate && source.available)?.id ?? ''
   );
@@ -60,7 +63,7 @@ export function CalendarCreateEventDialog({
     >
       <DialogHeader title={t('calendar.create.title')} isOn={theme !== 'light'} />
       <form
-        className="space-y-4"
+        className={`space-y-4 ${surface.textPrimary}`}
         onSubmit={async (submitEvent) => {
           submitEvent.preventDefault();
           if (submitting.current || !canSubmit) return;
@@ -123,12 +126,17 @@ export function CalendarCreateEventDialog({
             }}
           />
         </FieldBlock>
-        {!allDay ? <p>{t('calendar.create.timeZone', { timeZone })}</p> : null}
+        {!allDay ? (
+          <p className={`${navetTypographyTokens.helper} ${surface.textSecondary}`}>
+            {t('calendar.create.timeZone', { timeZone })}
+          </p>
+        ) : null}
         <div className="grid min-w-0 gap-4 sm:grid-cols-2">
           <FieldBlock label={t('calendar.create.start')} htmlFor={`${prefix}-start`} required>
             <Input
               id={`${prefix}-start`}
               type={allDay ? 'date' : 'datetime-local'}
+              style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
               value={start}
               required
               disabled={pending}
@@ -143,6 +151,7 @@ export function CalendarCreateEventDialog({
             <Input
               id={`${prefix}-end`}
               type={allDay ? 'date' : 'datetime-local'}
+              style={{ colorScheme: theme === 'light' ? 'light' : 'dark' }}
               value={end}
               required
               disabled={pending}
