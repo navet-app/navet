@@ -53,7 +53,9 @@ export const homeAssistantCalendarFeatureService: ProviderCalendarFeatureService
       );
     };
     const validTime = (value: string) =>
-      /T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) && !Number.isNaN(Date.parse(value));
+      value.includes('T') &&
+      /(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+      !Number.isNaN(Date.parse(value));
     if (
       !(event.allDay ? validDate(start) && validDate(end) : validTime(start) && validTime(end)) ||
       Date.parse(end) <= Date.parse(start)

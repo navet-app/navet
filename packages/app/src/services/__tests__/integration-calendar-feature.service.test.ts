@@ -116,6 +116,53 @@ describe('integrationCalendarFeatureService', () => {
     });
   });
 
+  it.each([
+    ['2026-10-15T13:00:00Z', '2026-10-15T14:00:00Z'],
+    ['2026-10-15T08:00:00-05:00', '2026-10-15T09:00:00-05:00'],
+  ])('accepts explicit timezone timestamps %s', async (startDateTime, endDateTime) => {
+    const sendMessagePromise = vi.fn().mockResolvedValue({});
+    await integrationCalendarFeatureService.createEvent(
+      'calendar.family',
+      { title: 'School pickup', allDay: false, startDateTime, endDateTime },
+      { messageClient: { sendMessagePromise } }
+    );
+    expect(sendMessagePromise).toHaveBeenCalledWith(
+      expect.objectContaining({
+        service_data: {
+          summary: 'School pickup',
+          start_date_time: startDateTime,
+          end_date_time: endDateTime,
+        },
+      })
+    );
+  });
+
+  it.each([
+    'T'.repeat(10_000),
+    '2026-10-15T13:00:00',
+    '2026-10-15',
+    '2026-10-15T13:00:00+02:00invalid',
+    'invalidT13:00:00Z',
+  ])(
+    'rejects malformed timed events without sending a service call (case %#)',
+    async (startDateTime) => {
+      const sendMessagePromise = vi.fn();
+      await expect(
+        integrationCalendarFeatureService.createEvent(
+          'calendar.family',
+          {
+            title: 'School pickup',
+            allDay: false,
+            startDateTime,
+            endDateTime: '2026-10-15T14:00:00Z',
+          },
+          { messageClient: { sendMessagePromise } }
+        )
+      ).rejects.toThrow('The event needs a valid start and a later end');
+      expect(sendMessagePromise).not.toHaveBeenCalled();
+    }
+  );
+
   it('notifies event readers only after a successful creation', async () => {
     const listener = vi.fn();
     const unsubscribe = subscribeCalendarChanges(listener);
