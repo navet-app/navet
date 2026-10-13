@@ -1117,14 +1117,23 @@ def _materialize(data: dict[str, Any], range_start: str, range_end: str, timesta
 def _repair_legacy_repeats(data: dict[str, Any], timestamp: str) -> dict[str, Any]:
     now = _parse_iso(timestamp)
     start, end = _iso(now - timedelta(days=RETENTION_DAYS)), _iso(now + timedelta(days=MATERIALIZATION_DAYS))
+    def needs_recomputation(item: Mapping[str, Any]) -> bool:
+        definition = data["definitionsById"].get(item["definitionId"], {})
+        return (definition.get("schedule", {}).get("frequency") == "after_completion"
+            and item["status"] == "available" and _parse_iso(item["scheduledAt"]) > now
+            and not item.get("carriedForwardFrom")
+            and not any(_participant_paused(data["participantsById"][participant_id], _parse_iso(item["scheduledAt"]))
+                for participant_id in item["assigneeIds"] if participant_id in data["participantsById"]))
+    trusted = {**data, "occurrencesById": {key: item for key, item in data["occurrencesById"].items()
+        if not needs_recomputation(item)}}
     removed: set[str] = set()
     for definition in data["definitionsById"].values():
         if definition.get("schedule", {}).get("frequency") != "after_completion":
             continue
-        candidate, _events = _materialize(data, start, end, timestamp, "upgrade:chore-storage-v1", definition["id"])
+        candidate, _events = _materialize(trusted, start, end, timestamp, "upgrade:chore-storage-v1", definition["id"])
         removed.update(key for key, item in data["occurrencesById"].items()
-            if item["definitionId"] == definition["id"] and item["status"] == "available"
-            and _parse_iso(item["scheduledAt"]) > now and key not in candidate["occurrencesById"])
+            if item["definitionId"] == definition["id"] and needs_recomputation(item)
+            and key not in candidate["occurrencesById"])
     if not removed:
         return data
     return {**data, "occurrencesById": {key: item for key, item in data["occurrencesById"].items() if key not in removed},

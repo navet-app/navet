@@ -393,6 +393,34 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(restarted._history, self.authority._history)
             self.assertEqual(restarted.data, self.authority.data)
 
+    async def test_lone_stale_future_repeat_does_not_anchor_upgrade_recurrence(self):
+        for interval_days in (14, 120):
+            with self.subTest(interval_days=interval_days):
+                _Store.values.clear()
+                document, events = self._seed_continuous_writes()
+                data = document["data"]
+                data["definitionsById"]["tank"]["schedule"]["intervalDays"] = interval_days
+                for key, item in list(data["occurrencesById"].items()):
+                    if item["definitionId"] == "tank" and item["status"] != "done":
+                        del data["occurrencesById"][key]
+                scheduled = "2026-10-14T16:00:00.000Z" if interval_days == 14 else "2027-02-10T17:00:00.000Z"
+                stale_id = f"tank:{scheduled}:manager"
+                data["occurrencesById"][stale_id] = {"id": stale_id, "definitionId": "tank",
+                    "scheduledAt": scheduled, "dueAt": chores._iso(chores._parse_iso(scheduled) + timedelta(hours=1)),
+                    "status": "available", "assignmentSlot": "manager", "assigneeIds": ["manager"], "updatedAt": scheduled}
+                _Store.values[chores.WORKSPACE_KEY] = copy.deepcopy(document)
+                authority = chores.ChoreAuthority(self.hass)
+                await authority.async_initialize()
+                self.assertNotIn(stale_id, authority.data["occurrencesById"])
+                for key, item in data["occurrencesById"].items():
+                    if item["status"] != "available":
+                        self.assertEqual(authority.data["occurrencesById"][key], item)
+                self.assertEqual(authority._history[:len(events)], events)
+                restarted = chores.ChoreAuthority(self.hass)
+                await restarted.async_initialize()
+                self.assertEqual(restarted.data, authority.data)
+                self.assertEqual(restarted._history, authority._history)
+
     async def test_interrupted_storage_repair_retries_without_replacing_original_data(self):
         document, events = self._seed_continuous_writes()
         original_save = _Store.async_save

@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 import type {
   ChoreWorkspaceAction,
+  ChoreOccurrence,
   ChoreActivity,
   ChoreWorkspaceData,
 } from '../packages/core/src/chores.ts'
@@ -579,6 +580,16 @@ export function createViteChoreStoreRequestHandler(options: {
       appendEventHistory(document.data.activity, document.data.historyRetention)
       const definitionsById = document.data.definitionsById
       const participantsById = document.data.participantsById
+      const needsRecomputation = (item: ChoreOccurrence): boolean =>
+        definitionsById[item.definitionId]?.schedule.frequency === 'after_completion' &&
+        item.status === 'available' && Date.parse(item.scheduledAt) > Date.parse(timestamp) &&
+        item.carriedForwardFrom === undefined && !item.assigneeIds.some((participantId) => {
+          const participant = participantsById[participantId]
+          return participant && isChoreParticipantPausedAt(participant, item.scheduledAt)
+        })
+      const trustedOccurrences = Object.fromEntries(
+        Object.entries(document.data.occurrencesById).filter(([, item]) => !needsRecomputation(item)),
+      )
       const scheduledByDefinition = new Map<string, Set<string>>()
       for (const definition of Object.values(definitionsById)) {
         if (definition.schedule.frequency !== 'after_completion') continue
@@ -589,7 +600,7 @@ export function createViteChoreStoreRequestHandler(options: {
           .at(-1)
         const scheduled = materializeChoreOccurrences({
           definition, participantsById,
-          existingOccurrences: document.data.occurrencesById, latestCompletedAt,
+          existingOccurrences: trustedOccurrences, latestCompletedAt,
           rangeStart: new Date(Date.parse(timestamp) - 90 * 86400000).toISOString(),
           rangeEnd: new Date(Date.parse(timestamp) + 45 * 86400000).toISOString(),
         }, true)
@@ -599,15 +610,7 @@ export function createViteChoreStoreRequestHandler(options: {
         Object.values(document.data.occurrencesById)
           .filter(
             (item) =>
-              definitionsById[item.definitionId]?.schedule.frequency === 'after_completion' &&
-              item.status === 'available' &&
-              Date.parse(item.scheduledAt) > Date.parse(timestamp) &&
-              !scheduledByDefinition.get(item.definitionId)?.has(item.id) &&
-              item.carriedForwardFrom === undefined &&
-              !item.assigneeIds.some((participantId) => {
-                const participant = participantsById[participantId]
-                return participant && isChoreParticipantPausedAt(participant, item.scheduledAt)
-              }),
+              needsRecomputation(item) && !scheduledByDefinition.get(item.definitionId)?.has(item.id),
           )
           .map((item) => item.id),
       )

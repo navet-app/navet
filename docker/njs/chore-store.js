@@ -2669,6 +2669,22 @@ function repairStoredWorkspace(document, previous) {
   const timestamp = nowIso();
   const now = Date.parse(timestamp);
   appendEventHistory(document.data.activity, document.data.historyRetention);
+  function needsRecomputation(item) {
+    const definition = document.data.definitionsById[item.definitionId];
+    return definition && definition.schedule.frequency === 'after_completion' &&
+      item.status === 'available' && Date.parse(item.scheduledAt) > now && !item.carriedForwardFrom &&
+      !item.assigneeIds.some(function (participantId) {
+        const participant = document.data.participantsById[participantId];
+        return participant && isParticipantPausedAt(participant, item.scheduledAt);
+      });
+  }
+  // Future available rows are the data being repaired, not evidence for recurrence.
+  const trustedOccurrences = Object.create(null);
+  const originalIds = Object.keys(document.data.occurrencesById);
+  for (let index = 0; index < originalIds.length; index += 1) {
+    const item = document.data.occurrencesById[originalIds[index]];
+    if (!needsRecomputation(item)) recordSafety.setOwnRecordValue(trustedOccurrences, item.id, item);
+  }
   const scheduledByDefinition = Object.create(null);
   const definitionIds = Object.keys(document.data.definitionsById);
   for (let index = 0; index < definitionIds.length; index += 1) {
@@ -2680,7 +2696,7 @@ function repairStoredWorkspace(document, previous) {
       .sort(function (left, right) { return Date.parse(left) - Date.parse(right); });
     const scheduled = materializeDefinition(definition, document.data.participantsById,
       new Date(now - 90 * 86400000).toISOString(), new Date(now + 45 * 86400000).toISOString(),
-      document.data.occurrencesById, completed[completed.length - 1], true);
+      trustedOccurrences, completed[completed.length - 1], true);
     const ids = Object.create(null);
     for (let itemIndex = 0; itemIndex < scheduled.length; itemIndex += 1)
       recordSafety.setOwnRecordValue(ids, scheduled[itemIndex].id, true);
@@ -2692,14 +2708,7 @@ function repairStoredWorkspace(document, previous) {
   for (let occurrenceIndex = 0; occurrenceIndex < occurrenceIds.length; occurrenceIndex += 1) {
     const id = occurrenceIds[occurrenceIndex];
     const item = document.data.occurrencesById[id];
-    const definition = document.data.definitionsById[item.definitionId];
-    if (definition && definition.schedule.frequency === 'after_completion' &&
-        item.status === 'available' && Date.parse(item.scheduledAt) > now &&
-        !scheduledByDefinition[item.definitionId][id] && !item.carriedForwardFrom &&
-        !item.assigneeIds.some(function (participantId) {
-          const participant = document.data.participantsById[participantId];
-          return participant && isParticipantPausedAt(participant, item.scheduledAt);
-        })) {
+    if (needsRecomputation(item) && !scheduledByDefinition[item.definitionId][id]) {
       recordSafety.setOwnRecordValue(removed, id, true);
     } else {
       recordSafety.setOwnRecordValue(occurrences, id, item);

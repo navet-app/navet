@@ -18,6 +18,7 @@ import { createViteChoreStoreRequestHandler } from '@scripts/vite-chore-store';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   continuousMaterializationFixture,
+  loneStaleRepeatFixture,
   longIntervalRepairFixture,
 } from '../../../../../testing/chore-storage-fixture';
 
@@ -1079,15 +1080,18 @@ describe('Vite chore workspace store', () => {
 
 describe('Vite automatic chore storage repair', () => {
   afterEach(() => vi.useRealTimers());
-  function seedLegacy(longIntervals = false) {
+  function seedLegacy(longIntervals = false, staleInterval?: number) {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-13T10:00:00.000Z'));
     const directory = mkdtempSync(join(tmpdir(), 'navet-chore-upgrade-'));
     tempDirs.push(directory);
     const filePath = join(directory, 'chores.json');
-    const { document, events } = longIntervals
-      ? longIntervalRepairFixture()
-      : continuousMaterializationFixture();
+    const { document, events } =
+      staleInterval !== undefined
+        ? loneStaleRepeatFixture(staleInterval)
+        : longIntervals
+          ? longIntervalRepairFixture()
+          : continuousMaterializationFixture();
     const hash = (value: string) => createHash('sha256').update(value).digest('hex');
     const stored = durableStorage.encode(document, 2 * 1024 * 1024, hash, (key, chunk) =>
       writeFileSync(`${filePath}.chunk-${key}`, JSON.stringify(durableStorage.unpack(chunk, hash)))
@@ -1183,6 +1187,30 @@ describe('Vite automatic chore storage repair', () => {
       )
     );
   });
+
+  it.each([14, 120])(
+    'recomputes a lone stale future repeat for a %i-day interval',
+    async (intervalDays) => {
+      const { handler, filePath } = seedLegacy(false, intervalDays);
+      const { document, obsoleteIds } = loneStaleRepeatFixture(intervalDays);
+      const read = createResponse();
+      await handler(createRequest('GET', '/workspace'), read.response);
+      expect(read.status).toBe(200);
+      const saved = JSON.parse(read.body);
+      expect(saved.data.occurrencesById).toEqual(
+        Object.fromEntries(
+          Object.entries(document.data.occurrencesById).filter(([id]) => !obsoleteIds.includes(id))
+        )
+      );
+      const restarted = createViteChoreStoreRequestHandler({
+        filePath,
+        resolvePrincipal: () => PRINCIPAL,
+      });
+      const reload = createResponse();
+      await restarted(createRequest('GET', '/workspace'), reload.response);
+      expect(JSON.parse(reload.body)).toEqual(saved);
+    }
+  );
 
   it('retains the legacy primary and retries a failed upgrade commit', async () => {
     const { filePath, document, events, handler } = seedLegacy();

@@ -82,3 +82,23 @@ export function longIntervalRepairFixture() {
   add('plants', '2027-03-05T17:00:00.000Z')
   return { ...result, obsoleteIds }
 }
+
+export function loneStaleRepeatFixture(intervalDays = 120) {
+  const result = longIntervalRepairFixture()
+  const { data } = result.document
+  const tank = data.definitionsById.tank
+  if (tank.schedule.frequency !== 'after_completion') throw new Error('Expected repeating fixture')
+  tank.schedule.intervalDays = intervalDays
+  const stale = data.occurrencesById['tank:2027-02-10T17:00:00.000Z:manager']
+  delete data.occurrencesById['tank:2027-01-31T17:00:00.000Z:manager']
+  if (intervalDays === 14) {
+    delete data.occurrencesById[stale.id]
+    stale.scheduledAt = '2026-10-14T16:00:00.000Z'
+    stale.dueAt = '2026-10-14T17:00:00.000Z'
+    stale.updatedAt = stale.scheduledAt
+    stale.id = `tank:${stale.scheduledAt}:manager`
+    data.occurrencesById[stale.id] = stale
+    result.obsoleteIds.push(stale.id)
+  }
+  return result
+}

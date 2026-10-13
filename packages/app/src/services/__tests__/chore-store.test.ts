@@ -9,6 +9,7 @@ import type { ApplyChoreCommandInput, ChoreOccurrence } from '@navet/core/chores
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   continuousMaterializationFixture,
+  loneStaleRepeatFixture,
   longIntervalRepairFixture,
 } from '../../../../../testing/chore-storage-fixture';
 import { fileDescriptorFixture } from '../../../../../testing/file-descriptors';
@@ -2266,15 +2267,18 @@ describe('automatic chore storage upgrade', () => {
     choreStore.resetChoreStoreForTests();
     vi.useRealTimers();
   });
-  function seedLegacy(schemaVersion = 2, longIntervals = false) {
+  function seedLegacy(schemaVersion = 2, longIntervals = false, staleInterval?: number) {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-13T10:00:00.000Z'));
     const mockFs = createMockFs();
     choreStore.setChoreStoreFsForTests(mockFs);
     choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
-    const { document, events } = longIntervals
-      ? longIntervalRepairFixture()
-      : continuousMaterializationFixture();
+    const { document, events } =
+      staleInterval !== undefined
+        ? loneStaleRepeatFixture(staleInterval)
+        : longIntervals
+          ? longIntervalRepairFixture()
+          : continuousMaterializationFixture();
     const hash = (value: string) => createHash('sha256').update(value).digest('hex');
     const legacyDocument =
       schemaVersion === 1
@@ -2381,6 +2385,28 @@ describe('automatic chore storage upgrade', () => {
       )
     );
   });
+
+  it.each([14, 120])(
+    'recomputes a lone stale future repeat for a %i-day interval',
+    (intervalDays) => {
+      const { mockFs } = seedLegacy(2, false, intervalDays);
+      const { document, obsoleteIds } = loneStaleRepeatFixture(intervalDays);
+      const read = createRequest();
+      choreStore.handle(read);
+      expect(read.return).toHaveBeenCalledWith(200, expect.any(String));
+      const saved = parseResponse(read);
+      expect(saved.data.occurrencesById).toEqual(
+        Object.fromEntries(
+          Object.entries(document.data.occurrencesById).filter(([id]) => !obsoleteIds.includes(id))
+        )
+      );
+      mockFs.writeFileSync.mockClear();
+      const again = createRequest();
+      choreStore.handle(again);
+      expect(parseResponse(again)).toEqual(saved);
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled();
+    }
+  );
 
   it('retries an interrupted upgrade without losing the old workspace, history or chunks', () => {
     const { mockFs, document, events } = seedLegacy();

@@ -110,7 +110,9 @@ cursor offsets.
 
 On the first load after upgrading, the authority compresses existing records and reconciles
 obsolete future available after-completion repeats. Outstanding work, completions, people,
-definitions, points, and history remain intact. It saves the pre-repair workspace as the healthy
+definitions, points, and history remain intact. Recurrence repair computes the next schedule from
+completions and retained outstanding work, excluding unprotected future available rows from that
+calculation so a stale row cannot validate itself. It saves the pre-repair workspace as the healthy
 recovery copy before committing the maintenance marker. Interrupted writes can retry the repair;
 representation-only changes preserve the workspace revision. After a successful write, the
 serialized authority collects chunks referenced by neither the current manifest nor its recovery
