@@ -7,6 +7,7 @@ the main Navet CI job without installing Home Assistant itself.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import importlib.util
 import json
@@ -14,9 +15,10 @@ import pathlib
 import sys
 import types
 import tempfile
+import threading
 import unittest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 _TRACKED_INTERVALS = []
 
@@ -331,6 +333,65 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             "action": {"type": "occurrence_action", "occurrenceId": missed["id"],
                 "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
         self.assertEqual(result["data"]["occurrencesById"][missed["id"]]["status"], "done")
+
+    async def test_malformed_history_is_rebuilt_before_upgrade_maintenance(self):
+        timestamp = chores._iso(chores._now())
+        event = chores._activity("retained-activity", timestamp, "workspace_materialized")
+        malformed = [
+            None,
+            {"events": ["damaged"]},
+            {"contractVersion": 1, "events": "damaged"},
+            {"contractVersion": 2, "events": [event]},
+            {"contractVersion": 1, "events": [{**event, "timestamp": "invalid"}]},
+            {"contractVersion": 1, "events": [{**event, "id": None}]},
+            chores._pack_storage({"contractVersion": 1, "events": ["damaged"] * 5000}),
+        ]
+        for history in malformed:
+            with self.subTest(history=history if not isinstance(history, dict) else history.get("storageEncoding", "legacy")):
+                _Store.values.clear()
+                data = chores._empty_data()
+                data["activity"] = [event]
+                _Store.values[chores.WORKSPACE_KEY] = {"contractVersion": 1, "revision": 7,
+                    "updatedAt": timestamp, "data": data}
+                _Store.values[chores.HISTORY_KEY] = history
+                authority = chores.ChoreAuthority(self.hass)
+                await authority.async_initialize()
+                self.assertEqual(authority.revision, 7)
+                self.assertEqual(authority._history, [event])
+                stored = chores._unpack_storage(_Store.values[chores.HISTORY_KEY])
+                self.assertEqual(stored, {"contractVersion": 1, "events": [event]})
+                restarted = chores.ChoreAuthority(self.hass)
+                await restarted.async_initialize()
+                self.assertEqual(restarted._history, [event])
+
+    async def test_storage_computation_runs_outside_the_home_assistant_event_loop(self):
+        document, events = self._seed_continuous_writes()
+        loop_thread = threading.get_ident()
+        original_pack, original_unpack = chores._pack_storage, chores._unpack_storage
+        pack_calls = []
+        def pack(value):
+            self.assertNotEqual(threading.get_ident(), loop_thread)
+            pack_calls.append(value)
+            return original_pack(value)
+        def unpack(value, *args):
+            self.assertNotEqual(threading.get_ident(), loop_thread)
+            return original_unpack(value, *args)
+        async def executor(function, *args):
+            return await asyncio.to_thread(function, *args)
+        self.hass.async_add_executor_job = executor
+        with patch.object(chores, "_pack_storage", side_effect=pack), patch.object(chores, "_unpack_storage", side_effect=unpack):
+            await self.authority.async_initialize()
+            self.assertEqual(self.authority._history, events)
+            missed = next(item for item in document["data"]["occurrencesById"].values() if item["status"] == "missed")
+            pack_calls.clear()
+            await self.authority.async_command({"commandId": "complete-off-loop", "baseRevision": self.authority.revision,
+                "action": {"type": "occurrence_action", "occurrenceId": missed["id"],
+                    "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
+            self.assertTrue(any(isinstance(value, dict) and "events" in value for value in pack_calls))
+            restarted = chores.ChoreAuthority(self.hass)
+            await restarted.async_initialize()
+            self.assertEqual(restarted._history, self.authority._history)
+            self.assertEqual(restarted.data, self.authority.data)
 
     async def test_interrupted_storage_repair_retries_without_replacing_original_data(self):
         document, events = self._seed_continuous_writes()

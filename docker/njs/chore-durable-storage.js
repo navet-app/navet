@@ -1,4 +1,5 @@
 import zlib from 'zlib';
+import assertDeflateSize from './chore-deflate-size.js';
 
 // Storage-only framing. Public workspace and interchange documents stay hydrated.
 const COLLECTIONS = [
@@ -35,7 +36,9 @@ function unpack(value, hash, maxBytes) {
       typeof value.payload !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value.payload)) {
     throw new Error('Chore compressed storage is invalid');
   }
-  const inflated = zlib.inflateSync(Buffer.from(value.payload, 'base64'));
+  const compressed = Buffer.from(value.payload, 'base64');
+  assertDeflateSize(compressed, value.uncompressedBytes);
+  const inflated = zlib.inflateSync(compressed, { maxOutputLength: Math.max(1, value.uncompressedBytes) });
   if (inflated.length !== value.uncompressedBytes || hash(inflated.toString('utf8')) !== value.checksum)
     throw new Error('Chore compressed storage is corrupt');
   return JSON.parse(inflated.toString('utf8'));

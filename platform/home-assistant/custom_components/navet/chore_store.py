@@ -361,6 +361,21 @@ def _valid_activity(value: Any) -> bool:
     )
 
 
+def _storage_size(value: Any) -> int:
+    return len(json.dumps(value, separators=(",", ":")).encode())
+
+
+def _decode_history_storage(value: Any) -> dict[str, Any]:
+    """A corrupt rebuildable sidecar must not prevent workspace recovery."""
+    decoded = _unpack_storage(value)
+    if (not isinstance(decoded, Mapping) or decoded.get("contractVersion") != CONTRACT_VERSION
+        or not isinstance(decoded.get("events"), list) or len(decoded["events"]) > MAX_HISTORY_ITEMS
+        or any(not _valid_activity(event) or not isinstance(event.get("id"), str)
+            or not event["id"] for event in decoded["events"])):
+        raise ChoreStorageError("Chore history is invalid")
+    return dict(decoded)
+
+
 def _valid_outbox_item(value: Any) -> bool:
     return (
         isinstance(value, Mapping)
@@ -1445,10 +1460,11 @@ class ChoreAuthority:
     def _chunk_hash(chunk: Mapping[str, Any]) -> str:
         return hashlib.sha256(json.dumps(chunk, separators=(",", ":"), sort_keys=True).encode()).hexdigest()
 
-    async def _encode_storage(self, document: dict[str, Any]) -> dict[str, Any]:
+    def _prepare_storage(self, document: dict[str, Any]) -> tuple[dict[str, Any], list[tuple[str, Any]]]:
         """Write immutable records before publishing the revision's manifest."""
         if len(json.dumps(document, separators=(",", ":")).encode()) <= MAX_WORKSPACE_BYTES:
-            return _pack_storage(document)
+            return _pack_storage(document), []
+        prepared_chunks: list[tuple[str, Any]] = []
         references: dict[str, Any] = {"version": 1}
         for name in ("occurrencesById", "pointTransactions", "progressAwards", "activity", "outbox", "rewardRequestsById"):
             if name == "occurrencesById":
@@ -1462,13 +1478,13 @@ class ChoreAuthority:
             chunks = []
             items: list[dict[str, Any]] = []
             size = 128
-            async def flush() -> None:
+            def flush() -> None:
                 nonlocal items, size
                 if not items:
                     return
                 chunk = {"version": 1, "collection": name, "items": items}
                 key = self._chunk_hash(chunk)
-                await self._chunk_store(key).async_save(_pack_storage(chunk))
+                prepared_chunks.append((key, _pack_storage(chunk)))
                 chunks.append(key)
                 items = []
                 size = 128
@@ -1477,18 +1493,25 @@ class ChoreAuthority:
                 if item_size > MAX_WORKSPACE_BYTES - 128:
                     raise ChoreStorageError("Chore durable record is too large")
                 if size + item_size > 256 * 1024:
-                    await flush()
+                    flush()
                 items.append(item)
                 size += item_size
-            await flush()
+            flush()
             references[name] = chunks
         return _pack_storage({**document, "durableCollections": references, "data": {
             **document["data"], "occurrencesById": {}, "activity": [], "outbox": [], "experience": {
-                **document["data"]["experience"], "pointTransactions": [], "progressAwards": [], "rewardRequestsById": {}}}})
+                **document["data"]["experience"], "pointTransactions": [], "progressAwards": [], "rewardRequestsById": {}}}}), prepared_chunks
+
+    async def _encode_storage(self, document: dict[str, Any]) -> dict[str, Any]:
+        """Compute storage framing off-loop; keep HA Store calls on the event loop."""
+        stored, chunks = await self.hass.async_add_executor_job(self._prepare_storage, document)
+        for key, chunk in chunks:
+            await self._chunk_store(key).async_save(chunk)
+        return stored
 
     async def _decode_storage(self, document: Any) -> Any:
         """Hydrate and verify all referenced records before accepting a revision."""
-        document = _unpack_storage(document, MAX_WORKSPACE_BYTES)
+        document = await self.hass.async_add_executor_job(_unpack_storage, document, MAX_WORKSPACE_BYTES)
         if not isinstance(document, Mapping) or "durableCollections" not in document:
             return document
         if not isinstance(document.get("data"), Mapping) or not isinstance(document["data"].get("experience"), Mapping):
@@ -1505,10 +1528,10 @@ class ChoreAuthority:
                 if not isinstance(key, str) or len(key) != 64 or any(char not in "0123456789abcdef" for char in key):
                     raise ChoreStorageError("Chore durable reference is invalid")
                 try:
-                    chunk = _unpack_storage(await self._chunk_store(key).async_load(), MAX_WORKSPACE_BYTES)
+                    chunk = await self.hass.async_add_executor_job(_unpack_storage, await self._chunk_store(key).async_load(), MAX_WORKSPACE_BYTES)
                 except Exception as err:  # noqa: BLE001
                     raise ChoreStorageError("Chore durable chunk could not be read") from err
-                if not isinstance(chunk, Mapping) or chunk.get("version") != 1 or chunk.get("collection") != name or not isinstance(chunk.get("items"), list) or self._chunk_hash(chunk) != key:
+                if not isinstance(chunk, Mapping) or chunk.get("version") != 1 or chunk.get("collection") != name or not isinstance(chunk.get("items"), list) or await self.hass.async_add_executor_job(self._chunk_hash, chunk) != key:
                     raise ChoreStorageError("Chore durable chunk is missing or corrupt")
                 items.extend(chunk["items"])
             restored[name] = items
@@ -1602,8 +1625,8 @@ class ChoreAuthority:
             history_needs_repair = False
             decoded_history = None
             try:
-                decoded_history = _unpack_storage(history)
-                self._history = list(decoded_history.get("events", [])) if isinstance(decoded_history, Mapping) else []
+                decoded_history = await self.hass.async_add_executor_job(_decode_history_storage, history)
+                self._history = list(decoded_history["events"])
             except ChoreStorageError:
                 history_needs_repair = True
                 self._history = list(data.get("activity", []))
@@ -1613,7 +1636,7 @@ class ChoreAuthority:
             self._loaded = True
             history_needs_compaction = (
                 not (isinstance(history, Mapping) and history.get("storageEncoding"))
-                and _pack_storage(decoded_history) is not decoded_history
+                and await self.hass.async_add_executor_job(_pack_storage, decoded_history) is not decoded_history
             )
             if run_initial_tick and (self._document.get("storageMaintenanceVersion") != 1
                 or history_needs_repair or history_needs_compaction):
@@ -1755,7 +1778,7 @@ class ChoreAuthority:
         try:
             retained: set[str] = set()
             for name in ("primary", "last_good"):
-                stored = _unpack_storage(payloads[name], MAX_WORKSPACE_BYTES)
+                stored = await self.hass.async_add_executor_job(_unpack_storage, payloads[name], MAX_WORKSPACE_BYTES)
                 references = stored.get("durableCollections", {})
                 for collection, keys in references.items():
                     if collection != "version":
@@ -1789,7 +1812,7 @@ class ChoreAuthority:
             payloads = {
                 "primary": await self._encode_storage(next_document),
                 "last_good": await self._encode_storage(previous),
-                "history": _pack_storage({"contractVersion": CONTRACT_VERSION, "events": self._history}),
+                "history": await self.hass.async_add_executor_job(_pack_storage, {"contractVersion": CONTRACT_VERSION, "events": self._history}),
                 "journal": {"contractVersion": CONTRACT_VERSION, "commands": self._journal[-MAX_JOURNAL_ITEMS:]},
             }
         except Exception as err:  # noqa: BLE001
@@ -1800,11 +1823,9 @@ class ChoreAuthority:
             "history": MAX_HISTORY_BYTES,
             "journal": MAX_JOURNAL_BYTES,
         }
-        if any(
-            len(json.dumps(payload, separators=(",", ":")).encode()) > limits[key]
-            for key, payload in payloads.items()
-        ):
-            raise ChoreStorageError("Chore workspace is too large")
+        for key, payload in payloads.items():
+            if await self.hass.async_add_executor_job(_storage_size, payload) > limits[key]:
+                raise ChoreStorageError("Chore workspace is too large")
         try:
             await self._stores["last_good"].async_save(payloads["last_good"])
             if storage_maintenance:

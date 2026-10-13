@@ -100,7 +100,10 @@ hydrate every referenced chunk before accepting the revision.
 
 Workspace documents, chunks, recovery copies, and immutable history use a versioned deflate
 storage envelope when records exceed 32 KiB and compression saves at least 10%. The envelope
-records the expanded byte count and SHA-256 checksum. Readers retain support for uncompressed
+records the expanded byte count and SHA-256 checksum. Readers bound expansion before allocating
+the decoded payload; NJS preflights the DEFLATE stream because its native inflater has no output
+limit. Home Assistant prepares, compresses, and decodes storage in its executor, keeping Store
+calls on the event loop. Readers retain support for uncompressed
 inline documents and chunk manifests. Public workspace, history, and backup formats remain
 complete hydrated JSON; compression does not remove or reorder events or change automation
 cursor offsets.
