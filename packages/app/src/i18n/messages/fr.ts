@@ -1,4 +1,29 @@
 export const frMessages = {
+  'history.title': 'Historique et activité',
+  'history.entity': 'Entité',
+  'history.chooseEntity': 'Choisir une entité',
+  'history.search': 'Rechercher une entité',
+  'history.view': 'Vue',
+  'history.states': 'Historique des états',
+  'history.activity': 'Activité',
+  'history.load': 'Charger les données',
+  'history.loading': 'Chargement…',
+  'history.offline': 'Cette source est déconnectée. Reconnectez-la pour charger les données.',
+  'history.unsupported': 'L’historique est indisponible pour cette entité.',
+  'history.activityUnsupported': 'L’activité est indisponible pour cette source.',
+  'history.noEntities': 'Aucune entité disponible dans les sources sélectionnées.',
+  'history.empty':
+    'Aucune donnée pour cette période. La source peut exclure cette entité ou avoir supprimé les données anciennes.',
+  'history.retention': 'Seules les données conservées par la source sont affichées.',
+  'history.failed':
+    'Impossible de charger les données. Vérifiez la connexion et que la source enregistre l’historique, puis réessayez.',
+  'history.invalidRange':
+    'Choisissez un début valide et une fin ultérieure, espacés de 31 jours maximum.',
+  'history.recordedEvent': 'Événement enregistré',
+  'history.atStart': 'État au début de la période',
+  'history.more': 'Afficher plus',
+  'history.limited':
+    'Les {count} dernières données sont affichées. Choisissez une période plus courte pour plus de détails.',
   'calendar.create.title': 'Ajouter un événement',
   'calendar.create.name': 'Titre',
   'calendar.create.start': 'Début',

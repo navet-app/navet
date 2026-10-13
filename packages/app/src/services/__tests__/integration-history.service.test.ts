@@ -10,6 +10,7 @@ vi.mock('@navet/app/provider-runtime-registry', () => ({
 }));
 
 import {
+  getIntegrationActivity,
   getIntegrationEntityHistories,
   getIntegrationEntityHistory,
   getIntegrationHistoryMessageClient,
@@ -26,6 +27,38 @@ describe('integrationHistoryService', () => {
       historyFeatureService: null,
     }));
     integrationStore.getState().setCurrentProviderId('home_assistant');
+  });
+
+  it('routes activity to the owning provider and keeps canonical identities', async () => {
+    const getActivity = vi.fn().mockResolvedValue([
+      { entityId: 'switch.kitchen', timestamp: '2026-10-13T10:00:00Z', state: 'on' },
+      { entityId: 'switch.bedroom', timestamp: '2026-10-13T10:05:00Z', state: 'off' },
+    ]);
+    getProviderRuntimeRegistrationMock.mockImplementation((providerId) => ({
+      historyFeatureService: providerId === 'home_assistant' ? { getActivity } : null,
+    }));
+    integrationStore.getState().setCurrentProviderId('homey');
+    const request = {
+      entityIds: ['home_assistant:switch.kitchen'],
+      startTime: '2026-10-13T09:00:00Z',
+      endTime: '2026-10-13T11:00:00Z',
+    };
+    await expect(getIntegrationActivity(request)).resolves.toEqual([
+      { entityId: 'home_assistant:switch.kitchen', timestamp: '2026-10-13T10:00:00Z', state: 'on' },
+    ]);
+    expect(getActivity).toHaveBeenCalledWith({ ...request, entityIds: ['switch.kitchen'] });
+    await expect(
+      getIntegrationActivity({ ...request, entityIds: ['homey:switch.kitchen'] })
+    ).resolves.toBeNull();
+    await expect(
+      getIntegrationActivity({
+        ...request,
+        entityIds: [...request.entityIds, 'homey:switch.kitchen'],
+      })
+    ).rejects.toThrow('same provider');
+    expect(getActivity).toHaveBeenCalledTimes(1);
+    getActivity.mockRejectedValueOnce(new Error('Offline'));
+    await expect(getIntegrationActivity(request)).rejects.toThrow('Offline');
   });
 
   it.each(['batch', 'fallback'])(

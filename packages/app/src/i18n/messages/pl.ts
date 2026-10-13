@@ -1,4 +1,29 @@
 export const plMessages = {
+  'history.title': 'Historia i aktywność',
+  'history.entity': 'Encja',
+  'history.chooseEntity': 'Wybierz encję',
+  'history.search': 'Znajdź encję',
+  'history.view': 'Widok',
+  'history.states': 'Historia stanów',
+  'history.activity': 'Aktywność',
+  'history.load': 'Wczytaj wpisy',
+  'history.loading': 'Wczytywanie…',
+  'history.offline': 'To źródło jest rozłączone. Połącz je ponownie, aby wczytać wpisy.',
+  'history.unsupported': 'Historia jest niedostępna dla tej encji.',
+  'history.activityUnsupported': 'Aktywność jest niedostępna dla tego źródła.',
+  'history.noEntities': 'Brak encji w wybranych źródłach.',
+  'history.empty':
+    'Brak wpisów dla tego okresu. Źródło może wykluczać tę encję lub usunąć starsze dane.',
+  'history.retention': 'Wyświetlane są tylko dane zachowane przez źródło.',
+  'history.failed':
+    'Nie udało się wczytać wpisów. Sprawdź połączenie i czy źródło zapisuje historię, a następnie spróbuj ponownie.',
+  'history.invalidRange':
+    'Wybierz prawidłowy początek i późniejszy koniec, oddalone o maksymalnie 31 dni.',
+  'history.recordedEvent': 'Zarejestrowane zdarzenie',
+  'history.atStart': 'Stan na początku okresu',
+  'history.more': 'Pokaż więcej',
+  'history.limited':
+    'Wyświetlono ostatnie {count} wpisów. Wybierz krótszy okres, aby zobaczyć więcej szczegółów.',
   'calendar.create.title': 'Dodaj wydarzenie',
   'calendar.create.name': 'Tytuł',
   'calendar.create.start': 'Początek',

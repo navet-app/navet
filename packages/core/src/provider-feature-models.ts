@@ -168,6 +168,21 @@ export interface PlatformEntityHistorySeries {
   points: PlatformEntityHistoryPoint[];
 }
 
+export interface PlatformActivityRequest {
+  entityIds: string[];
+  startTime: string;
+  endTime: string;
+  signal?: AbortSignal;
+}
+
+export interface PlatformActivityEntry {
+  entityId: string;
+  timestamp: string;
+  state?: string;
+  name?: string;
+  message?: string;
+}
+
 export type PlatformStatisticsPeriod = '5minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
 
 export type PlatformStatisticsType = 'change' | 'max' | 'mean' | 'min' | 'state' | 'sum';

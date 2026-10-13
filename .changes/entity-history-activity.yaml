@@ -1,0 +1,5 @@
+type: new
+audiences:
+  - standalone
+  - home-assistant
+summary: Explore entity state history and recorded Home Assistant activity for a selected date range from the user menu.

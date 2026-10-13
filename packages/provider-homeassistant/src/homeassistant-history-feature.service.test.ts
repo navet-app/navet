@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { homeAssistantActivityFixture } from '../../app/src/test/fixtures/home-assistant/activity';
 
 const { callHomeAssistantApiMock, getHomeAssistantConnectionMock } = vi.hoisted(() => ({
   callHomeAssistantApiMock: vi.fn(),
@@ -19,6 +20,99 @@ describe('homeAssistantHistoryFeatureService', () => {
     callHomeAssistantApiMock.mockReset();
     getHomeAssistantConnectionMock.mockReset();
     getHomeAssistantConnectionMock.mockReturnValue(null);
+  });
+
+  it('reads entity-filtered activity over the existing authenticated WebSocket', async () => {
+    const sendMessagePromise = vi.fn().mockResolvedValue(homeAssistantActivityFixture);
+    getHomeAssistantConnectionMock.mockReturnValue({ sendMessagePromise });
+    const entries = await homeAssistantHistoryFeatureService.getActivity?.({
+      entityIds: ['switch.kitchen'],
+      startTime: '2026-10-13T10:00:00Z',
+      endTime: '2026-10-13T12:00:00Z',
+    });
+    expect(sendMessagePromise).toHaveBeenCalledWith({
+      type: 'logbook/get_events',
+      start_time: '2026-10-13T10:00:00Z',
+      end_time: '2026-10-13T12:00:00Z',
+      entity_ids: ['switch.kitchen'],
+    });
+    expect(entries).toEqual([
+      {
+        entityId: 'switch.kitchen',
+        timestamp: '2026-10-13T10:35:00.000Z',
+        name: 'Kitchen',
+        message: 'Evening routine started',
+      },
+      { entityId: 'switch.kitchen', timestamp: '2026-10-13T10:30:00.000Z', state: 'on' },
+    ]);
+  });
+
+  it('keeps the inclusive start and exclusive end and rejects malformed activity rows', async () => {
+    const startTime = '2026-10-13T10:00:00Z';
+    const endTime = '2026-10-13T12:00:00Z';
+    const sendMessagePromise = vi
+      .fn()
+      .mockResolvedValue([
+        { entity_id: 'switch.kitchen', when: Date.parse(startTime) / 1000, state: 'on' },
+        { entity_id: 'switch.kitchen', when: Date.parse(endTime) / 1000, state: 'off' },
+        { entity_id: 'switch.kitchen', when: 'not-a-date', state: 'on' },
+        null,
+      ]);
+    getHomeAssistantConnectionMock.mockReturnValue({ sendMessagePromise });
+    await expect(
+      homeAssistantHistoryFeatureService.getActivity?.({
+        entityIds: ['switch.kitchen'],
+        startTime,
+        endTime,
+      })
+    ).resolves.toEqual([
+      { entityId: 'switch.kitchen', timestamp: '2026-10-13T10:00:00.000Z', state: 'on' },
+    ]);
+  });
+
+  it('distinguishes empty activity from disconnected and failed readers', async () => {
+    const request = {
+      entityIds: ['switch.kitchen'],
+      startTime: '2026-10-13T10:00:00Z',
+      endTime: '2026-10-13T12:00:00Z',
+    };
+    await expect(homeAssistantHistoryFeatureService.getActivity?.(request)).rejects.toThrow(
+      'active connection'
+    );
+    const sendMessagePromise = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('Recorder unavailable'))
+      .mockResolvedValueOnce({});
+    getHomeAssistantConnectionMock.mockReturnValue({ sendMessagePromise });
+    await expect(homeAssistantHistoryFeatureService.getActivity?.(request)).resolves.toEqual([]);
+    await expect(homeAssistantHistoryFeatureService.getActivity?.(request)).rejects.toThrow(
+      'Recorder unavailable'
+    );
+    await expect(homeAssistantHistoryFeatureService.getActivity?.(request)).rejects.toThrow(
+      'Invalid'
+    );
+  });
+
+  it('rejects invalid activity ranges and suppresses cancelled responses', async () => {
+    const request = {
+      entityIds: ['switch.kitchen'],
+      startTime: '2026-10-13T10:00:00Z',
+      endTime: '2026-10-13T12:00:00Z',
+    };
+    const controller = new AbortController();
+    const sendMessagePromise = vi.fn(async () => {
+      controller.abort();
+      return homeAssistantActivityFixture;
+    });
+    getHomeAssistantConnectionMock.mockReturnValue({ sendMessagePromise });
+    await expect(
+      homeAssistantHistoryFeatureService.getActivity?.({ ...request, endTime: request.startTime })
+    ).rejects.toThrow();
+    expect(sendMessagePromise).not.toHaveBeenCalled();
+    await expect(
+      homeAssistantHistoryFeatureService.getActivity?.({ ...request, signal: controller.signal })
+    ).rejects.toThrow();
   });
 
   it('loads bounded entity history through the documented REST endpoint', async () => {

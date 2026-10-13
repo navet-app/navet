@@ -2,6 +2,31 @@ import { enMessages } from './en';
 
 export const itMessages = {
   ...enMessages,
+  'history.title': 'Cronologia e attività',
+  'history.entity': 'Entità',
+  'history.chooseEntity': 'Scegli un’entità',
+  'history.search': 'Cerca un’entità',
+  'history.view': 'Vista',
+  'history.states': 'Cronologia degli stati',
+  'history.activity': 'Attività',
+  'history.load': 'Carica dati',
+  'history.loading': 'Caricamento…',
+  'history.offline': 'Questa fonte è disconnessa. Riconnettila per caricare i dati.',
+  'history.unsupported': 'La cronologia non è disponibile per questa entità.',
+  'history.activityUnsupported': 'L’attività non è disponibile per questa fonte.',
+  'history.noEntities': 'Nessuna entità disponibile nelle fonti selezionate.',
+  'history.empty':
+    'Nessun dato per questo intervallo. La fonte può escludere questa entità o aver eliminato i dati precedenti.',
+  'history.retention': 'Vengono mostrati solo i dati conservati dalla fonte.',
+  'history.failed':
+    'Impossibile caricare i dati. Controlla la connessione e che la fonte registri la cronologia, poi riprova.',
+  'history.invalidRange':
+    'Scegli un inizio valido e una fine successiva, distanti al massimo 31 giorni.',
+  'history.recordedEvent': 'Evento registrato',
+  'history.atStart': 'Stato all’inizio dell’intervallo',
+  'history.more': 'Mostra altro',
+  'history.limited':
+    'Vengono mostrati gli ultimi {count} dati. Scegli un intervallo più breve per maggiori dettagli.',
   'calendar.create.title': 'Aggiungi evento',
   'calendar.create.name': 'Titolo',
   'calendar.create.start': 'Inizio',

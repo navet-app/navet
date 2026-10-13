@@ -1,4 +1,29 @@
 export const esMessages = {
+  'history.title': 'Historial y actividad',
+  'history.entity': 'Entidad',
+  'history.chooseEntity': 'Elegir una entidad',
+  'history.search': 'Buscar una entidad',
+  'history.view': 'Vista',
+  'history.states': 'Historial de estados',
+  'history.activity': 'Actividad',
+  'history.load': 'Cargar registros',
+  'history.loading': 'Cargando registros…',
+  'history.offline': 'Esta fuente está desconectada. Vuelve a conectarla para cargar registros.',
+  'history.unsupported': 'El historial no está disponible para esta entidad.',
+  'history.activityUnsupported': 'La actividad no está disponible para esta fuente.',
+  'history.noEntities': 'No hay entidades disponibles en las fuentes seleccionadas.',
+  'history.empty':
+    'No hay registros para este intervalo. La fuente puede excluir esta entidad o haber eliminado datos antiguos.',
+  'history.retention': 'Solo se muestran los datos que conserva la fuente.',
+  'history.failed':
+    'No se pudieron cargar los registros. Comprueba la conexión y que la fuente guarda el historial, y vuelve a intentarlo.',
+  'history.invalidRange':
+    'Elige un inicio válido y un final posterior, separados por un máximo de 31 días.',
+  'history.recordedEvent': 'Evento registrado',
+  'history.atStart': 'Estado al inicio del intervalo',
+  'history.more': 'Mostrar más',
+  'history.limited':
+    'Se muestran los últimos {count} registros. Elige un intervalo más corto para ver más detalles.',
   'calendar.create.title': 'Añadir evento',
   'calendar.create.name': 'Título',
   'calendar.create.start': 'Inicio',

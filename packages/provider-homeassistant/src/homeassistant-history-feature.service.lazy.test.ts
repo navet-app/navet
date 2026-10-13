@@ -5,6 +5,7 @@ const { loaded, service, session, connection } = vi.hoisted(() => ({
   connection: { sendMessagePromise: vi.fn() },
   session: { callWS: vi.fn() },
   service: {
+    getActivity: vi.fn(),
     getEntityHistories: vi.fn(),
     getEntityHistory: vi.fn(),
     getStatisticsHistory: vi.fn(),
@@ -49,6 +50,14 @@ it('keeps history capability checks synchronous and loads queries only on demand
   service.getStatisticsHistory.mockResolvedValueOnce({});
   expect(await proxy.getStatisticsHistory?.(statistics)).toEqual({});
   expect(service.getStatisticsHistory).toHaveBeenCalledWith(statistics);
+  const activityRequest = {
+    entityIds: ['switch.kitchen'],
+    startTime,
+    endTime: '2026-10-11T00:00:00Z',
+  };
+  service.getActivity.mockResolvedValueOnce([]);
+  expect(await proxy.getActivity?.(activityRequest)).toEqual([]);
+  expect(service.getActivity).toHaveBeenCalledWith(activityRequest);
   expect(loaded).toHaveBeenCalledTimes(1);
 });
 

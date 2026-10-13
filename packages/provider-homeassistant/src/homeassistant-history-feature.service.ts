@@ -1,4 +1,5 @@
 import type {
+  PlatformActivityEntry,
   PlatformEntityHistoriesRequest,
   PlatformEntityHistoryPoint,
   PlatformEntityHistorySeries,
@@ -165,6 +166,49 @@ function parseStatisticsPoint(value: unknown): PlatformStatisticsHistoryPoint | 
 export const homeAssistantHistoryFeatureService: ProviderHistoryFeatureService = {
   getMessageClient: () => getHomeAssistantConnection(),
   getEntityHistories: loadEntityHistories,
+  async getActivity(request) {
+    throwIfHistoryRequestAborted(request.signal);
+    validatePeriod(request.startTime, request.endTime);
+    if (request.entityIds.length === 0) return [];
+    const connection = getHomeAssistantConnection();
+    if (!connection) throw new Error('Home Assistant activity requires an active connection');
+    const response = await connection.sendMessagePromise<unknown>({
+      type: 'logbook/get_events',
+      start_time: request.startTime,
+      end_time: request.endTime,
+      entity_ids: request.entityIds,
+    });
+    throwIfHistoryRequestAborted(request.signal);
+    if (!Array.isArray(response)) throw new Error('Invalid Home Assistant activity response');
+    const selected = new Set(request.entityIds);
+    const startMs = Date.parse(request.startTime);
+    const endMs = Date.parse(request.endTime);
+    return response
+      .flatMap((value): PlatformActivityEntry[] => {
+        if (!value || typeof value !== 'object') return [];
+        const entry = value as Record<string, unknown>;
+        if (
+          typeof entry.entity_id !== 'string' ||
+          !selected.has(entry.entity_id) ||
+          typeof entry.when !== 'number' ||
+          !Number.isFinite(entry.when)
+        )
+          return [];
+        const date = new Date(entry.when * 1000);
+        if (!Number.isFinite(date.getTime()) || date.getTime() < startMs || date.getTime() >= endMs)
+          return [];
+        return [
+          {
+            entityId: entry.entity_id,
+            timestamp: date.toISOString(),
+            ...(typeof entry.state === 'string' ? { state: entry.state } : {}),
+            ...(typeof entry.name === 'string' ? { name: entry.name } : {}),
+            ...(typeof entry.message === 'string' ? { message: entry.message } : {}),
+          },
+        ];
+      })
+      .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+  },
   async getEntityHistory(request) {
     const [series] = await loadEntityHistories({
       ...request,

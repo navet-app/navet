@@ -11,6 +11,11 @@ export const lazyHomeAssistantHistoryFeatureService: ProviderHistoryFeatureServi
   getMessageClient: () => getHomeAssistantConnection(),
   supportsStatisticsHistory: (entityId) => entityId.startsWith('sensor.'),
   supportsEnergyStatistics: (entityId) => entityId.startsWith('sensor.'),
+  getActivity: (request) =>
+    withService((service) => {
+      if (!service.getActivity) throw new Error('Home Assistant activity is unavailable');
+      return service.getActivity(request);
+    }),
   getEntityHistories: (request) =>
     withService((service) => {
       if (!service.getEntityHistories) throw new Error('Home Assistant history is unavailable');

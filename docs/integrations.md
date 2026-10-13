@@ -33,7 +33,8 @@ on the capabilities of your devices.
 | Media browse, search, artwork, and grouping | Yes | No | No |
 | Camera snapshots and live streams | Yes | No | No |
 | Energy configuration and statistics | Yes | No | No |
-| Entity sensor history | Yes | Insights logs | No |
+| Entity state history | Yes | Supported Insights logs | No |
+| Recorded activity | Yes | No | No |
 | Calendar and weather data | Yes | No | No |
 | Calendar event creation (writable calendars) | Yes | No | No |
 | Notifications | Yes | Read and hide locally | No |
@@ -47,6 +48,23 @@ on the capabilities of your devices.
 
 `No` means the feature is unavailable through that provider in Navet. The platform may support
 it in its own interface.
+
+### History and activity
+
+Open the user menu → **History and activity**, choose an entity, select a date/time range,
+and choose **State history** or **Activity**. Times use the display's time zone, shown in the form.
+State history preserves numeric readings and nonnumeric states; a retained state from before the
+range is labelled **State at the start of the range**. Numeric energy statistics remain in Energy.
+
+Each request targets the entity's owning source. Home Assistant supplies state history and recorded
+activity; Homey supplies history for supported Insights entities. Unsupported sources show an
+unavailable message. Activity follows Home Assistant's filters and can omit frequently changing
+numeric sensors. An empty result can mean there were no records, the entity is excluded, or the
+source no longer retains that period. Navet cannot reconstruct deleted records.
+
+Requests cover up to 31 days at a time. Results show the newest records first, with **Show more**
+for additional rows and an explicit limit at 1,000 records. Choose a shorter range for more detail.
+Home Assistant uses the existing authenticated transport in standalone, Ingress and custom panel.
 
 ### Home Assistant
 

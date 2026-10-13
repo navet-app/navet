@@ -1,6 +1,8 @@
 import type { EnergySourceConfig } from './energy-types';
 import type { IntegrationServiceTarget } from './integration-service-target';
 import type {
+  PlatformActivityEntry,
+  PlatformActivityRequest,
   PlatformAutomationDetails,
   PlatformCalendarCapabilities,
   PlatformCalendarCreateEvent,
@@ -202,6 +204,8 @@ export interface ProviderAdminFeatureService extends ProviderRoomAdminFeatureSer
 }
 
 export interface ProviderHistoryFeatureService {
+  /** Recorded activity is separate from state history and numeric statistics. */
+  getActivity?: (request: PlatformActivityRequest) => Promise<PlatformActivityEntry[]>;
   getMessageClient: () => PlatformMessageClient | null;
   /** False means this entity has no history; transport failures must still reject requests. */
   supportsEntityHistory?: (entityId: string) => boolean;

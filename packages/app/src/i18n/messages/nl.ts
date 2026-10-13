@@ -1,4 +1,28 @@
 export const nlMessages = {
+  'history.title': 'Geschiedenis en activiteit',
+  'history.entity': 'Entiteit',
+  'history.chooseEntity': 'Kies een entiteit',
+  'history.search': 'Zoek een entiteit',
+  'history.view': 'Weergave',
+  'history.states': 'Statusgeschiedenis',
+  'history.activity': 'Activiteit',
+  'history.load': 'Gegevens laden',
+  'history.loading': 'Gegevens worden geladen…',
+  'history.offline': 'Deze bron is niet verbonden. Maak opnieuw verbinding om gegevens te laden.',
+  'history.unsupported': 'Geschiedenis is niet beschikbaar voor deze entiteit.',
+  'history.activityUnsupported': 'Activiteit is niet beschikbaar voor deze bron.',
+  'history.noEntities': 'Er zijn geen entiteiten in de geselecteerde bronnen.',
+  'history.empty':
+    'Geen gegevens voor deze periode. De bron kan deze entiteit uitsluiten of oudere gegevens hebben verwijderd.',
+  'history.retention': 'Alleen gegevens die de bron bewaart worden getoond.',
+  'history.failed':
+    'Gegevens konden niet worden geladen. Controleer de verbinding en of de bron geschiedenis opslaat, en probeer het opnieuw.',
+  'history.invalidRange': 'Kies een geldig begin en een later einde, maximaal 31 dagen uit elkaar.',
+  'history.recordedEvent': 'Opgenomen gebeurtenis',
+  'history.atStart': 'Status aan het begin van de periode',
+  'history.more': 'Meer tonen',
+  'history.limited':
+    'De laatste {count} gegevens worden getoond. Kies een kortere periode voor meer details.',
   'calendar.create.title': 'Evenement toevoegen',
   'calendar.create.name': 'Titel',
   'calendar.create.start': 'Begin',

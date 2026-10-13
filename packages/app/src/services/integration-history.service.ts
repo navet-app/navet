@@ -1,4 +1,6 @@
 import type {
+  PlatformActivityEntry,
+  PlatformActivityRequest,
   PlatformEntityHistoriesRequest,
   PlatformEntityHistoryRequest,
   PlatformEntityHistorySeries,
@@ -267,4 +269,28 @@ export function supportsIntegrationEnergyStatistics(
   }
 
   return service.getMessageClient() !== null;
+}
+
+/** Activity filters must target one owning source; never fall back to a current provider. */
+export async function getIntegrationActivity(
+  request: PlatformActivityRequest
+): Promise<PlatformActivityEntry[] | null> {
+  if (request.entityIds.length === 0) return [];
+  throwIfHistoryRequestAborted(request.signal);
+  const providerId = resolveIntegrationProviderId(request.entityIds[0]);
+  if (request.entityIds.some((id) => resolveIntegrationProviderId(id) !== providerId)) {
+    throw new Error('Activity entities must belong to the same provider');
+  }
+  const service = getProviderRuntimeRegistration(providerId).historyFeatureService;
+  if (!service?.getActivity) return null;
+  const nativeToCanonical = new Map(request.entityIds.map((id) => [readNativeEntityId(id), id]));
+  const result = await service.getActivity({
+    ...request,
+    entityIds: [...nativeToCanonical.keys()],
+  });
+  throwIfHistoryRequestAborted(request.signal);
+  return result.flatMap((entry) => {
+    const entityId = nativeToCanonical.get(entry.entityId);
+    return entityId ? [{ ...entry, entityId }] : [];
+  });
 }

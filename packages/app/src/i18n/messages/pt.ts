@@ -1,4 +1,28 @@
 export const ptMessages = {
+  'history.title': 'Histórico e atividade',
+  'history.entity': 'Entidade',
+  'history.chooseEntity': 'Escolher uma entidade',
+  'history.search': 'Procurar uma entidade',
+  'history.view': 'Vista',
+  'history.states': 'Histórico de estados',
+  'history.activity': 'Atividade',
+  'history.load': 'Carregar registos',
+  'history.loading': 'A carregar…',
+  'history.offline': 'Esta fonte está desligada. Volte a ligá-la para carregar os registos.',
+  'history.unsupported': 'O histórico está indisponível para esta entidade.',
+  'history.activityUnsupported': 'A atividade está indisponível para esta fonte.',
+  'history.noEntities': 'Não há entidades nas fontes selecionadas.',
+  'history.empty':
+    'Não há registos para este intervalo. A fonte pode excluir esta entidade ou ter eliminado dados antigos.',
+  'history.retention': 'Só são apresentados os dados conservados pela fonte.',
+  'history.failed':
+    'Não foi possível carregar os registos. Verifique a ligação e se a fonte guarda o histórico, e tente novamente.',
+  'history.invalidRange': 'Escolha um início válido e um fim posterior, separados por até 31 dias.',
+  'history.recordedEvent': 'Evento registado',
+  'history.atStart': 'Estado no início do intervalo',
+  'history.more': 'Mostrar mais',
+  'history.limited':
+    'São apresentados os últimos {count} registos. Escolha um intervalo mais curto para mais detalhes.',
   'calendar.create.title': 'Adicionar evento',
   'calendar.create.name': 'Título',
   'calendar.create.start': 'Início',
