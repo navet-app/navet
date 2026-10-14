@@ -1,4 +1,5 @@
 import type { ChoreActivity, ChoreOutboxItem, ChoreWorkspaceData } from './chores.ts';
+import { setOwnRecordValue } from './record-safety.ts';
 
 // Keep the ES5 ownership check: native NJS does not implement Object.hasOwn.
 const hasOwn = Object.prototype.hasOwnProperty;
@@ -21,7 +22,7 @@ export function compactChoreActivity(events: ChoreActivity[]): ChoreActivity[] {
   for (let index = 0; index < events.length; index++) {
     const event = events[index];
     if (isChoreBookkeeping(event.type) || seen[event.id]) continue;
-    seen[event.id] = true;
+    setOwnRecordValue(seen, event.id, true);
     retained.push(event);
   }
   return retained.length === events.length ? events : retained;
@@ -35,7 +36,7 @@ export function compactChoreOutbox(items: ChoreOutboxItem[]): ChoreOutboxItem[] 
     if (isChoreBookkeeping(item.eventType)) continue;
     const position = positions[item.id];
     if (position === undefined) {
-      positions[item.id] = retained.length;
+      setOwnRecordValue(positions, item.id, retained.length);
       retained.push(item);
     } else {
       const previous = retained[position];
@@ -109,10 +110,14 @@ export function compactChoreHistory(history: CompactChoreHistory): CompactChoreH
       }
       lastSaved = saved;
     }
-    originals[event.id] = saved !== undefined ? saved : sequenced ? ++nextCursor : index + 1;
+    setOwnRecordValue(
+      originals,
+      event.id,
+      saved !== undefined ? saved : sequenced ? ++nextCursor : index + 1
+    );
   }
   for (let index = 0; index < events.length; index++)
-    cursors[events[index].id] = originals[events[index].id];
+    setOwnRecordValue(cursors, events[index].id, originals[events[index].id]);
   if (
     events === history.events &&
     sequenced &&

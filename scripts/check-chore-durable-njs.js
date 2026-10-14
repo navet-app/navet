@@ -97,6 +97,11 @@ assert(cleanedWorkspace.experience === doc.data.experience && cleanedWorkspace.e
   'Native cleanup preserves the complete accounting ledger');
 assert(cleanedWorkspace.activity.length === 1 && cleanedWorkspace.outbox.length === 1 && cleanedWorkspace.outbox[0].status === 'delivered',
   'Native cleanup retains a delivered notification rather than replaying a duplicate');
+let unsafeRecordRejected = false;
+try { storagePolicy.compactChoreHistory({ contractVersion: 1,
+  events: [Object.assign({}, meaningfulEvent, { id: '__proto__' })] }); }
+catch (error) { unsafeRecordRejected = error.message === 'Unsafe record key'; }
+assert(unsafeRecordRejected, 'Native cleanup rejects inherited-property record identifiers');
 const compressedHistory = storage.pack(historyDocument, hash);
 assert(compressedHistory.storageEncoding === 'deflate-v1', 'Native history uses deflate');
 assert(JSON.stringify(compressedHistory).length < JSON.stringify(historyDocument).length * 0.3, 'Native history compression shrinks repeated writes');

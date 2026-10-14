@@ -3213,6 +3213,18 @@ describe('chore storage cleanup', () => {
     timestamp: '2026-10-13T10:00:00.000Z',
   });
 
+  it.each(['__proto__', 'constructor', 'prototype'])(
+    'rejects unsafe cleanup record ID %s',
+    (id) => {
+      expect(() =>
+        compactChoreHistory({ contractVersion: 1, events: [event(id, 'completed')] })
+      ).toThrow('Unsafe record key');
+      const workspace = createEmptyChoreWorkspace();
+      workspace.outbox = [{ ...createChoreOutboxItem(event('safe', 'completed')), id }];
+      expect(() => compactChoreWorkspace(workspace)).toThrow('Unsafe record key');
+    }
+  );
+
   it('removes bookkeeping and stable-ID duplicates while preserving cursor positions and distinct actions', () => {
     const completed = event('complete:one', 'completed');
     const points = event('points:one', 'points_adjusted');
