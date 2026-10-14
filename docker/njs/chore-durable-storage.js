@@ -9,6 +9,7 @@ const COLLECTIONS = [
   'activity',
   'outbox',
   'rewardRequestsById',
+  'pointProgress',
 ];
 const COMPRESSION_BYTES = 32 * 1024;
 const MAX_INFLATED_BYTES = 64 * 1024 * 1024;
@@ -52,6 +53,16 @@ const CHUNK_BYTES = 2 * 1024 * 1024;
 const TARGET_CHUNK_BYTES = 256 * 1024;
 
 function collectionItems(document, name) {
+  // Slice serialized summaries so even a single definition/period can exceed a chunk.
+  if (name === 'pointProgress') {
+    const summary = document.data.experience.pointProgress;
+    if (summary === undefined) return [];
+    const serialized = JSON.stringify(summary);
+    const parts = [];
+    for (let offset = 0; offset < serialized.length; offset += 16384)
+      parts.push(serialized.slice(offset, offset + 16384));
+    return parts;
+  }
   return name === 'occurrencesById'
     ? Object.values(document.data.occurrencesById)
     : name === 'rewardRequestsById'
@@ -91,12 +102,12 @@ function encode(document, maxBytes, hash, writeChunk, hasChunk) {
   const serialized = JSON.stringify(document);
   if (Buffer.byteLength(serialized, 'utf8') <= maxBytes)
     return packSerialized(document, serialized, hash);
-  const references = { version: 1 };
+  const references = { version: 2 };
   for (let collectionIndex = 0; collectionIndex < COLLECTIONS.length; collectionIndex++) {
     const name = COLLECTIONS[collectionIndex];
     references[name] = encodeCollection(collectionItems(document, name), name, hash, writeChunk, hasChunk);
   }
-  return Object.assign({}, document, {
+  const manifest = Object.assign({}, document, {
     durableCollections: references,
     data: Object.assign({}, document.data, {
       occurrencesById: {},
@@ -109,6 +120,8 @@ function encode(document, maxBytes, hash, writeChunk, hasChunk) {
       }),
     }),
   });
+  delete manifest.data.experience.pointProgress;
+  return manifest;
 }
 
 function decode(document, hash, readChunk, verifiedChunk) {
@@ -116,11 +129,12 @@ function decode(document, hash, readChunk, verifiedChunk) {
   if (!document || !Object.prototype.hasOwnProperty.call(document, 'durableCollections'))
     return document;
   const references = document.durableCollections;
-  if (!references || references.version !== 1)
+  if (!references || (references.version !== 1 && references.version !== 2))
     throw new Error('Chore durable storage version is invalid');
   const restored = {};
   for (let collectionIndex = 0; collectionIndex < COLLECTIONS.length; collectionIndex++) {
     const name = COLLECTIONS[collectionIndex];
+    if (name === 'pointProgress' && references.version === 1) continue;
     if (!Array.isArray(references[name])) throw new Error('Chore durable manifest is invalid');
     const items = [];
     for (let referenceIndex = 0; referenceIndex < references[name].length; referenceIndex++) {
@@ -187,6 +201,13 @@ function decode(document, hash, readChunk, verifiedChunk) {
       }),
     }),
   });
+  if (references.version === 2) {
+    if (!restored.pointProgress.every(function (item) { return typeof item === 'string'; }))
+      throw new Error('Chore durable point progress is invalid');
+    if (restored.pointProgress.length)
+      hydrated.data.experience.pointProgress = JSON.parse(restored.pointProgress.join(''));
+    else delete hydrated.data.experience.pointProgress;
+  }
   delete hydrated.durableCollections;
   return hydrated;
 }

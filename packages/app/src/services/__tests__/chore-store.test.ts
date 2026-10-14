@@ -519,40 +519,106 @@ describe('NJS chore workspace store', () => {
     expect(parseResponse(retry)).toEqual(parseResponse(fresh));
   });
 
-  it('advances a version-1 revision when only the point ledger needs archival', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));
-    const mockFs = createMockFs();
-    choreStore.setChoreStoreFsForTests(mockFs);
-    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
-    seedOccurrenceWorkspace();
-    const document = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
-    document.storageMaintenanceVersion = 1;
-    document.data.activity = [];
-    document.data.outbox = [];
-    document.data.experience = createChoreExperienceState();
-    document.data.experience.pointTransactions = Array.from({ length: 129 }, (_, index) => ({
-      id: `ledger:${index}`,
-      participantId: 'maya',
-      pointsDelta: 1,
-      kind: 'adjustment',
-      timestamp: document.updatedAt,
-    }));
-    document.data.experience.earnedPointsByParticipant = { maya: 129 };
-    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(document));
-    const read = createRequest({
-      headersIn: { 'X-Navet-Chore-Revision': String(document.revision) },
+  it.each([undefined, 1, 2])(
+    'advances a revision for maintenance marker %s when only the point ledger needs archival',
+    (maintenanceVersion) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));
+      const mockFs = createMockFs();
+      choreStore.setChoreStoreFsForTests(mockFs);
+      choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+      seedOccurrenceWorkspace();
+      const document = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
+      document.storageMaintenanceVersion = maintenanceVersion;
+      document.data.activity = [];
+      document.data.outbox = [];
+      document.data.experience = createChoreExperienceState();
+      document.data.experience.pointTransactions = Array.from({ length: 129 }, (_, index) => ({
+        id: `ledger:${index}`,
+        participantId: 'maya',
+        pointsDelta: 1,
+        kind: 'adjustment',
+        timestamp: document.updatedAt,
+      }));
+      document.data.experience.earnedPointsByParticipant = { maya: 129 };
+      mockFs.writeFileSync(CHORE_PATH, JSON.stringify(document));
+      const read = createRequest({
+        headersIn: { 'X-Navet-Chore-Revision': String(document.revision) },
+      });
+      choreStore.handle(read);
+      expect(read.return.mock.calls.at(-1)?.[0]).toBe(200);
+      expect(parseResponse(read).revision).toBe(document.revision + 1);
+      expect(parseResponse(read).data.experience.pointTransactions).toHaveLength(128);
+      expect(parseResponse(read).data.experience.earnedPointsByParticipant.maya).toBe(129);
+      const warm = createRequest({
+        headersIn: { 'X-Navet-Chore-Revision': String(document.revision + 1) },
+      });
+      choreStore.handle(warm);
+      expect(warm.return.mock.calls.at(-1)?.[0]).toBe(304);
+    }
+  );
+
+  it('chunks oversized historical progress without dropping buckets and reads legacy manifests', () => {
+    const summary = {
+      version: 1,
+      totals: { once: { maya: 42 } },
+      occurrences: {},
+      definitions: Object.fromEntries(
+        Array.from({ length: 100 }, (_, definition) => [
+          `deleted-definition:${definition}`,
+          Object.fromEntries(
+            Array.from({ length: 520 }, (_, week) => [
+              `weekly:${new Date(Date.UTC(2010, 0, 4 + week * 7)).toISOString().slice(0, 10)}`,
+              { 'household-member-é': 42 },
+            ])
+          ),
+        ])
+      ),
+    };
+    const document = {
+      data: {
+        ...seededData('unused'),
+        experience: {
+          ...createChoreExperienceState(),
+          pointProgress: summary,
+        },
+      },
+    };
+    const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+    const chunks = new Map<string, unknown>();
+    const stored = durableStorage.encode(document, 2 * 1024 * 1024, hash, (key, chunk) => {
+      expect(Buffer.byteLength(JSON.stringify(chunk))).toBeLessThanOrEqual(
+        durableStorage.CHUNK_BYTES
+      );
+      chunks.set(key, chunk);
     });
-    choreStore.handle(read);
-    expect(read.return.mock.calls.at(-1)?.[0]).toBe(200);
-    expect(parseResponse(read).revision).toBe(document.revision + 1);
-    expect(parseResponse(read).data.experience.pointTransactions).toHaveLength(128);
-    expect(parseResponse(read).data.experience.earnedPointsByParticipant.maya).toBe(129);
-    const warm = createRequest({
-      headersIn: { 'X-Navet-Chore-Revision': String(document.revision + 1) },
+    const manifest = durableStorage.unpack(stored, hash) as {
+      durableCollections: { version: number; pointProgress?: string[] };
+      data: { experience: { pointProgress?: unknown } };
+    };
+    expect(Buffer.byteLength(JSON.stringify(document))).toBeGreaterThan(durableStorage.CHUNK_BYTES);
+    expect(Buffer.byteLength(JSON.stringify(manifest))).toBeLessThan(durableStorage.CHUNK_BYTES);
+    expect(manifest.data.experience.pointProgress).toBeUndefined();
+    expect(durableStorage.decode(stored, hash, (key) => chunks.get(key))).toEqual(document);
+    const progressKey = manifest.durableCollections.pointProgress?.[0];
+    expect(progressKey).toBeDefined();
+    expect(() =>
+      durableStorage.decode(stored, hash, (key) => (key === progressKey ? null : chunks.get(key)))
+    ).toThrow();
+    const legacy = structuredClone(manifest);
+    legacy.durableCollections.version = 1;
+    delete legacy.durableCollections.pointProgress;
+    legacy.data.experience.pointProgress = { version: 1, totals: {}, occurrences: {} };
+    expect(durableStorage.decode(legacy, hash, (key) => chunks.get(key))).toEqual({
+      ...document,
+      data: {
+        ...document.data,
+        experience: {
+          ...document.data.experience,
+          pointProgress: legacy.data.experience.pointProgress,
+        },
+      },
     });
-    choreStore.handle(warm);
-    expect(warm.return.mock.calls.at(-1)?.[0]).toBe(304);
   });
 
   it('bounds the recent point ledger by expanded UTF-8 bytes as well as row count', () => {

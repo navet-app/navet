@@ -575,6 +575,36 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
                 restored = await self.authority._decode_storage(_Store.values[name])
                 self.assertIn("manager", restored["data"]["participantsById"])
 
+    async def test_chunks_oversized_progress_and_preserves_legacy_manifests(self):
+        await self._create_manager()
+        summary = {"version": 1, "totals": {"once": {"manager": 42}}, "occurrences": {}, "definitions": {
+            f"deleted-definition:{definition}": {
+                f"weekly:{(datetime(2010, 1, 4) + timedelta(weeks=week)).date().isoformat()}": {"household-member-é": 42}
+                for week in range(520)
+            } for definition in range(100)
+        }}
+        document = copy.deepcopy(self.authority._document)
+        document["data"]["experience"]["pointProgress"] = summary
+        self.assertGreater(chores._storage_size(document), chores.MAX_WORKSPACE_BYTES)
+        stored = await self.authority._encode_storage(document)
+        manifest = chores._unpack_storage(stored)
+        self.assertLess(chores._storage_size(manifest), chores.MAX_WORKSPACE_BYTES)
+        self.assertNotIn("pointProgress", manifest["data"]["experience"])
+        restarted = chores.ChoreAuthority(self.hass)
+        self.assertEqual(await restarted._decode_storage(stored), document)
+        key = manifest["durableCollections"]["pointProgress"][0]
+        chunk = _Store.values.pop(f"{chores.WORKSPACE_KEY}.chunk.{key}")
+        with self.assertRaises(chores.ChoreStorageError):
+            await restarted._decode_storage(stored)
+        _Store.values[f"{chores.WORKSPACE_KEY}.chunk.{key}"] = chunk
+        legacy = copy.deepcopy(manifest)
+        legacy["durableCollections"]["version"] = 1
+        del legacy["durableCollections"]["pointProgress"]
+        legacy_summary = {"version": 1, "totals": {}, "occurrences": {}}
+        legacy["data"]["experience"]["pointProgress"] = legacy_summary
+        restored = await restarted._decode_storage(legacy)
+        self.assertEqual(restored["data"]["experience"]["pointProgress"], legacy_summary)
+
     async def test_oversized_expanded_manifest_is_rejected_without_replacing_healthy_storage(self):
         await self._create_manager()
         before = copy.deepcopy(_Store.values)

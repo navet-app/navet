@@ -1705,9 +1705,13 @@ class ChoreAuthority:
         if len(json.dumps(document, separators=(",", ":")).encode()) <= MAX_WORKSPACE_BYTES:
             return _pack_storage(document), []
         prepared_chunks: list[tuple[str, Any]] = []
-        references: dict[str, Any] = {"version": 1}
-        for name in ("occurrencesById", "pointTransactions", "progressAwards", "activity", "outbox", "rewardRequestsById"):
-            if name == "occurrencesById":
+        references: dict[str, Any] = {"version": 2}
+        for name in ("occurrencesById", "pointTransactions", "progressAwards", "activity", "outbox", "rewardRequestsById", "pointProgress"):
+            if name == "pointProgress":
+                summary = document["data"]["experience"].get(name)
+                serialized = json.dumps(summary, separators=(",", ":"), ensure_ascii=False) if summary is not None else ""
+                records = [serialized[offset:offset + 16384] for offset in range(0, len(serialized), 16384)]
+            elif name == "occurrencesById":
                 records = list(document["data"][name].values())
             elif name == "rewardRequestsById":
                 records = list(document["data"]["experience"][name].values())
@@ -1716,7 +1720,7 @@ class ChoreAuthority:
             else:
                 records = document["data"]["experience"][name]
             chunks = []
-            items: list[dict[str, Any]] = []
+            items: list[Any] = []
             size = 128
             def flush() -> None:
                 nonlocal items, size
@@ -1741,6 +1745,7 @@ class ChoreAuthority:
         manifest = {**document, "durableCollections": references, "data": {
             **document["data"], "occurrencesById": {}, "activity": [], "outbox": [], "experience": {
                 **document["data"]["experience"], "pointTransactions": [], "progressAwards": [], "rewardRequestsById": {}}}}
+        manifest["data"]["experience"].pop("pointProgress", None)
         if _storage_size(manifest) > MAX_WORKSPACE_BYTES:
             raise ChoreStorageError("Chore workspace manifest is too large")
         return _pack_storage(manifest), prepared_chunks
@@ -1854,10 +1859,12 @@ class ChoreAuthority:
         if not isinstance(document.get("data"), Mapping) or not isinstance(document["data"].get("experience"), Mapping):
             raise ChoreStorageError("Chore durable workspace is invalid")
         references = document["durableCollections"]
-        if not isinstance(references, Mapping) or references.get("version") != 1:
+        if not isinstance(references, Mapping) or references.get("version") not in (1, 2):
             raise ChoreStorageError("Chore durable manifest is invalid")
         restored = {}
-        for name in ("occurrencesById", "pointTransactions", "progressAwards", "activity", "outbox", "rewardRequestsById"):
+        for name in ("occurrencesById", "pointTransactions", "progressAwards", "activity", "outbox", "rewardRequestsById", "pointProgress"):
+            if name == "pointProgress" and references["version"] == 1:
+                continue
             if not isinstance(references.get(name), list):
                 raise ChoreStorageError("Chore durable manifest is invalid")
             items = []
@@ -1884,6 +1891,16 @@ class ChoreAuthority:
             requests[item["id"]] = item
         hydrated = {**document, "data": {**document["data"], "occurrencesById": occurrences, "activity": restored["activity"], "outbox": restored["outbox"],
             "experience": {**document["data"]["experience"], "pointTransactions": restored["pointTransactions"], "progressAwards": restored["progressAwards"], "rewardRequestsById": requests}}}
+        if references["version"] == 2:
+            if any(not isinstance(item, str) for item in restored["pointProgress"]):
+                raise ChoreStorageError("Chore durable point progress is invalid")
+            if restored["pointProgress"]:
+                try:
+                    hydrated["data"]["experience"]["pointProgress"] = json.loads("".join(restored["pointProgress"]))
+                except ValueError as err:
+                    raise ChoreStorageError("Chore durable point progress is invalid") from err
+            else:
+                hydrated["data"]["experience"].pop("pointProgress", None)
         hydrated.pop("durableCollections", None)
         return hydrated
 

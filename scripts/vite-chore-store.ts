@@ -587,7 +587,7 @@ export function createViteChoreStoreRequestHandler(options: {
         }
         const manifest = stored.durableCollections
         if (!manifest) continue
-        if (!isRecord(manifest) || manifest.version !== 1) return
+        if (!isRecord(manifest) || (manifest.version !== 1 && manifest.version !== 2)) return
         for (const [name, keys] of Object.entries(manifest)) {
           if (name === 'version') continue
           if (!Array.isArray(keys)) return

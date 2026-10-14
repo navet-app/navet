@@ -2859,7 +2859,7 @@ function collectUnreferencedChunks() {
       }
       const manifest = stored.durableCollections;
       if (!manifest) continue;
-      if (manifest.version !== 1) return;
+      if (manifest.version !== 1 && manifest.version !== 2) return;
       const names = Object.keys(manifest);
       for (let nameIndex = 0; nameIndex < names.length; nameIndex += 1) {
         const name = names[nameIndex];
@@ -2944,7 +2944,7 @@ function repairStoredWorkspace(document, previous) {
     }
   }
   const compacted = choreStoragePolicy.compactChoreWorkspace(document.data);
-  const changed = Object.keys(removed).length > 0 || compacted !== document.data;
+  const changed = Object.keys(removed).length > 0 || compacted !== document.data || needsPointMaintenance(document);
   const next = Object.assign({}, document, {
     storageMaintenanceVersion: 2,
     revision: document.revision + (changed ? 1 : 0),
