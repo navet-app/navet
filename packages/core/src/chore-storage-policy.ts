@@ -1,4 +1,7 @@
-import type { ChoreActivity, ChoreOutboxItem, ChoreWorkspaceData } from './chores';
+import type { ChoreActivity, ChoreOutboxItem, ChoreWorkspaceData } from './chores.ts';
+
+// Keep the ES5 ownership check: native NJS does not implement Object.hasOwn.
+const hasOwn = Object.prototype.hasOwnProperty;
 
 export interface CompactChoreHistory {
   contractVersion: 1;
@@ -62,7 +65,7 @@ export function isChoreMaterializationUnchanged(
   if (ids.length !== Object.keys(after.occurrencesById).length) return false;
   for (let index = 0; index < ids.length; index++) {
     const id = ids[index];
-    if (!Object.hasOwn(after.occurrencesById, id)) return false;
+    if (!hasOwn.call(after.occurrencesById, id)) return false;
     if (
       before.occurrencesById[id] !== after.occurrencesById[id] &&
       JSON.stringify(before.occurrencesById[id]) !== JSON.stringify(after.occurrencesById[id])
@@ -99,7 +102,7 @@ export function compactChoreHistory(history: CompactChoreHistory): CompactChoreH
     const event = history.events[index];
     if (originals[event.id] !== undefined) continue;
     const saved =
-      sequenced && Object.hasOwn(existingCursors, event.id) ? existingCursors[event.id] : undefined;
+      sequenced && hasOwn.call(existingCursors, event.id) ? existingCursors[event.id] : undefined;
     if (saved !== undefined) {
       if (!Number.isSafeInteger(saved) || saved <= lastSaved || saved > previousEnd) {
         throw new Error('Chore history cursors are invalid');

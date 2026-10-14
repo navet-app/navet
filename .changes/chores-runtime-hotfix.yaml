@@ -1,3 +1,3 @@
 type: fixed
 audiences: [standalone, home-assistant, hacs]
-summary: Repair slow chores and dashboard startup by removing internal bookkeeping and duplicate activity and delivery records, preserving scores, rewards, meaningful history, and recovery.
+summary: Fix redundant chore scheduling and remove bookkeeping and duplicates, preserving scores, rewards, meaningful history, and recovery.

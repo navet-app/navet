@@ -168,6 +168,7 @@ function missing() {
   throw err;
 }
 let failChunk = false;
+let writeCount = 0;
 const descriptors = {};
 let nextDescriptor = 1;
 choreStore.setChoreStoreFsForTests({
@@ -194,6 +195,7 @@ choreStore.setChoreStoreFsForTests({
     paths[path] === undefined ? missing() : { size: Buffer.byteLength(paths[path]) },
   readFileSync: (path) => (paths[path] === undefined ? missing() : paths[path]),
   writeFileSync: (path, value) => {
+    writeCount++;
     if (failChunk && path.indexOf('.chunk-') !== -1) throw new Error('Interrupted chunk write');
     paths[path] = value;
   },
@@ -229,6 +231,14 @@ function request(method, uri, command) {
   choreStore.handle(r);
   return r;
 }
+const beforeNoop = request('GET', '/__navet_chores__/workspace');
+const beforeNoopWrites = writeCount;
+const nativeNoop = request('POST', '/__navet_chores__/commands', {
+  commandId: 'native-noop', baseRevision: beforeNoop.body.revision,
+  action: { type: 'materialize_occurrences', rangeStart: '2026-10-13T00:00:00.000Z', rangeEnd: '2026-10-14T00:00:00.000Z' },
+});
+assert(nativeNoop.status === 200 && nativeNoop.body.revision === beforeNoop.body.revision && writeCount === beforeNoopWrites,
+  'Native unchanged materialization performs zero writes and preserves revision');
 let result = request('POST', '/__navet_chores__/commands', {
   commandId: 'native-adjust',
   baseRevision: 1,
