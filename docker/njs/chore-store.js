@@ -57,6 +57,21 @@ let failedManagementAttempts = 0;
 let managementBlockedUntil = 0;
 let lastSchedulerRunAt = null;
 let lastDeliveryError = null;
+// NJS creates a VM per HTTP request. Reuse hydrated history only within one
+// synchronous transaction, never across requests or reminder-delivery awaits.
+let eventHistoryCache = null;
+let eventHistoryCacheEnabled = false;
+
+function withEventHistoryCache(action) {
+  eventHistoryCache = null;
+  eventHistoryCacheEnabled = true;
+  try {
+    return action();
+  } finally {
+    eventHistoryCache = null;
+    eventHistoryCacheEnabled = false;
+  }
+}
 
 let fsModule = fs;
 function resolveChorePrincipal(r, options) {
@@ -184,6 +199,7 @@ function writeJson(path, value, maxBytes) {
   const temporaryPath = path + '.tmp';
   fsModule.writeFileSync(temporaryPath, serialized, 'utf8');
   fsModule.renameSync(temporaryPath, path);
+  if (path === CHORE_EVENT_HISTORY_PATH) eventHistoryCache = null;
 }
 
 function deleteFile(path) {
@@ -542,6 +558,13 @@ function createOutboxItem(activity) {
 }
 
 function readEventHistory(fallbackEvents) {
+  if (eventHistoryCacheEnabled && eventHistoryCache) return eventHistoryCache;
+  const history = readEventHistoryFromDisk(fallbackEvents);
+  if (eventHistoryCacheEnabled) eventHistoryCache = history;
+  return history;
+}
+
+function readEventHistoryFromDisk(fallbackEvents) {
   try {
     const stored = readJson(
       CHORE_EVENT_HISTORY_PATH,
@@ -595,19 +618,17 @@ function appendEventHistory(events, policy) {
   const retainedEvents = history.events.concat(additions).filter(function (event) {
     return Date.parse(event.timestamp) >= boundary;
   }).slice(-retention.maxEvents);
-  writeJson(
-    CHORE_EVENT_HISTORY_PATH,
-    choreDurableStorage.pack({ contractVersion: CONTRACT_VERSION, events: retainedEvents }, durableHash),
-    MAX_CHORE_EVENT_HISTORY_BYTES
-  );
+  replaceEventHistory(retainedEvents);
 }
 
 function replaceEventHistory(events) {
+  const history = { contractVersion: CONTRACT_VERSION, events };
   writeJson(
     CHORE_EVENT_HISTORY_PATH,
-    choreDurableStorage.pack({ contractVersion: CONTRACT_VERSION, events }, durableHash),
+    choreDurableStorage.pack(history, durableHash),
     MAX_CHORE_EVENT_HISTORY_BYTES
   );
+  if (eventHistoryCacheEnabled) eventHistoryCache = history;
 }
 
 function parseInterchangeDocument(value) {
@@ -2865,18 +2886,19 @@ function recordPeriodicDelivery(item, status, errorMessage) {
 async function runPeriodic(_session) {
   const timestamp = nowIso();
   lastSchedulerRunAt = timestamp;
-  let document = materializePeriodicWindow(readDocument(), timestamp);
-  document = applyScheduledState(document);
+  const document = withEventHistoryCache(function () {
+    return applyScheduledState(materializePeriodicWindow(readDocument(), timestamp));
+  });
   const reminders = pendingHomeAssistantReminders(document, timestamp);
   for (let index = 0; index < reminders.length; index += 1) {
     try {
       await deliverHomeAssistantReminder(document, reminders[index]);
-      recordPeriodicDelivery(reminders[index], 'delivered');
+      withEventHistoryCache(function () { recordPeriodicDelivery(reminders[index], 'delivered'); });
       lastDeliveryError = null;
     } catch (error) {
       lastDeliveryError = error && error.message ? error.message : 'Reminder delivery failed';
       try {
-        recordPeriodicDelivery(reminders[index], 'failed', lastDeliveryError);
+        withEventHistoryCache(function () { recordPeriodicDelivery(reminders[index], 'failed', lastDeliveryError); });
       } catch (_recordError) {
         // The next periodic run reloads the workspace and retries the pending item.
       }
@@ -3622,6 +3644,10 @@ function commitAdministration(r, principal, operation) {
 }
 
 function routeRequest(r, principal, options) {
+  return withEventHistoryCache(function () { return dispatchRequest(r, principal, options); });
+}
+
+function dispatchRequest(r, principal, options) {
   if (r.method !== 'GET' && !providerSessionStore.isStrictSameOriginMutation(r)) {
     sendJson(r, 403, { error: 'Cross-origin chore mutation is not allowed' });
     return;

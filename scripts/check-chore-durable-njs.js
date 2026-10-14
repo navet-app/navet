@@ -84,7 +84,8 @@ assert(JSON.stringify(compressedHistory).length < JSON.stringify(historyDocument
 assert(JSON.stringify(storage.unpack(compressedHistory, hash)) === JSON.stringify(historyDocument), 'Native deflate preserves every event and UTF-8 text');
 // Exercise stored, fixed-Huffman, and dynamic-Huffman blocks in the native runtime.
 const deflateText = JSON.stringify({ text: 'abc åäö '.repeat(20000) });
-const deflateOptions = [{ level: 0 }, { strategy: zlib.constants.Z_FIXED }, {}];
+const deflateOptions = [{ level: 0 }, { strategy: zlib.constants.Z_FIXED },
+  { strategy: zlib.constants.Z_HUFFMAN_ONLY }, { strategy: zlib.constants.Z_RLE }, {}];
 for (let index = 0; index < deflateOptions.length; index++) {
   const envelope = {
     storageEncoding: 'deflate-v1', uncompressedBytes: Buffer.byteLength(deflateText),
@@ -100,6 +101,22 @@ for (let index = 0; index < deflateOptions.length; index++) {
   zlib.inflateSync = inflate;
   assert(nativeInflations === 0 && sizeError.indexOf('exceeds expanded size') !== -1,
     'Underdeclared expansion is rejected before allocating native output');
+}
+// Skewed frequencies exercise long Huffman codes; short streams exercise the
+// end-of-input fallback where the nine-bit lookup cannot safely peek ahead.
+let skewed = '';
+for (let index = 0; index < 14; index++) skewed += String.fromCharCode(65 + index).repeat(1 << index);
+const edgeTexts = [JSON.stringify({ text: skewed }), '0', '{}', '"å"'];
+for (let index = 0; index < edgeTexts.length; index++) {
+  const text = edgeTexts[index];
+  const envelope = {
+    storageEncoding: 'deflate-v1', uncompressedBytes: Buffer.byteLength(text),
+    checksum: hash(text), payload: zlib.deflateSync(text, {
+      strategy: zlib.constants.Z_HUFFMAN_ONLY,
+    }).toString('base64'),
+  };
+  assert(JSON.stringify(storage.unpack(envelope, hash)) === text,
+    'Long Huffman codes and short final blocks round-trip');
 }
 const truncatedEnvelope = Object.assign({}, compressedHistory, {
   payload: Buffer.from(compressedHistory.payload, 'base64').subarray(0, 10).toString('base64'),

@@ -2347,6 +2347,48 @@ describe('automatic chore storage upgrade', () => {
     expect(parseResponse(complete).data.occurrencesById[outstanding.id].status).toBe('done');
   });
 
+  // Keep: realistic oversized-history regression, including repair and fresh disk reads.
+  it('hydrates history once per request and sees changes and corruption on the next request', () => {
+    const { mockFs, events, hash } = seedLegacy();
+    const open = vi.spyOn(mockFs, 'openSync');
+    const read = createRequest();
+    choreStore.handle(read);
+    expect(read.return).toHaveBeenCalledWith(200, expect.any(String));
+    expect(open.mock.calls.filter(([path]) => path === EVENT_HISTORY_PATH)).toHaveLength(1);
+
+    const history = {
+      contractVersion: 1,
+      events: events.concat({
+        id: 'activity:another-request',
+        commandId: 'another-request',
+        type: 'workspace_materialized',
+        timestamp: '2026-10-13T10:00:00.000Z',
+      }),
+    };
+    mockFs.writeFileSync(EVENT_HISTORY_PATH, JSON.stringify(durableStorage.pack(history, hash)));
+    const changed = createRequest({ uri: '/__navet_chores__/history' });
+    choreStore.handle(changed);
+    expect(parseResponse(changed).events).toEqual(history.events);
+
+    mockFs.writeFileSync(EVENT_HISTORY_PATH, '{broken');
+    const repaired = createRequest();
+    choreStore.handle(repaired);
+    expect(repaired.return).toHaveBeenCalledWith(200, expect.any(String));
+    const afterRepair = createRequest({ uri: '/__navet_chores__/history' });
+    choreStore.handle(afterRepair);
+    expect(parseResponse(afterRepair).events).toEqual(parseResponse(repaired).data.activity);
+  });
+
+  it('hydrates legacy history once during background repair and scheduling', async () => {
+    const { mockFs, events } = seedLegacy();
+    const open = vi.spyOn(mockFs, 'openSync');
+    await choreStore.runPeriodic({});
+    expect(open.mock.calls.filter(([path]) => path === EVENT_HISTORY_PATH)).toHaveLength(1);
+    const history = createRequest({ uri: '/__navet_chores__/history' });
+    choreStore.handle(history);
+    expect(parseResponse(history).events.slice(0, events.length)).toEqual(events);
+  });
+
   it('repairs supported schema-v1 data before recording maintenance as complete', () => {
     const { mockFs, document, events, hash } = seedLegacy(1);
     const read = createRequest();

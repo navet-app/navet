@@ -166,7 +166,11 @@ before sending a command to the authority.
 The capped workspace activity array is a rebuildable UI projection. Both authorities also append
 each unique activity to a separate versioned event-history file. Reads reconcile the current
 projection into that file, which closes the normal interrupted-write gap without letting statistics
-or export depend on the projection's retention limit.
+or export depend on the projection's retention limit. NJS hydrates and verifies that history once
+per synchronous request or scheduler transaction, reusing it during repair, scheduling, and
+reconciliation. A committed history write updates the transaction's view. That view is discarded
+before another request or an asynchronous notification delivery so concurrent writes and damaged
+storage are observed on the next read.
 
 An active manager can choose a bounded immutable-history policy between 30 and 3,650 days and
 between 1,000 and 100,000 events. The policy changes through the same command envelope and preserves
