@@ -608,6 +608,20 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             decoded = await restarted._decode_storage(_Store.values[key])
             self.assertEqual(decoded["data"]["definitionsById"], original["definitionsById"])
 
+    def test_progress_stays_compact_for_15000_live_completions(self):
+        at = "2026-10-14T10:00:00.000Z"
+        records = [{"id": f"points:{index}", "occurrenceId": f"dishes:{at}:manager:{index}",
+            "definitionId": "dishes", "participantId": "manager", "kind": "completion",
+            "pointsDelta": 1, "timestamp": at} for index in range(15000)]
+        summary = chores._archive_point_progress(None, records, {row["occurrenceId"] for row in records})
+        self.assertEqual(summary["occurrences"], {})
+        self.assertLess(len(json.dumps(summary)), 1024)
+        for cycle in ("once", "weekly", "monthly"):
+            self.assertEqual(chores._archived_point_progress(summary,
+                {"cycle": cycle, "definitionIds": ["dishes"]}, "manager", set(), at), 15000)
+        old = {**summary, "occurrences": {"legacy": summary["totals"]}}
+        self.assertEqual(chores._archive_point_progress(old, [], {"legacy"}), summary)
+
     def test_archived_points_preserve_progress_for_all_cycles(self):
         records = [{"id": "old-complete", "participantId": "manager", "occurrenceId": "task", "kind": "completion", "pointsDelta": 10, "timestamp": "2026-09-28T10:00:00.000Z"},
             {"id": "old-reopen", "participantId": "manager", "occurrenceId": "task", "kind": "reopen", "pointsDelta": -3, "timestamp": "2026-09-29T10:00:00.000Z"},
@@ -651,6 +665,18 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(_Store.values, saved)
         backup = await again.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
         self.assertEqual(backup["workspace"]["experience"]["pointTransactions"], records)
+        # Keep: already-upgraded summaries must compact once without replaying history.
+        redundant = chores._unpack_storage(_Store.values[chores.WORKSPACE_KEY])
+        redundant["data"]["experience"]["pointProgress"]["occurrences"] = {"old": {"once": {"manager": 172}}}
+        _Store.values[chores.WORKSPACE_KEY] = chores._pack_storage(redundant)
+        again = chores.ChoreAuthority(self.hass)
+        await again.async_initialize()
+        self.assertEqual(again.revision, redundant["revision"] + 1)
+        self.assertEqual(again.data["experience"]["pointProgress"]["occurrences"], {})
+        self.assertEqual(chores._progress_value(target, "manager", again.data, "2026-10-14T10:00:00.000Z"), 298)
+        saved = copy.deepcopy(_Store.values)
+        await chores.ChoreAuthority(self.hass).async_initialize()
+        self.assertEqual(_Store.values, saved)
         awarded_data = copy.deepcopy(again.data)
         awarded_data["experience"]["badgesById"] = {"scoped": {**target, "id": "scoped", "title": "Dishes", "target": 298, "awardPoints": 5}}
         earned = chores._award_progress(awarded_data, "2026-10-14T10:00:00.000Z")

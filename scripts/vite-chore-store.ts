@@ -512,6 +512,10 @@ export function createViteChoreStoreRequestHandler(options: {
       experience = { ...experience, pointProgress: archiveChorePointProgress(undefined, records, Object.keys(document.data.occurrencesById), document.data.occurrencesById) }
       document.data = { ...document.data, experience }
     }
+    if (experience.pointProgress?.definitions && Object.keys(experience.pointProgress.occurrences).length) {
+      experience = { ...experience, pointProgress: { ...experience.pointProgress, occurrences: {} } }
+      document.data = { ...document.data, experience }
+    }
     const split = choreDurableStorage.splitRecentPoints(experience.pointTransactions)
     if (!split.archived.length) return
     document.pointHistory = choreDurableStorage.appendPointHistory(document.pointHistory, split.archived, durableHash, readPointChunk,
@@ -566,6 +570,7 @@ export function createViteChoreStoreRequestHandler(options: {
       if (entries.some((name) => name.startsWith(path.basename(filePath) + '.failed-'))) return
       const retained = new Set<string>()
       for (const candidatePath of [filePath, lastGoodWorkspacePath]) {
+        if (candidatePath === lastGoodWorkspacePath && !entries.includes(path.basename(candidatePath))) continue
         const stored = choreDurableStorage.unpack(
           readJson<unknown>(candidatePath, null, MAX_DOCUMENT_BYTES),
           durableHash,
@@ -702,7 +707,7 @@ export function createViteChoreStoreRequestHandler(options: {
       documentNeedsMigration = false
     }
     if (document.data.experience && (choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length ||
-        (document.pointHistory && !document.data.experience.pointProgress?.definitions))) {
+        (document.pointHistory && (!document.data.experience.pointProgress?.definitions || Object.keys(document.data.experience.pointProgress.occurrences).length)))) {
       const next = { ...document, revision: document.revision + 1, updatedAt: timestamp }
       persistDocument(document, next)
       document = next
@@ -1260,6 +1265,7 @@ export function createViteChoreStoreRequestHandler(options: {
             }
           }
           if (managementSecurity) unlinkSync(managementSecurityPath)
+          collectUnreferencedChunks()
           managementSessions = managementSessions.filter(
             (session) => session.tenantId !== principal.tenantId
           )

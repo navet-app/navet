@@ -2718,8 +2718,13 @@ function archiveStoredPoints(document) {
       records, Object.keys(document.data.occurrencesById), document.data.occurrencesById) });
     document.data = Object.assign({}, document.data, { experience });
   }
+  const compacting = experience.pointProgress && experience.pointProgress.definitions && Object.keys(experience.pointProgress.occurrences).length > 0;
+  if (compacting) {
+    experience = Object.assign({}, experience, { pointProgress: Object.assign({}, experience.pointProgress, { occurrences: {} }) });
+    document.data = Object.assign({}, document.data, { experience });
+  }
   const split = choreDurableStorage.splitRecentPoints(experience.pointTransactions);
-  if (!split.archived.length) return Boolean(rebuilding);
+  if (!split.archived.length) return Boolean(rebuilding || compacting);
   const pointHistory = choreDurableStorage.appendPointHistory(document.pointHistory, split.archived,
     durableHash, readPointChunk,
     function (key, chunk) { writeJson(CHORE_WORKSPACE_PATH + '.chunk-' + key, chunk, choreDurableStorage.CHUNK_BYTES); },
@@ -2735,7 +2740,7 @@ function archiveStoredPoints(document) {
 
 function prepareWorkingDocument(document) {
   if (!choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length &&
-      !(document.pointHistory && (!document.data.experience.pointProgress || !document.data.experience.pointProgress.definitions))) {
+      !(document.pointHistory && (!document.data.experience.pointProgress || !document.data.experience.pointProgress.definitions || Object.keys(document.data.experience.pointProgress.occurrences).length))) {
     if (storedDocumentCache && storedDocumentCache.document === document && storedDocumentCache.pointIdentitiesChanged)
       writeStoredDocument(CHORE_WORKSPACE_PATH, document);
     return document;
@@ -2840,6 +2845,7 @@ function collectUnreferencedChunks() {
     const paths = [CHORE_WORKSPACE_PATH, CHORE_LAST_GOOD_WORKSPACE_PATH];
     for (let pathIndex = 0; pathIndex < paths.length; pathIndex += 1) {
       const path = paths[pathIndex];
+      if (pathIndex > 0 && entries.indexOf('navet-chore-workspace.last-good.json') < 0) continue;
       const stored = choreDurableStorage.unpack(readJson(path, null, MAX_CHORE_WORKSPACE_BYTES), durableHash, MAX_CHORE_WORKSPACE_BYTES);
       if (!stored) return;
       if (stored.pointHistory) {
@@ -3830,6 +3836,7 @@ function commitAdministration(r, principal, operation) {
     deleteFile(CHORE_LAST_GOOD_WORKSPACE_PATH);
     deleteFile(CHORE_MANAGEMENT_SECURITY_PATH);
     clearManagementSession(principal.tenantId);
+    collectUnreferencedChunks();
   } else {
     const nextJournal = {
       contractVersion: CONTRACT_VERSION,

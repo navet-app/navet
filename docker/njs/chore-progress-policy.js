@@ -10,16 +10,11 @@ function chorePointDefinitionId(transaction, occurrences) {
 	return match ? match[1] : undefined;
 }
 /** Increment a read model only when records move from the recent ledger into history. */
-function archiveChorePointProgress(previous, transactions, occurrenceIds, liveOccurrences) {
+function archiveChorePointProgress(previous, transactions, _occurrenceIds, liveOccurrences) {
 	const totals = Object.assign(Object.create(null), (previous === null || previous === void 0 ? void 0 : previous.totals) || {});
 	const definitions = Object.assign(Object.create(null), (previous === null || previous === void 0 ? void 0 : previous.definitions) || {});
 	const occurrences = Object.create(null);
-	const present = Object.create(null);
-	for (let index = 0; index < occurrenceIds.length; index++) {
-		const id = occurrenceIds[index];
-		recordSafety.setOwnRecordValue(present, id, true);
-		if (previous && hasOwn.call(previous.occurrences, id)) recordSafety.setOwnRecordValue(occurrences, id, previous.occurrences[id]);
-	}
+	// Definition totals replace the per-occurrence index; keep its empty legacy field readable.
 	function add(groups, period, person, delta) {
 		const group = Object.assign(Object.create(null), groups[period] || {});
 		const next = (group[person] || 0) + delta;
@@ -35,16 +30,12 @@ function archiveChorePointProgress(previous, transactions, occurrenceIds, liveOc
 			"weekly:" + progressCycleKey("weekly", transaction.timestamp),
 			"monthly:" + progressCycleKey("monthly", transaction.timestamp)
 		];
-		const id = transaction.occurrenceId;
 		const definitionId = chorePointDefinitionId(transaction, liveOccurrences || {});
 		const definitionGroups = definitionId ? Object.assign(Object.create(null), definitions[definitionId] || {}) : null;
-		const groups = id && present[id] ? Object.assign(Object.create(null), occurrences[id] || {}) : null;
 		for (let period = 0; period < periods.length; period++) {
 			add(totals, periods[period], transaction.participantId, transaction.pointsDelta);
-			if (groups) add(groups, periods[period], transaction.participantId, transaction.pointsDelta);
 			if (definitionGroups) add(definitionGroups, periods[period], transaction.participantId, transaction.pointsDelta);
 		}
-		if (id && groups) recordSafety.setOwnRecordValue(occurrences, id, groups);
 		if (definitionId && definitionGroups) recordSafety.setOwnRecordValue(definitions, definitionId, definitionGroups);
 	}
 	return {

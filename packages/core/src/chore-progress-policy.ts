@@ -25,19 +25,13 @@ export function chorePointDefinitionId(
 export function archiveChorePointProgress(
   previous: ChorePointProgress | undefined,
   transactions: readonly ChorePointTransaction[],
-  occurrenceIds: readonly string[],
+  _occurrenceIds: readonly string[],
   liveOccurrences?: Record<string, Pick<ChoreOccurrence, 'definitionId'>>
 ): ChorePointProgress {
   const totals = Object.assign(Object.create(null), previous?.totals || {});
   const definitions = Object.assign(Object.create(null), previous?.definitions || {});
   const occurrences: ChorePointProgress['occurrences'] = Object.create(null);
-  const present: Record<string, boolean> = Object.create(null);
-  for (let index = 0; index < occurrenceIds.length; index++) {
-    const id = occurrenceIds[index];
-    setOwnRecordValue(present, id, true);
-    if (previous && hasOwn.call(previous.occurrences, id))
-      setOwnRecordValue(occurrences, id, previous.occurrences[id]);
-  }
+  // Definition totals replace the per-occurrence index; keep its empty legacy field readable.
   function add(
     groups: ChorePointProgress['totals'],
     period: string,
@@ -58,20 +52,15 @@ export function archiveChorePointProgress(
       'weekly:' + progressCycleKey('weekly', transaction.timestamp),
       'monthly:' + progressCycleKey('monthly', transaction.timestamp),
     ];
-    const id = transaction.occurrenceId;
     const definitionId = chorePointDefinitionId(transaction, liveOccurrences || {});
     const definitionGroups = definitionId
       ? Object.assign(Object.create(null), definitions[definitionId] || {})
       : null;
-    const groups =
-      id && present[id] ? Object.assign(Object.create(null), occurrences[id] || {}) : null;
     for (let period = 0; period < periods.length; period++) {
       add(totals, periods[period], transaction.participantId, transaction.pointsDelta);
-      if (groups) add(groups, periods[period], transaction.participantId, transaction.pointsDelta);
       if (definitionGroups)
         add(definitionGroups, periods[period], transaction.participantId, transaction.pointsDelta);
     }
-    if (id && groups) setOwnRecordValue(occurrences, id, groups);
     if (definitionId && definitionGroups)
       setOwnRecordValue(definitions, definitionId, definitionGroups);
   }

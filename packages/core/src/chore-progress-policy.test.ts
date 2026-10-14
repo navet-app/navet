@@ -30,6 +30,45 @@ function occurrence(
 }
 
 describe('chore progression', () => {
+  it('keeps progress compact for 15000 live completions without losing scoped points', () => {
+    const at = '2026-10-14T10:00:00.000Z';
+    const rows: ChorePointTransaction[] = Array.from({ length: 15000 }, (_, index) => ({
+      id: `points:${index}`,
+      occurrenceId: `dishes:${at}:maya:${index}`,
+      definitionId: 'dishes',
+      participantId: 'maya',
+      kind: 'completion',
+      pointsDelta: 1,
+      timestamp: at,
+    }));
+    const ids = rows.map((row) => row.occurrenceId ?? '');
+    const summary = archiveChorePointProgress(undefined, rows, ids);
+    expect(njsProgress.archiveChorePointProgress(undefined, rows, ids)).toEqual(summary);
+    expect(Object.keys(summary.occurrences)).toHaveLength(0);
+    expect(JSON.stringify(summary).length).toBeLessThan(1024);
+    for (const cycle of ['once', 'weekly', 'monthly'] as const) {
+      expect(
+        choreTargetProgress(
+          {
+            id: 'target',
+            title: 'Target',
+            metric: 'points',
+            target: 15000,
+            cycle,
+            definitionIds: ['dishes'],
+          },
+          'maya',
+          [],
+          [],
+          at,
+          summary
+        )
+      ).toBe(15000);
+    }
+    const old = { ...summary, occurrences: { legacy: summary.totals } };
+    expect(archiveChorePointProgress(old, [], ids)).toEqual(summary);
+  });
+
   it.each(['once', 'weekly', 'monthly'] as const)(
     'preserves %s point progress when historical rows are archived in multiple transactions',
     (cycle) => {

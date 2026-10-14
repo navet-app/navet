@@ -130,6 +130,7 @@ export interface ChoreExperienceState {
 export interface ChorePointProgress {
   version: 1;
   totals: Record<string, Record<string, number>>;
+  /** Legacy read compatibility; definition-based summaries leave this empty. */
   occurrences: Record<string, Record<string, Record<string, number>>>;
   definitions?: Record<string, Record<string, Record<string, number>>>;
 }

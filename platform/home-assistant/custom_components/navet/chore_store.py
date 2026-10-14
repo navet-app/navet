@@ -1334,7 +1334,7 @@ def _point_definition_id(item: Mapping[str, Any], occurrences: Mapping[str, Any]
 def _archive_point_progress(previous: Mapping[str, Any] | None, records: list[dict[str, Any]], occurrence_ids: set[str], occurrences: Mapping[str, Any] | None = None) -> dict[str, Any]:
     summary = copy.deepcopy(previous or {"version": 1, "totals": {}, "occurrences": {}})
     summary.setdefault("definitions", {})
-    summary["occurrences"] = {key: value for key, value in summary["occurrences"].items() if key in occurrence_ids}
+    summary["occurrences"] = {}
     for item in records:
         if item.get("kind") not in {"completion", "reopen"}:
             continue
@@ -1342,8 +1342,6 @@ def _archive_point_progress(previous: Mapping[str, Any] | None, records: list[di
         definition_id = _point_definition_id(item, occurrences or {})
         if definition_id:
             groups.append(summary["definitions"].setdefault(definition_id, {}))
-        if item.get("occurrenceId") in occurrence_ids:
-            groups.append(summary["occurrences"].setdefault(item["occurrenceId"], {}))
         for group in groups:
             for period in ("once", "weekly:" + _progress_cycle_key("weekly", item["timestamp"]), "monthly:" + _progress_cycle_key("monthly", item["timestamp"])):
                 values = group.setdefault(period, {})
@@ -1790,6 +1788,9 @@ class ChoreAuthority:
                 set(document["data"]["occurrencesById"]), document["data"]["occurrencesById"])
             experience = {**experience, "pointProgress": summary}
             document["data"] = {**document["data"], "experience": experience}
+        if (experience.get("pointProgress") or {}).get("definitions") is not None and experience["pointProgress"].get("occurrences"):
+            experience = {**experience, "pointProgress": {**experience["pointProgress"], "occurrences": {}}}
+            document["data"] = {**document["data"], "experience": experience}
         archived, recent = await self.hass.async_add_executor_job(_split_recent_points, experience["pointTransactions"])
         if not archived:
             return
@@ -1952,7 +1953,7 @@ class ChoreAuthority:
             self._alert_key = alert_key
             self._loaded = True
             history_needs_compaction = isinstance(decoded_history, Mapping) and "eventCursors" not in decoded_history
-            progress_needs_rebuild = bool(self._document.get("pointHistory")) and "definitions" not in (data["experience"].get("pointProgress") or {})
+            progress_needs_rebuild = bool(self._document.get("pointHistory")) and ("definitions" not in (data["experience"].get("pointProgress") or {}) or bool((data["experience"].get("pointProgress") or {}).get("occurrences")))
             if run_initial_tick and (self._document.get("storageMaintenanceVersion") != 2
                 or history_needs_repair or history_needs_compaction or progress_needs_rebuild or _split_recent_points(data["experience"]["pointTransactions"])[0]):
                 previous = copy.deepcopy(self._document)

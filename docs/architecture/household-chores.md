@@ -125,7 +125,8 @@ weekly, monthly, and selected-chore point progress without replaying the ledger.
 totals survive occurrence pruning; new completion and reopen transactions retain their definition
 identity. Older generated occurrence IDs supply that identity for historical rows. Existing summaries
 without definition totals are rebuilt once from the archived ledger on load, preserving its records
-and advancing the workspace revision. Rewards,
+and advancing the workspace revision. Once definition totals exist, the redundant per-occurrence
+summary is cleared on load and remains empty, so live completions do not add manifest entries. Rewards,
 refundable requests, earned awards, and current balances retain their existing domain semantics.
 
 `GET /__navet_chores__/points?after=0&limit=100` and the native-panel
