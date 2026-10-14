@@ -18,7 +18,7 @@ for (const [name, directory] of entries) {
   const source = new URL('../packages/core/src/' + name + '.ts', import.meta.url);
   const output = new URL('../docker/' + directory + '/' + name + '.js', import.meta.url);
   const sourceText = await readFile(source, 'utf8');
-  const usesRecordSafety = name === 'chore-storage-policy';
+  const usesRecordSafety = name === 'chore-storage-policy' || name === 'chore-progress-policy';
   const portableSource = usesRecordSafety
     ? sourceText.replace(/^import \{ setOwnRecordValue \} from '\.\/record-safety\.ts';$/m, '')
     : sourceText;

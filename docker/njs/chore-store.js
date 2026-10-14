@@ -62,6 +62,8 @@ let lastDeliveryError = null;
 // synchronous transaction, never across requests or reminder-delivery awaits.
 let eventHistoryCache = null;
 let eventHistoryCacheEnabled = false;
+let storedDocumentCache = null;
+let verifiedChunks = null;
 let lastMaterializationKey = null;
 let schedulerCheckpoint = null;
 // Declare before the cache helpers for native NJS lexical binding support.
@@ -127,11 +129,15 @@ function rememberSchedulerDeadline(document, timestamp) {
 
 function withEventHistoryCache(action) {
   eventHistoryCache = null;
+  storedDocumentCache = null;
+  verifiedChunks = Object.create(null);
   eventHistoryCacheEnabled = true;
   try {
     return action();
   } finally {
     eventHistoryCache = null;
+    storedDocumentCache = null;
+    verifiedChunks = null;
     eventHistoryCacheEnabled = false;
   }
 }
@@ -225,17 +231,27 @@ function sendJson(r, statusCode, payload) {
 
 function parseQueryArgs(value) {
   const result = Object.create(null);
+  function put(key, item) {
+    if (key !== '__proto__' && key !== 'constructor' && key !== 'prototype' && typeof item === 'string')
+      recordSafety.setOwnRecordValue(result, key, item);
+  }
+  // Native NJS exposes r.args as an object; test/compatibility callers may use a string.
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const keys = Object.keys(value);
+    for (let index = 0; index < keys.length; index++) {
+      const item = value[keys[index]];
+      put(keys[index], Array.isArray(item) ? item[item.length - 1] : item);
+    }
+    return result;
+  }
   if (typeof value !== 'string' || value.length === 0) return result;
   const pairs = value.split('&');
-  for (let index = 0; index < pairs.length; index += 1) {
+  for (let index = 0; index < pairs.length; index++) {
     const separator = pairs[index].indexOf('=');
     const rawKey = separator === -1 ? pairs[index] : pairs[index].slice(0, separator);
     const rawValue = separator === -1 ? '' : pairs[index].slice(separator + 1);
-    try {
-      result[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue.replace(/\+/g, ' '));
-    } catch (_error) {
-      result[rawKey] = rawValue;
-    }
+    try { put(decodeURIComponent(rawKey), decodeURIComponent(rawValue.replace(/\+/g, ' '))); }
+    catch (_error) { put(rawKey, rawValue); }
   }
   return result;
 }
@@ -513,6 +529,7 @@ function isValidChoreExperience(value) {
     !isRecord(value.missionsById) ||
     !isRecord(value.rewardGoalsById) ||
     !isRecord(value.rewardRequestsById) ||
+    (value.pointProgress !== undefined && !choreProgressPolicy.isChorePointProgress(value.pointProgress)) ||
     !Array.isArray(value.pointTransactions) ||
     !isRecord(value.badgesById) ||
     !isRecord(value.achievementsById) ||
@@ -599,12 +616,12 @@ function isValidChoreExperience(value) {
     if (!choreProgressPolicy.isProgressTarget(value.achievementsById[targetId], targetId)) return false;
   }
   if (!value.progressAwards.every(choreProgressPolicy.isProgressAward)) return false;
-  const transactionIds = [];
+  const transactionIds = Object.create(null);
   for (let index = 0; index < value.pointTransactions.length; index += 1) {
     const transaction = value.pointTransactions[index];
     if (!choreProgressPolicy.isPointTransaction(transaction) ||
-      transactionIds.indexOf(transaction.id) !== -1) return false;
-    transactionIds.push(transaction.id);
+      transactionIds[transaction.id]) return false;
+    recordSafety.setOwnRecordValue(transactionIds, transaction.id, true);
   }
   return true;
 }
@@ -710,7 +727,7 @@ function parseInterchangeDocument(value) {
     throw new Error('Unsupported chore interchange document');
   }
   const workspace = migrateChoreWorkspaceData(value.workspace);
-  if (!workspace) throw new Error('Unsupported chore workspace schema');
+  if (!workspace || workspace.experience.pointProgress !== undefined) throw new Error('Unsupported chore workspace schema');
   for (let index = 0; index < value.events.length; index += 1) {
     if (!isValidActivity(value.events[index])) throw new Error('Chore event history is invalid');
   }
@@ -1652,6 +1669,7 @@ function updateExperiencePoints(data, previousOccurrence, nextOccurrence, comman
       occurrences: Object.values(dataWithNextOccurrence.occurrencesById),
       transactions: nextExperience.pointTransactions,
       existingAwards: nextExperience.progressAwards,
+      pointProgress: nextExperience.pointProgress,
       at: timestamp,
     });
     if (progress.awards.length > 0) {
@@ -2244,6 +2262,7 @@ function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefi
     const currentExperience = data.experience || createEmptyChoreExperience();
     if (JSON.stringify(action.experience.rewardRequestsById) !== JSON.stringify(currentExperience.rewardRequestsById) ||
       JSON.stringify(action.experience.pointTransactions) !== JSON.stringify(currentExperience.pointTransactions) ||
+      JSON.stringify(action.experience.pointProgress) !== JSON.stringify(currentExperience.pointProgress) ||
       JSON.stringify(action.experience.progressAwards) !== JSON.stringify(currentExperience.progressAwards) ||
       JSON.stringify(action.experience.earnedPointsByParticipant) !== JSON.stringify(currentExperience.earnedPointsByParticipant)) {
       throw new Error('Reward and point history can only change through household actions');
@@ -2677,17 +2696,86 @@ function durableHash(value) {
   return hashCrypto.createHash('sha256').update(value).digest('hex');
 }
 
+function readPointChunk(key) {
+  return readJson(CHORE_WORKSPACE_PATH + '.chunk-' + key, null, choreDurableStorage.CHUNK_BYTES);
+}
+
+function pointChunkIdentity(key) {
+  try {
+    const stat = fsModule.statSync(CHORE_WORKSPACE_PATH + '.chunk-' + key);
+    return Number.isFinite(stat.ino) && Number.isFinite(stat.mtimeMs) && Number.isFinite(stat.ctimeMs)
+      ? [stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(':') : null;
+  } catch (_error) { return null; }
+}
+
+function archiveStoredPoints(document) {
+  const experience = document.data.experience;
+  const split = choreDurableStorage.splitRecentPoints(experience.pointTransactions);
+  if (!split.archived.length) return false;
+  const pointHistory = choreDurableStorage.appendPointHistory(document.pointHistory, split.archived,
+    durableHash, readPointChunk,
+    function (key, chunk) { writeJson(CHORE_WORKSPACE_PATH + '.chunk-' + key, chunk, choreDurableStorage.CHUNK_BYTES); },
+    pointChunkIdentity);
+  document.pointHistory = pointHistory;
+  document.data = Object.assign({}, document.data, { experience: Object.assign({}, experience, {
+    pointTransactions: split.recent,
+    pointProgress: choreProgressPolicy.archiveChorePointProgress(experience.pointProgress,
+      split.archived, Object.keys(document.data.occurrencesById)),
+  }) });
+  return true;
+}
+
+function prepareWorkingDocument(document) {
+  if (!choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length) {
+    if (storedDocumentCache && storedDocumentCache.document === document && storedDocumentCache.pointIdentitiesChanged)
+      writeStoredDocument(CHORE_WORKSPACE_PATH, document);
+    return document;
+  }
+  const next = Object.assign({}, document, { revision: document.revision + 1, updatedAt: nowIso() });
+  persistDocument(document, next);
+  return next;
+}
+
+function fullPointData(document) {
+  if (!document.pointHistory) return document.data;
+  const experience = Object.assign({}, document.data.experience, { pointTransactions:
+    choreDurableStorage.readPointHistory(document.pointHistory, 0, document.pointHistory.count,
+      durableHash, readPointChunk).concat(document.data.experience.pointTransactions) });
+  delete experience.pointProgress;
+  return Object.assign({}, document.data, { experience });
+}
+
 function readStoredDocument(path, fallback) {
-  return choreDurableStorage.decode(
-    readJson(path, fallback, MAX_CHORE_WORKSPACE_BYTES), durableHash,
-    function (key) { return readJson(CHORE_WORKSPACE_PATH + '.chunk-' + key, null, choreDurableStorage.CHUNK_BYTES); }
+  const stored = readJson(path, fallback, MAX_CHORE_WORKSPACE_BYTES);
+  const document = choreDurableStorage.decode(
+    stored, durableHash,
+    function (key) { return readJson(CHORE_WORKSPACE_PATH + '.chunk-' + key, null, choreDurableStorage.CHUNK_BYTES); },
+    function (key) { if (verifiedChunks) recordSafety.setOwnRecordValue(verifiedChunks, key, true); }
   );
+  if (document && document.data && document.data.experience &&
+      document.data.experience.pointProgress !== undefined && document.pointHistory === undefined)
+    throw new Error('Chore point history manifest is invalid');
+  let pointIdentitiesChanged = false;
+  if (document && document.pointHistory !== undefined) {
+    const history = choreDurableStorage.validatePointHistory(document.pointHistory,
+      durableHash, readPointChunk, pointChunkIdentity);
+    pointIdentitiesChanged = history !== document.pointHistory;
+    document.pointHistory = history;
+  }
+  if (eventHistoryCacheEnabled && path === CHORE_WORKSPACE_PATH)
+    storedDocumentCache = { document, stored, pointIdentitiesChanged };
+  return document;
 }
 
 function writeStoredDocument(path, document) {
   const stored = choreDurableStorage.encode(document, MAX_CHORE_WORKSPACE_BYTES, durableHash,
-    function (key, chunk) { writeJson(CHORE_WORKSPACE_PATH + '.chunk-' + key, chunk, choreDurableStorage.CHUNK_BYTES); });
+    function (key, chunk) {
+      writeJson(CHORE_WORKSPACE_PATH + '.chunk-' + key, chunk, choreDurableStorage.CHUNK_BYTES);
+      if (verifiedChunks) recordSafety.setOwnRecordValue(verifiedChunks, key, true);
+    },
+    function (key) { return Boolean(verifiedChunks && verifiedChunks[key]); });
   writeJson(path, stored, MAX_CHORE_WORKSPACE_BYTES);
+  if (eventHistoryCacheEnabled && path === CHORE_WORKSPACE_PATH) storedDocumentCache = { document, stored };
 }
 
 function readDocumentCandidate(path) {
@@ -2711,12 +2799,19 @@ function readDocumentCandidate(path) {
   return null;
 }
 
-function persistDocument(previous, next) {
+function persistDocument(previous, next, replacePointHistory) {
+  if (!replacePointHistory && previous.pointHistory && !next.pointHistory) next.pointHistory = previous.pointHistory;
+  archiveStoredPoints(next);
   next.data = choreStoragePolicy.compactChoreWorkspace(next.data);
   if (!next.storageMaintenanceVersion) next.storageMaintenanceVersion = previous.storageMaintenanceVersion;
-  writeStoredDocument(CHORE_LAST_GOOD_WORKSPACE_PATH, Object.assign({}, previous, {
-    data: choreStoragePolicy.compactChoreWorkspace(previous.data),
-  }));
+  const compactPrevious = choreStoragePolicy.compactChoreWorkspace(previous.data);
+  if (storedDocumentCache && storedDocumentCache.document === previous && compactPrevious === previous.data) {
+    // Already decoded and validated in this synchronous transaction. Preserve its exact
+    // durable representation instead of recompressing the whole recovery snapshot.
+    writeJson(CHORE_LAST_GOOD_WORKSPACE_PATH, storedDocumentCache.stored, MAX_CHORE_WORKSPACE_BYTES);
+  } else {
+    writeStoredDocument(CHORE_LAST_GOOD_WORKSPACE_PATH, Object.assign({}, previous, { data: compactPrevious }));
+  }
   writeStoredDocument(CHORE_WORKSPACE_PATH, next);
   collectUnreferencedChunks();
 }
@@ -2725,12 +2820,24 @@ function collectUnreferencedChunks() {
   // The Nginx authority has one worker and publishes synchronously before collecting.
   try {
     if (typeof fsModule.readdirSync !== 'function') return;
+    const prefix = 'navet-chore-workspace.json.chunk-';
+    const entries = fsModule.readdirSync('/data');
+    // Inline households have nothing to collect. Do not inflate two complete
+    // workspace snapshots merely to discover that their chunk sets are empty.
+    if (!entries.some(function (name) { return name.indexOf(prefix) === 0; })) return;
+    // Failed-file snapshots may reference chunks that cannot be safely enumerated.
+    if (entries.some(function (name) { return name.indexOf('navet-chore-workspace.json.failed-') === 0; })) return;
     const retained = Object.create(null);
     const paths = [CHORE_WORKSPACE_PATH, CHORE_LAST_GOOD_WORKSPACE_PATH];
     for (let pathIndex = 0; pathIndex < paths.length; pathIndex += 1) {
       const path = paths[pathIndex];
       const stored = choreDurableStorage.unpack(readJson(path, null, MAX_CHORE_WORKSPACE_BYTES), durableHash, MAX_CHORE_WORKSPACE_BYTES);
       if (!stored) return;
+      if (stored.pointHistory) {
+        if (!choreDurableStorage.validPointHistory(stored.pointHistory)) return;
+        for (let pageIndex = 0; pageIndex < stored.pointHistory.pages.length; pageIndex++)
+          recordSafety.setOwnRecordValue(retained, stored.pointHistory.pages[pageIndex].key, true);
+      }
       const manifest = stored.durableCollections;
       if (!manifest) continue;
       if (manifest.version !== 1) return;
@@ -2743,15 +2850,14 @@ function collectUnreferencedChunks() {
           recordSafety.setOwnRecordValue(retained, manifest[name][keyIndex], true);
       }
     }
-    const prefix = 'navet-chore-workspace.json.chunk-';
-    const entries = fsModule.readdirSync('/data');
-    // Failed-file snapshots may reference chunks that cannot be safely enumerated.
-    if (entries.some(function (name) { return name.indexOf('navet-chore-workspace.json.failed-') === 0; })) return;
     for (let entryIndex = 0; entryIndex < entries.length; entryIndex += 1) {
       const name = entries[entryIndex];
       if (name.indexOf(prefix) !== 0) continue;
       const key = name.slice(prefix.length);
-      if (/^[a-f0-9]{64}$/.test(key) && !retained[key]) deleteFile('/data/' + name);
+      if (/^[a-f0-9]{64}$/.test(key) && !retained[key]) {
+        deleteFile('/data/' + name);
+        if (verifiedChunks) delete verifiedChunks[key];
+      }
     }
   } catch (_error) { /* Committed data remains usable; the next write retries collection. */ }
 }
@@ -3016,7 +3122,7 @@ function readDocument() {
       data: emptyData(),
     };
   }
-  if (isValidDocument(document)) return applyScheduledState(repairStoredWorkspace(document));
+  if (isValidDocument(document)) return applyScheduledState(prepareWorkingDocument(repairStoredWorkspace(document)));
   if (
     isRecord(document) &&
     document.contractVersion === CONTRACT_VERSION &&
@@ -3046,7 +3152,7 @@ function readDocument() {
     });
     writeStoredDocument(CHORE_WORKSPACE_PATH, recovered);
     appendEventHistory(recovered.data.activity, recovered.data.historyRetention);
-    return applyScheduledState(repairStoredWorkspace(recovered));
+    return applyScheduledState(prepareWorkingDocument(repairStoredWorkspace(recovered)));
   }
   const error = new Error('Chore workspace document is invalid');
   error.code = 'NAVET_CHORE_WORKSPACE_INVALID';
@@ -3224,7 +3330,7 @@ function loadBackup(r, document) {
     contract: 'navet.chores',
     version: 1,
     exportedAt: nowIso(),
-    workspace: document.data,
+    workspace: fullPointData(document),
     events: readEventHistory().events,
   });
 }
@@ -3532,11 +3638,11 @@ function commitCommand(r, principal) {
     sendJson(r, 200, publicDocument(current, principal.tenantId));
     return;
   }
-  if (baseRevision !== current.revision) {
-    sendJson(r, 412, {
+  if (baseRevision !== current.revision && !(baseRevision >= 0 && baseRevision < current.revision &&
+      choreStoragePolicy.canRebaseChoreAction(request.action.type))) {
+    sendJson(r, 412, Object.assign(publicDocument(current, principal.tenantId), {
       error: 'Chore workspace changed on another client',
-      revision: current.revision,
-    });
+    }));
     return;
   }
   if (
@@ -3677,7 +3783,7 @@ function commitAdministration(r, principal, operation) {
       });
     } else {
       const merged = mergeImportedWorkspace(
-        current.data,
+        fullPointData(current),
         readEventHistory().events,
         imported,
         timestamp
@@ -3724,7 +3830,7 @@ function commitAdministration(r, principal, operation) {
         timestamp,
       }]).slice(-MAX_COMMAND_JOURNAL_ITEMS),
     };
-    persistDocument(current, next);
+    persistDocument(current, next, true);
     writeJson(CHORE_JOURNAL_PATH, nextJournal, MAX_CHORE_JOURNAL_BYTES);
     replaceEventHistory(nextEvents);
   }
@@ -3780,6 +3886,24 @@ function dispatchRequest(r, principal, options) {
   }
   if (uri === '/__navet_chores__/workspace' && r.method === 'GET') {
     loadWorkspace(r, principal);
+    return;
+  }
+  if (uri === '/__navet_chores__/points' && r.method === 'GET') {
+    const document = readDocument();
+    const args = parseQueryArgs(r.args);
+    const after = Number(args.after || 0);
+    const limit = Number(args.limit || 100);
+    if (!Number.isSafeInteger(after) || after < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+      sendJson(r, 400, { error: 'Chore event cursor is invalid' });
+      return;
+    }
+    const history = document.pointHistory || { version: 1, count: 0, pages: [] };
+    const archived = choreDurableStorage.readPointHistory(history, after, limit, durableHash, readPointChunk);
+    const start = Math.max(0, after - history.count);
+    const points = archived.concat(document.data.experience.pointTransactions.slice(start, start + limit - archived.length));
+    const cursor = after + points.length;
+    sendJson(r, 200, { contractVersion: 1, revision: document.revision, cursor: String(cursor),
+      hasMore: cursor < history.count + document.data.experience.pointTransactions.length, points });
     return;
   }
   if (uri === '/__navet_chores__/history' && r.method === 'GET') {

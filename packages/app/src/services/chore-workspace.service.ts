@@ -23,6 +23,7 @@ import {
   type ChoreManagementSessionDocument,
   type ChoreManagementVerifyRequest,
   type ChoreOccurrenceListDocument,
+  type ChorePointHistoryPage,
   type ChoreWorkspaceCommandRequest,
   type ChoreWorkspaceDocument,
   type ChoreWorkspaceRecoveryInfo,
@@ -99,6 +100,7 @@ const PANEL_COMMANDS = {
   occurrences: 'navet/chores/occurrences/get',
   events: 'navet/chores/events/get',
   history: 'navet/chores/history/get',
+  points: 'navet/chores/points/get',
   backup: 'navet/chores/backup/get',
   command: 'navet/chores/command',
   restore: 'navet/chores/restore',
@@ -202,6 +204,7 @@ function panelCommandForEndpoint(endpoint: string) {
   if (endpoint === CHORE_WORKSPACE_ENDPOINTS.occurrences) return PANEL_COMMANDS.occurrences;
   if (endpoint === CHORE_WORKSPACE_ENDPOINTS.events) return PANEL_COMMANDS.events;
   if (endpoint === CHORE_WORKSPACE_ENDPOINTS.history) return PANEL_COMMANDS.history;
+  if (endpoint === CHORE_WORKSPACE_ENDPOINTS.points) return PANEL_COMMANDS.points;
   if (endpoint === CHORE_WORKSPACE_ENDPOINTS.backup) return PANEL_COMMANDS.backup;
   throw new Error(`Unsupported panel chore endpoint: ${endpoint}`);
 }
@@ -343,6 +346,14 @@ export async function loadChoreEvents(
 
 export async function loadChoreHistory(): Promise<ChoreAutomationReadResult<ChoreHistoryDocument>> {
   return loadAutomationResource<ChoreHistoryDocument>(CHORE_WORKSPACE_ENDPOINTS.history);
+}
+
+export async function loadChorePointHistory(
+  filters: { after?: string; limit?: number } = {}
+): Promise<ChoreAutomationReadResult<ChorePointHistoryPage>> {
+  return loadAutomationResource<ChorePointHistoryPage>(
+    endpointWithQuery(CHORE_WORKSPACE_ENDPOINTS.points, filters)
+  );
 }
 
 export async function loadChoreBackup(): Promise<
@@ -914,8 +925,16 @@ export async function sendChoreWorkspaceCommand(
       },
       body: JSON.stringify(request),
     });
-    const document = response.ok ? await parseDocument(response) : null;
-    const error = response.ok ? null : await parseError(response);
+    const conflict: { error?: unknown } | null =
+      response.status === 412 ? await response.json().catch(() => null) : null;
+    const document = response.ok ? await parseDocument(response) : parsePanelDocument(conflict);
+    const error = response.ok
+      ? null
+      : response.status === 412
+        ? typeof conflict?.error === 'string' && conflict.error.trim()
+          ? conflict.error
+          : null
+        : await parseError(response);
     return {
       saved: response.ok && document !== null,
       unauthorized: response.status === 401,

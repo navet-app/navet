@@ -1,3 +1,4 @@
+import type { ChorePointTransaction } from '@navet/core/chore-experience';
 import type { ChoreInterchangeDocument } from '@navet/core/chore-interchange';
 import type {
   ChoreActivity,
@@ -16,6 +17,7 @@ export const CHORE_WORKSPACE_ENDPOINTS = {
   occurrences: '/__navet_chores__/occurrences',
   events: '/__navet_chores__/events',
   history: '/__navet_chores__/history',
+  points: '/__navet_chores__/points',
   backup: '/__navet_chores__/backup',
   restore: '/__navet_chores__/restore',
   reset: '/__navet_chores__/reset',
@@ -134,4 +136,12 @@ interface ChoreWorkspaceCommandRequestBase {
 
 export interface ChoreWorkspaceCommandRequest extends ChoreWorkspaceCommandRequestBase {
   action: ChoreWorkspaceAction;
+}
+
+export interface ChorePointHistoryPage {
+  contractVersion: 1;
+  revision: number;
+  cursor: string;
+  hasMore: boolean;
+  points: ChorePointTransaction[];
 }

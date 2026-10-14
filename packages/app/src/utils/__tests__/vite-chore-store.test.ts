@@ -452,6 +452,44 @@ describe('Vite chore workspace store', () => {
     });
   });
 
+  it('serializes concurrent additive actions without lost updates or client retries', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chore-concurrency-'));
+    tempDirs.push(directory);
+    const handler = createViteChoreStoreRequestHandler({
+      filePath: join(directory, 'chores.json'),
+      resolvePrincipal: () => PRINCIPAL,
+    });
+    const manager = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': '0' },
+        participantActionBody('manager', 0)
+      ),
+      manager.response
+    );
+    const responses = [createResponse(), createResponse()];
+    await Promise.all(
+      responses.map((response, index) =>
+        handler(
+          createRequest(
+            'POST',
+            '/commands',
+            { 'x-navet-base-revision': '1' },
+            pointAdjustmentActionBody('parallel:' + index, 1)
+          ),
+          response.response
+        )
+      )
+    );
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    const latest = createResponse();
+    await handler(createRequest('GET', '/workspace'), latest.response);
+    expect(JSON.parse(latest.body).data.experience.earnedPointsByParticipant.maya).toBe(-24);
+    expect(JSON.parse(latest.body).data.experience.pointTransactions).toHaveLength(2);
+  });
+
   it('upgrades a nearly full inline ledger and keeps its complete history through restart and backup', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'navet-chore-store-'));
     tempDirs.push(directory);
@@ -484,19 +522,23 @@ describe('Vite chore workspace store', () => {
       item.id += 'x'.repeat(Math.floor(spare / 6000) + (index < spare % 6000 ? 1 : 0));
     });
     writeFileSync(filePath, JSON.stringify(document));
+    // Rewrite: the migration changes the public projection once, preserving the full export.
+    const working = createResponse();
+    await handler(createRequest('GET', '/workspace'), working.response);
+    const workingRevision = JSON.parse(working.body).revision;
     const adjusted = createResponse();
     await handler(
       createRequest(
         'POST',
         '/commands',
-        { 'x-navet-base-revision': '1' },
-        pointAdjustmentActionBody('large-adjustment', 1)
+        { 'x-navet-base-revision': String(workingRevision) },
+        pointAdjustmentActionBody('large-adjustment', workingRevision)
       ),
       adjusted.response
     );
     expect(adjusted.status).toBe(200);
     const data = JSON.parse(adjusted.body).data;
-    expect(data.experience.pointTransactions).toHaveLength(6001);
+    expect(data.experience.pointTransactions.length).toBeLessThanOrEqual(128);
     expect(data.experience.earnedPointsByParticipant.maya).toBe(5988);
     expect(Buffer.byteLength(readFileSync(filePath, 'utf8'), 'utf8')).toBeLessThan(maxBytes);
     handler = makeHandler();
@@ -505,18 +547,38 @@ describe('Vite chore workspace store', () => {
     expect(JSON.parse(reloaded.body).data.experience).toEqual(data.experience);
     const backup = createResponse();
     await handler(createRequest('GET', '/backup'), backup.response);
-    expect(JSON.parse(backup.body).workspace.experience.pointTransactions).toEqual(
-      data.experience.pointTransactions
+    expect(JSON.parse(backup.body).workspace.experience.pointTransactions).toHaveLength(6001);
+    const points = createResponse();
+    await handler(createRequest('GET', '/points?after=5990&limit=20'), points.response);
+    expect(JSON.parse(points.body).points).toHaveLength(11);
+    expect(JSON.parse(points.body).hasMore).toBe(false);
+    const revision = JSON.parse(adjusted.body).revision;
+    const partial = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/restore',
+        { 'x-navet-base-revision': String(revision) },
+        JSON.stringify({
+          commandId: 'reject-partial-import',
+          baseRevision: revision,
+          actorParticipantId: 'maya',
+          mode: 'replace',
+          document: { ...JSON.parse(backup.body), workspace: data },
+        })
+      ),
+      partial.response
     );
+    expect(partial.status).toBe(400);
     const restore = createResponse();
     await handler(
       createRequest(
         'POST',
         '/restore',
-        { 'x-navet-base-revision': '2' },
+        { 'x-navet-base-revision': String(revision) },
         JSON.stringify({
           commandId: 'restore-large-ledger',
-          baseRevision: 2,
+          baseRevision: revision,
           actorParticipantId: 'maya',
           mode: 'replace',
           document: JSON.parse(backup.body),

@@ -1,4 +1,9 @@
-import { isPointTransaction, isProgressAward, isProgressTarget } from './chore-progress-policy.ts';
+import {
+  isChorePointProgress,
+  isPointTransaction,
+  isProgressAward,
+  isProgressTarget,
+} from './chore-progress-policy.ts';
 
 export const CHORE_EXPERIENCE_VERSION = 2 as const;
 
@@ -112,10 +117,19 @@ export interface ChoreExperienceState {
   householdBonusPoints?: number;
   awardedMissionIds?: string[];
   rewardRequestsById: Record<string, ChoreRewardRequest>;
+  /** Recent ledger in authority responses; complete records are available through history pages and backups. */
   pointTransactions: ChorePointTransaction[];
+  /** Derived progress from archived transactions; the recent ledger remains inline. */
+  pointProgress?: ChorePointProgress;
   badgesById: Record<string, ChoreProgressTarget>;
   achievementsById: Record<string, ChoreProgressTarget>;
   progressAwards: ChoreProgressAward[];
+}
+
+export interface ChorePointProgress {
+  version: 1;
+  totals: Record<string, Record<string, number>>;
+  occurrences: Record<string, Record<string, Record<string, number>>>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -255,6 +269,7 @@ export function isChoreExperienceState(value: unknown): value is ChoreExperience
     Object.entries(value.rewardRequestsById).every(([id, request]) =>
       isRewardRequest(request, id)
     ) &&
+    (value.pointProgress === undefined || isChorePointProgress(value.pointProgress)) &&
     Array.isArray(value.pointTransactions) &&
     value.pointTransactions.every(isPointTransaction) &&
     new Set(value.pointTransactions.map((item) => item.id)).size ===

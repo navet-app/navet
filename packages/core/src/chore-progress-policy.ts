@@ -1,9 +1,99 @@
 import type {
+  ChorePointProgress,
   ChorePointTransaction,
   ChoreProgressAward,
   ChoreProgressTarget,
 } from './chore-experience.ts';
 import type { ChoreOccurrence } from './chores.ts';
+import { setOwnRecordValue } from './record-safety.ts';
+
+const hasOwn = Object.prototype.hasOwnProperty;
+
+/** Increment a read model only when records move from the recent ledger into history. */
+export function archiveChorePointProgress(
+  previous: ChorePointProgress | undefined,
+  transactions: readonly ChorePointTransaction[],
+  occurrenceIds: readonly string[]
+): ChorePointProgress {
+  const totals = Object.assign(Object.create(null), previous?.totals || {});
+  const occurrences: ChorePointProgress['occurrences'] = Object.create(null);
+  const present: Record<string, boolean> = Object.create(null);
+  for (let index = 0; index < occurrenceIds.length; index++) {
+    const id = occurrenceIds[index];
+    setOwnRecordValue(present, id, true);
+    if (previous && hasOwn.call(previous.occurrences, id))
+      setOwnRecordValue(occurrences, id, previous.occurrences[id]);
+  }
+  function add(
+    groups: ChorePointProgress['totals'],
+    period: string,
+    person: string,
+    delta: number
+  ) {
+    const group = Object.assign(Object.create(null), groups[period] || {});
+    const next = (group[person] || 0) + delta;
+    if (!Number.isSafeInteger(next)) throw new Error('Chore progress points are too large');
+    setOwnRecordValue(group, person, next);
+    setOwnRecordValue(groups, period, group);
+  }
+  for (let index = 0; index < transactions.length; index++) {
+    const transaction = transactions[index];
+    if (transaction.kind !== 'completion' && transaction.kind !== 'reopen') continue;
+    const periods = [
+      'once',
+      'weekly:' + progressCycleKey('weekly', transaction.timestamp),
+      'monthly:' + progressCycleKey('monthly', transaction.timestamp),
+    ];
+    const id = transaction.occurrenceId;
+    const groups =
+      id && present[id] ? Object.assign(Object.create(null), occurrences[id] || {}) : null;
+    for (let period = 0; period < periods.length; period++) {
+      add(totals, periods[period], transaction.participantId, transaction.pointsDelta);
+      if (groups) add(groups, periods[period], transaction.participantId, transaction.pointsDelta);
+    }
+    if (id && groups) setOwnRecordValue(occurrences, id, groups);
+  }
+  return { version: 1, totals, occurrences };
+}
+
+export function isChorePointProgress(value: unknown): value is ChorePointProgress {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    !isRecord(value.totals) ||
+    !isRecord(value.occurrences)
+  )
+    return false;
+  function groupsValid(groups: unknown): boolean {
+    if (!isRecord(groups)) return false;
+    const periods = Object.values(groups);
+    return periods.every(
+      (group) => isRecord(group) && Object.values(group).every(Number.isSafeInteger)
+    );
+  }
+  return groupsValid(value.totals) && Object.values(value.occurrences).every(groupsValid);
+}
+
+export function archivedChoreTargetPoints(
+  summary: ChorePointProgress | undefined,
+  cycle: ChoreProgressTarget['cycle'],
+  participantId: string,
+  occurrenceIds: readonly string[] | null,
+  at: string
+): number {
+  if (!summary) return 0;
+  const period =
+    cycle === 'weekly' || cycle === 'monthly' ? cycle + ':' + progressCycleKey(cycle, at) : 'once';
+  function points(groups: ChorePointProgress['totals'] | undefined): number {
+    const group = groups?.[period];
+    return group && hasOwn.call(group, participantId) ? group[participantId] : 0;
+  }
+  if (!occurrenceIds) return points(summary.totals);
+  let total = 0;
+  for (let index = 0; index < occurrenceIds.length; index++)
+    total += points(summary.occurrences[occurrenceIds[index]]);
+  return total;
+}
 
 export function progressCycleKey(cycle: ChoreProgressTarget['cycle'], at: string): string {
   if (cycle === 'monthly') return at.slice(0, 7);
@@ -29,7 +119,8 @@ export function choreTargetProgress(
   participantId: string,
   occurrences: readonly ChoreOccurrence[],
   transactions: readonly ChorePointTransaction[],
-  at: string
+  at: string,
+  pointProgress?: ChorePointProgress
 ): number {
   const cycleKey = progressCycleKey(target.cycle, at);
   const relevant = occurrences.filter(
@@ -44,16 +135,23 @@ export function choreTargetProgress(
   if (target.metric === 'points') {
     return Math.max(
       0,
-      transactions
-        .filter(
-          (item) =>
-            item.participantId === participantId &&
-            (item.kind === 'completion' || item.kind === 'reopen') &&
-            inCycle(target.cycle, item.timestamp, cycleKey) &&
-            (!target.definitionIds?.length ||
-              relevant.some((occurrence) => occurrence.id === item.occurrenceId))
-        )
-        .reduce((sum, item) => sum + item.pointsDelta, 0)
+      archivedChoreTargetPoints(
+        pointProgress,
+        target.cycle,
+        participantId,
+        target.definitionIds?.length ? relevant.map((item) => item.id) : null,
+        at
+      ) +
+        transactions
+          .filter(
+            (item) =>
+              item.participantId === participantId &&
+              (item.kind === 'completion' || item.kind === 'reopen') &&
+              inCycle(target.cycle, item.timestamp, cycleKey) &&
+              (!target.definitionIds?.length ||
+                relevant.some((occurrence) => occurrence.id === item.occurrenceId))
+          )
+          .reduce((sum, item) => sum + item.pointsDelta, 0)
     );
   }
   if (target.metric === 'days') {
@@ -91,6 +189,7 @@ export function earnChoreProgressAwards(input: {
   occurrences: readonly ChoreOccurrence[];
   transactions: readonly ChorePointTransaction[];
   existingAwards: readonly ChoreProgressAward[];
+  pointProgress?: ChorePointProgress;
   at: string;
 }): { awards: ChoreProgressAward[]; transactions: ChorePointTransaction[] } {
   const awards: ChoreProgressAward[] = [];
@@ -118,7 +217,8 @@ export function earnChoreProgressAwards(input: {
           participantId,
           input.occurrences,
           input.transactions,
-          input.at
+          input.at,
+          input.pointProgress
         ) < target.target
       )
         continue;

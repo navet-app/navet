@@ -608,6 +608,87 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             decoded = await restarted._decode_storage(_Store.values[key])
             self.assertEqual(decoded["data"]["definitionsById"], original["definitionsById"])
 
+    def test_archived_points_preserve_progress_for_all_cycles(self):
+        records = [{"id": "old-complete", "participantId": "manager", "occurrenceId": "task", "kind": "completion", "pointsDelta": 10, "timestamp": "2026-09-28T10:00:00.000Z"},
+            {"id": "old-reopen", "participantId": "manager", "occurrenceId": "task", "kind": "reopen", "pointsDelta": -3, "timestamp": "2026-09-29T10:00:00.000Z"},
+            {"id": "adjust", "participantId": "manager", "kind": "adjustment", "pointsDelta": 1000, "timestamp": "2026-09-29T10:00:00.000Z"}]
+        data = chores._empty_data()
+        data["occurrencesById"] = {"task": {"id": "task", "definitionId": "dishes", "status": "done", "completedBy": "manager", "completedAt": "2026-09-28T10:00:00.000Z", "scheduledAt": "2026-09-28T10:00:00.000Z"}}
+        data["experience"]["pointTransactions"] = records
+        for cycle in ("once", "weekly", "monthly"):
+            for selected in ([], ["dishes"]):
+                target = {"metric": "points", "cycle": cycle, "definitionIds": selected}
+                at = "2026-09-30T10:00:00.000Z"
+                expected = chores._progress_value(target, "manager", data, at)
+                projected = copy.deepcopy(data)
+                projected["experience"]["pointTransactions"] = records[1:]
+                projected["experience"]["pointProgress"] = chores._archive_point_progress(None, records[:1], {"task"})
+                self.assertEqual(chores._progress_value(target, "manager", projected, at), expected)
+                self.assertEqual(expected, 7)
+
+    async def test_retries_a_committed_point_change_after_journal_failure_without_double_credit(self):
+        await self._create_manager()
+        request = {"commandId": "journal-interruption", "baseRevision": self.authority.revision,
+            "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}
+        original_save = _Store.async_save
+        async def fail_journal(store, value):
+            if store.key == chores.JOURNAL_KEY:
+                raise OSError("Interrupted journal write")
+            await original_save(store, value)
+        _Store.async_save = fail_journal
+        try:
+            with self.assertRaises(chores.ChoreStorageError):
+                await self.authority.async_command(request, "ha-user-1")
+        finally:
+            _Store.async_save = original_save
+        retried = await self.authority.async_command(request, "ha-user-1")
+        self.assertEqual(retried["data"]["experience"]["earnedPointsByParticipant"]["manager"], 10)
+        self.assertEqual(len(retried["data"]["experience"]["pointTransactions"]), 1)
+
+    async def test_concurrent_additive_intents_rebase_but_future_revisions_do_not(self):
+        await self._create_manager()
+        revision = self.authority.revision
+        async def adjust(command_id):
+            return await self.authority.async_command({"commandId": command_id, "baseRevision": revision,
+                "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}, "ha-user-1")
+        await asyncio.gather(adjust("first-concurrent"), adjust("second-concurrent"))
+        self.assertEqual(self.authority.data["experience"]["earnedPointsByParticipant"]["manager"], 20)
+        self.assertEqual(len(self.authority.data["experience"]["pointTransactions"]), 2)
+        for invalid_revision in (-1, self.authority.revision + 1):
+            with self.assertRaises(chores.ChoreConflictError):
+                await self.authority.async_command({"commandId": "future-revision", "baseRevision": invalid_revision,
+                    "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}, "ha-user-1")
+        self.assertEqual(self.authority.data["experience"]["earnedPointsByParticipant"]["manager"], 20)
+
+    async def test_backup_pins_its_accounting_snapshot_during_a_concurrent_write(self):
+        await self._create_manager()
+        previous = copy.deepcopy(self.authority._document)
+        data = copy.deepcopy(self.authority.data)
+        data["experience"]["earnedPointsByParticipant"] = {"manager": 300}
+        data["experience"]["pointTransactions"] = [{"id": f"ledger:{index}", "participantId": "manager", "pointsDelta": 1,
+            "kind": "adjustment", "timestamp": "2026-09-30T08:00:00.000Z"} for index in range(300)]
+        await self.authority._save({**previous, "revision": previous["revision"] + 1, "data": data}, previous)
+        started, release = asyncio.Event(), asyncio.Event()
+        original_rows = self.authority._point_rows
+        async def delayed_rows(page):
+            started.set()
+            await release.wait()
+            return await original_rows(page)
+        with patch.object(self.authority, "_point_rows", side_effect=delayed_rows):
+            exporting = asyncio.create_task(self.authority.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1"))
+            await started.wait()
+            writing = asyncio.create_task(self.authority.async_command({"commandId": "during-export", "baseRevision": self.authority.revision,
+                "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 1}}, "ha-user-1"))
+            try:
+                await asyncio.sleep(0)
+                self.assertFalse(writing.done())
+            finally:
+                release.set()
+            exported, saved = await asyncio.gather(exporting, writing)
+        self.assertEqual(exported["workspace"]["experience"]["pointTransactions"], data["experience"]["pointTransactions"])
+        self.assertEqual(exported["workspace"]["experience"]["earnedPointsByParticipant"]["manager"], 300)
+        self.assertEqual(saved["data"]["experience"]["earnedPointsByParticipant"]["manager"], 301)
+
     async def test_large_ledger_survives_restart_and_chunk_failure(self):
         await self._create_manager()
         data = copy.deepcopy(self.authority.data)
@@ -621,11 +702,20 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(len(json.dumps(_Store.values[chores.WORKSPACE_KEY]).encode()), chores.MAX_WORKSPACE_BYTES)
         restarted = chores.ChoreAuthority(self.hass)
         await restarted.async_initialize()
-        self.assertEqual(restarted.data["experience"], data["experience"])
-        result = await restarted.async_command({"commandId": "large-adjust", "baseRevision": restarted.revision,
+        self.assertLessEqual(len(restarted.data["experience"]["pointTransactions"]), 128)
+        exported = await restarted.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+        self.assertEqual(exported["workspace"]["experience"], data["experience"])
+        with self.assertRaises(chores.ChoreAuthorityError):
+            await restarted.async_restore({"commandId": "partial-import", "baseRevision": restarted.revision, "actorParticipantId": "manager", "mode": "replace",
+                "document": {"contract": "navet.chores", "version": 1, "exportedAt": "2026-09-30T08:00:00.000Z", "workspace": copy.deepcopy(restarted.data), "events": []}}, "ha-user-1")
+        result = await restarted.async_command({"commandId": "large-adjust:" + "x" * 170, "baseRevision": restarted.revision,
             "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}, "ha-user-1")
         self.assertEqual(result["data"]["experience"]["earnedPointsByParticipant"]["manager"], 12010)
-        self.assertEqual(len(result["data"]["experience"]["pointTransactions"]), 12001)
+        self.assertLessEqual(len(result["data"]["experience"]["pointTransactions"]), 128)
+        page = await restarted.async_handle_ws({"type": "navet/chores/points/get", "after": 11990, "limit": 20}, "ha-user-1")
+        self.assertEqual(len(page["points"]), 11)
+        self.assertEqual(page["points"][-1]["pointsDelta"], 10)
+        self.assertFalse(page["hasMore"])
         original_save = _Store.async_save
         async def fail_chunk(store, value):
             if ".chunk." in store.key:
@@ -634,19 +724,20 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         _Store.async_save = fail_chunk
         try:
             with self.assertRaises(chores.ChoreStorageError):
-                await restarted.async_command({"commandId": "failed-adjust", "baseRevision": restarted.revision,
+                await restarted.async_command({"commandId": "failed-adjust:" + "x" * 170, "baseRevision": restarted.revision,
                     "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}, "ha-user-1")
         finally:
             _Store.async_save = original_save
         recovered = chores.ChoreAuthority(self.hass)
         await recovered.async_initialize()
         self.assertEqual(recovered.data["experience"], result["data"]["experience"])
-        stored = _Store.values[chores.WORKSPACE_KEY]
-        broken_key = stored["durableCollections"]["pointTransactions"][-1]
+        stored = chores._unpack_storage(_Store.values[chores.WORKSPACE_KEY])
+        broken_key = stored["pointHistory"]["pages"][-1]["key"]
         _Store.values[f"{chores.WORKSPACE_KEY}.chunk.{broken_key}"] = {"invalid": True}
         backup = chores.ChoreAuthority(self.hass)
         await backup.async_initialize()
-        self.assertEqual(backup.data["experience"], data["experience"])
+        exported = await backup.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+        self.assertEqual(exported["workspace"]["experience"], data["experience"])
 
     async def test_shared_occurrence_transition_conformance_vectors(self):
         path = pathlib.Path(__file__).parents[3] / "packages/core/src/chore-conformance-vectors.json"

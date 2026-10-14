@@ -313,6 +313,8 @@ def _normalize_data(value: Any) -> dict[str, Any]:
                 "timestamp": "1970-01-01T00:00:00.000Z"} for participant_id, points in balances.items()]}
     elif experience.get("version") != 2:
         raise ChoreStorageError("Chore experience data is invalid")
+    if "pointProgress" in data["experience"] and not _valid_point_progress(data["experience"]["pointProgress"]):
+        raise ChoreStorageError("Chore experience data is invalid")
     retention = data["historyRetention"]
     if (
         not isinstance(retention, Mapping)
@@ -1295,6 +1297,52 @@ def _progress_cycle_key(cycle: str | None, at: str) -> str:
     return "once"
 
 
+def _split_recent_points(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    start, size = len(records), 2
+    while start > 0 and len(records) - start < 128:
+        item_size = _storage_size(records[start - 1]) + 1
+        if size + item_size > 32 * 1024:
+            break
+        size += item_size
+        start -= 1
+    return records[:start], records[start:]
+
+
+def _valid_point_progress(value: Any) -> bool:
+    def groups_valid(groups: Any) -> bool:
+        return isinstance(groups, Mapping) and all(isinstance(group, Mapping)
+            and all(type(number) is int and abs(number) <= 9007199254740991 for number in group.values()) for group in groups.values())
+    return (isinstance(value, Mapping) and value.get("version") == 1 and groups_valid(value.get("totals"))
+        and isinstance(value.get("occurrences"), Mapping) and all(groups_valid(groups) for groups in value["occurrences"].values()))
+
+
+def _archive_point_progress(previous: Mapping[str, Any] | None, records: list[dict[str, Any]], occurrence_ids: set[str]) -> dict[str, Any]:
+    summary = copy.deepcopy(previous or {"version": 1, "totals": {}, "occurrences": {}})
+    summary["occurrences"] = {key: value for key, value in summary["occurrences"].items() if key in occurrence_ids}
+    for item in records:
+        if item.get("kind") not in {"completion", "reopen"}:
+            continue
+        groups = [summary["totals"]]
+        if item.get("occurrenceId") in occurrence_ids:
+            groups.append(summary["occurrences"].setdefault(item["occurrenceId"], {}))
+        for group in groups:
+            for period in ("once", "weekly:" + _progress_cycle_key("weekly", item["timestamp"]), "monthly:" + _progress_cycle_key("monthly", item["timestamp"])):
+                values = group.setdefault(period, {})
+                person = item["participantId"]
+                values[person] = values.get(person, 0) + item["pointsDelta"]
+    return summary
+
+
+def _archived_point_progress(summary: Mapping[str, Any] | None, target: Mapping[str, Any], participant_id: str, occurrence_ids: set[str], at: str) -> int:
+    if not summary:
+        return 0
+    cycle = target.get("cycle")
+    period = f"{cycle}:{_progress_cycle_key(cycle, at)}" if cycle in {"weekly", "monthly"} else "once"
+    if not target.get("definitionIds"):
+        return summary["totals"].get(period, {}).get(participant_id, 0)
+    return sum(summary["occurrences"].get(key, {}).get(period, {}).get(participant_id, 0) for key in occurrence_ids)
+
+
 def _progress_value(target: Mapping[str, Any], participant_id: str, data: Mapping[str, Any], at: str) -> int:
     cycle = target.get("cycle")
     cycle_key = _progress_cycle_key(cycle, at)
@@ -1308,7 +1356,7 @@ def _progress_value(target: Mapping[str, Any], participant_id: str, data: Mappin
         return len(completed)
     if metric == "points":
         relevant_ids = {item.get("id") for item in relevant}
-        return max(0, sum(item.get("pointsDelta", 0) for item in data["experience"].get("pointTransactions", [])
+        return max(0, _archived_point_progress(data["experience"].get("pointProgress"), target, participant_id, relevant_ids, at) + sum(item.get("pointsDelta", 0) for item in data["experience"].get("pointTransactions", [])
             if item.get("participantId") == participant_id and item.get("kind") in {"completion", "reopen"}
             and _progress_cycle_key(cycle, item["timestamp"]) == cycle_key
             and (not selected or item.get("occurrenceId") in relevant_ids)))
@@ -1656,6 +1704,80 @@ class ChoreAuthority:
             raise ChoreStorageError("Chore workspace manifest is too large")
         return _pack_storage(manifest), prepared_chunks
 
+    async def _point_rows(self, page: Mapping[str, Any]) -> list[dict[str, Any]]:
+        try:
+            chunk = await self.hass.async_add_executor_job(_unpack_storage, await self._chunk_store(page["key"]).async_load(), MAX_WORKSPACE_BYTES)
+            if (not isinstance(chunk, Mapping) or chunk.get("version") != 1 or chunk.get("collection") != "pointHistory"
+                or not isinstance(chunk.get("items"), list) or len(chunk["items"]) != page["count"]
+                or await self.hass.async_add_executor_job(self._chunk_hash, chunk) != page["key"]):
+                raise ChoreStorageError("Chore point history is missing or corrupt")
+            return chunk["items"]
+        except Exception as err:  # noqa: BLE001
+            raise ChoreStorageError("Chore point history is missing or corrupt") from err
+
+    async def _point_page(self, document: Mapping[str, Any], after: int, limit: int) -> list[dict[str, Any]]:
+        records = []
+        skipped = 0
+        history = document.get("pointHistory") or {"pages": [], "count": 0}
+        for page in history["pages"]:
+            if len(records) >= limit:
+                break
+            if skipped + page["count"] > after:
+                rows = await self._point_rows(page)
+                start = max(0, after - skipped)
+                records.extend(rows[start:start + limit - len(records)])
+            skipped += page["count"]
+        start = max(0, after - history["count"])
+        records.extend(document["data"]["experience"]["pointTransactions"][start:start + limit - len(records)])
+        return records
+
+    async def _full_point_data(self) -> dict[str, Any]:
+        """Hydrate an explicit export/import while the caller holds the authority lock."""
+        data = copy.deepcopy(self.data)
+        if self._document and self._document.get("pointHistory"):
+            total = self._document["pointHistory"]["count"] + len(data["experience"]["pointTransactions"])
+            data["experience"]["pointTransactions"] = await self._point_page(self._document, 0, total)
+            data["experience"].pop("pointProgress", None)
+        return data
+
+    def _prepare_point_pages(self, records: list[dict[str, Any]]) -> list[tuple[str, Any, int]]:
+        pages: list[tuple[str, Any, int]] = []
+        rows: list[dict[str, Any]] = []
+        size = 128
+        def flush() -> None:
+            nonlocal rows, size
+            if rows:
+                chunk = {"version": 1, "collection": "pointHistory", "items": rows}
+                pages.append((self._chunk_hash(chunk), _pack_storage(chunk), len(rows)))
+                rows, size = [], 128
+        for item in records:
+            item_size = _storage_size(item) + 1
+            if item_size > MAX_WORKSPACE_BYTES - 128:
+                raise ChoreStorageError("Chore durable record is too large")
+            if size + item_size > 256 * 1024:
+                flush()
+            rows.append(item)
+            size += item_size
+        flush()
+        return pages
+
+    async def _archive_points(self, document: dict[str, Any]) -> None:
+        experience = document["data"]["experience"]
+        archived, recent = await self.hass.async_add_executor_job(_split_recent_points, experience["pointTransactions"])
+        if not archived:
+            return
+        history = document.get("pointHistory") or {"version": 1, "count": 0, "pages": []}
+        pages = list(history["pages"])
+        tail = pages.pop() if pages else None
+        rows = (await self._point_rows(tail) if tail else []) + archived
+        prepared = await self.hass.async_add_executor_job(self._prepare_point_pages, rows)
+        for key, stored, count in prepared:
+            await self._chunk_store(key).async_save(stored)
+            pages.append({"key": key, "count": count, "identity": None})
+        summary = await self.hass.async_add_executor_job(_archive_point_progress, experience.get("pointProgress"), archived, set(document["data"]["occurrencesById"]))
+        document["pointHistory"] = {"version": 1, "count": history["count"] + len(archived), "pages": pages}
+        document["data"] = {**document["data"], "experience": {**experience, "pointTransactions": recent, "pointProgress": summary}}
+
     async def _encode_storage(self, document: dict[str, Any]) -> dict[str, Any]:
         """Compute storage framing off-loop; keep HA Store calls on the event loop."""
         stored, chunks = await self.hass.async_add_executor_job(self._prepare_storage, document)
@@ -1666,6 +1788,17 @@ class ChoreAuthority:
     async def _decode_storage(self, document: Any) -> Any:
         """Hydrate and verify all referenced records before accepting a revision."""
         document = await self.hass.async_add_executor_job(_unpack_storage, document, MAX_WORKSPACE_BYTES)
+        if isinstance(document, Mapping) and "pointHistory" in document:
+            history = document["pointHistory"]
+            if (not isinstance(history, Mapping) or history.get("version") != 1 or not isinstance(history.get("pages"), list)
+                or type(history.get("count")) is not int or history["count"] < 0
+                or any(not isinstance(page, Mapping) or not isinstance(page.get("key"), str)
+                    or len(page["key"]) != 64 or any(char not in "0123456789abcdef" for char in page["key"])
+                    or type(page.get("count")) is not int or page["count"] < 1 for page in history["pages"])
+                or sum(page["count"] for page in history["pages"]) != history["count"]):
+                raise ChoreStorageError("Chore point history manifest is invalid")
+            for page in history["pages"]:
+                await self._point_rows(page)
         if not isinstance(document, Mapping) or "durableCollections" not in document:
             return document
         if not isinstance(document.get("data"), Mapping) or not isinstance(document["data"].get("experience"), Mapping):
@@ -1776,6 +1909,7 @@ class ChoreAuthority:
                 "updatedAt": str(primary.get("updatedAt", _iso(_now()))),
                 "data": data,
                 "storageMaintenanceVersion": primary.get("storageMaintenanceVersion") if isinstance(primary, Mapping) else None,
+                **({"pointHistory": primary["pointHistory"]} if isinstance(primary, Mapping) and "pointHistory" in primary else {}),
             }
             history_needs_repair = False
             decoded_history = None
@@ -1792,13 +1926,13 @@ class ChoreAuthority:
             self._loaded = True
             history_needs_compaction = isinstance(decoded_history, Mapping) and "eventCursors" not in decoded_history
             if run_initial_tick and (self._document.get("storageMaintenanceVersion") != 2
-                or history_needs_repair or history_needs_compaction):
+                or history_needs_repair or history_needs_compaction or _split_recent_points(data["experience"]["pointTransactions"])[0]):
                 previous = copy.deepcopy(self._document)
                 timestamp = _iso(_now())
                 repaired = await self.hass.async_add_executor_job(_compact_workspace,
                     _repair_legacy_repeats(data, timestamp)
                     if self._document.get("storageMaintenanceVersion") not in (1, 2) else data)
-                changed = repaired != data
+                changed = repaired != data or bool(_split_recent_points(repaired["experience"]["pointTransactions"])[0])
                 next_document = {**self._document, "storageMaintenanceVersion": 2,
                     "revision": self.revision + (1 if changed else 0),
                     "updatedAt": timestamp if changed else self._document["updatedAt"], "data": repaired}
@@ -1931,27 +2065,39 @@ class ChoreAuthority:
     async def _collect_unreferenced_chunks(self, payloads: Mapping[str, Any]) -> None:
         """Collect only after both manifests are committed under the authority lock."""
         try:
-            retained: set[str] = set()
-            for name in ("primary", "last_good"):
-                stored = await self.hass.async_add_executor_job(_unpack_storage, payloads[name], MAX_WORKSPACE_BYTES)
-                references = stored.get("durableCollections", {})
-                for collection, keys in references.items():
-                    if collection != "version":
-                        retained.update(keys)
             directory = Path(self.hass.config.path(".storage"))
             prefix = f"{WORKSPACE_KEY}.chunk."
             def candidates() -> list[str]:
                 if not directory.exists():
                     return []
                 return [entry.name[len(prefix):] for entry in directory.iterdir() if entry.name.startswith(prefix)]
-            for key in await self.hass.async_add_executor_job(candidates):
+            keys = await self.hass.async_add_executor_job(candidates)
+            if not keys:
+                return
+            retained: set[str] = set()
+            for name in ("primary", "last_good"):
+                stored = await self.hass.async_add_executor_job(_unpack_storage, payloads[name], MAX_WORKSPACE_BYTES)
+                history = stored.get("pointHistory", {})
+                retained.update(page["key"] for page in history.get("pages", []))
+                references = stored.get("durableCollections", {})
+                for collection, keys in references.items():
+                    if collection != "version":
+                        retained.update(keys)
+            for key in keys:
                 if len(key) == 64 and all(char in "0123456789abcdef" for char in key) and key not in retained:
                     await self._chunk_store(key).async_remove()
         except Exception:  # noqa: BLE001
             # Cleanup must not invalidate a committed write; retry after the next save.
             return
 
-    async def _save(self, next_document: dict[str, Any], previous: dict[str, Any], *, storage_maintenance: bool = False, notify: bool = True) -> None:
+    async def _save(self, next_document: dict[str, Any], previous: dict[str, Any], *, storage_maintenance: bool = False, notify: bool = True, replace_point_history: bool = False) -> None:
+        if not replace_point_history and previous.get("pointHistory") and "pointHistory" not in next_document:
+            next_document["pointHistory"] = previous["pointHistory"]
+        try:
+            await self._archive_points(next_document)
+        except Exception as err:  # noqa: BLE001
+            self._loaded = False
+            raise ChoreStorageError("Chore storage could not finish the request") from err
         next_document["storageMaintenanceVersion"] = 2
         next_document["data"] = await self.hass.async_add_executor_job(_compact_workspace, next_document["data"])
         previous = {**previous, "data": await self.hass.async_add_executor_job(_compact_workspace, previous["data"])}
@@ -1976,6 +2122,7 @@ class ChoreAuthority:
                 "journal": {"contractVersion": CONTRACT_VERSION, "commands": self._journal[-MAX_JOURNAL_ITEMS:]},
             }
         except Exception as err:  # noqa: BLE001
+            self._loaded = False
             raise ChoreStorageError("Chore storage could not finish the request") from err
         limits = {
             "primary": MAX_WORKSPACE_BYTES,
@@ -1985,6 +2132,7 @@ class ChoreAuthority:
         }
         for key, payload in payloads.items():
             if await self.hass.async_add_executor_job(_storage_size, payload) > limits[key]:
+                self._loaded = False
                 raise ChoreStorageError("Chore workspace is too large")
         try:
             await self._stores["last_good"].async_save(payloads["last_good"])
@@ -1998,6 +2146,7 @@ class ChoreAuthority:
                 await self._stores["history"].async_save(payloads["history"])
                 await self._stores["journal"].async_save(payloads["journal"])
         except Exception as err:  # noqa: BLE001
+            self._loaded = False
             raise ChoreStorageError("Chore storage could not finish the request") from err
         await self._collect_unreferenced_chunks(payloads)
         self._document = next_document
@@ -2039,7 +2188,7 @@ class ChoreAuthority:
         next_document = {"contractVersion": CONTRACT_VERSION, "revision": self.revision + 1, "updatedAt": timestamp, "data": data}
         if command_id:
             self._journal.append({"commandId": command_id, "revision": next_document["revision"], "timestamp": timestamp})
-        await self._save(next_document, previous)
+        await self._save(next_document, previous, replace_point_history=any(item["type"] == "workspace_imported" for item in activities))
         for item in stale_delivered:
             target = str(item.get("destinationTarget", "")).removeprefix("notify.")
             if not target.startswith("mobile_app_"):
@@ -2084,9 +2233,12 @@ class ChoreAuthority:
             if any(item.get("commandId") == command_id for item in self._journal) or any(item.get("commandId") == command_id for item in self.data.get("activity", [])):
                 return self._public_document()
             base_revision = request.get("baseRevision")
-            if not isinstance(base_revision, int) or base_revision != self.revision:
-                raise ChoreConflictError("Chore workspace changed on another client")
             action = request.get("action")
+            rebasable = isinstance(action, Mapping) and action.get("type") in {
+                "occurrence_action", "experience_points_adjust", "reward_request", "reward_decision", "reminder_acknowledge"}
+            if (type(base_revision) is not int or base_revision != self.revision
+                and not (0 <= base_revision < self.revision and rebasable)):
+                raise ChoreConflictError("Chore workspace changed on another client")
             if not isinstance(action, Mapping):
                 raise ChoreAuthorityError("Chore command is invalid")
             if self._security and self._requires_management(action) and not trusted_service and not self._session_valid(str(request.get("managementSessionToken", "")), user_id):
@@ -2269,7 +2421,7 @@ class ChoreAuthority:
             if not isinstance(updated, Mapping) or updated.get("version") != 2:
                 raise ChoreAuthorityError("Chore experience data is invalid")
             _validate_progress_targets(updated)
-            for key in ("rewardRequestsById", "pointTransactions", "progressAwards", "earnedPointsByParticipant"):
+            for key in ("rewardRequestsById", "pointTransactions", "pointProgress", "progressAwards", "earnedPointsByParticipant"):
                 if updated.get(key) != current.get(key):
                     raise ChoreAuthorityError("Reward and point history can only change through household actions")
             data["experience"] = dict(updated)
@@ -2495,6 +2647,8 @@ class ChoreAuthority:
             if request["baseRevision"] != self.revision:
                 raise ChoreConflictError("Chore workspace changed on another client")
             imported = _normalize_data(document["workspace"])
+            if "pointProgress" in imported.get("experience", {}):
+                raise ChoreAuthorityError("Chore backup is invalid")
             actor_id = str(request.get("actorParticipantId", ""))
             if self.data["participantsById"]:
                 _require_manager(self.data, actor_id)
@@ -2510,7 +2664,7 @@ class ChoreAuthority:
                 self._history_metadata = {}
             else:
                 data, merged_events = _merge_imported_workspace(
-                    self.data,
+                    await self._full_point_data(),
                     self._history,
                     imported,
                     list(document.get("events", [])),
@@ -2817,13 +2971,30 @@ class ChoreAuthority:
             if message.get("to"):
                 occurrences = [item for item in occurrences if _parse_iso(item["scheduledAt"]) <= _parse_iso(str(message["to"]))]
             return {"contractVersion": CONTRACT_VERSION, "revision": self.revision, "occurrences": sorted(occurrences, key=lambda item: item.get("scheduledAt", ""))[:5000]}
+        if message_type == "navet/chores/points/get":
+            await self.async_initialize()
+            self._raise_if_recovery_required()
+            after, limit = message.get("after", 0), message.get("limit", 100)
+            if isinstance(after, str) and after.isdecimal():
+                after = int(after)
+            if isinstance(limit, str) and limit.isdecimal():
+                limit = int(limit)
+            if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= 500:
+                raise ChoreAuthorityError("Chore event cursor is invalid")
+            async with self._lock:
+                document = self._document or {"data": _empty_data()}
+                points = await self._point_page(document, after, limit)
+                total = document.get("pointHistory", {}).get("count", 0) + len(self.data["experience"]["pointTransactions"])
+                return {"contractVersion": 1, "revision": self.revision, "cursor": str(after + len(points)), "hasMore": after + len(points) < total, "points": points}
         if message_type == "navet/chores/history/get":
             return {"contractVersion": CONTRACT_VERSION, "events": list(self._history)}
         if message_type == "navet/chores/events/get":
             return _history_page({**self._history_metadata, "events": self._history}, message)
         if message_type == "navet/chores/backup/get":
             await self.async_initialize()
-            return {"contract": "navet.chores", "version": 1, "exportedAt": _iso(_now()), "workspace": self.data, "events": self._history}
+            self._raise_if_recovery_required()
+            async with self._lock:
+                return {"contract": "navet.chores", "version": 1, "exportedAt": _iso(_now()), "workspace": await self._full_point_data(), "events": copy.deepcopy(self._history)}
         if message_type == "navet/chores/restore":
             return await self.async_restore(message, user_id)
         if message_type == "navet/chores/reset":
@@ -2939,6 +3110,7 @@ def register_chore_websocket_commands(hass: HomeAssistant) -> None:
         "navet/chores/occurrences/get",
         "navet/chores/events/get",
         "navet/chores/history/get",
+        "navet/chores/points/get",
         "navet/chores/backup/get",
         "navet/chores/restore",
         "navet/chores/reset",

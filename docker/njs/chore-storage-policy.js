@@ -5,6 +5,10 @@ const hasOwn = Object.prototype.hasOwnProperty;
 function isChoreBookkeeping(type) {
 	return type === "workspace_materialized" || type === "outbox_delivery_updated";
 }
+/** Intent commands validate current domain state; replacement edits still need compare-and-swap. */
+function canRebaseChoreAction(type) {
+	return type === "occurrence_action" || type === "experience_points_adjust" || type === "reward_request" || type === "reward_decision" || type === "reminder_acknowledge";
+}
 /** Earliest future boundary after a settled scheduler pass; no durable timer records. */
 function getChoreSchedulerDeadline(data, timestamp) {
 	const now = Date.parse(timestamp);
@@ -168,4 +172,4 @@ function readChoreHistoryPage(history, after, limit, types, occurrenceId, defini
 	};
 }
 
-export default { isChoreBookkeeping, getChoreSchedulerDeadline, compactChoreActivity, compactChoreOutbox, compactChoreWorkspace, isChoreMaterializationUnchanged, compactChoreHistory, readChoreHistoryPage };
+export default { isChoreBookkeeping, canRebaseChoreAction, getChoreSchedulerDeadline, compactChoreActivity, compactChoreOutbox, compactChoreWorkspace, isChoreMaterializationUnchanged, compactChoreHistory, readChoreHistoryPage };

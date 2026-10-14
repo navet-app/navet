@@ -17,6 +17,38 @@ import {
 import { create } from 'zustand';
 import { createChoreCommandId } from './chore-workspace-model';
 
+function replacementIsUnchanged(
+  action: ChoreWorkspaceAction,
+  before: ChoreWorkspaceData,
+  after: ChoreWorkspaceData
+): boolean {
+  const equal = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+  if (action.type === 'definition_update' || action.type === 'definition_create')
+    return equal(
+      before.definitionsById[action.definition.id],
+      after.definitionsById[action.definition.id]
+    );
+  if (
+    action.type === 'definition_archive' ||
+    action.type === 'definition_restore' ||
+    action.type === 'definition_delete'
+  )
+    return equal(
+      before.definitionsById[action.definitionId],
+      after.definitionsById[action.definitionId]
+    );
+  if (action.type === 'participant_update' || action.type === 'participant_create')
+    return equal(
+      before.participantsById[action.participant.id],
+      after.participantsById[action.participant.id]
+    );
+  if (action.type === 'experience_update') return equal(before.experience, after.experience);
+  if (action.type === 'retention_update')
+    return equal(before.historyRetention, after.historyRetention);
+  if (action.type === 'vacation_reschedule') return false;
+  return true;
+}
+
 export type ChoreWorkspaceStatus =
   | 'idle'
   | 'loading'
@@ -140,6 +172,8 @@ export const useChoreWorkspaceStore = create<ChoreWorkspaceState>((set, get) => 
   execute: async (action) => {
     const run = async () => {
       const commandId = createChoreCommandId();
+      const initialData = get().data;
+      if (!initialData) return false;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const current = get();
         if (!current.data || current.revision === null) return false;
@@ -177,18 +211,46 @@ export const useChoreWorkspaceStore = create<ChoreWorkspaceState>((set, get) => 
           });
           return true;
         }
+        const conflictSnapshot =
+          result.preconditionFailed &&
+          result.document &&
+          result.document.revision === result.revision &&
+          result.document.revision >= (get().revision ?? 0)
+            ? result.document
+            : null;
+        if (conflictSnapshot) {
+          const pinConfigured = conflictSnapshot.management?.pinConfigured === true;
+          if (!pinConfigured) managementSessionToken = null;
+          set({
+            data: conflictSnapshot.data,
+            revision: conflictSnapshot.revision,
+            error: null,
+            managementPinConfigured: pinConfigured,
+            managementUnlocked: pinConfigured && Boolean(managementSessionToken),
+            status: 'ready',
+          });
+        }
         if ((result.preconditionFailed || result.retryable) && attempt === 0) {
-          await get().load({ force: true });
+          if (!conflictSnapshot) await get().load({ force: true });
           const refreshed = get();
           if (refreshed.data?.activity.some((activity) => activity.commandId === commandId)) {
             set({ error: null, status: 'ready' });
             return true;
           }
-          if (refreshed.status === 'ready') continue;
+          if (
+            refreshed.status === 'ready' &&
+            refreshed.data &&
+            replacementIsUnchanged(action, initialData, refreshed.data)
+          ) {
+            // Give competing clients room to commit rather than immediately colliding again.
+            if (conflictSnapshot)
+              await new Promise((resolve) => setTimeout(resolve, 10 + Math.random() * 20));
+            continue;
+          }
         }
         const managementLocked = relockManagementIfNeeded(result.error);
         set({
-          data: current.data,
+          data: result.preconditionFailed ? get().data : current.data,
           error: result.unauthorized ? null : (result.error ?? 'Chore workspace sync failed'),
           managementError: managementLocked ? result.error : get().managementError,
           managementUnlocked: managementLocked ? false : get().managementUnlocked,

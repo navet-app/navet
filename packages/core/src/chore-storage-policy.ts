@@ -15,6 +15,17 @@ export function isChoreBookkeeping(type: string): boolean {
   return type === 'workspace_materialized' || type === 'outbox_delivery_updated';
 }
 
+/** Intent commands validate current domain state; replacement edits still need compare-and-swap. */
+export function canRebaseChoreAction(type: string | undefined): boolean {
+  return (
+    type === 'occurrence_action' ||
+    type === 'experience_points_adjust' ||
+    type === 'reward_request' ||
+    type === 'reward_decision' ||
+    type === 'reminder_acknowledge'
+  );
+}
+
 /** Earliest future boundary after a settled scheduler pass; no durable timer records. */
 export function getChoreSchedulerDeadline(data: ChoreWorkspaceData, timestamp: string): number {
   const now = Date.parse(timestamp);

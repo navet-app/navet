@@ -68,6 +68,12 @@ const manifest = storage.encode(doc, 2 * 1024 * 1024, hash, (key, chunk) => {
 });
 assert(Buffer.byteLength(JSON.stringify(manifest)) < 2 * 1024 * 1024, 'Manifest stays bounded');
 const restored = storage.decode(manifest, hash, (key) => files[key]);
+const verified = Object.create(null);
+storage.decode(manifest, hash, (key) => files[key], (key) => { verified[key] = true; });
+let repeatedChunkWrites = 0;
+storage.encode(restored, 2 * 1024 * 1024, hash, () => { repeatedChunkWrites++; },
+  (key) => verified[key] === true);
+assert(repeatedChunkWrites === 0, 'Verified immutable chunks are reused without compression or disk writes');
 assert(
   JSON.stringify(restored.data.experience.pointTransactions) ===
     JSON.stringify(doc.data.experience.pointTransactions),
@@ -224,11 +230,11 @@ choreStore.setChoreStorePrincipalResolverForTests(() => ({
   tenantId: 'hat_' + 'a'.repeat(64),
   sessionId: 'native',
 }));
-function request(method, uri, command) {
+function request(method, uri, command, args) {
   const r = {
     method,
     uri,
-    args: '',
+    args: args || '',
     headersOut: {},
     headersIn: { Host: 'navet.example', Origin: 'http://navet.example' },
     requestText: command ? JSON.stringify(command) : '',
@@ -242,6 +248,12 @@ function request(method, uri, command) {
   return r;
 }
 const beforeNoop = request('GET', '/__navet_chores__/workspace');
+const partialImport = request('POST', '/__navet_chores__/restore', {
+  commandId: 'reject-truncated-import', baseRevision: beforeNoop.body.revision,
+  actorParticipantId: 'manager', mode: 'replace', document: { contract: 'navet.chores', version: 1,
+    exportedAt: timestamp, workspace: beforeNoop.body.data, events: [] },
+});
+assert(partialImport.status === 400, 'A working projection cannot silently replace the complete accounting ledger');
 const beforeNoopHistoryReads = historyReadCount;
 request('GET', '/__navet_chores__/workspace');
 assert(historyReadCount === beforeNoopHistoryReads,
@@ -255,7 +267,7 @@ assert(nativeNoop.status === 200 && nativeNoop.body.revision === beforeNoop.body
   'Native unchanged materialization performs zero writes and preserves revision');
 let result = request('POST', '/__navet_chores__/commands', {
   commandId: 'native-adjust',
-  baseRevision: 1,
+  baseRevision: beforeNoop.body.revision,
   action: {
     type: 'experience_points_adjust',
     actorParticipantId: 'manager',
@@ -265,8 +277,8 @@ let result = request('POST', '/__navet_chores__/commands', {
 });
 assert(result.status === 200, 'Native authority commits large ledger: ' + JSON.stringify(result));
 assert(
-  result.body.data.experience.pointTransactions.length === 12001,
-  'Native authority retains transactions'
+  result.body.data.experience.pointTransactions.length <= 128,
+  'Native authority bounds recent transactions'
 );
 assert(
   result.body.data.experience.earnedPointsByParticipant.manager === 12010,
@@ -274,7 +286,7 @@ assert(
 );
 result = request('POST', '/__navet_chores__/commands', {
   commandId: 'native-adjust',
-  baseRevision: 1,
+  baseRevision: beforeNoop.body.revision,
   action: {
     type: 'experience_points_adjust',
     actorParticipantId: 'manager',
@@ -283,18 +295,22 @@ result = request('POST', '/__navet_chores__/commands', {
   },
 });
 assert(result.status === 200, 'Committed command replay is accepted');
+const nativePointPage = request('GET', '/__navet_chores__/points', null, { after: '11990', limit: '20' });
+assert(nativePointPage.status === 200 && nativePointPage.body.points.length === 11 && !nativePointPage.body.hasMore,
+  'Native object query parameters preserve point pagination and cursor limits');
 assert(
-  result.body.data.experience.pointTransactions.length === 12001,
-  'Command replay retains one transaction'
+  request('GET', '/__navet_chores__/backup').body.workspace.experience.pointTransactions.length === 12001,
+  'Command replay retains every archived and recent transaction exactly once'
 );
 assert(
   result.body.data.experience.earnedPointsByParticipant.manager === 12010,
   'Command replay does not spend or award points twice'
 );
+const committedRevision = result.body.revision;
 failChunk = true;
 result = request('POST', '/__navet_chores__/commands', {
-  commandId: 'failed-adjust',
-  baseRevision: 2,
+  commandId: 'failed-adjust:' + 'x'.repeat(170),
+  baseRevision: committedRevision,
   action: {
     type: 'experience_points_adjust',
     actorParticipantId: 'manager',

@@ -15,6 +15,10 @@ const MAX_INFLATED_BYTES = 64 * 1024 * 1024;
 
 function pack(value, hash) {
   const serialized = JSON.stringify(value);
+  return packSerialized(value, serialized, hash);
+}
+
+function packSerialized(value, serialized, hash) {
   const bytes = Buffer.byteLength(serialized, 'utf8');
   if (bytes > MAX_INFLATED_BYTES) throw new Error('Chore expanded storage is too large');
   if (bytes < COMPRESSION_BYTES) return value;
@@ -57,7 +61,7 @@ function collectionItems(document, name) {
         : document.data.experience[name];
 }
 
-function encodeCollection(records, name, hash, writeChunk) {
+function encodeCollection(records, name, hash, writeChunk, hasChunk) {
   const chunks = [];
   let items = [];
   let bytes = 128;
@@ -65,7 +69,8 @@ function encodeCollection(records, name, hash, writeChunk) {
     if (!items.length) return;
     const chunk = { version: 1, collection: name, items };
     const key = hash(JSON.stringify(chunk));
-    writeChunk(key, pack(chunk, hash));
+    // Only reuse content verified by this transaction's decoder, never mere file existence.
+    if (!hasChunk || !hasChunk(key)) writeChunk(key, pack(chunk, hash), chunk.items.length);
     chunks.push(key);
     items = [];
     bytes = 128;
@@ -82,12 +87,14 @@ function encodeCollection(records, name, hash, writeChunk) {
   return chunks;
 }
 
-function encode(document, maxBytes, hash, writeChunk) {
-  if (Buffer.byteLength(JSON.stringify(document), 'utf8') <= maxBytes) return pack(document, hash);
+function encode(document, maxBytes, hash, writeChunk, hasChunk) {
+  const serialized = JSON.stringify(document);
+  if (Buffer.byteLength(serialized, 'utf8') <= maxBytes)
+    return packSerialized(document, serialized, hash);
   const references = { version: 1 };
   for (let collectionIndex = 0; collectionIndex < COLLECTIONS.length; collectionIndex++) {
     const name = COLLECTIONS[collectionIndex];
-    references[name] = encodeCollection(collectionItems(document, name), name, hash, writeChunk);
+    references[name] = encodeCollection(collectionItems(document, name), name, hash, writeChunk, hasChunk);
   }
   return Object.assign({}, document, {
     durableCollections: references,
@@ -104,7 +111,7 @@ function encode(document, maxBytes, hash, writeChunk) {
   });
 }
 
-function decode(document, hash, readChunk) {
+function decode(document, hash, readChunk, verifiedChunk) {
   document = unpack(document, hash, CHUNK_BYTES);
   if (!document || !Object.prototype.hasOwnProperty.call(document, 'durableCollections'))
     return document;
@@ -130,6 +137,7 @@ function decode(document, hash, readChunk) {
       ) {
         throw new Error('Chore durable chunk is missing or corrupt');
       }
+      if (verifiedChunk) verifiedChunk(key);
       for (let index = 0; index < chunk.items.length; index++) items.push(chunk.items[index]);
     }
     restored[name] = items;
@@ -183,4 +191,87 @@ function decode(document, hash, readChunk) {
   return hydrated;
 }
 
-export default { encode, decode, pack, unpack, CHUNK_BYTES };
+// Historical accounting uses the same immutable content-addressed chunks as the
+// workspace. Only the bounded tail is read/replaced when old recent rows move out.
+function splitRecentPoints(records) {
+  let start = records.length;
+  let bytes = 2;
+  while (start > 0 && records.length - start < 128) {
+    const size = Buffer.byteLength(JSON.stringify(records[start - 1]), 'utf8') + 1;
+    if (bytes + size > 32 * 1024) break;
+    bytes += size;
+    start--;
+  }
+  return { archived: records.slice(0, start), recent: records.slice(start) };
+}
+
+function validPointHistory(history) {
+  if (!history || history.version !== 1 || !Array.isArray(history.pages) ||
+      !Number.isSafeInteger(history.count) || history.count < 0) return false;
+  let count = 0;
+  for (let index = 0; index < history.pages.length; index++) {
+    const page = history.pages[index];
+    if (!page || typeof page.key !== 'string' || !/^[a-f0-9]{64}$/.test(page.key) ||
+        !Number.isSafeInteger(page.count) || page.count < 1 ||
+        (page.identity !== null && typeof page.identity !== 'string')) return false;
+    count += page.count;
+  }
+  return count === history.count;
+}
+
+function readPointChunk(page, hash, readChunk) {
+  const chunk = unpack(readChunk(page.key), hash, CHUNK_BYTES);
+  if (!chunk || chunk.version !== 1 || chunk.collection !== 'pointHistory' ||
+      !Array.isArray(chunk.items) || chunk.items.length !== page.count ||
+      hash(JSON.stringify(chunk)) !== page.key) throw new Error('Chore point history is missing or corrupt');
+  return chunk.items;
+}
+
+function validatePointHistory(history, hash, readChunk, identity) {
+  if (!validPointHistory(history)) throw new Error('Chore point history manifest is invalid');
+  let changed = false;
+  const pages = [];
+  for (let index = 0; index < history.pages.length; index++) {
+    const page = history.pages[index];
+    const current = identity(page.key);
+    if (current === null || current !== page.identity) {
+      readPointChunk(page, hash, readChunk);
+      changed = changed || current !== page.identity;
+    }
+    pages.push(current === page.identity ? page : Object.assign({}, page, { identity: current }));
+  }
+  return changed ? Object.assign({}, history, { pages }) : history;
+}
+
+function appendPointHistory(previous, additions, hash, readChunk, writeChunk, identity) {
+  const history = previous || { version: 1, count: 0, pages: [] };
+  if (!validPointHistory(history)) throw new Error('Chore point history manifest is invalid');
+  if (!additions.length) return history;
+  const pages = history.pages.slice();
+  const tail = pages.pop();
+  const records = (tail ? readPointChunk(tail, hash, readChunk) : []).concat(additions);
+  encodeCollection(records, 'pointHistory', hash, function (key, chunk, count) {
+    writeChunk(key, chunk);
+    pages.push({ key, count, identity: identity(key) });
+  });
+  return { version: 1, count: history.count + additions.length, pages };
+}
+
+function readPointHistory(history, after, limit, hash, readChunk) {
+  if (!validPointHistory(history)) throw new Error('Chore point history manifest is invalid');
+  const records = [];
+  let skipped = 0;
+  for (let index = 0; index < history.pages.length && records.length < limit; index++) {
+    const page = history.pages[index];
+    if (skipped + page.count > after) {
+      const rows = readPointChunk(page, hash, readChunk);
+      const start = Math.max(0, after - skipped);
+      const end = Math.min(rows.length, start + limit - records.length);
+      for (let row = start; row < end; row++) records.push(rows[row]);
+    }
+    skipped += page.count;
+  }
+  return records;
+}
+
+export default { encode, decode, pack, unpack, CHUNK_BYTES, splitRecentPoints, validPointHistory, validatePointHistory, appendPointHistory, readPointHistory };

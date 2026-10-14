@@ -38,7 +38,7 @@ function createRequest(
   overrides: Partial<{
     method: string;
     uri: string;
-    args: string;
+    args: string | Record<string, string | string[]>;
     headersIn: Record<string, string>;
     requestText: string;
   }> = {}
@@ -423,6 +423,159 @@ describe('NJS chore workspace store', () => {
     }
   );
 
+  it('commits independent chore intents from the same revision while rejecting duplicate completion and future revisions', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));
+    const mockFs = createMockFs();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    const document = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
+    document.data.experience.gamificationMode = 'family';
+    document.data.experience.presentationByDefinitionId.dishes = { points: 10 };
+    document.data.occurrencesById.second = {
+      ...document.data.occurrencesById[OCCURRENCE_ID],
+      id: 'second',
+    };
+    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(document));
+    for (const id of [OCCURRENCE_ID, 'second']) {
+      const request = createActionRequest('complete:' + id, document.revision, {
+        type: 'occurrence_action',
+        occurrenceId: id,
+        action: { type: 'complete', participantId: 'maya' },
+      });
+      choreStore.handle(request);
+      expect(request.return.mock.calls.at(-1)?.[0]).toBe(200);
+    }
+    const duplicateIntent = createActionRequest('different-id-same-completion', document.revision, {
+      type: 'occurrence_action',
+      occurrenceId: OCCURRENCE_ID,
+      action: { type: 'complete', participantId: 'maya' },
+    });
+    choreStore.handle(duplicateIntent);
+    expect(duplicateIntent.return.mock.calls.at(-1)?.[0]).toBe(409);
+    const latest = createRequest();
+    choreStore.handle(latest);
+    expect(parseResponse(latest).data.experience.earnedPointsByParticipant.maya).toBe(20);
+    expect(parseResponse(latest).data.experience.pointTransactions).toHaveLength(2);
+    for (const invalidRevision of [-1, parseResponse(latest).revision + 1]) {
+      const future = createActionRequest('invalid:' + invalidRevision, invalidRevision, {
+        type: 'experience_points_adjust',
+        actorParticipantId: 'maya',
+        participantId: 'maya',
+        pointsDelta: 10,
+      });
+      choreStore.handle(future);
+      expect(future.return.mock.calls.at(-1)?.[0]).toBe(412);
+    }
+  });
+
+  it('bounds the recent point ledger by expanded UTF-8 bytes as well as row count', () => {
+    const base = {
+      id: '',
+      participantId: 'maya',
+      pointsDelta: 1,
+      kind: 'adjustment',
+      timestamp: '2026-08-10T08:00:00.000Z',
+    };
+    const exact = { ...base, id: 'x'.repeat(32767 - Buffer.byteLength(JSON.stringify(base))) };
+    expect(Buffer.byteLength(JSON.stringify([exact]))).toBe(32769);
+    expect(durableStorage.splitRecentPoints([exact]).recent).toHaveLength(0);
+    expect(
+      durableStorage.splitRecentPoints([{ ...base, id: 'é'.repeat(20000) }]).recent
+    ).toHaveLength(0);
+    const rows = Array.from({ length: 129 }, (_, index) => ({ ...base, id: 'row:' + index }));
+    const split = durableStorage.splitRecentPoints(rows);
+    expect(split.archived).toEqual(rows.slice(0, 1));
+    expect(split.recent).toEqual(rows.slice(1));
+  });
+
+  it('keeps cold point pages out of ordinary reads and repairs same-size corruption from the complete recovery copy', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));
+    const mockFs = createMockFs();
+    let metadataEpoch = 0;
+    mockFs.statSync.mockImplementation((path) => {
+      const value = mockFs.getFile(path);
+      if (value === undefined) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      const version = Number.parseInt(
+        createHash('sha256').update(value).digest('hex').slice(0, 12),
+        16
+      );
+      return {
+        size: Buffer.byteLength(value),
+        ino: 1,
+        mtimeMs: version + metadataEpoch,
+        ctimeMs: version + metadataEpoch,
+      };
+    });
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    const document = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
+    document.storageMaintenanceVersion = 2;
+    document.data.experience = createChoreExperienceState();
+    document.data.experience.earnedPointsByParticipant = { maya: 512 };
+    document.data.experience.pointTransactions = Array.from({ length: 512 }, (_, index) => ({
+      id: 'ledger:' + index,
+      participantId: 'maya',
+      pointsDelta: 1,
+      kind: 'completion',
+      timestamp: document.updatedAt,
+      occurrenceId: OCCURRENCE_ID,
+    }));
+    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(document));
+    const get = createRequest();
+    choreStore.handle(get);
+    expect(get.return.mock.calls.at(-1)?.[0]).toBe(200);
+    expect(parseResponse(get).data.experience.pointTransactions).toHaveLength(128);
+    expect(parseResponse(get).data.experience.pointProgress.totals.once.maya).toBe(384);
+    const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+    const stored = durableStorage.unpack(JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}'), hash) as {
+      pointHistory: { pages: { key: string }[] };
+    };
+    const pagePath = `${CHORE_PATH}.chunk-${stored.pointHistory.pages[0].key}`;
+    const opens = vi.spyOn(mockFs, 'openSync');
+    const warm = createRequest();
+    choreStore.handle(warm);
+    expect(parseResponse(warm)).toEqual(parseResponse(get));
+    expect(opens.mock.calls.some(([path]) => path === pagePath)).toBe(false);
+    metadataEpoch++;
+    const relocated = createRequest();
+    choreStore.handle(relocated);
+    expect(parseResponse(relocated)).toEqual(parseResponse(warm));
+    opens.mockClear();
+    choreStore.handle(createRequest());
+    expect(opens.mock.calls.some(([path]) => path === pagePath)).toBe(false);
+    const page = createRequest({ uri: '/__navet_chores__/points', args: 'after=380&limit=10' });
+    choreStore.handle(page);
+    expect(parseResponse(page).points.map((row: { id: string }) => row.id)).toEqual(
+      Array.from({ length: 10 }, (_, index) => 'ledger:' + (380 + index))
+    );
+    for (const args of [
+      { after: '380', limit: '10' },
+      { after: ['0', '380'], limit: '10' },
+    ]) {
+      const nativePage = createRequest({ uri: '/__navet_chores__/points', args });
+      choreStore.handle(nativePage);
+      expect(parseResponse(nativePage)).toEqual(parseResponse(page));
+    }
+    const content = mockFs.getFile(pagePath) ?? '';
+    const bad = content.replace(/"checksum":"./, '"checksum":"z');
+    expect(bad.length).toBe(content.length);
+    expect(bad).not.toBe(content);
+    mockFs.writeFileSync(pagePath, bad);
+    const recovered = createRequest();
+    choreStore.handle(recovered);
+    expect(recovered.return.mock.calls.at(-1)?.[0]).toBe(200);
+    expect(parseResponse(recovered).data.experience.earnedPointsByParticipant.maya).toBe(512);
+    const backup = createRequest({ uri: '/__navet_chores__/backup' });
+    choreStore.handle(backup);
+    expect(parseResponse(backup).workspace.experience.pointTransactions).toEqual(
+      document.data.experience.pointTransactions
+    );
+  });
+
   it('keeps large accounting and unfinished work durable across commands, restarts and backup recovery', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));
@@ -432,6 +585,7 @@ describe('NJS chore workspace store', () => {
     seedOccurrenceWorkspace();
     const document = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
     document.data.experience = createChoreExperienceState();
+    document.storageMaintenanceVersion = 2;
     document.data.experience.earnedPointsByParticipant = { maya: 12000 };
     document.data.experience.pointTransactions = Array.from({ length: 12000 }, (_, index) => ({
       id: `transaction:${index}:${'x'.repeat(150)}`,
@@ -461,7 +615,15 @@ describe('NJS chore workspace store', () => {
       mockFs.writeFileSync(`${CHORE_PATH}.chunk-${key}`, JSON.stringify(chunk))
     );
     mockFs.writeFileSync(CHORE_PATH, JSON.stringify(stored));
-    const adjust = createActionRequest('large-ledger-adjust', document.revision, {
+    mockFs.writeFileSync(EVENT_HISTORY_PATH, JSON.stringify({ contractVersion: 1, events: [] }));
+    // Rewrite: normal reads expose bounded working state; full ledgers live in backup/pages.
+    const migration = createRequest();
+    choreStore.handle(migration);
+    expect(migration.return.mock.calls.at(-1)?.[0]).toBe(200);
+    const working = parseResponse(migration);
+    const previousBytes = mockFs.getFile(CHORE_PATH);
+    mockFs.writeFileSync.mockClear();
+    const adjust = createActionRequest('large-ledger-adjust:' + 'x'.repeat(160), working.revision, {
       type: 'experience_points_adjust',
       actorParticipantId: 'maya',
       participantId: 'maya',
@@ -469,8 +631,21 @@ describe('NJS chore workspace store', () => {
     });
     choreStore.handle(adjust);
     expect(adjust.return).toHaveBeenCalledWith(200, expect.any(String));
+    expect(mockFs.getFile(CHORE_LAST_GOOD_PATH)).toBe(previousBytes);
+    const unchangedChunks: string[] =
+      JSON.parse(previousBytes ?? '{}').durableCollections?.occurrencesById ?? [];
+    expect(
+      mockFs.writeFileSync.mock.calls.some(([path]) =>
+        unchangedChunks.some((key: string) => path.includes(`.chunk-${key}`))
+      )
+    ).toBe(false);
     const updated = parseResponse(adjust);
-    expect(updated.data.experience.pointTransactions).toHaveLength(12001);
+    expect(updated.data.experience.pointTransactions.length).toBeLessThanOrEqual(128);
+    const page = createRequest({ uri: '/__navet_chores__/points', args: 'after=11990&limit=20' });
+    choreStore.handle(page);
+    expect(parseResponse(page).points).toHaveLength(11);
+    expect(parseResponse(page).points.at(-1).pointsDelta).toBe(10);
+    expect(parseResponse(page).hasMore).toBe(false);
     expect(updated.data.experience.earnedPointsByParticipant.maya).toBe(12010);
     expect(updated.data.experience.progressAwards).toEqual(document.data.experience.progressAwards);
     expect(Object.keys(updated.data.occurrencesById)).toHaveLength(6001);
@@ -489,7 +664,7 @@ describe('NJS chore workspace store', () => {
       if (destination.includes('.chunk-')) throw new Error('Interrupted chunk write');
       failWrite?.(source, destination);
     });
-    const failed = createActionRequest('interrupted-adjust', updated.revision, {
+    const failed = createActionRequest('interrupted-adjust:' + 'x'.repeat(160), updated.revision, {
       type: 'experience_points_adjust',
       actorParticipantId: 'maya',
       participantId: 'maya',
@@ -512,7 +687,7 @@ describe('NJS chore workspace store', () => {
     expect(Object.keys(parseResponse(materialize).data.occurrencesById)).toHaveLength(6001);
     // Rewrite: use a real ledger change; bookkeeping no longer creates unique chunks.
     const meaningfulChange = createActionRequest(
-      'recovery-ledger-change',
+      'recovery-ledger-change:' + 'x'.repeat(160),
       parseResponse(materialize).revision,
       {
         type: 'experience_points_adjust',
@@ -523,14 +698,20 @@ describe('NJS chore workspace store', () => {
     );
     choreStore.handle(meaningfulChange);
     expect(meaningfulChange.return).toHaveBeenCalledWith(200, expect.any(String));
-    const primary = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
-    mockFs.writeFileSync(
-      `${CHORE_PATH}.chunk-${primary.durableCollections.pointTransactions.at(-1)}`,
-      '{'
-    );
+    const primary = durableStorage.unpack(JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}'), hash) as {
+      pointHistory: { pages: { key: string }[] };
+    };
+    const lastPage = primary.pointHistory.pages.at(-1);
+    if (!lastPage) throw new Error('Expected archived ledger tail');
+    mockFs.writeFileSync(`${CHORE_PATH}.chunk-${lastPage.key}`, '{');
     const recovered = createRequest();
     choreStore.handle(recovered);
-    expect(parseResponse(recovered).data.experience.pointTransactions).toHaveLength(12001);
+    expect(parseResponse(recovered).data.experience.earnedPointsByParticipant.maya).toBe(12010);
+    const recoveredBackup = createRequest({ uri: '/__navet_chores__/backup' });
+    choreStore.handle(recoveredBackup);
+    expect(parseResponse(recoveredBackup).workspace.experience.pointTransactions).toHaveLength(
+      12001
+    );
   }, 15_000);
 
   it('persists fixed missed history through successor retention and frequency edits, then clears it on reopen', () => {
@@ -1163,6 +1344,7 @@ describe('NJS chore workspace store', () => {
     });
     choreStore.handle(stale);
     expect(stale.return).toHaveBeenCalledWith(412, expect.any(String));
+    expect(parseResponse(stale)).toMatchObject({ revision: 1, data: parseResponse(first).data });
 
     const retry = createRequest({
       method: 'POST',

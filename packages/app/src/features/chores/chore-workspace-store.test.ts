@@ -311,47 +311,130 @@ describe('chore workspace store', () => {
     });
   });
 
-  it('refreshes once and retries an action after a concurrent write', async () => {
-    useChoreWorkspaceStore.getState().setPreviewDocument({ data: emptyWorkspace, revision: 4 });
-    sendChoreWorkspaceCommand
-      .mockResolvedValueOnce({
-        saved: false,
+  it.each([false, true])(
+    'retries a concurrent write using an authority snapshot when supplied (%s)',
+    async (snapshot) => {
+      useChoreWorkspaceStore.getState().setPreviewDocument({ data: emptyWorkspace, revision: 4 });
+      sendChoreWorkspaceCommand
+        .mockResolvedValueOnce({
+          saved: false,
+          unauthorized: false,
+          preconditionFailed: true,
+          error: 'Revision changed',
+          revision: 5,
+          document: snapshot
+            ? { data: emptyWorkspace, revision: 5, updatedAt: '2026-08-14T00:00:00.000Z' }
+            : null,
+        })
+        .mockResolvedValueOnce({
+          saved: true,
+          unauthorized: false,
+          preconditionFailed: false,
+          error: null,
+          revision: 6,
+          document: { data: emptyWorkspace, revision: 6 },
+        });
+      loadChoreWorkspace.mockResolvedValue({
+        available: true,
         unauthorized: false,
-        preconditionFailed: true,
-        error: 'Revision changed',
+        notModified: false,
         revision: 5,
-        document: null,
-      })
-      .mockResolvedValueOnce({
-        saved: true,
-        unauthorized: false,
-        preconditionFailed: false,
-        error: null,
-        revision: 6,
-        document: { data: emptyWorkspace, revision: 6 },
+        document: {
+          data: emptyWorkspace,
+          revision: 5,
+          updatedAt: '2026-08-14T00:00:00.000Z',
+        },
       });
-    loadChoreWorkspace.mockResolvedValue({
-      available: true,
+
+      const saved = await useChoreWorkspaceStore.getState().execute({
+        type: 'materialize_occurrences',
+        rangeStart: '2026-08-14T00:00:00.000Z',
+        rangeEnd: '2026-08-15T00:00:00.000Z',
+      });
+
+      expect(saved).toBe(true);
+      expect(loadChoreWorkspace).toHaveBeenCalledTimes(snapshot ? 0 : 1);
+      expect(sendChoreWorkspaceCommand.mock.calls[1]?.[0].commandId).toBe(
+        sendChoreWorkspaceCommand.mock.calls[0]?.[0].commandId
+      );
+      expect(sendChoreWorkspaceCommand).toHaveBeenCalledTimes(2);
+      expect(sendChoreWorkspaceCommand.mock.calls[1]?.[0]).toMatchObject({ baseRevision: 5 });
+      expect(useChoreWorkspaceStore.getState()).toMatchObject({ revision: 6, status: 'ready' });
+    }
+  );
+
+  it.each([true, false])(
+    'bounds snapshot conflict retries and preserves command identity (success=%s)',
+    async (succeed) => {
+      useChoreWorkspaceStore.getState().setPreviewDocument({ data: emptyWorkspace, revision: 4 });
+      sendChoreWorkspaceCommand.mockImplementation(async (request) => {
+        const revision = request.baseRevision + 1;
+        const saved = succeed && revision === 6;
+        return {
+          saved,
+          unauthorized: false,
+          preconditionFailed: !saved,
+          error: saved ? null : 'changed',
+          revision,
+          document: { data: emptyWorkspace, revision, updatedAt: '2026-08-14T00:00:00.000Z' },
+        };
+      });
+      vi.useFakeTimers();
+      const pending = useChoreWorkspaceStore.getState().execute({
+        type: 'materialize_occurrences',
+        rangeStart: '2026-08-14T00:00:00.000Z',
+        rangeEnd: '2026-08-15T00:00:00.000Z',
+      });
+      try {
+        await vi.runAllTimersAsync();
+        expect(await pending).toBe(succeed);
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(sendChoreWorkspaceCommand).toHaveBeenCalledTimes(2);
+      expect(
+        new Set(sendChoreWorkspaceCommand.mock.calls.map(([request]) => request.commandId)).size
+      ).toBe(1);
+      expect(loadChoreWorkspace).not.toHaveBeenCalled();
+    }
+  );
+
+  it("retains another user's participant edit instead of replaying a stale replacement", async () => {
+    const original = {
+      id: 'maya',
+      displayName: 'Maya',
+      capabilities: ['complete' as const],
+      createdAt: '2026-08-14T00:00:00.000Z',
+      updatedAt: '2026-08-14T00:00:00.000Z',
+    };
+    const before = { ...emptyWorkspace, participantsById: { maya: original } };
+    const latest = {
+      ...before,
+      participantsById: { maya: { ...original, displayName: 'Someone else edited this' } },
+    };
+    useChoreWorkspaceStore.getState().setPreviewDocument({ data: before, revision: 4 });
+    sendChoreWorkspaceCommand.mockResolvedValue({
+      saved: false,
       unauthorized: false,
-      notModified: false,
+      preconditionFailed: true,
+      error: 'Revision changed',
       revision: 5,
-      document: {
-        data: emptyWorkspace,
-        revision: 5,
-        updatedAt: '2026-08-14T00:00:00.000Z',
-      },
+      document: { data: latest, revision: 5, updatedAt: original.updatedAt },
     });
-
-    const saved = await useChoreWorkspaceStore.getState().execute({
-      type: 'materialize_occurrences',
-      rangeStart: '2026-08-14T00:00:00.000Z',
-      rangeEnd: '2026-08-15T00:00:00.000Z',
+    expect(
+      await useChoreWorkspaceStore.getState().execute({
+        type: 'participant_update',
+        actorParticipantId: 'manager',
+        participant: { ...original, displayName: 'My edit' },
+      })
+    ).toBe(false);
+    expect(sendChoreWorkspaceCommand).toHaveBeenCalledTimes(1);
+    expect(loadChoreWorkspace).not.toHaveBeenCalled();
+    expect(useChoreWorkspaceStore.getState()).toMatchObject({
+      data: latest,
+      revision: 5,
+      error: 'Revision changed',
     });
-
-    expect(saved).toBe(true);
-    expect(sendChoreWorkspaceCommand).toHaveBeenCalledTimes(2);
-    expect(sendChoreWorkspaceCommand.mock.calls[1]?.[0]).toMatchObject({ baseRevision: 5 });
-    expect(useChoreWorkspaceStore.getState()).toMatchObject({ revision: 6, status: 'ready' });
   });
 
   it('reconciles a transient error when the authority already committed the command', async () => {

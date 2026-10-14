@@ -70,6 +70,7 @@ The shared endpoint exposes a revisioned document:
 
 - `GET /__navet_chores__/workspace`
 - `GET /__navet_chores__/history`
+- `GET /__navet_chores__/points?after=0&limit=100`
 - `POST /__navet_chores__/commands`
 - `GET /__navet_chores__/definitions`
 - `GET /__navet_chores__/occurrences`
@@ -86,9 +87,18 @@ The shared endpoint exposes a revisioned document:
 - `X-Navet-Chore-Management-Session` for PIN-unlocked management writes
 
 Every mutation has an idempotent command ID; household actions have a matching activity entry. Materialization
-may additionally append one occurrence-created lifecycle event per new occurrence. A stale write
-returns `412`; the client loads the newest document, rebuilds the mutation against it, and retries
-once. The command journal and activity log detect retries after a partially successful durable
+may additionally append one occurrence-created lifecycle event per new occurrence. Ordinary
+occurrence actions, additive point adjustments, reward requests/decisions, and reminder
+acknowledgements execute against the latest state under the authority's serialization boundary,
+so unrelated household changes do not require client retries. Actor permissions, balances,
+occurrence status, reward status, and explicit occurrence preconditions still validate at commit.
+Future base revisions and stale replacement/management edits return `412`; Docker/NJS and Vite include the validated current workspace in that response. The
+client rebuilds the action against that snapshot without another read, retains the command ID,
+and retries once after a short randomized delay. Replacement edits retry only if the affected
+record is unchanged; a conflicting edit remains visible rather than being overwritten. Older HTTP authorities and
+Home Assistant panel errors retain the refresh-and-retry-once fallback. Domain validation and
+revision checks still run on every attempt; stale actions are never silently accepted. The
+command journal and activity log detect retries after a partially successful durable
 write. Internal materialization and delivery-status bookkeeping use the bounded command journal
 without retaining separate audit or outbox records.
 An explicit materialization command that leaves occurrences and delivery work unchanged returns
@@ -106,12 +116,39 @@ storage, scan history, or write timer records. A pass that changes domain state 
 until a subsequent pass settles, preserving catch-up after downtime and carry-forward work.
 Completing an after-completion chore still creates its next date synchronously.
 
-The workspace revision is the authority. Small workspaces are stored inline. When the hydrated
+The workspace revision is the authority. The working state retains at most 128 recent point
+transactions within a 32 KiB expanded budget. Older transactions move into immutable point-history
+pages targeting 256 KiB. Only the tail page is read and replaced during an append. The workspace
+manifest commits the page references, recent rows, balances, and `experience.pointProgress`
+summaries together; unpublished pages cannot change accounting. Summaries preserve lifetime,
+weekly, monthly, and selected-chore point progress without replaying the ledger. Rewards,
+refundable requests, earned awards, and current balances retain their existing domain semantics.
+
+`GET /__navet_chores__/points?after=0&limit=100` and the native-panel
+`navet/chores/points/get` command page through archived and recent records in their original order.
+The limit is 1–500; responses include `points`, a string `cursor`, `hasMore`, and the workspace
+revision. Moving recent rows to history does not change cursor positions. Full backup export
+reassembles every point transaction and omits the derived progress summary; importing a partial
+working-state projection as a complete backup is rejected. A legacy full ledger is split on load,
+advancing the public revision once while preserving the complete previous recovery copy.
+
+Small working documents are stored inline. When the hydrated
 workspace exceeds 2 MiB, the storage authority writes occurrences, point transactions, progress
 awards, reward requests, activity, and delivery work into immutable chunks targeting 256 KiB, with
 a 2 MiB hard limit per hydrated chunk to preserve large legacy records. The manifest records each
 chunk's SHA-256 identity. Records are written before the manifest is committed; reads verify and
-hydrate every referenced chunk before accepting the revision.
+hydrate every referenced working-state chunk before accepting the revision. NJS and Vite check
+point-history file identities on normal reads and verify checksums when metadata changes or a
+page is requested. Changed valid identities are refreshed once without changing the domain
+revision. Home Assistant verifies history pages during initialization and keeps the working state
+in memory. Full exports verify every historical page. Missing or corrupt pages trigger recovery
+rather than discarding accounting records.
+Within a synchronous NJS transaction, working-state writes reuse only chunks that were just
+verified or successfully written. Unchanged working-state chunks are neither recompressed nor rewritten. The recovery
+copy reuses the validated primary's encoded representation when no cleanup is needed. These
+transaction caches are discarded before the next request or asynchronous delivery; external
+damage still triggers validation and recovery. Authorities skip chunk collection entirely when
+there are no chunk files, avoiding decoding two inline snapshots after each write.
 
 Workspace documents, chunks, recovery copies, and immutable history use a versioned deflate
 storage envelope when records exceed 32 KiB and compression saves at least 10%. The envelope
@@ -119,9 +156,10 @@ records the expanded byte count and SHA-256 checksum. Readers bound expansion be
 the decoded payload; NJS preflights the DEFLATE stream because its native inflater has no output
 limit. Home Assistant prepares, compresses, and decodes storage in its executor, keeping Store
 calls on the event loop. Readers retain support for uncompressed
-inline documents and chunk manifests. Public workspace, history, and backup formats remain
-complete hydrated JSON; compression does not remove or reorder events or change automation
-cursor offsets.
+inline documents and chunk manifests. Workspace responses contain the bounded recent point
+ledger and its progress summary; the points endpoint and complete backups expose older rows.
+Event history and backup documents remain hydrated JSON. Compression and archival do not remove
+or reorder records or change automation cursor offsets.
 
 On the first load after upgrading, the authority reconciles obsolete future available
 after-completion repeats and removes internal `workspace_materialized` and `outbox_delivery_updated`
