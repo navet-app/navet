@@ -2163,7 +2163,7 @@ class ChoreAuthority:
                 continue
         self.hass.bus.async_fire("navet_chore_projection", projection)
 
-    async def _commit_locked(self, data: dict[str, Any], activities: list[dict[str, Any]], command_id: str, timestamp: str) -> dict[str, Any]:
+    async def _commit_locked(self, data: dict[str, Any], activities: list[dict[str, Any]], command_id: str, timestamp: str, *, point_history: Mapping[str, Any] | None = None) -> dict[str, Any]:
         if any(activity["type"] == "workspace_imported" for activity in activities):
             self._materialization_key = None
         previous = dict(self._document or {})
@@ -2188,6 +2188,8 @@ class ChoreAuthority:
         ]
         data["outbox"] = (list(data.get("outbox", [])) + additions)[-MAX_OUTBOX_ITEMS:]
         next_document = {"contractVersion": CONTRACT_VERSION, "revision": self.revision + 1, "updatedAt": timestamp, "data": data}
+        if point_history is not None:
+            next_document["pointHistory"] = copy.deepcopy(point_history)
         if command_id:
             self._journal.append({"commandId": command_id, "revision": next_document["revision"], "timestamp": timestamp})
         await self._save(next_document, previous, replace_point_history=any(item["type"] == "workspace_imported" for item in activities))
@@ -2623,6 +2625,7 @@ class ChoreAuthority:
                 [_activity(f"recovery:{timestamp}", timestamp, "workspace_imported")],
                 "",
                 timestamp,
+                point_history=backup.get("pointHistory"),
             )
 
     async def async_restore(self, request: Mapping[str, Any], user_id: str | None) -> dict[str, Any]:

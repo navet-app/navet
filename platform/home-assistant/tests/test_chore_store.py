@@ -689,6 +689,46 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(exported["workspace"]["experience"]["earnedPointsByParticipant"]["manager"], 300)
         self.assertEqual(saved["data"]["experience"]["earnedPointsByParticipant"]["manager"], 301)
 
+    async def test_recovery_restores_the_backup_ledger_without_using_current_archives(self):
+        for archived_backup in (True, False):
+            with self.subTest(archived_backup=archived_backup):
+                _Store.values.clear()
+                self.authority = chores.ChoreAuthority(self.hass)
+                await self._create_manager()
+                previous = copy.deepcopy(self.authority._document)
+                data = copy.deepcopy(self.authority.data)
+                count = 300 if archived_backup else 2
+                records = [{"id": f"recovery-ledger:{index}", "participantId": "manager", "pointsDelta": 1,
+                    "kind": "adjustment", "timestamp": "2026-09-30T08:00:00.000Z"} for index in range(count)]
+                records[0] = {**records[0], "kind": "completion", "occurrenceId": "historic-task"}
+                data["experience"]["earnedPointsByParticipant"] = {"manager": count}
+                data["experience"]["pointTransactions"] = records
+                await self.authority._save({**previous, "revision": previous["revision"] + 1, "data": data}, previous)
+                healthy = copy.deepcopy(self.authority._document)
+                current = copy.deepcopy(data)
+                current["experience"]["earnedPointsByParticipant"] = {"manager": 600}
+                current["experience"]["pointTransactions"] = [{**records[0], "id": f"different-ledger:{index}"} for index in range(600)]
+                await self.authority._save({**healthy, "revision": healthy["revision"] + 1, "data": current}, healthy,
+                    replace_point_history=True)
+                self.assertNotEqual(self.authority._document.get("pointHistory"), healthy.get("pointHistory"))
+                result = await self.authority.async_recover({"action": "restore_backup", "confirmation": "REPAIR CHORES"}, "ha-user-1")
+                self.assertEqual(result["data"]["experience"], healthy["data"]["experience"])
+                self.assertEqual(self.authority._document.get("pointHistory"), healthy.get("pointHistory"))
+                restarted = chores.ChoreAuthority(self.hass)
+                await restarted.async_initialize()
+                for authority in (self.authority, restarted):
+                    page = await authority.async_handle_ws({"type": "navet/chores/points/get", "limit": 500}, "ha-user-1")
+                    self.assertEqual(page["points"], records)
+                    self.assertFalse(page["hasMore"])
+                    backup = await authority.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+                    self.assertEqual(backup["workspace"]["experience"]["pointTransactions"], records)
+                await restarted.async_command({"commandId": "adjust-after-recovery", "baseRevision": restarted.revision,
+                    "action": {"type": "experience_points_adjust", "actorParticipantId": "manager",
+                        "participantId": "manager", "pointsDelta": 7}}, "ha-user-1")
+                backup = await restarted.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+                self.assertEqual(backup["workspace"]["experience"]["earnedPointsByParticipant"], {"manager": count + 7})
+                self.assertEqual(backup["workspace"]["experience"]["pointTransactions"][:-1], records)
+
     async def test_reset_clears_archived_points_exports_and_unreferenced_chunks(self):
         for recovery_reset in (False, True):
             with self.subTest(recovery_reset=recovery_reset), tempfile.TemporaryDirectory() as directory:
