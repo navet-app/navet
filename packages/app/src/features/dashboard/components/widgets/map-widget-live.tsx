@@ -1,5 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { MapWidgetSurfaceTokens } from '@navet/app/components/shared/theme/map-widget-surface-tokens';
+import type { PlatformLocationPoint } from '@navet/core/provider-feature-models';
 import {
   LngLatBounds,
   Map as MapLibreMap,
@@ -9,6 +10,9 @@ import {
 import { useEffect, useRef } from 'react';
 import type { MapMarker } from './map-types';
 
+const EMPTY_PATHS: readonly PlatformLocationPoint[][] = [];
+const ZONE_SOURCE_ID = 'navet-map-zones';
+const PATH_SOURCE_ID = 'navet-map-history';
 const ACCURACY_SOURCE_ID = 'navet-map-accuracy';
 const ACCURACY_FILL_LAYER_ID = 'navet-map-accuracy-fill';
 const ACCURACY_LINE_LAYER_ID = 'navet-map-accuracy-line';
@@ -102,7 +106,7 @@ function createMarkerElement(marker: MapMarker, accentHex: string) {
   return wrapper;
 }
 
-function createPopupElement(marker: MapMarker) {
+function createPopupElement(marker: MapMarker, zoneLabel?: (count: string) => string) {
   const content = document.createElement('div');
   const title = document.createElement('div');
   const state = document.createElement('div');
@@ -110,7 +114,7 @@ function createPopupElement(marker: MapMarker) {
   content.style.minWidth = '120px';
   title.textContent = marker.name;
   Object.assign(title.style, { fontWeight: '700', marginBottom: '2px' });
-  state.textContent = marker.state;
+  state.textContent = marker.kind === 'zone' && zoneLabel ? zoneLabel(marker.state) : marker.state;
   Object.assign(state.style, {
     fontSize: '12px',
     opacity: '0.7',
@@ -193,6 +197,8 @@ interface MapWidgetLiveProps {
   mapStyleUrl: string;
   mapWidgetSurface: MapWidgetSurfaceTokens;
   markers: readonly MapMarker[];
+  paths?: readonly PlatformLocationPoint[][];
+  zoneLabel?: (count: string) => string;
 }
 
 export function MapWidgetLive({
@@ -202,6 +208,8 @@ export function MapWidgetLive({
   mapStyleUrl,
   mapWidgetSurface,
   markers,
+  paths = EMPTY_PATHS,
+  zoneLabel,
 }: MapWidgetLiveProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -248,18 +256,74 @@ export function MapWidgetLive({
           element: createMarkerElement(marker, accentHex),
         })
           .setLngLat([marker.longitude, marker.latitude])
-          .setPopup(new MapLibrePopup({ offset: 24 }).setDOMContent(createPopupElement(marker)))
+          .setPopup(
+            new MapLibrePopup({ offset: 24 }).setDOMContent(createPopupElement(marker, zoneLabel))
+          )
           .addTo(map)
       );
       addAccuracyLayers(map, markers, accentHex);
+      map.addSource(ZONE_SOURCE_ID, {
+        type: 'geojson',
+        data: createAccuracyFeatureCollection(
+          markers
+            .filter((marker) => marker.kind === 'zone')
+            .map((marker) => ({ ...marker, gpsAccuracy: marker.radiusMeters }))
+        ),
+      });
+      map.addLayer({
+        id: `${ZONE_SOURCE_ID}-fill`,
+        type: 'fill',
+        source: ZONE_SOURCE_ID,
+        paint: { 'fill-color': accentHex, 'fill-opacity': 0.06 },
+      });
+      map.addLayer({
+        id: `${ZONE_SOURCE_ID}-line`,
+        type: 'line',
+        source: ZONE_SOURCE_ID,
+        paint: { 'line-color': accentHex, 'line-width': 1, 'line-opacity': 0.5 },
+      });
+      map.addSource(PATH_SOURCE_ID, {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: paths
+            .filter((segment) => segment.length > 1)
+            .map((segment) => ({
+              type: 'Feature' as const,
+              properties: {},
+              geometry: {
+                type: 'LineString' as const,
+                coordinates: segment.map((point) => [point.longitude, point.latitude]),
+              },
+            })),
+        },
+      });
+      map.addLayer({
+        id: `${PATH_SOURCE_ID}-line`,
+        type: 'line',
+        source: PATH_SOURCE_ID,
+        paint: { 'line-color': accentHex, 'line-width': 2, 'line-opacity': 0.8 },
+      });
 
-      if (markers.length === 1) {
+      if (
+        markers.length === 1 &&
+        paths.length === 0 &&
+        !(markers[0].radiusMeters && markers[0].kind === 'zone')
+      ) {
         map.jumpTo({ center: [markers[0].longitude, markers[0].latitude], zoom: 13 });
-      } else if (markers.length > 1) {
+      } else if (markers.length > 0 || paths.length > 0) {
         const bounds = new LngLatBounds();
-        for (const marker of markers) {
-          bounds.extend([marker.longitude, marker.latitude]);
-        }
+        for (const marker of markers) bounds.extend([marker.longitude, marker.latitude]);
+        const zoneExtent = createAccuracyFeatureCollection(
+          markers
+            .filter((marker) => marker.kind === 'zone')
+            .map((marker) => ({ ...marker, gpsAccuracy: marker.radiusMeters }))
+        );
+        for (const feature of zoneExtent.features)
+          for (const ring of feature.geometry.coordinates)
+            for (const coordinate of ring) bounds.extend([coordinate[0], coordinate[1]]);
+        for (const segment of paths)
+          for (const point of segment) bounds.extend([point.longitude, point.latitude]);
         map.fitBounds(bounds, { duration: 0, maxZoom: 15, padding: 32 });
       }
     };
@@ -278,6 +342,16 @@ export function MapWidgetLive({
       renderedMarkers = [];
 
       if (mapRef.current === map) {
+        for (const id of [
+          `${PATH_SOURCE_ID}-line`,
+          `${ZONE_SOURCE_ID}-line`,
+          `${ZONE_SOURCE_ID}-fill`,
+        ]) {
+          if (map.getLayer(id)) map.removeLayer(id);
+        }
+        for (const id of [PATH_SOURCE_ID, ZONE_SOURCE_ID]) {
+          if (map.getSource(id)) map.removeSource(id);
+        }
         if (map.getLayer(ACCURACY_LINE_LAYER_ID)) {
           map.removeLayer(ACCURACY_LINE_LAYER_ID);
         }
@@ -289,7 +363,7 @@ export function MapWidgetLive({
         }
       }
     };
-  }, [accentHex, isSmallCard, mapStyleUrl, markers]);
+  }, [accentHex, isSmallCard, mapStyleUrl, markers, paths, zoneLabel]);
 
   return (
     <>

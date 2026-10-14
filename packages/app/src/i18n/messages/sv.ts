@@ -1,4 +1,17 @@
 export const svMessages = {
+  'widgets.map.historyUntil': 'Registrerat till {time}',
+  'widgets.map.history': 'Platshistorik',
+  'widgets.map.period': 'Tidsperiod',
+  'widgets.map.lastHours': 'Senaste {hours} timmarna',
+  'widgets.map.samples':
+    'Linjer förbinder registrerade platser, inte en färdväg. Saknade data lämnar luckor.',
+  'widgets.map.historyUnavailable': 'Platshistorik är inte tillgänglig för denna källa.',
+  'widgets.map.noHistory':
+    'Det finns för få registrerade platser för att rita en linje. Källan kan utesluta entiteten eller ha raderat data.',
+  'widgets.map.pointCount': '{count} registrerade platser',
+  'widgets.map.showHistory': 'Visa på kartan',
+  'widgets.map.clearHistory': 'Rensa historik',
+  'widgets.map.zonePeople': 'Personer: {count}',
   'history.title': 'Historik och aktivitet',
   'history.userAction': 'Användaråtgärd',
   'history.entity': 'Entitet',
@@ -2690,10 +2703,10 @@ export const svMessages = {
   'dashboard.addCard.templates.scene.name': 'Scen',
   'dashboard.addCard.templates.scene.description':
     'Skapa en scenutlösare med ett tryck där scene.turn_on redan är ifyllt.',
-  'widgets.map.title': 'Spårare',
+  'widgets.map.title': 'Karta',
   'widgets.map.eyebrow': 'Live',
-  'widgets.map.noTrackers': 'Ingen GPS-data',
-  'widgets.map.trackerCount': '{count} spårade',
+  'widgets.map.noTrackers': 'Inga platser tillgängliga',
+  'widgets.map.trackerCount': 'Platser: {count}',
   'dashboard.addCard.templates.map.name': 'Karta',
   'dashboard.addCard.templates.map.description':
     'Livekarta som visar person- och device_tracker-entiteter med GPS-koordinater.',

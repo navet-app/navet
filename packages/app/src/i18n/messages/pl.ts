@@ -1,4 +1,17 @@
 export const plMessages = {
+  'widgets.map.historyUntil': 'Zapisano do {time}',
+  'widgets.map.history': 'Historia lokalizacji',
+  'widgets.map.period': 'Okres',
+  'widgets.map.lastHours': 'Ostatnie {hours} godzin',
+  'widgets.map.samples':
+    'Linie łączą zapisane lokalizacje, ale nie opisują przebytej trasy. Brakujące dane pozostawiają przerwy.',
+  'widgets.map.historyUnavailable': 'Historia lokalizacji jest niedostępna dla tego źródła.',
+  'widgets.map.noHistory':
+    'Za mało zapisanych lokalizacji do narysowania ścieżki. Źródło może wykluczać tę encję lub usunąć dane.',
+  'widgets.map.pointCount': '{count} zapisanych lokalizacji',
+  'widgets.map.showHistory': 'Pokaż na mapie',
+  'widgets.map.clearHistory': 'Wyczyść historię',
+  'widgets.map.zonePeople': 'Osoby: {count}',
   'history.title': 'Historia i aktywność',
   'history.userAction': 'Działanie użytkownika',
   'history.entity': 'Encja',
@@ -2711,10 +2724,10 @@ export const plMessages = {
   'dashboard.addCard.templates.scene.name': 'Scena',
   'dashboard.addCard.templates.scene.description':
     'Utwórz wyzwalacz sceny jednym dotknięciem z wypełnioną usługą scene.turn_on.',
-  'widgets.map.title': 'Lokalizatory',
+  'widgets.map.title': 'Mapa',
   'widgets.map.eyebrow': 'Na żywo',
-  'widgets.map.noTrackers': 'Brak danych GPS',
-  'widgets.map.trackerCount': 'Śledzone lokalizatory: {count}',
+  'widgets.map.noTrackers': 'Brak dostępnych lokalizacji',
+  'widgets.map.trackerCount': 'Lokalizacje: {count}',
   'dashboard.addCard.templates.map.name': 'Mapa',
   'dashboard.addCard.templates.map.description':
     'Mapa na żywo pokazująca encje person i device_tracker ze współrzędnymi GPS.',

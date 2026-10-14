@@ -1,4 +1,17 @@
 export const daMessages = {
+  'widgets.map.historyUntil': 'Registreret til {time}',
+  'widgets.map.history': 'Placeringshistorik',
+  'widgets.map.period': 'Periode',
+  'widgets.map.lastHours': 'Seneste {hours} timer',
+  'widgets.map.samples':
+    'Linjer forbinder registrerede placeringer og viser ikke en tilbagelagt rute. Manglende data giver huller.',
+  'widgets.map.historyUnavailable': 'Placeringshistorik er ikke tilgængelig for denne kilde.',
+  'widgets.map.noHistory':
+    'For få registrerede placeringer til at tegne en linje. Kilden kan udelade entiteten eller have slettet dataene.',
+  'widgets.map.pointCount': '{count} registrerede placeringer',
+  'widgets.map.showHistory': 'Vis på kortet',
+  'widgets.map.clearHistory': 'Ryd historik',
+  'widgets.map.zonePeople': 'Personer: {count}',
   'history.title': 'Historik og aktivitet',
   'history.userAction': 'Brugerhandling',
   'history.entity': 'Entitet',
@@ -2698,10 +2711,10 @@ export const daMessages = {
   'dashboard.addCard.templates.scene.name': 'Scene',
   'dashboard.addCard.templates.scene.description':
     'Opret en sceneudløser med et enkelt tryk med scene.turn_on udfyldt.',
-  'widgets.map.title': 'Sporer',
+  'widgets.map.title': 'Kort',
   'widgets.map.eyebrow': 'Live',
-  'widgets.map.noTrackers': 'Ingen GPS-data',
-  'widgets.map.trackerCount': '{count} sporet',
+  'widgets.map.noTrackers': 'Ingen placeringer tilgængelige',
+  'widgets.map.trackerCount': 'Placeringer: {count}',
   'dashboard.addCard.templates.map.name': 'Kort',
   'dashboard.addCard.templates.map.description':
     'Live kort, der viser person- og device_tracker-enheder med GPS-koordinater.',

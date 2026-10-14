@@ -1,4 +1,18 @@
 export const esMessages = {
+  'widgets.map.historyUntil': 'Registrado hasta {time}',
+  'widgets.map.history': 'Historial de ubicaciones',
+  'widgets.map.period': 'Período',
+  'widgets.map.lastHours': 'Últimas {hours} horas',
+  'widgets.map.samples':
+    'Las líneas unen ubicaciones registradas y no describen una ruta recorrida. Los datos ausentes dejan huecos.',
+  'widgets.map.historyUnavailable':
+    'El historial de ubicaciones no está disponible para esta fuente.',
+  'widgets.map.noHistory':
+    'No hay suficientes ubicaciones registradas para dibujar un recorrido. La fuente puede excluir esta entidad o haber eliminado los datos.',
+  'widgets.map.pointCount': '{count} ubicaciones registradas',
+  'widgets.map.showHistory': 'Mostrar en el mapa',
+  'widgets.map.clearHistory': 'Borrar historial',
+  'widgets.map.zonePeople': 'Personas: {count}',
   'history.title': 'Historial y actividad',
   'history.userAction': 'Acción del usuario',
   'history.entity': 'Entidad',
@@ -2724,10 +2738,10 @@ export const esMessages = {
   'dashboard.addCard.templates.scene.name': 'Escena',
   'dashboard.addCard.templates.scene.description':
     'Crea un activador de escena de un toque con scene.turn_on ya rellenado.',
-  'widgets.map.title': 'Rastreadores',
+  'widgets.map.title': 'Mapa',
   'widgets.map.eyebrow': 'En vivo',
-  'widgets.map.noTrackers': 'Sin datos GPS',
-  'widgets.map.trackerCount': '{count} rastreado(s)',
+  'widgets.map.noTrackers': 'No hay ubicaciones disponibles',
+  'widgets.map.trackerCount': 'Ubicaciones: {count}',
   'dashboard.addCard.templates.map.name': 'Mapa',
   'dashboard.addCard.templates.map.description':
     'Mapa en vivo que muestra entidades person y device_tracker con coordenadas GPS.',
