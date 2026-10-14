@@ -689,6 +689,49 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(exported["workspace"]["experience"]["earnedPointsByParticipant"]["manager"], 300)
         self.assertEqual(saved["data"]["experience"]["earnedPointsByParticipant"]["manager"], 301)
 
+    async def test_reset_clears_archived_points_exports_and_unreferenced_chunks(self):
+        for recovery_reset in (False, True):
+            with self.subTest(recovery_reset=recovery_reset), tempfile.TemporaryDirectory() as directory:
+                _Store.values.clear()
+                self.hass.config = types.SimpleNamespace(path=lambda _name: directory)
+                self.authority = chores.ChoreAuthority(self.hass)
+                await self._create_manager()
+                previous = copy.deepcopy(self.authority._document)
+                data = copy.deepcopy(self.authority.data)
+                data["experience"]["earnedPointsByParticipant"] = {"manager": 300}
+                data["experience"]["pointTransactions"] = [{"id": f"reset-ledger:{index}", "participantId": "manager",
+                    "pointsDelta": 1, "kind": "adjustment", "timestamp": "2026-09-30T08:00:00.000Z"} for index in range(300)]
+                # Include chunked working state so reset collects both kinds of ledger chunks.
+                data["experience"]["progressAwards"] = [{"id": f"reset-award:{index}:" + "x" * 150,
+                    "targetId": "target", "participantId": "manager", "cycleKey": f"cycle:{index}",
+                    "awardedAt": "2026-09-30T08:00:00.000Z"} for index in range(8000)]
+                await self.authority._save({**previous, "revision": previous["revision"] + 1, "data": data}, previous)
+                self.assertGreater(self.authority._document["pointHistory"]["count"], 0)
+                self.assertIn("durableCollections", chores._unpack_storage(_Store.values[chores.WORKSPACE_KEY]))
+                chunk_keys = [key for key in _Store.values if ".chunk." in key]
+                self.assertTrue(chunk_keys)
+                for key in chunk_keys:
+                    pathlib.Path(directory, key).touch()
+                if recovery_reset:
+                    result = await self.authority.async_recover({"action": "reset", "confirmation": "RESET CHORES"}, "ha-user-1")
+                else:
+                    result = await self.authority.async_reset({"commandId": "reset-archived-ledger",
+                        "baseRevision": self.authority.revision, "actorParticipantId": "manager",
+                        "confirmation": "DELETE ALL CHORES"}, "ha-user-1")
+                self.assertEqual(result["data"], chores._empty_data())
+                self.assertNotIn("pointHistory", chores._unpack_storage(_Store.values[chores.WORKSPACE_KEY]))
+                self.assertNotIn(chores.LAST_GOOD_KEY, _Store.values)
+                self.assertFalse(any(".chunk." in key for key in _Store.values))
+                restarted = chores.ChoreAuthority(self.hass)
+                await restarted.async_initialize()
+                self.assertEqual(restarted.data, chores._empty_data())
+                for authority in (self.authority, restarted):
+                    page = await authority.async_handle_ws({"type": "navet/chores/points/get"}, "ha-user-1")
+                    self.assertEqual(page["points"], [])
+                    self.assertFalse(page["hasMore"])
+                    backup = await authority.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+                    self.assertEqual(backup["workspace"]["experience"]["pointTransactions"], [])
+
     async def test_large_ledger_survives_restart_and_chunk_failure(self):
         await self._create_manager()
         data = copy.deepcopy(self.authority.data)

@@ -2076,13 +2076,15 @@ class ChoreAuthority:
                 return
             retained: set[str] = set()
             for name in ("primary", "last_good"):
+                if name not in payloads:
+                    continue
                 stored = await self.hass.async_add_executor_job(_unpack_storage, payloads[name], MAX_WORKSPACE_BYTES)
                 history = stored.get("pointHistory", {})
                 retained.update(page["key"] for page in history.get("pages", []))
                 references = stored.get("durableCollections", {})
-                for collection, keys in references.items():
+                for collection, chunk_keys in references.items():
                     if collection != "version":
-                        retained.update(keys)
+                        retained.update(chunk_keys)
             for key in keys:
                 if len(key) == 64 and all(char in "0123456789abcdef" for char in key) and key not in retained:
                     await self._chunk_store(key).async_remove()
@@ -2215,10 +2217,12 @@ class ChoreAuthority:
             "updatedAt": timestamp,
             "data": _empty_data(),
         }
-        await self._save(next_document, previous)
+        await self._save(next_document, previous, replace_point_history=True)
         for store_name in ("last_good", "history", "journal"):
             await self._stores[store_name].async_remove()
         await self._stores["security"].async_remove()
+        # Reset discards recovery too; its chunks are now safe to collect.
+        await self._collect_unreferenced_chunks({"primary": await self._stores["primary"].async_load()})
         result = self._public_document()
         result["management"] = {"pinConfigured": False}
         return result
