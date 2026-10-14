@@ -470,6 +470,55 @@ describe('NJS chore workspace store', () => {
     }
   });
 
+  it('rejects an expired adjustment replay without changing points but accepts covered concurrent edits', () => {
+    const mockFs = createMockFs();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    const initial = createRequest();
+    choreStore.handle(initial);
+    const base = parseResponse(initial).revision;
+    const action = {
+      type: 'experience_points_adjust' as const,
+      actorParticipantId: 'maya',
+      participantId: 'maya',
+      pointsDelta: 10,
+    };
+    const original = createActionRequest('expired-adjustment', base, action);
+    choreStore.handle(original);
+    expect(original.return.mock.calls.at(-1)?.[0]).toBe(200);
+    const document = parseResponse(original);
+    document.revision += 6000;
+    document.data.activity = [];
+    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(document));
+    const commands = Array.from({ length: 500 }, (_, index) => ({
+      commandId: `later:${index}`,
+      revision: document.revision - 499 + index,
+      timestamp: document.updatedAt,
+    }));
+    mockFs.writeFileSync(
+      '/data/navet-chore-command-journal.json',
+      JSON.stringify({ contractVersion: 1, commands })
+    );
+    const replay = createActionRequest('expired-adjustment', base, action);
+    choreStore.handle(replay);
+    expect(replay.return.mock.calls.at(-1)?.[0]).toBe(409);
+    expect(parseResponse(replay).code).toBe('command_expired');
+    const unchanged = createRequest();
+    choreStore.handle(unchanged);
+    expect(parseResponse(unchanged).revision).toBe(document.revision);
+    expect(parseResponse(unchanged).data.experience.pointTransactions).toEqual(
+      document.data.experience.pointTransactions
+    );
+    const fresh = createActionRequest('covered-adjustment', document.revision - 500, action);
+    choreStore.handle(fresh);
+    expect(fresh.return.mock.calls.at(-1)?.[0]).toBe(200);
+    expect(parseResponse(fresh).data.experience.earnedPointsByParticipant.maya).toBe(20);
+    const retry = createActionRequest('covered-adjustment', document.revision - 500, action);
+    choreStore.handle(retry);
+    expect(parseResponse(retry)).toEqual(parseResponse(fresh));
+  });
+
   it('bounds the recent point ledger by expanded UTF-8 bytes as well as row count', () => {
     const base = {
       id: '',

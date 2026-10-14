@@ -905,7 +905,7 @@ export async function sendChoreWorkspaceCommand(
         error: message,
         revision: details.revision,
         document: null,
-        retryable: details.code !== 'stale_revision',
+        retryable: details.code !== 'stale_revision' && details.code !== 'command_expired',
       };
     }
   }

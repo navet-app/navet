@@ -9,6 +9,7 @@ import {
   compactChoreHistory,
   compactChoreWorkspace,
   getChoreSchedulerDeadline,
+  hasChoreCommandCoverage,
   readChoreHistoryPage,
 } from './chore-storage-policy';
 import {
@@ -3204,6 +3205,20 @@ describe('durable fixed-work supersession', () => {
 
 // Rewrite policy: internal scheduling/delivery chatter is removable; household accounting is not.
 describe('chore storage cleanup', () => {
+  it('rebases only within contiguous retained command identities', () => {
+    const commands = [8, 9, 10].map((revision) => ({ commandId: `cmd:${revision}`, revision }));
+    expect(hasChoreCommandCoverage(7, 10, commands)).toBe(true);
+    expect(hasChoreCommandCoverage(9, 10, commands)).toBe(true);
+    expect(hasChoreCommandCoverage(6, 10, commands)).toBe(false);
+    expect(hasChoreCommandCoverage(8, 10, [commands[0], commands[2]])).toBe(false);
+    expect(hasChoreCommandCoverage(9, 10, commands.slice(0, 2))).toBe(false);
+    expect(hasChoreCommandCoverage(0, 10, [{ commandId: 'recovered', revision: 0 }])).toBe(false);
+    expect(hasChoreCommandCoverage(9, 10, [{ commandId: '', revision: 10 }])).toBe(false);
+    expect(hasChoreCommandCoverage(7, 10, commands.concat(commands))).toBe(true);
+    for (const base of [-1, 10, 11])
+      expect(hasChoreCommandCoverage(base, 10, commands)).toBe(false);
+  });
+
   const event = (
     id: string,
     type: 'workspace_materialized' | 'completed' | 'points_adjusted' | 'outbox_delivery_updated'

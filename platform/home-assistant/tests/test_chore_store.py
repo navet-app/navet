@@ -718,6 +718,32 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
                     "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}, "ha-user-1")
         self.assertEqual(self.authority.data["experience"]["earnedPointsByParticipant"]["manager"], 20)
 
+    async def test_expired_adjustment_replay_is_rejected_after_restart(self):
+        await self._create_manager()
+        base = self.authority.revision
+        action = {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}
+        request = {"commandId": "expired-adjustment", "baseRevision": base, "action": action}
+        await self.authority.async_command(request, "ha-user-1")
+        previous = copy.deepcopy(self.authority._document)
+        document = copy.deepcopy(previous)
+        document["revision"] += 6000
+        document["data"]["activity"] = []
+        self.authority._journal = [{"commandId": f"later:{index}", "revision": document["revision"] - 499 + index,
+            "timestamp": document["updatedAt"]} for index in range(500)]
+        await self.authority._save(document, previous)
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        before = copy.deepcopy(_Store.values)
+        with self.assertRaises(chores.ChoreCommandExpiredError):
+            await restarted.async_command(request, "ha-user-1")
+        self.assertEqual(_Store.values, before)
+        self.assertEqual(restarted.data["experience"]["earnedPointsByParticipant"]["manager"], 10)
+        fresh = {"commandId": "covered-adjustment", "baseRevision": restarted.revision - 500, "action": action}
+        await restarted.async_command(fresh, "ha-user-1")
+        await restarted.async_command(fresh, "ha-user-1")
+        self.assertEqual(restarted.data["experience"]["earnedPointsByParticipant"]["manager"], 20)
+        self.assertEqual(len(restarted.data["experience"]["pointTransactions"]), 2)
+
     async def test_backup_pins_its_accounting_snapshot_during_a_concurrent_write(self):
         await self._create_manager()
         previous = copy.deepcopy(self.authority._document)

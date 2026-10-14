@@ -84,6 +84,12 @@ class ChoreConflictError(ChoreAuthorityError):
     code = "stale_revision"
 
 
+class ChoreCommandExpiredError(ChoreAuthorityError):
+    """The retained command identities cannot prove that a retry is safe."""
+
+    code = "command_expired"
+
+
 class ChoreStorageError(ChoreAuthorityError):
     """The durable workspace cannot currently be read or written."""
 
@@ -1331,6 +1337,22 @@ def _point_definition_id(item: Mapping[str, Any], occurrences: Mapping[str, Any]
     return match[1] if match else None
 
 
+def _has_command_coverage(base_revision: int, revision: int, commands: list[dict[str, Any]]) -> bool:
+    if base_revision < 0 or base_revision >= revision:
+        return False
+    revisions = sorted({item["revision"] for item in commands
+        if isinstance(item.get("commandId"), str) and item["commandId"]
+        and type(item.get("revision")) is int and item["revision"] <= revision}, reverse=True)
+    covered = revision
+    for value in revisions:
+        if value != covered:
+            break
+        covered -= 1
+        if base_revision >= covered:
+            return True
+    return False
+
+
 def _archive_point_progress(previous: Mapping[str, Any] | None, records: list[dict[str, Any]], occurrence_ids: set[str], occurrences: Mapping[str, Any] | None = None) -> dict[str, Any]:
     summary = copy.deepcopy(previous or {"version": 1, "totals": {}, "occurrences": {}})
     summary.setdefault("definitions", {})
@@ -2271,6 +2293,9 @@ class ChoreAuthority:
             action = request.get("action")
             rebasable = isinstance(action, Mapping) and action.get("type") in {
                 "occurrence_action", "experience_points_adjust", "reward_request", "reward_decision", "reminder_acknowledge"}
+            if (type(base_revision) is int and 0 <= base_revision < self.revision and rebasable
+                and not _has_command_coverage(base_revision, self.revision, self._journal[-MAX_JOURNAL_ITEMS:])):
+                raise ChoreCommandExpiredError("Chore action could not be applied")
             if (type(base_revision) is not int or base_revision != self.revision
                 and not (0 <= base_revision < self.revision and rebasable)):
                 raise ChoreConflictError("Chore workspace changed on another client")

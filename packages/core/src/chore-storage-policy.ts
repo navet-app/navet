@@ -26,6 +26,33 @@ export function canRebaseChoreAction(type: string | undefined): boolean {
   );
 }
 
+/** Rebase only across a contiguous suffix of retained command identities. */
+export function hasChoreCommandCoverage(
+  baseRevision: number,
+  revision: number,
+  commands: readonly { commandId: string; revision: number }[]
+): boolean {
+  if (!Number.isSafeInteger(baseRevision) || baseRevision < 0 || baseRevision >= revision)
+    return false;
+  const revisions = commands
+    .filter(
+      (command) =>
+        typeof command.commandId === 'string' &&
+        command.commandId.length > 0 &&
+        Number.isSafeInteger(command.revision) &&
+        command.revision <= revision
+    )
+    .map((command) => command.revision)
+    .sort((left, right) => right - left);
+  let covered = revision;
+  for (let index = 0; index < revisions.length; index++) {
+    if (revisions[index] === covered) covered--;
+    else if (revisions[index] < covered) break;
+    if (baseRevision >= covered) return true;
+  }
+  return false;
+}
+
 /** Earliest future boundary after a settled scheduler pass; no durable timer records. */
 export function getChoreSchedulerDeadline(data: ChoreWorkspaceData, timestamp: string): number {
   const now = Date.parse(timestamp);

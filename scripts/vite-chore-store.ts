@@ -1,7 +1,7 @@
 import { archiveChorePointProgress } from '../packages/core/src/chore-progress-policy.ts'
 import type { ChorePointTransaction } from '../packages/core/src/chore-experience.ts'
 import type { PointHistory } from '../docker/njs/chore-durable-storage.js'
-import { canRebaseChoreAction, getChoreSchedulerDeadline, compactChoreHistory, compactChoreWorkspace, isChoreBookkeeping, isChoreMaterializationUnchanged, readChoreHistoryPage, type CompactChoreHistory } from '../packages/core/src/chore-storage-policy.ts'
+import { hasChoreCommandCoverage, canRebaseChoreAction, getChoreSchedulerDeadline, compactChoreHistory, compactChoreWorkspace, isChoreBookkeeping, isChoreMaterializationUnchanged, readChoreHistoryPage, type CompactChoreHistory } from '../packages/core/src/chore-storage-policy.ts'
 import fileSystem from 'node:fs'
 import boundedFile from '../docker/shared/bounded-file.js'
 import choreDurableStorage from '../docker/njs/chore-durable-storage.js'
@@ -1319,6 +1319,11 @@ export function createViteChoreStoreRequestHandler(options: {
           journal.commands.some((command) => command.commandId === request.commandId)
         ) {
           sendJson(res, 200, publicDocument(document, pinConfigured))
+          return
+        }
+        if (baseRevision >= 0 && baseRevision < document.revision && canRebaseChoreAction(request.action?.type) &&
+            !hasChoreCommandCoverage(baseRevision, document.revision, journal.commands)) {
+          sendJson(res, 409, { error: 'Chore action could not be applied', code: 'command_expired' })
           return
         }
         if (baseRevision !== document.revision && !(baseRevision >= 0 && baseRevision < document.revision && canRebaseChoreAction(request.action?.type))) {

@@ -116,6 +116,11 @@ storage, scan history, or write timer records. A pass that changes domain state 
 until a subsequent pass settles, preserving catch-up after downtime and carry-forward work.
 Completing an after-completion chore still creates its next date synchronously.
 
+Stale intent commands can rebase only across a contiguous suffix of revisions whose command IDs
+remain in the bounded journal. Known retries still return the current state without applying twice.
+A request older than that coverage, or across a journal gap, fails with `command_expired` (HTTP 409)
+and is not automatically resubmitted at a newer revision. Replacement edits retain compare-and-swap.
+
 The workspace revision is the authority. The working state retains at most 128 recent point
 transactions within a 32 KiB expanded budget. Older transactions move into immutable point-history
 pages targeting 256 KiB. Only the tail page is read and replaced during an append. The workspace

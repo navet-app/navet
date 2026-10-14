@@ -3653,6 +3653,12 @@ function commitCommand(r, principal) {
     sendJson(r, 200, publicDocument(current, principal.tenantId));
     return;
   }
+  if (baseRevision >= 0 && baseRevision < current.revision &&
+      choreStoragePolicy.canRebaseChoreAction(request.action.type) &&
+      !choreStoragePolicy.hasChoreCommandCoverage(baseRevision, current.revision, journal.commands)) {
+    sendJson(r, 409, { error: 'Chore action could not be applied', code: 'command_expired' });
+    return;
+  }
   if (baseRevision !== current.revision && !(baseRevision >= 0 && baseRevision < current.revision &&
       choreStoragePolicy.canRebaseChoreAction(request.action.type))) {
     sendJson(r, 412, Object.assign(publicDocument(current, principal.tenantId), {

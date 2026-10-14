@@ -9,6 +9,18 @@ function isChoreBookkeeping(type) {
 function canRebaseChoreAction(type) {
 	return type === "occurrence_action" || type === "experience_points_adjust" || type === "reward_request" || type === "reward_decision" || type === "reminder_acknowledge";
 }
+/** Rebase only across a contiguous suffix of retained command identities. */
+function hasChoreCommandCoverage(baseRevision, revision, commands) {
+	if (!Number.isSafeInteger(baseRevision) || baseRevision < 0 || baseRevision >= revision) return false;
+	const revisions = commands.filter((command) => typeof command.commandId === "string" && command.commandId.length > 0 && Number.isSafeInteger(command.revision) && command.revision <= revision).map((command) => command.revision).sort((left, right) => right - left);
+	let covered = revision;
+	for (let index = 0; index < revisions.length; index++) {
+		if (revisions[index] === covered) covered--;
+		else if (revisions[index] < covered) break;
+		if (baseRevision >= covered) return true;
+	}
+	return false;
+}
 /** Earliest future boundary after a settled scheduler pass; no durable timer records. */
 function getChoreSchedulerDeadline(data, timestamp) {
 	const now = Date.parse(timestamp);
@@ -172,4 +184,4 @@ function readChoreHistoryPage(history, after, limit, types, occurrenceId, defini
 	};
 }
 
-export default { isChoreBookkeeping, canRebaseChoreAction, getChoreSchedulerDeadline, compactChoreActivity, compactChoreOutbox, compactChoreWorkspace, isChoreMaterializationUnchanged, compactChoreHistory, readChoreHistoryPage };
+export default { isChoreBookkeeping, canRebaseChoreAction, hasChoreCommandCoverage, getChoreSchedulerDeadline, compactChoreActivity, compactChoreOutbox, compactChoreWorkspace, isChoreMaterializationUnchanged, compactChoreHistory, readChoreHistoryPage };

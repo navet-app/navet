@@ -219,6 +219,32 @@ describe('chore workspace service', () => {
     });
   });
 
+  it('does not automatically retry an expired panel command', async () => {
+    window.__NAVET_PANEL__ = true;
+    resetRuntimeContextForTests();
+    homeAssistantService.setPanelHass({
+      states: {},
+      config: {},
+      callService: vi.fn(),
+      callWS: vi.fn().mockRejectedValue({
+        code: 'command_expired',
+        message: 'Chore action could not be applied',
+      }),
+    } as never);
+    await expect(
+      sendChoreWorkspaceCommand({
+        commandId: 'expired-adjustment',
+        baseRevision: 1,
+        action: {
+          type: 'experience_points_adjust',
+          actorParticipantId: 'manager',
+          participantId: 'manager',
+          pointsDelta: 10,
+        },
+      })
+    ).resolves.toMatchObject({ saved: false, preconditionFailed: false, retryable: false });
+  });
+
   it('loads and conditionally refreshes the shared document', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(

@@ -490,6 +490,96 @@ describe('Vite chore workspace store', () => {
     expect(JSON.parse(latest.body).data.experience.pointTransactions).toHaveLength(2);
   });
 
+  it('rejects expired adjustment replays after restart while retaining recent concurrent edits', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chore-expiry-'));
+    tempDirs.push(directory);
+    const filePath = join(directory, 'chores.json');
+    const makeHandler = () =>
+      createViteChoreStoreRequestHandler({ filePath, resolvePrincipal: () => PRINCIPAL });
+    let handler = makeHandler();
+    const manager = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': '0' },
+        participantActionBody('manager', 0)
+      ),
+      manager.response
+    );
+    const original = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': '1' },
+        pointAdjustmentActionBody('expired-adjustment', 1)
+      ),
+      original.response
+    );
+    expect(original.status).toBe(200);
+    const document = durableStorage.unpack(
+      JSON.parse(readFileSync(filePath, 'utf8')),
+      (value: string) => createHash('sha256').update(value).digest('hex')
+    ) as {
+      revision: number;
+      updatedAt: string;
+      data: { activity: unknown[]; experience: { pointTransactions: unknown[] } };
+    };
+    document.revision += 6000;
+    document.data.activity = [];
+    writeFileSync(filePath, JSON.stringify(document));
+    const commands = Array.from({ length: 500 }, (_, index) => ({
+      commandId: `later:${index}`,
+      revision: document.revision - 499 + index,
+      timestamp: document.updatedAt,
+    }));
+    writeFileSync(filePath + '.journal', JSON.stringify({ contractVersion: 1, commands }));
+    handler = makeHandler();
+    const replay = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': '1' },
+        pointAdjustmentActionBody('expired-adjustment', 1)
+      ),
+      replay.response
+    );
+    expect(replay.status).toBe(409);
+    expect(JSON.parse(replay.body).code).toBe('command_expired');
+    const unchanged = createResponse();
+    await handler(createRequest('GET', '/workspace'), unchanged.response);
+    expect(JSON.parse(unchanged.body).revision).toBe(document.revision);
+    expect(JSON.parse(unchanged.body).data.experience.pointTransactions).toEqual(
+      document.data.experience.pointTransactions
+    );
+    const base = document.revision - 500;
+    const fresh = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': String(base) },
+        pointAdjustmentActionBody('covered-adjustment', base)
+      ),
+      fresh.response
+    );
+    expect(fresh.status).toBe(200);
+    expect(JSON.parse(fresh.body).data.experience.earnedPointsByParticipant.maya).toBe(-24);
+    const retry = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': String(base) },
+        pointAdjustmentActionBody('covered-adjustment', base)
+      ),
+      retry.response
+    );
+    expect(retry.body).toBe(fresh.body);
+  });
+
   it.each(['legacy', 'redundant'])(
     'repairs %s scoped summaries once while preserving complete history',
     async (format) => {
