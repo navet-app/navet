@@ -174,10 +174,12 @@ function missing() {
 }
 let failChunk = false;
 let writeCount = 0;
+let historyReadCount = 0;
 const descriptors = {};
 let nextDescriptor = 1;
 choreStore.setChoreStoreFsForTests({
   openSync: (path) => {
+    if (path === '/data/navet-chore-events.json') historyReadCount++;
     if (paths[path] === undefined) missing();
     const descriptor = nextDescriptor++;
     descriptors[descriptor] = { bytes: Buffer.from(paths[path]), offset: 0 };
@@ -196,8 +198,11 @@ choreStore.setChoreStoreFsForTests({
   readdirSync: (directory) => Object.keys(paths)
     .filter(function (path) { return path.indexOf(directory + '/') === 0; })
     .map(function (path) { return path.slice(directory.length + 1); }),
-  statSync: (path) =>
-    paths[path] === undefined ? missing() : { size: Buffer.byteLength(paths[path]) },
+  statSync: (path) => {
+    if (paths[path] === undefined) missing();
+    const version = Number.parseInt(hash(paths[path]).slice(0, 12), 16);
+    return { size: Buffer.byteLength(paths[path]), mtimeMs: version, ctimeMs: version, ino: 1 };
+  },
   readFileSync: (path) => (paths[path] === undefined ? missing() : paths[path]),
   writeFileSync: (path, value) => {
     writeCount++;
@@ -237,6 +242,10 @@ function request(method, uri, command) {
   return r;
 }
 const beforeNoop = request('GET', '/__navet_chores__/workspace');
+const beforeNoopHistoryReads = historyReadCount;
+request('GET', '/__navet_chores__/workspace');
+assert(historyReadCount === beforeNoopHistoryReads,
+  'Native settled refresh skips history hydration until a scheduler deadline');
 const beforeNoopWrites = writeCount;
 const nativeNoop = request('POST', '/__navet_chores__/commands', {
   commandId: 'native-noop', baseRevision: beforeNoop.body.revision,

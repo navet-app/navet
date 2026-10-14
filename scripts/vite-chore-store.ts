@@ -1,4 +1,4 @@
-import { compactChoreHistory, compactChoreWorkspace, isChoreBookkeeping, isChoreMaterializationUnchanged, readChoreHistoryPage, type CompactChoreHistory } from '../packages/core/src/chore-storage-policy.ts'
+import { getChoreSchedulerDeadline, compactChoreHistory, compactChoreWorkspace, isChoreBookkeeping, isChoreMaterializationUnchanged, readChoreHistoryPage, type CompactChoreHistory } from '../packages/core/src/chore-storage-policy.ts'
 import fileSystem from 'node:fs'
 import boundedFile from '../docker/shared/bounded-file.js'
 import choreDurableStorage from '../docker/njs/chore-durable-storage.js'
@@ -296,6 +296,16 @@ export function createViteChoreStoreRequestHandler(options: {
   const eventHistoryPath = `${filePath}.events`
   const lastGoodWorkspacePath = `${filePath}.last-good`
   const managementSecurityPath = `${filePath}.management`
+  let schedulerCheckpoint: { revision: number; checkedAt: number; nextAt: number; identity: string } | null = null
+  const schedulerIdentity = () => [filePath, eventHistoryPath].map((candidate) => {
+    try {
+      const stat = fileSystem.statSync(candidate)
+      return [stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(':')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      return 'missing'
+    }
+  }).join('|')
   let managementSessions: ChoreManagementSession[] = []
   let failedManagementAttempts = 0
   let managementBlockedUntil = 0
@@ -637,6 +647,11 @@ export function createViteChoreStoreRequestHandler(options: {
       document = next
       documentNeedsMigration = false
     }
+    const now = Date.parse(timestamp)
+    if (!documentNeedsMigration && schedulerCheckpoint &&
+        document.revision === schedulerCheckpoint.revision &&
+        now >= schedulerCheckpoint.checkedAt && now < schedulerCheckpoint.nextAt &&
+        schedulerIdentity() === schedulerCheckpoint.identity) return document
     const history = readEventHistory(document.data.activity)
     const scheduled = runChoreWorkspaceScheduler(document.data, timestamp, {
       existingEventIds: new Set(history.events.map((event) => event.id)),
@@ -651,6 +666,8 @@ export function createViteChoreStoreRequestHandler(options: {
       )
     ) {
       appendEventHistory(document.data.activity, document.data.historyRetention)
+      schedulerCheckpoint = { revision: document.revision, checkedAt: now,
+        nextAt: getChoreSchedulerDeadline(document.data, timestamp), identity: schedulerIdentity() }
       return document
     }
 

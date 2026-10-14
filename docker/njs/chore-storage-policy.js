@@ -5,6 +5,60 @@ const hasOwn = Object.prototype.hasOwnProperty;
 function isChoreBookkeeping(type) {
 	return type === "workspace_materialized" || type === "outbox_delivery_updated";
 }
+/** Earliest future boundary after a settled scheduler pass; no durable timer records. */
+function getChoreSchedulerDeadline(data, timestamp) {
+	const now = Date.parse(timestamp);
+	if (!Number.isFinite(now)) throw new Error("Invalid chore scheduler timestamp");
+	// Daily materialization/retention is also a boundary, including an empty household.
+	let next = (Math.floor(now / 864e5) + 1) * 864e5;
+	function consider(value) {
+		if (Number.isFinite(value) && value > now && value < next) next = value;
+	}
+	const people = Object.values(data.participantsById);
+	for (let index = 0; index < people.length; index++) {
+		var _people$index$pausedA, _people$index$resumeA;
+		consider(Date.parse((_people$index$pausedA = people[index].pausedAt) !== null && _people$index$pausedA !== void 0 ? _people$index$pausedA : ""));
+		consider(Date.parse((_people$index$resumeA = people[index].resumeAt) !== null && _people$index$resumeA !== void 0 ? _people$index$resumeA : ""));
+	}
+	const occurrences = Object.values(data.occurrencesById);
+	for (let index = 0; index < occurrences.length; index++) {
+		const occurrence = occurrences[index];
+		const definition = data.definitionsById[occurrence.definitionId];
+		const due = Date.parse(occurrence.dueAt);
+		consider(Date.parse(occurrence.scheduledAt));
+		consider(due);
+		// Due is inclusive, overdue is strictly after due in the existing contract.
+		consider(due + 1);
+		const active = occurrence.status === "available" || occurrence.status === "claimed";
+		if (active && (definition === null || definition === void 0 ? void 0 : definition.missedPolicy)) consider(due + definition.missedPolicy.graceMinutes * 6e4);
+		const policy = definition === null || definition === void 0 ? void 0 : definition.reminderPolicy;
+		if (!(policy === null || policy === void 0 ? void 0 : policy.enabled) || definition.archivedAt) continue;
+		if (active) {
+			for (let offset = 0; offset < policy.beforeDueMinutes.length; offset++) consider(due - policy.beforeDueMinutes[offset] * 6e4);
+			if (policy.overdueEveryMinutes) {
+				var _policy$maxOverdueRem;
+				const interval = policy.overdueEveryMinutes * 6e4;
+				const slot = Math.max(1, Math.floor((now - due) / interval) + 1);
+				if (slot <= ((_policy$maxOverdueRem = policy.maxOverdueReminders) !== null && _policy$maxOverdueRem !== void 0 ? _policy$maxOverdueRem : Infinity)) consider(due + slot * interval);
+			}
+		}
+		if (occurrence.status === "awaiting_approval" && occurrence.completedAt && policy.approvalAfterMinutes !== undefined) consider(Date.parse(occurrence.completedAt) + policy.approvalAfterMinutes * 6e4);
+	}
+	const outbox = data.outbox || [];
+	for (let index = 0; index < outbox.length; index++) {
+		const item = outbox[index];
+		if ((item.status === "pending" || item.status === "failed") && (item.destination === "home_assistant" || item.destination === "provider")) {
+			var _item$occurrenceId;
+			const occurrence = data.occurrencesById[(_item$occurrenceId = item.occurrenceId) !== null && _item$occurrenceId !== void 0 ? _item$occurrenceId : ""];
+			if (occurrence && (!item.occurrenceUpdatedAt || item.occurrenceUpdatedAt === occurrence.updatedAt)) {
+				const attempt = Date.parse(item.nextAttemptAt);
+				if (attempt <= now) return now;
+				consider(attempt);
+			}
+		}
+	}
+	return next;
+}
 /** Stable IDs identify retries; separate actions with different IDs remain distinct. */
 function compactChoreActivity(events) {
 	const seen = Object.create(null);
@@ -114,4 +168,4 @@ function readChoreHistoryPage(history, after, limit, types, occurrenceId, defini
 	};
 }
 
-export default { isChoreBookkeeping, compactChoreActivity, compactChoreOutbox, compactChoreWorkspace, isChoreMaterializationUnchanged, compactChoreHistory, readChoreHistoryPage };
+export default { isChoreBookkeeping, getChoreSchedulerDeadline, compactChoreActivity, compactChoreOutbox, compactChoreWorkspace, isChoreMaterializationUnchanged, compactChoreHistory, readChoreHistoryPage };

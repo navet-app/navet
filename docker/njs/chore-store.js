@@ -63,6 +63,9 @@ let lastDeliveryError = null;
 let eventHistoryCache = null;
 let eventHistoryCacheEnabled = false;
 let lastMaterializationKey = null;
+let schedulerCheckpoint = null;
+// Declare before the cache helpers for native NJS lexical binding support.
+let fsModule = fs;
 
 function getSchedulerCache() {
   return typeof ngx !== 'undefined' && ngx && ngx.shared && ngx.shared.navet_chore_scheduler
@@ -82,6 +85,46 @@ function setMaterializationKey(key) {
   } else lastMaterializationKey = key;
 }
 
+// Derived metadata only: a cache miss always falls back to the durable authority.
+// File identities detect repairs/external edits even when revision/size stay equal.
+function schedulerStorageIdentity() {
+  const paths = [CHORE_WORKSPACE_PATH, CHORE_EVENT_HISTORY_PATH];
+  const parts = [];
+  for (let index = 0; index < paths.length; index++) {
+    try {
+      const stat = fsModule.statSync(paths[index]);
+      if (!Number.isFinite(stat.mtimeMs) || !Number.isFinite(stat.ctimeMs) ||
+          !Number.isFinite(stat.ino)) return null;
+      parts.push([stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(':'));
+    } catch (error) {
+      if (!error || error.code !== 'ENOENT') return null;
+      parts.push('missing');
+    }
+  }
+  return parts.join('|');
+}
+
+function schedulerCanWait(timestamp, document) {
+  const cache = getSchedulerCache();
+  let checkpoint;
+  try { checkpoint = cache ? JSON.parse(cache.get('deadline') || 'null') : schedulerCheckpoint; }
+  catch (_error) { return false; }
+  const now = Date.parse(timestamp);
+  return Boolean(checkpoint && now >= checkpoint.checkedAt && now < checkpoint.nextAt &&
+    (!document || document.revision === checkpoint.revision) &&
+    checkpoint.identity === schedulerStorageIdentity());
+}
+
+function rememberSchedulerDeadline(document, timestamp) {
+  const identity = schedulerStorageIdentity();
+  if (identity === null) return;
+  const checkpoint = { identity, revision: document.revision, checkedAt: Date.parse(timestamp),
+    nextAt: choreStoragePolicy.getChoreSchedulerDeadline(document.data, timestamp) };
+  const cache = getSchedulerCache();
+  if (cache) cache.set('deadline', JSON.stringify(checkpoint));
+  else schedulerCheckpoint = checkpoint;
+}
+
 function withEventHistoryCache(action) {
   eventHistoryCache = null;
   eventHistoryCacheEnabled = true;
@@ -93,7 +136,6 @@ function withEventHistoryCache(action) {
   }
 }
 
-let fsModule = fs;
 function resolveChorePrincipal(r, options) {
   const principal = authStore.resolveAuthenticatedPrincipal(r, options);
   if (principal) return principal;
@@ -115,6 +157,7 @@ function setChoreStorePrincipalResolverForTests(resolver) {
 
 function resetChoreStoreForTests() {
   lastMaterializationKey = null;
+  schedulerCheckpoint = null;
   fsModule = fs;
   managementSessions = [];
   failedManagementAttempts = 0;
@@ -2794,10 +2837,12 @@ function repairStoredWorkspace(document, previous) {
 
 function applyScheduledState(document) {
   const timestamp = nowIso();
+  if (schedulerCanWait(timestamp, document)) return document;
   lastSchedulerRunAt = timestamp;
   const scheduled = runWorkspaceScheduler(document.data, timestamp);
   if (scheduled.activities.length === 0 && scheduled.outboxItems.length === 0 && sameObjectKeys(scheduled.data.occurrencesById, document.data.occurrencesById)) {
     appendEventHistory(document.data.activity, document.data.historyRetention);
+    rememberSchedulerDeadline(document, timestamp);
     return document;
   }
   const nextDocument = Object.assign({}, document, {
@@ -2931,6 +2976,7 @@ function recordPeriodicDelivery(item, status, errorMessage) {
 
 async function runPeriodic(_session) {
   const timestamp = nowIso();
+  if (getMaterializationKey() && schedulerCanWait(timestamp)) return;
   lastSchedulerRunAt = timestamp;
   const document = withEventHistoryCache(function () {
     const current = readDocument();

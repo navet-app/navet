@@ -229,6 +229,61 @@ afterEach(() => {
 });
 
 describe('NJS chore workspace store', () => {
+  it('waits for deadlines across request VMs and detects same-size history edits and clock rollback', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T09:00:00Z'));
+    const mockFs = createMockFs();
+    mockFs.statSync.mockImplementation((path: string) => {
+      const value = mockFs.getFile(path);
+      if (value === undefined) throw Object.assign(new Error('Missing'), { code: 'ENOENT' });
+      const version = Number.parseInt(
+        createHash('sha256').update(value).digest('hex').slice(0, 12),
+        16
+      );
+      return { size: value.length, mtimeMs: version, ctimeMs: version, ino: 1 };
+    });
+    vi.stubGlobal('ngx', { shared: { navet_chore_scheduler: createMockSharedDict() } });
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    await choreStore.runPeriodic({});
+    choreStore.handle(createRequest());
+    const open = vi.spyOn(mockFs, 'openSync');
+    open.mockClear();
+    for (let index = 0; index < 10; index++) {
+      choreStore.resetChoreStoreForTests();
+      choreStore.setChoreStoreFsForTests(mockFs);
+      choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+      await choreStore.runPeriodic({});
+      choreStore.handle(createRequest());
+    }
+    expect(open.mock.calls.filter(([path]) => path === EVENT_HISTORY_PATH)).toEqual([]);
+    const history = mockFs.getFile(EVENT_HISTORY_PATH) ?? '';
+    mockFs.writeFileSync(EVENT_HISTORY_PATH, `!${history.slice(1)}`);
+    const repaired = createRequest();
+    choreStore.handle(repaired);
+    expect(repaired.return).toHaveBeenCalledWith(200, expect.any(String));
+    expect(JSON.parse(mockFs.getFile(EVENT_HISTORY_PATH) ?? '{}')).toHaveProperty('events');
+    open.mockClear();
+    vi.setSystemTime(new Date('2026-08-10T08:59:00Z'));
+    choreStore.handle(createRequest());
+    expect(open.mock.calls.some(([path]) => path === EVENT_HISTORY_PATH)).toBe(true);
+    vi.setSystemTime(new Date('2026-08-10T12:00:00Z'));
+    const due = createRequest();
+    choreStore.handle(due);
+    expect(
+      parseResponse(due).data.activity.some((event: { type: string }) => event.type === 'due')
+    ).toBe(true);
+    vi.setSystemTime(new Date('2026-08-10T12:00:00.001Z'));
+    const overdue = createRequest();
+    choreStore.handle(overdue);
+    expect(
+      parseResponse(overdue).data.activity.some(
+        (event: { type: string }) => event.type === 'overdue'
+      )
+    ).toBe(true);
+  });
+
   it('rebuilds the rolling schedule once per day or input edit, including across request VMs', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));

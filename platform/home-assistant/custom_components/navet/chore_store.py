@@ -1526,6 +1526,53 @@ def _apply_occurrence(data: dict[str, Any], occurrence_id: str, command: Mapping
     return data, activity
 
 
+def _scheduler_deadline(data: Mapping[str, Any], now: datetime) -> datetime:
+    """Next boundary after a settled pass; timer state is disposable, never persisted."""
+    deadline = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+
+    def consider(value: datetime) -> None:
+        nonlocal deadline
+        if now < value < deadline:
+            deadline = value
+
+    for person in data["participantsById"].values():
+        for field in ("pausedAt", "resumeAt"):
+            if person.get(field):
+                consider(_parse_iso(person[field]))
+    for occurrence in data["occurrencesById"].values():
+        definition = data["definitionsById"].get(occurrence["definitionId"], {})
+        due = _parse_iso(occurrence["dueAt"])
+        consider(_parse_iso(occurrence["scheduledAt"]))
+        consider(due)
+        consider(due + timedelta(milliseconds=1))
+        active = occurrence["status"] in {"available", "claimed"}
+        if active and definition.get("missedPolicy"):
+            consider(due + timedelta(minutes=definition["missedPolicy"]["graceMinutes"]))
+        policy = definition.get("reminderPolicy") or {}
+        if not policy.get("enabled") or definition.get("archivedAt"):
+            continue
+        if active:
+            for offset in policy.get("beforeDueMinutes", []):
+                consider(due - timedelta(minutes=offset))
+            interval = policy.get("overdueEveryMinutes")
+            if interval:
+                slot = max(1, int((now - due).total_seconds() // (interval * 60)) + 1)
+                if slot <= policy.get("maxOverdueReminders", slot):
+                    consider(due + timedelta(minutes=slot * interval))
+        if occurrence["status"] == "awaiting_approval" and occurrence.get("completedAt") and policy.get("approvalAfterMinutes") is not None:
+            consider(_parse_iso(occurrence["completedAt"]) + timedelta(minutes=policy["approvalAfterMinutes"]))
+    for item in data.get("outbox", []):
+        if item.get("status") not in {"pending", "failed"} or item.get("destination") not in {"provider", "home_assistant"}:
+            continue
+        occurrence = data["occurrencesById"].get(item.get("occurrenceId"))
+        if occurrence and (not item.get("occurrenceUpdatedAt") or item["occurrenceUpdatedAt"] == occurrence["updatedAt"]):
+            attempt = _parse_iso(item["nextAttemptAt"])
+            if attempt <= now:
+                return now
+            consider(attempt)
+    return deadline
+
+
 class ChoreAuthority:
     """Serialized, durable Navet chores authority for a Home Assistant entry."""
 
@@ -1545,6 +1592,7 @@ class ChoreAuthority:
         self._unsub_alert_actions: Callable[[], None] | None = None
         self._last_scheduler_run_at: str | None = None
         self._materialization_key: str | None = None
+        self._scheduler_checkpoint: tuple[int, datetime, datetime] | None = None
         self._last_delivery_error: str | None = None
         self._recovery: dict[str, Any] | None = None
         self._stores = {
@@ -2494,6 +2542,9 @@ class ChoreAuthority:
             return
         async with self._lock:
             now = _now()
+            checkpoint = self._scheduler_checkpoint
+            if checkpoint and checkpoint[0] == self.revision and checkpoint[1] <= now < checkpoint[2]:
+                return
             timestamp = _iso(now)
             range_start = _iso(now - timedelta(days=RETENTION_DAYS))
             range_end = _iso(now + timedelta(days=MATERIALIZATION_DAYS))
@@ -2639,7 +2690,8 @@ class ChoreAuthority:
                     for participant_id in (definition.get("approval") or {}).get("approverIds", []):
                         add_reminder(definition, occurrence, participant_id, "reminder_approval", f"approval:{occurrence['id']}")
 
-            if data != self.data or activities or reminders:
+            settled = not (data != self.data or activities or reminders)
+            if not settled:
                 if activities:
                     data["activity"] = (data.get("activity", []) + activities)[-MAX_ACTIVITY_ITEMS:]
                     data["outbox"] = (
@@ -2660,6 +2712,8 @@ class ChoreAuthority:
                 await self._save(next_document, previous)
             self._materialization_key = key
             self._last_scheduler_run_at = timestamp
+            if settled:
+                self._scheduler_checkpoint = (self.revision, now, _scheduler_deadline(self.data, now))
         await self._deliver_pending()
 
     async def _deliver_pending(self) -> None:

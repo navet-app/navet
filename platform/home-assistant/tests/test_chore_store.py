@@ -314,6 +314,43 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result, before)
         self.assertEqual(_Store.values, disk_before)
 
+    async def test_settled_ticks_skip_serialization_and_delivery_until_a_boundary(self):
+        start = datetime(2026, 10, 13, 10, tzinfo=timezone.utc)
+        with patch.object(chores, "_now", return_value=start) as clock:
+            await self._create_manager()
+            await self.authority.async_tick()
+            revision = self.authority.revision
+            with patch.object(chores.json, "dumps", side_effect=AssertionError("Idle tick must not serialize")):
+                for minute in range(30):
+                    clock.return_value = start + timedelta(minutes=minute)
+                    await self.authority.async_tick()
+            self.assertEqual(self.authority.revision, revision)
+            with patch.object(chores, "_materialize", wraps=chores._materialize) as materialize:
+                clock.return_value = start + timedelta(days=1)
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 1)
+                clock.return_value = start - timedelta(minutes=1)
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 2)
+
+    def test_scheduler_deadlines_include_reminders_pause_and_delivery(self):
+        data = chores._empty_data()
+        now = datetime(2026, 8, 10, 19, tzinfo=timezone.utc)
+        data["participantsById"] = {"manager": _participant()}
+        data["definitionsById"] = {"d": {"reminderPolicy": {"enabled": True,
+            "beforeDueMinutes": [30], "overdueEveryMinutes": 15, "maxOverdueReminders": 2}}}
+        data["occurrencesById"] = {"o": {"id": "o", "definitionId": "d", "status": "available",
+            "scheduledAt": "2026-08-10T16:00:00Z", "dueAt": "2026-08-10T19:00:00Z", "updatedAt": "2026-08-10T16:00:00Z"}}
+        for minutes, expected in [(1, 15), (15, 30), (30, 300)]:
+            self.assertEqual(chores._scheduler_deadline(data, now + timedelta(minutes=minutes)),
+                now + timedelta(minutes=expected))
+        data["participantsById"]["manager"].update(pausedAt="2026-08-10T18:00:00Z", resumeAt="2026-08-10T19:02:00Z")
+        self.assertEqual(chores._scheduler_deadline(data, now + timedelta(seconds=1)), now + timedelta(minutes=2))
+        data["outbox"] = [{"status": "failed", "destination": "provider", "occurrenceId": "o",
+            "nextAttemptAt": "2026-08-10T19:01:00Z"}]
+        self.assertEqual(chores._scheduler_deadline(data, now + timedelta(seconds=1)), now + timedelta(minutes=1))
+        self.assertEqual(chores._scheduler_deadline(data, now + timedelta(minutes=1)), now + timedelta(minutes=1))
+
     async def test_background_window_rebuilds_once_per_day_or_input_edit(self):
         start = datetime(2026, 10, 13, 10, tzinfo=timezone.utc)
         with patch.object(chores, "_now", return_value=start) as clock:

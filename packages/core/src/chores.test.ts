@@ -8,6 +8,7 @@ import {
 import {
   compactChoreHistory,
   compactChoreWorkspace,
+  getChoreSchedulerDeadline,
   readChoreHistoryPage,
 } from './chore-storage-policy';
 import {
@@ -3305,5 +3306,92 @@ describe('chore storage cleanup', () => {
     expect(() =>
       compactChoreHistory({ ...compacted, eventCursors: { first: 2, second: 1 } })
     ).toThrow('cursors');
+  });
+});
+
+describe('chore scheduler deadlines', () => {
+  const workspace = () => {
+    const data = createEmptyChoreWorkspace();
+    data.participantsById = { alice, bob };
+    const definition = makeDefinition({
+      reminderPolicy: {
+        enabled: true,
+        beforeDueMinutes: [30],
+        atDue: true,
+        overdueEveryMinutes: 15,
+        maxOverdueReminders: 2,
+        approvalAfterMinutes: 20,
+      },
+    });
+    data.definitionsById[definition.id] = definition;
+    const occurrence = makeOccurrence();
+    data.occurrencesById[occurrence.id] = occurrence;
+    return data;
+  };
+
+  it.each([
+    ['2026-08-10T15:00:00.000Z', '2026-08-10T16:00:00.000Z'],
+    ['2026-08-10T16:00:00.000Z', '2026-08-10T18:30:00.000Z'],
+    ['2026-08-10T18:30:00.000Z', '2026-08-10T19:00:00.000Z'],
+    ['2026-08-10T19:00:00.000Z', '2026-08-10T19:00:00.001Z'],
+    ['2026-08-10T19:00:00.001Z', '2026-08-10T19:15:00.000Z'],
+    ['2026-08-10T19:15:00.000Z', '2026-08-10T19:30:00.000Z'],
+    ['2026-08-10T19:30:00.000Z', '2026-08-11T00:00:00.000Z'],
+  ])('wakes after %s at %s', (now, expected) => {
+    expect(getChoreSchedulerDeadline(workspace(), now)).toBe(Date.parse(expected));
+  });
+
+  it('includes missed-work grace, approval, pauses and delivery retry boundaries', () => {
+    const data = workspace();
+    const occurrence = Object.values(data.occurrencesById)[0];
+    data.definitionsById[occurrence.definitionId].missedPolicy = {
+      action: 'skip',
+      graceMinutes: 5,
+    };
+    const now = '2026-08-10T19:00:00.002Z';
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:05:00Z'));
+    occurrence.status = 'awaiting_approval';
+    occurrence.completedAt = '2026-08-10T18:45:00Z';
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:05:00Z'));
+    data.participantsById.alice = {
+      ...alice,
+      pausedAt: '2026-08-10T18:00:00Z',
+      resumeAt: '2026-08-10T19:02:00Z',
+    };
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:02:00Z'));
+    data.outbox.push({
+      id: 'retry',
+      activityId: 'reminder',
+      eventType: 'reminder_due',
+      status: 'failed',
+      attempts: 1,
+      createdAt: now,
+      nextAttemptAt: '2026-08-10T19:01:00Z',
+      occurrenceId: occurrence.id,
+      destination: 'provider',
+      occurrenceUpdatedAt: occurrence.updatedAt,
+    });
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:01:00Z'));
+    data.outbox[0].nextAttemptAt = now;
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse(now));
+    data.outbox[0].occurrenceUpdatedAt = 'stale';
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:02:00Z'));
+  });
+
+  it('does not skip any scheduler change between computed deadlines', () => {
+    let data = workspace();
+    const ids = new Set<string>();
+    const started = Date.parse('2026-08-10T15:00:00Z');
+    for (let now = started; now <= started + 10 * 3600000; now += 60000) {
+      const at = new Date(now).toISOString();
+      const result = runChoreWorkspaceScheduler(data, at, { existingEventIds: ids });
+      for (const event of result.activities) ids.add(event.id);
+      data = { ...result.data, outbox: [...data.outbox, ...result.outboxItems] };
+      const next = getChoreSchedulerDeadline(data, at);
+      const probe = new Date(Math.min(next - 1, now + 59000)).toISOString();
+      const unchanged = runChoreWorkspaceScheduler(data, probe, { existingEventIds: ids });
+      expect(unchanged.activities).toEqual([]);
+      expect(unchanged.outboxItems).toEqual([]);
+    }
   });
 });

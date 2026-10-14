@@ -95,8 +95,16 @@ An explicit materialization command that leaves occurrences and delivery work un
 the current revision without rewriting the workspace, history, or journal, even if a client sends
 fresh command IDs. Background authorities rebuild the 90-day past/45-day future window once per
 UTC day or when definitions or participants change; restart, restore, and recovery invalidate the
-window cache. Due-state transitions and reminder delivery still run on every scheduler tick,
-and completing an after-completion chore still creates its next date synchronously.
+window cache. After a settled scheduling pass, the authority retains a disposable in-memory
+checkpoint with the next scheduled, due, overdue, missed-work, reminder, participant pause/resume,
+delivery-retry, or UTC-day boundary. Reads and background ticks skip scheduling until that deadline
+or a workspace change. NJS shares this small checkpoint across request VMs and checks the workspace
+and history file identities, sizes, and modification/change timestamps before reusing it. A changed
+file, unsupported metadata, clock rollback, or lost checkpoint falls back to normal reconciliation.
+The 60-second background timer remains a lightweight wake-up check; unchanged ticks do not hydrate
+storage, scan history, or write timer records. A pass that changes domain state remains uncached
+until a subsequent pass settles, preserving catch-up after downtime and carry-forward work.
+Completing an after-completion chore still creates its next date synchronously.
 
 The workspace revision is the authority. Small workspaces are stored inline. When the hydrated
 workspace exceeds 2 MiB, the storage authority writes occurrences, point transactions, progress
@@ -177,11 +185,12 @@ installation key; the event handler checks the signature, recipient capability, 
 before sending a command to the authority.
 
 The capped workspace activity array is a rebuildable UI projection. Both authorities also append
-each unique activity to a separate versioned event-history file. Reads reconcile the current
-projection into that file, which closes the normal interrupted-write gap without letting statistics
-or export depend on the projection's retention limit. NJS hydrates and verifies that history once
-per synchronous request or scheduler transaction, reusing it during repair, scheduling, and
-reconciliation. A committed history write updates the transaction's view. That view is discarded
+each unique activity to a separate versioned event-history file. After a changed workspace or
+history file, a lost checkpoint, or an elapsed deadline, reads reconcile the current projection into
+that file. This closes the normal interrupted-write gap without making unchanged refreshes scan
+history or making statistics/export depend on projection retention. NJS hydrates and verifies that
+history at most once per synchronous request or scheduler transaction, reusing it during repair,
+scheduling, and reconciliation. A committed history write updates the transaction's view. That view is discarded
 before another request or an asynchronous notification delivery so concurrent writes and damaged
 storage are observed on the next read.
 

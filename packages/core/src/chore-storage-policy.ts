@@ -15,6 +15,71 @@ export function isChoreBookkeeping(type: string): boolean {
   return type === 'workspace_materialized' || type === 'outbox_delivery_updated';
 }
 
+/** Earliest future boundary after a settled scheduler pass; no durable timer records. */
+export function getChoreSchedulerDeadline(data: ChoreWorkspaceData, timestamp: string): number {
+  const now = Date.parse(timestamp);
+  if (!Number.isFinite(now)) throw new Error('Invalid chore scheduler timestamp');
+  // Daily materialization/retention is also a boundary, including an empty household.
+  let next = (Math.floor(now / 86400000) + 1) * 86400000;
+  function consider(value: number) {
+    if (Number.isFinite(value) && value > now && value < next) next = value;
+  }
+  const people = Object.values(data.participantsById);
+  for (let index = 0; index < people.length; index++) {
+    consider(Date.parse(people[index].pausedAt ?? ''));
+    consider(Date.parse(people[index].resumeAt ?? ''));
+  }
+  const occurrences = Object.values(data.occurrencesById);
+  for (let index = 0; index < occurrences.length; index++) {
+    const occurrence = occurrences[index];
+    const definition = data.definitionsById[occurrence.definitionId];
+    const due = Date.parse(occurrence.dueAt);
+    consider(Date.parse(occurrence.scheduledAt));
+    consider(due);
+    // Due is inclusive, overdue is strictly after due in the existing contract.
+    consider(due + 1);
+    const active = occurrence.status === 'available' || occurrence.status === 'claimed';
+    if (active && definition?.missedPolicy)
+      consider(due + definition.missedPolicy.graceMinutes * 60000);
+    const policy = definition?.reminderPolicy;
+    if (!policy?.enabled || definition.archivedAt) continue;
+    if (active) {
+      for (let offset = 0; offset < policy.beforeDueMinutes.length; offset++)
+        consider(due - policy.beforeDueMinutes[offset] * 60000);
+      if (policy.overdueEveryMinutes) {
+        const interval = policy.overdueEveryMinutes * 60000;
+        const slot = Math.max(1, Math.floor((now - due) / interval) + 1);
+        if (slot <= (policy.maxOverdueReminders ?? Infinity)) consider(due + slot * interval);
+      }
+    }
+    if (
+      occurrence.status === 'awaiting_approval' &&
+      occurrence.completedAt &&
+      policy.approvalAfterMinutes !== undefined
+    )
+      consider(Date.parse(occurrence.completedAt) + policy.approvalAfterMinutes * 60000);
+  }
+  const outbox = data.outbox || [];
+  for (let index = 0; index < outbox.length; index++) {
+    const item = outbox[index];
+    if (
+      (item.status === 'pending' || item.status === 'failed') &&
+      (item.destination === 'home_assistant' || item.destination === 'provider')
+    ) {
+      const occurrence = data.occurrencesById[item.occurrenceId ?? ''];
+      if (
+        occurrence &&
+        (!item.occurrenceUpdatedAt || item.occurrenceUpdatedAt === occurrence.updatedAt)
+      ) {
+        const attempt = Date.parse(item.nextAttemptAt);
+        if (attempt <= now) return now;
+        consider(attempt);
+      }
+    }
+  }
+  return next;
+}
+
 /** Stable IDs identify retries; separate actions with different IDs remain distinct. */
 export function compactChoreActivity(events: ChoreActivity[]): ChoreActivity[] {
   const seen = Object.create(null) as Record<string, boolean>;
