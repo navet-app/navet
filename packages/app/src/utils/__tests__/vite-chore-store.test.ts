@@ -188,6 +188,48 @@ afterEach(() => {
 });
 
 describe('Vite chore workspace store', () => {
+  it('does not persist unchanged materialization with fresh command IDs', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chores-noop-'));
+    tempDirs.push(directory);
+    const filePath = join(directory, 'chores.json');
+    const handler = createViteChoreStoreRequestHandler({
+      filePath,
+      resolvePrincipal: () => PRINCIPAL,
+    });
+    const first = createResponse();
+    await handler(createRequest('GET', '/workspace'), first.response);
+    const revision = JSON.parse(first.body).revision;
+    const disk = () =>
+      readdirSync(directory).map((name) => {
+        const stat = statSync(join(directory, name));
+        return { name, inode: stat.ino, modified: stat.mtimeMs };
+      });
+    const before = disk();
+    for (let index = 0; index < 5; index++) {
+      const response = createResponse();
+      await handler(
+        createRequest(
+          'POST',
+          '/commands',
+          { 'x-navet-base-revision': String(revision) },
+          JSON.stringify({
+            commandId: `redundant:${index}`,
+            baseRevision: revision,
+            action: {
+              type: 'materialize_occurrences',
+              rangeStart: '2026-08-10T00:00:00.000Z',
+              rangeEnd: '2026-08-11T00:00:00.000Z',
+            },
+          })
+        ),
+        response.response
+      );
+      expect(response.status).toBe(200);
+      expect(JSON.parse(response.body).revision).toBe(revision);
+    }
+    expect(disk()).toEqual(before);
+  });
+
   it('persists legacy marker-only scheduler backfill without requiring new activities', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-18T08:00:00.000Z'));
@@ -627,7 +669,6 @@ describe('Vite chore workspace store', () => {
       'occurrence_created',
       'due',
       'overdue',
-      'workspace_materialized',
       'completed',
     ]);
 
@@ -1128,7 +1169,9 @@ describe('Vite automatic chore storage repair', () => {
     expect(existsSync(orphan)).toBe(false);
     const history = createResponse();
     await handler(createRequest('GET', '/history'), history.response);
-    expect(JSON.parse(history.body).events).toEqual(events);
+    expect(JSON.parse(history.body).events).toEqual(
+      events.filter((event) => event.type !== 'workspace_materialized')
+    );
     const feed = createResponse();
     await handler(createRequest('GET', '/events?after=50&limit=1'), feed.response);
     expect(JSON.parse(feed.body)).toMatchObject({ cursor: '101', events: [events[100]] });
@@ -1227,6 +1270,8 @@ describe('Vite automatic chore storage repair', () => {
     expect(JSON.parse(retry.body).data.participantsById).toEqual(document.data.participantsById);
     const history = createResponse();
     await handler(createRequest('GET', '/history'), history.response);
-    expect(JSON.parse(history.body).events).toEqual(events);
+    expect(JSON.parse(history.body).events).toEqual(
+      events.filter((event) => event.type !== 'workspace_materialized')
+    );
   });
 });

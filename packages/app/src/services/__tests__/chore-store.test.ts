@@ -229,6 +229,80 @@ afterEach(() => {
 });
 
 describe('NJS chore workspace store', () => {
+  it('rebuilds the rolling schedule once per day or input edit, including across request VMs', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));
+    const mockFs = createMockFs();
+    const shared = createMockSharedDict();
+    vi.stubGlobal('ngx', { shared: { navet_chore_scheduler: shared } });
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    const definition = {
+      ...seededData('daily').definitionsById.dishes,
+      schedule: {
+        frequency: 'daily' as const,
+        startDate: '2026-08-10',
+        time: '10:00',
+        timeZone: 'UTC',
+        intervalDays: 1,
+      },
+    };
+    choreStore.handle(
+      createActionRequest('daily', 3, {
+        type: 'definition_update',
+        actorParticipantId: 'maya',
+        definition,
+      })
+    );
+    const enumerate = vi.spyOn(choreCalendarPolicy, 'isScheduledOnDate');
+    await choreStore.runPeriodic({});
+    expect(enumerate).toHaveBeenCalled();
+    enumerate.mockClear();
+    choreStore.resetChoreStoreForTests();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    await choreStore.runPeriodic({});
+    expect(enumerate).not.toHaveBeenCalled();
+    vi.setSystemTime(new Date('2026-08-11T08:00:00.000Z'));
+    await choreStore.runPeriodic({});
+    expect(enumerate).toHaveBeenCalled();
+    const current = createRequest();
+    choreStore.handle(current);
+    choreStore.handle(
+      createActionRequest('edit-daily', parseResponse(current).revision, {
+        type: 'definition_update',
+        actorParticipantId: 'maya',
+        definition: { ...definition, schedule: { ...definition.schedule, time: '11:00' } },
+      })
+    );
+    enumerate.mockClear();
+    await choreStore.runPeriodic({});
+    expect(enumerate).toHaveBeenCalled();
+  });
+  it('treats repeated unchanged materialization as read-only, even with new command IDs', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));
+    const mockFs = createMockFs();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    const before = createRequest();
+    choreStore.handle(before);
+    const document = parseResponse(before);
+    mockFs.writeFileSync.mockClear();
+    for (let index = 0; index < 5; index++) {
+      const refresh = createActionRequest(`redundant:${index}`, document.revision, {
+        type: 'materialize_occurrences',
+        rangeStart: '2026-08-10T00:00:00.000Z',
+        rangeEnd: '2026-08-11T00:00:00.000Z',
+      });
+      choreStore.handle(refresh);
+      expect(refresh.return).toHaveBeenCalledWith(200, expect.any(String));
+      expect(parseResponse(refresh)).toEqual(document);
+    }
+    expect(mockFs.writeFileSync).not.toHaveBeenCalled();
+  });
   it.each([
     [14, '2026-10-18T16:00:00.000Z'],
     [365, '2027-10-04T16:00:00.000Z'],
@@ -381,8 +455,24 @@ describe('NJS chore workspace store', () => {
     choreStore.handle(materialize);
     expect(materialize.return).toHaveBeenCalledWith(200, expect.any(String));
     expect(Object.keys(parseResponse(materialize).data.occurrencesById)).toHaveLength(6001);
+    // Rewrite: use a real ledger change; bookkeeping no longer creates unique chunks.
+    const meaningfulChange = createActionRequest(
+      'recovery-ledger-change',
+      parseResponse(materialize).revision,
+      {
+        type: 'experience_points_adjust',
+        actorParticipantId: 'maya',
+        participantId: 'maya',
+        pointsDelta: 1,
+      }
+    );
+    choreStore.handle(meaningfulChange);
+    expect(meaningfulChange.return).toHaveBeenCalledWith(200, expect.any(String));
     const primary = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
-    mockFs.writeFileSync(`${CHORE_PATH}.chunk-${primary.durableCollections.activity.at(-1)}`, '{');
+    mockFs.writeFileSync(
+      `${CHORE_PATH}.chunk-${primary.durableCollections.pointTransactions.at(-1)}`,
+      '{'
+    );
     const recovered = createRequest();
     choreStore.handle(recovered);
     expect(parseResponse(recovered).data.experience.pointTransactions).toHaveLength(12001);
@@ -2323,10 +2413,16 @@ describe('automatic chore storage upgrade', () => {
       hash,
       (key) => JSON.parse(mockFs.getFile(`${CHORE_PATH}.chunk-${key}`) ?? 'null')
     ) as { data: unknown };
-    expect(backupDocument.data).toEqual(document.data);
+    expect(backupDocument.data).toEqual({
+      ...document.data,
+      activity: document.data.activity.filter((event) => event.type !== 'workspace_materialized'),
+      outbox: document.data.outbox.filter((item) => item.eventType !== 'workspace_materialized'),
+    });
     const history = createRequest({ uri: '/__navet_chores__/history' });
     choreStore.handle(history);
-    expect(parseResponse(history).events).toEqual(events);
+    expect(parseResponse(history).events).toEqual(
+      events.filter((event) => event.type !== 'workspace_materialized')
+    );
     const feed = createRequest({ uri: '/__navet_chores__/events', args: 'after=50&limit=1' });
     choreStore.handle(feed);
     expect(parseResponse(feed)).toMatchObject({ cursor: '101', events: [events[100]] });
@@ -2361,14 +2457,16 @@ describe('automatic chore storage upgrade', () => {
       events: events.concat({
         id: 'activity:another-request',
         commandId: 'another-request',
-        type: 'workspace_materialized',
+        type: 'points_adjusted',
         timestamp: '2026-10-13T10:00:00.000Z',
       }),
     };
     mockFs.writeFileSync(EVENT_HISTORY_PATH, JSON.stringify(durableStorage.pack(history, hash)));
     const changed = createRequest({ uri: '/__navet_chores__/history' });
     choreStore.handle(changed);
-    expect(parseResponse(changed).events).toEqual(history.events);
+    expect(parseResponse(changed).events).toEqual(
+      history.events.filter((event) => event.type !== 'workspace_materialized')
+    );
 
     mockFs.writeFileSync(EVENT_HISTORY_PATH, '{broken');
     const repaired = createRequest();
@@ -2386,7 +2484,90 @@ describe('automatic chore storage upgrade', () => {
     expect(open.mock.calls.filter(([path]) => path === EVENT_HISTORY_PATH)).toHaveLength(1);
     const history = createRequest({ uri: '/__navet_chores__/history' });
     choreStore.handle(history);
-    expect(parseResponse(history).events.slice(0, events.length)).toEqual(events);
+    expect(parseResponse(history).events.slice(0, events.length)).toEqual(
+      events.filter((event) => event.type !== 'workspace_materialized')
+    );
+  });
+
+  it('cleans the previous hotfix format without changing scores, rewards or recurrence, then stays idle', () => {
+    const { mockFs, document, events, hash } = seedLegacy();
+    const experience = createChoreExperienceState();
+    experience.earnedPointsByParticipant = { manager: 250 };
+    experience.pointTransactions = [
+      {
+        id: 'earned-points',
+        participantId: 'manager',
+        pointsDelta: 250,
+        kind: 'adjustment',
+        timestamp: document.updatedAt,
+      },
+    ];
+    experience.rewardRequestsById.movie = {
+      id: 'movie',
+      rewardId: 'cinema',
+      rewardTitle: 'Cinema',
+      cost: 40,
+      participantId: 'manager',
+      status: 'requested',
+      requestedAt: document.updatedAt,
+      updatedAt: document.updatedAt,
+    };
+    document.data.experience = experience;
+    const duplicate = events[100];
+    const pending = {
+      id: 'notification',
+      activityId: duplicate.id,
+      eventType: duplicate.type,
+      status: 'pending' as const,
+      attempts: 0,
+      createdAt: duplicate.timestamp,
+      nextAttemptAt: duplicate.timestamp,
+    };
+    document.data.outbox = [
+      ...document.data.outbox.slice(-4998),
+      pending,
+      { ...pending, status: 'delivered' },
+    ];
+    const upgraded = { ...document, storageMaintenanceVersion: 1 };
+    const stored = durableStorage.encode(upgraded, 2 * 1024 * 1024, hash, (key, chunk) =>
+      mockFs.writeFileSync(`${CHORE_PATH}.chunk-${key}`, JSON.stringify(chunk))
+    );
+    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(stored));
+    mockFs.writeFileSync(
+      EVENT_HISTORY_PATH,
+      JSON.stringify({ contractVersion: 1, events: [...events, duplicate] })
+    );
+    const read = createRequest();
+    choreStore.handle(read);
+    expect(read.return).toHaveBeenCalledWith(200, expect.any(String));
+    const saved = parseResponse(read);
+    expect(saved.data.experience).toEqual(experience);
+    expect(saved.data.occurrencesById).toEqual(document.data.occurrencesById);
+    expect(saved.data.outbox.filter((item: { id: string }) => item.id === 'notification')).toEqual([
+      { ...pending, status: 'delivered' },
+    ]);
+    const history = createRequest({ uri: '/__navet_chores__/history' });
+    choreStore.handle(history);
+    expect(parseResponse(history).events).toEqual(
+      events.filter((event) => event.type !== 'workspace_materialized')
+    );
+    choreStore.resetChoreStoreForTests();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    mockFs.writeFileSync.mockClear();
+    const restart = createRequest();
+    choreStore.handle(restart);
+    expect(parseResponse(restart)).toEqual(saved);
+    expect(mockFs.writeFileSync).not.toHaveBeenCalled();
+    const backup = durableStorage.decode(
+      JSON.parse(mockFs.getFile(CHORE_LAST_GOOD_PATH) ?? 'null'),
+      hash,
+      (key) => JSON.parse(mockFs.getFile(`${CHORE_PATH}.chunk-${key}`) ?? 'null')
+    ) as { data: { experience: unknown; activity: Array<{ type: string }> } };
+    expect(backup.data.experience).toEqual(experience);
+    expect(backup.data.activity.every((event) => event.type !== 'workspace_materialized')).toBe(
+      true
+    );
   });
 
   it('repairs supported schema-v1 data before recording maintenance as complete', () => {
@@ -2404,10 +2585,12 @@ describe('automatic chore storage upgrade', () => {
       hash,
       (key) => JSON.parse(mockFs.getFile(`${CHORE_PATH}.chunk-${key}`) ?? 'null')
     );
-    expect(persisted).toMatchObject({ storageMaintenanceVersion: 1 });
+    expect(persisted).toMatchObject({ storageMaintenanceVersion: 2 });
     const history = createRequest({ uri: '/__navet_chores__/history' });
     choreStore.handle(history);
-    expect(parseResponse(history).events).toEqual(events);
+    expect(parseResponse(history).events).toEqual(
+      events.filter((event) => event.type !== 'workspace_materialized')
+    );
     mockFs.writeFileSync.mockClear();
     const again = createRequest();
     choreStore.handle(again);
@@ -2473,13 +2656,18 @@ describe('automatic chore storage upgrade', () => {
     expect(parseResponse(retry).data.participantsById).toEqual(document.data.participantsById);
     const history = createRequest({ uri: '/__navet_chores__/history' });
     choreStore.handle(history);
-    expect(parseResponse(history).events).toEqual(events);
+    expect(parseResponse(history).events).toEqual(
+      events.filter((event) => event.type !== 'workspace_materialized')
+    );
   });
 
   it('rejects damaged compressed payloads and repairs from the healthy copy', () => {
     const { mockFs, hash } = seedLegacy();
     choreStore.handle(createRequest());
-    const history = JSON.parse(mockFs.getFile(EVENT_HISTORY_PATH) ?? 'null');
+    const history = durableStorage.pack(
+      { ...JSON.parse(mockFs.getFile(EVENT_HISTORY_PATH) ?? 'null'), padding: 'x'.repeat(50_000) },
+      hash
+    ) as Record<string, unknown>;
     expect(history.storageEncoding).toBe('deflate-v1');
     expect(() => durableStorage.unpack({ ...history, checksum: '0'.repeat(64) }, hash)).toThrow();
     expect(() =>

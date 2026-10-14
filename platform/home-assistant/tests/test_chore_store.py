@@ -302,6 +302,36 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             "ha-user-1",
         )
 
+    async def test_unchanged_materialization_does_not_write_or_advance_revision(self):
+        await self._create_manager()
+        before = copy.deepcopy(self.authority._public_document())
+        disk_before = copy.deepcopy(_Store.values)
+        with patch.object(_Store, "async_save", side_effect=AssertionError("No-op must not write")):
+            for index in range(5):
+                result = await self.authority.async_command({"commandId": f"redundant:{index}",
+                    "baseRevision": self.authority.revision, "action": {"type": "materialize_occurrences",
+                    "rangeStart": "2026-08-10T00:00:00.000Z", "rangeEnd": "2026-08-11T00:00:00.000Z"}}, "ha-user-1")
+                self.assertEqual(result, before)
+        self.assertEqual(_Store.values, disk_before)
+
+    async def test_background_window_rebuilds_once_per_day_or_input_edit(self):
+        start = datetime(2026, 10, 13, 10, tzinfo=timezone.utc)
+        with patch.object(chores, "_now", return_value=start) as clock:
+            await self._create_manager()
+            with patch.object(chores, "_materialize", wraps=chores._materialize) as materialize:
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 1)
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 1)
+                clock.return_value = start + timedelta(days=1)
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 2)
+                await self.authority.async_command({"commandId": "edit-manager",
+                    "baseRevision": self.authority.revision, "action": {"type": "participant_update",
+                    "actorParticipantId": "manager", "participant": {**_participant(), "displayName": "Updated"}}}, "ha-user-1")
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 3)
+
     def _seed_continuous_writes(self):
         original_now = chores._now
         chores._now = lambda: datetime(2026, 10, 13, 10, tzinfo=timezone.utc)
@@ -317,13 +347,16 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         await self.authority.async_initialize()
         expected = {key: item for key, item in document["data"]["occurrencesById"].items() if item["status"] != "available"}
         self.assertEqual(self.authority.data["occurrencesById"], expected)
-        self.assertEqual(self.authority._history, events)
+        self.assertEqual(self.authority._history, [event for event in events if event["type"] != "workspace_materialized"])
         after_bytes = len(json.dumps(_Store.values, separators=(",", ":")).encode())
         self.assertLess(after_bytes, before_bytes * 0.3)
         backup = await self.authority._decode_storage(_Store.values[chores.LAST_GOOD_KEY])
-        self.assertEqual(backup["data"], document["data"])
+        self.assertEqual(backup["data"], {**document["data"],
+            "activity": [event for event in document["data"]["activity"] if event["type"] != "workspace_materialized"],
+            "outbox": [item for item in document["data"]["outbox"] if item["eventType"] != "workspace_materialized"]})
         history = await self.authority.async_handle_ws({"type": "navet/chores/history/get"}, "ha-user-1")
-        self.assertEqual(history["events"], events)
+        self.assertEqual(history["events"], [event for event in events if event["type"] != "workspace_materialized"])
+
         restarted = chores.ChoreAuthority(self.hass)
         await restarted.async_initialize()
         self.assertEqual(restarted.data, self.authority.data)
@@ -333,6 +366,38 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             "action": {"type": "occurrence_action", "occurrenceId": missed["id"],
                 "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
         self.assertEqual(result["data"]["occurrencesById"][missed["id"]]["status"], "done")
+
+    async def test_cleans_previous_hotfix_preserving_scores_rewards_and_automation_cursors(self):
+        # Rewrite: bookkeeping is intentionally removed; household accounting remains exact.
+        document, events = self._seed_continuous_writes()
+        document["storageMaintenanceVersion"] = 1
+        experience = document["data"]["experience"]
+        experience["earnedPointsByParticipant"] = {"manager": 250}
+        experience["pointTransactions"] = [{"id": "earned", "participantId": "manager",
+            "pointsDelta": 250, "kind": "adjustment", "timestamp": document["updatedAt"]}]
+        experience["rewardRequestsById"]["movie"] = {"id": "movie", "rewardId": "cinema",
+            "rewardTitle": "Cinema", "cost": 40, "participantId": "manager", "status": "requested",
+            "requestedAt": document["updatedAt"], "updatedAt": document["updatedAt"]}
+        duplicate = events[100]
+        pending = chores._outbox(duplicate)
+        document["data"]["outbox"] = document["data"]["outbox"][-4998:] + [pending, {**pending, "status": "delivered"}]
+        _Store.values[chores.WORKSPACE_KEY] = copy.deepcopy(document)
+        _Store.values[chores.HISTORY_KEY] = {"contractVersion": 1, "events": events + [duplicate]}
+        await self.authority.async_initialize()
+        self.assertEqual(self.authority.data["experience"], experience)
+        self.assertEqual([event["id"] for event in self.authority._history].count(duplicate["id"]), 1)
+        self.assertFalse(any(event["type"] in ("workspace_materialized", "outbox_delivery_updated")
+            for event in self.authority._history))
+        self.assertEqual([item for item in self.authority.data["outbox"] if item["id"] == pending["id"]],
+            [{**pending, "status": "delivered"}])
+        feed = await self.authority.async_handle_ws({"type": "navet/chores/events/get", "after": 50, "limit": 1}, "ha-user-1")
+        self.assertEqual(feed["cursor"], "101")
+        self.assertEqual(feed["events"], [duplicate])
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        self.assertEqual(restarted.data["experience"], experience)
+        backup = await restarted._decode_storage(_Store.values[chores.LAST_GOOD_KEY])
+        self.assertEqual(backup["data"]["experience"], experience)
 
     async def test_malformed_history_is_rebuilt_before_upgrade_maintenance(self):
         timestamp = chores._iso(chores._now())
@@ -356,13 +421,14 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
                 _Store.values[chores.HISTORY_KEY] = history
                 authority = chores.ChoreAuthority(self.hass)
                 await authority.async_initialize()
-                self.assertEqual(authority.revision, 7)
-                self.assertEqual(authority._history, [event])
+                self.assertEqual(authority.revision, 8)
+                self.assertEqual(authority._history, [])
                 stored = chores._unpack_storage(_Store.values[chores.HISTORY_KEY])
-                self.assertEqual(stored, {"contractVersion": 1, "events": [event]})
+                self.assertEqual(stored["events"], [])
+                self.assertEqual(stored["nextCursor"], 1)
                 restarted = chores.ChoreAuthority(self.hass)
                 await restarted.async_initialize()
-                self.assertEqual(restarted._history, [event])
+                self.assertEqual(restarted._history, [])
 
     async def test_storage_computation_runs_outside_the_home_assistant_event_loop(self):
         document, events = self._seed_continuous_writes()
@@ -381,7 +447,7 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         self.hass.async_add_executor_job = executor
         with patch.object(chores, "_pack_storage", side_effect=pack), patch.object(chores, "_unpack_storage", side_effect=unpack):
             await self.authority.async_initialize()
-            self.assertEqual(self.authority._history, events)
+            self.assertEqual(self.authority._history, [event for event in events if event["type"] != "workspace_materialized"])
             missed = next(item for item in document["data"]["occurrencesById"].values() if item["status"] == "missed")
             pack_calls.clear()
             await self.authority.async_command({"commandId": "complete-off-loop", "baseRevision": self.authority.revision,
@@ -415,7 +481,7 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
                 for key, item in data["occurrencesById"].items():
                     if item["status"] != "available":
                         self.assertEqual(authority.data["occurrencesById"][key], item)
-                self.assertEqual(authority._history[:len(events)], events)
+                self.assertEqual(authority._history[:len([event for event in events if event["type"] != "workspace_materialized"])], [event for event in events if event["type"] != "workspace_materialized"])
                 restarted = chores.ChoreAuthority(self.hass)
                 await restarted.async_initialize()
                 self.assertEqual(restarted.data, authority.data)
@@ -437,7 +503,7 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         finally:
             _Store.async_save = original_save
         await self.authority.async_initialize()
-        self.assertEqual(self.authority._history, events)
+        self.assertEqual(self.authority._history, [event for event in events if event["type"] != "workspace_materialized"])
         self.assertEqual(self.authority.data["participantsById"], document["data"]["participantsById"])
 
     async def test_compressed_storage_checks_integrity_and_bounded_inflation(self):
@@ -456,7 +522,7 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         restarted = chores.ChoreAuthority(self.hass)
         await restarted.async_initialize()
         self.assertEqual(restarted.data["participantsById"], self.authority.data["participantsById"])
-        self.assertEqual(restarted._history, events)
+        self.assertEqual(restarted._history, [event for event in events if event["type"] != "workspace_materialized"])
 
     async def test_collects_only_chunks_unreferenced_by_both_committed_copies(self):
         self._seed_continuous_writes()

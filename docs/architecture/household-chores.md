@@ -85,11 +85,18 @@ The shared endpoint exposes a revisioned document:
 - `X-Navet-Base-Revision` for compare-and-swap writes
 - `X-Navet-Chore-Management-Session` for PIN-unlocked management writes
 
-Every mutation has an idempotent command ID and a primary matching activity entry. Materialization
+Every mutation has an idempotent command ID; household actions have a matching activity entry. Materialization
 may additionally append one occurrence-created lifecycle event per new occurrence. A stale write
 returns `412`; the client loads the newest document, rebuilds the mutation against it, and retries
-once. The command journal and activity log both detect retries after a partially successful durable
-write.
+once. The command journal and activity log detect retries after a partially successful durable
+write. Internal materialization and delivery-status bookkeeping use the bounded command journal
+without retaining separate audit or outbox records.
+An explicit materialization command that leaves occurrences and delivery work unchanged returns
+the current revision without rewriting the workspace, history, or journal, even if a client sends
+fresh command IDs. Background authorities rebuild the 90-day past/45-day future window once per
+UTC day or when definitions or participants change; restart, restore, and recovery invalidate the
+window cache. Due-state transitions and reminder delivery still run on every scheduler tick,
+and completing an after-completion chore still creates its next date synchronously.
 
 The workspace revision is the authority. Small workspaces are stored inline. When the hydrated
 workspace exceeds 2 MiB, the storage authority writes occurrences, point transactions, progress
@@ -108,13 +115,19 @@ inline documents and chunk manifests. Public workspace, history, and backup form
 complete hydrated JSON; compression does not remove or reorder events or change automation
 cursor offsets.
 
-On the first load after upgrading, the authority compresses existing records and reconciles
-obsolete future available after-completion repeats. Outstanding work, completions, people,
-definitions, points, and history remain intact. Recurrence repair computes the next schedule from
+On the first load after upgrading, the authority reconciles obsolete future available
+after-completion repeats and removes internal `workspace_materialized` and `outbox_delivery_updated`
+records from history, projected activity, and delivery work. Repeated activity IDs retain their
+first event; repeated outbox IDs retain a delivered result in preference to pending work. Distinct
+action IDs remain distinct even when their descriptions match. Scores, point transactions, reward
+requests and goals, badges, progress awards, completions, people, definitions, and recurrence
+anchors remain intact. Writes apply the same cleanup so bookkeeping cannot accumulate again.
+Recurrence repair computes the next schedule from
 completions and retained outstanding work, excluding unprotected future available rows from that
-calculation so a stale row cannot validate itself. It saves the pre-repair workspace as the healthy
-recovery copy before committing the maintenance marker. Interrupted writes can retry the repair;
-representation-only changes preserve the workspace revision. After a successful write, the
+calculation so a stale row cannot validate itself. The healthy recovery copy retains the previous
+domain state with the same bookkeeping cleanup. The maintenance marker is committed only after
+the recovery copy is written. Interrupted writes can retry the repair; cleaning projected activity
+and delivery work advances the workspace revision once, while compression alone preserves it. After a successful write, the
 serialized authority collects chunks referenced by neither the current manifest nor its recovery
 copy. Failed-file diagnostic snapshots prevent collection when their references cannot be verified.
 Core owns the unchanged domain contracts; Docker/NJS, Vite, and the Home Assistant integration own
@@ -174,7 +187,11 @@ storage are observed on the next read.
 
 An active manager can choose a bounded immutable-history policy between 30 and 3,650 days and
 between 1,000 and 100,000 events. The policy changes through the same command envelope and preserves
-append order so automation cursors remain stable. The Household review surface reads immutable
+append order for meaningful events. Internal history cursor metadata retains original event
+positions and the consumed upper bound when cleanup removes bookkeeping or duplicate IDs, so
+existing automation cursors neither skip retained events nor replay them. New events advance
+from that upper bound; public history and backup events do not expose the cursor metadata.
+The Household review surface reads immutable
 history, provides 7- and 30-day household/profile views, builds the weekly report, explains workload
 imbalance without changing assignments, and exports filtered history as JSON or CSV.
 
@@ -182,7 +199,8 @@ The automation read surface lists definitions and bounded occurrence projections
 the mutable workspace document. The action endpoint is a stable alias for the same authoritative,
 revisioned command envelope. The event endpoint is an append-only cursor feed of occurrence-created,
 due, overdue, claim, completion, approval, rejection, skip, reopen, reassignment, and missed events.
-Setup and delivery bookkeeping remain available only through the audit history. Lifecycle timing
+Household setup and configuration actions remain in audit history; internal scheduling and
+delivery-status bookkeeping are discarded. Lifecycle timing
 events use deterministic IDs and the authority reconciles them against immutable history, so a
 restart does not duplicate them after the capped workspace projection rolls forward.
 

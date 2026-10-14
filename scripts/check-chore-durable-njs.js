@@ -1,6 +1,7 @@
 import storage from '/etc/nginx/njs/chore-durable-storage.js';
 import choreStore from '/etc/nginx/njs/chore-store.js';
 import recurrence from '/etc/nginx/njs/chore-recurrence-policy.js';
+import storagePolicy from '/etc/nginx/njs/chore-storage-policy.js';
 import crypto from 'crypto';
 import zlib from 'zlib';
 let assertions = 0;
@@ -78,6 +79,24 @@ for (let index = 0; index < 2000; index++) historyRows.push({
   type: 'workspace_materialized', timestamp, reason: 'Preserve åäö and event order',
 });
 const historyDocument = { contractVersion: 1, events: historyRows };
+const meaningfulEvent = { id: 'completion:keep', commandId: 'complete:keep', type: 'completed', timestamp };
+const cleanedHistory = storagePolicy.compactChoreHistory({ contractVersion: 1,
+  events: historyRows.concat([meaningfulEvent, meaningfulEvent]) });
+assert(cleanedHistory.events.length === 1 && cleanedHistory.events[0].id === meaningfulEvent.id,
+  'Native cleanup removes internal chatter and duplicate IDs, retaining completion');
+assert(storagePolicy.readChoreHistoryPage(cleanedHistory, 1999, 1, ['completed']).cursor === '2001',
+  'Native cleanup preserves legacy cursor positions');
+assert(storagePolicy.readChoreHistoryPage(cleanedHistory, 2001, 10, ['completed']).cursor === '2002',
+  'Native cursor advances past removed duplicates');
+const notification = { id: 'notification', eventType: 'completed', status: 'pending', attempts: 0 };
+const cleanedWorkspace = storagePolicy.compactChoreWorkspace(Object.assign({}, doc.data, {
+  activity: historyRows.slice(0, 5).concat([meaningfulEvent, meaningfulEvent]),
+  outbox: [notification, Object.assign({}, notification, { status: 'delivered' })],
+}));
+assert(cleanedWorkspace.experience === doc.data.experience && cleanedWorkspace.experience.pointTransactions.length === 12000,
+  'Native cleanup preserves the complete accounting ledger');
+assert(cleanedWorkspace.activity.length === 1 && cleanedWorkspace.outbox.length === 1 && cleanedWorkspace.outbox[0].status === 'delivered',
+  'Native cleanup retains a delivered notification rather than replaying a duplicate');
 const compressedHistory = storage.pack(historyDocument, hash);
 assert(compressedHistory.storageEncoding === 'deflate-v1', 'Native history uses deflate');
 assert(JSON.stringify(compressedHistory).length < JSON.stringify(historyDocument).length * 0.3, 'Native history compression shrinks repeated writes');

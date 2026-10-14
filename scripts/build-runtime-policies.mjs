@@ -8,6 +8,7 @@ const entries = [
   ['chore-calendar-policy', 'njs'],
   ['chore-progress-policy', 'njs'],
   ['chore-recurrence-policy', 'njs'],
+  ['chore-storage-policy', 'njs'],
   ['resource-host-policy', 'njs'],
   ['credential-policy', 'shared'],
   ['record-safety', 'shared'],

@@ -1,3 +1,3 @@
 type: fixed
 audiences: [standalone, home-assistant, hacs]
-summary: Reduce dashboard startup delays and chores stalls with large histories while preserving saved chores, automatic repair, and recovery.
+summary: Repair slow chores and dashboard startup by removing internal bookkeeping and duplicate activity and delivery records, preserving scores, rewards, meaningful history, and recovery.

@@ -5,6 +5,7 @@ import choreCalendarPolicy from './chore-calendar-policy.js';
 import choreOccurrencePolicy from './chore-occurrence-policy.js';
 import choreProgressPolicy from './chore-progress-policy.js';
 import choreRecurrencePolicy from './chore-recurrence-policy.js';
+import choreStoragePolicy from './chore-storage-policy.js';
 import fs from 'fs';
 import hashCrypto from 'crypto';
 import authStore from './auth-store.js';
@@ -61,6 +62,25 @@ let lastDeliveryError = null;
 // synchronous transaction, never across requests or reminder-delivery awaits.
 let eventHistoryCache = null;
 let eventHistoryCacheEnabled = false;
+let lastMaterializationKey = null;
+
+function getSchedulerCache() {
+  return typeof ngx !== 'undefined' && ngx && ngx.shared && ngx.shared.navet_chore_scheduler
+    ? ngx.shared.navet_chore_scheduler : null;
+}
+
+function getMaterializationKey() {
+  const cache = getSchedulerCache();
+  return cache ? cache.get('window') : lastMaterializationKey;
+}
+
+function setMaterializationKey(key) {
+  const cache = getSchedulerCache();
+  if (cache) {
+    if (key === null) cache.delete('window');
+    else cache.set('window', key);
+  } else lastMaterializationKey = key;
+}
 
 function withEventHistoryCache(action) {
   eventHistoryCache = null;
@@ -94,6 +114,7 @@ function setChoreStorePrincipalResolverForTests(resolver) {
 }
 
 function resetChoreStoreForTests() {
+  lastMaterializationKey = null;
   fsModule = fs;
   managementSessions = [];
   failedManagementAttempts = 0;
@@ -571,17 +592,18 @@ function readEventHistoryFromDisk(fallbackEvents) {
       { contractVersion: CONTRACT_VERSION, events: [] },
       MAX_CHORE_EVENT_HISTORY_BYTES
     );
-    const history = choreDurableStorage.unpack(stored, durableHash, MAX_CHORE_EVENT_HISTORY_BYTES);
+    const decoded = choreDurableStorage.unpack(stored, durableHash, MAX_CHORE_EVENT_HISTORY_BYTES);
     if (
-      !isRecord(history) ||
-      history.contractVersion !== CONTRACT_VERSION ||
-      !Array.isArray(history.events)
+      !isRecord(decoded) ||
+      decoded.contractVersion !== CONTRACT_VERSION ||
+      !Array.isArray(decoded.events)
     ) {
       throw new Error('Chore event history is invalid');
     }
-    if (!stored.storageEncoding) {
+    const history = choreStoragePolicy.compactChoreHistory(decoded);
+    if (history !== decoded || !stored.storageEncoding) {
       const compact = choreDurableStorage.pack(history, durableHash);
-      if (compact !== history) {
+      if (history !== decoded || compact !== history) {
         // A failed atomic rewrite leaves the legacy history intact for the next read.
         try { writeJson(CHORE_EVENT_HISTORY_PATH, compact, MAX_CHORE_EVENT_HISTORY_BYTES); }
         catch (_writeError) { /* Retry on the next read without rebuilding valid history. */ }
@@ -589,10 +611,10 @@ function readEventHistoryFromDisk(fallbackEvents) {
     }
     return history;
   } catch (_error) {
-    const repaired = {
+    const repaired = choreStoragePolicy.compactChoreHistory({
       contractVersion: CONTRACT_VERSION,
       events: Array.isArray(fallbackEvents) ? fallbackEvents.slice(-DEFAULT_HISTORY_RETENTION.maxEvents) : [],
-    };
+    });
     writeJson(CHORE_EVENT_HISTORY_PATH, choreDurableStorage.pack(repaired, durableHash), MAX_CHORE_EVENT_HISTORY_BYTES);
     return repaired;
   }
@@ -607,7 +629,7 @@ function appendEventHistory(events, policy) {
   }
   const additions = [];
   for (let index = 0; index < events.length; index += 1) {
-    if (!existingIds[events[index].id]) {
+    if (!choreStoragePolicy.isChoreBookkeeping(events[index].type) && !existingIds[events[index].id]) {
       recordSafety.setOwnRecordValue(existingIds, events[index].id, true);
       additions.push(events[index]);
     }
@@ -618,11 +640,13 @@ function appendEventHistory(events, policy) {
   const retainedEvents = history.events.concat(additions).filter(function (event) {
     return Date.parse(event.timestamp) >= boundary;
   }).slice(-retention.maxEvents);
-  replaceEventHistory(retainedEvents);
+  replaceEventHistory(retainedEvents, history);
 }
 
-function replaceEventHistory(events) {
-  const history = { contractVersion: CONTRACT_VERSION, events };
+function replaceEventHistory(events, previous) {
+  const history = choreStoragePolicy.compactChoreHistory(Object.assign({}, previous || {}, {
+    contractVersion: CONTRACT_VERSION, events,
+  }));
   writeJson(
     CHORE_EVENT_HISTORY_PATH,
     choreDurableStorage.pack(history, durableHash),
@@ -1888,6 +1912,7 @@ function buildWorkspaceActivity(commandId, timestamp, type, details) {
 }
 
 function appendWorkspaceActivity(data, activity, enqueue) {
+  if (choreStoragePolicy.isChoreBookkeeping(activity.type)) return data;
   return Object.assign({}, data, {
     activity: data.activity.concat([activity]).slice(-MAX_ACTIVITY_ITEMS),
     outbox: enqueue === false
@@ -2644,8 +2669,11 @@ function readDocumentCandidate(path) {
 }
 
 function persistDocument(previous, next) {
-  if (previous.storageMaintenanceVersion === 1) next.storageMaintenanceVersion = 1;
-  writeStoredDocument(CHORE_LAST_GOOD_WORKSPACE_PATH, previous);
+  next.data = choreStoragePolicy.compactChoreWorkspace(next.data);
+  if (!next.storageMaintenanceVersion) next.storageMaintenanceVersion = previous.storageMaintenanceVersion;
+  writeStoredDocument(CHORE_LAST_GOOD_WORKSPACE_PATH, Object.assign({}, previous, {
+    data: choreStoragePolicy.compactChoreWorkspace(previous.data),
+  }));
   writeStoredDocument(CHORE_WORKSPACE_PATH, next);
   collectUnreferencedChunks();
 }
@@ -2686,7 +2714,18 @@ function collectUnreferencedChunks() {
 }
 
 function repairStoredWorkspace(document, previous) {
-  if (document.storageMaintenanceVersion === 1) return document;
+  if (document.storageMaintenanceVersion >= 2) return document;
+  if (document.storageMaintenanceVersion === 1) {
+    appendEventHistory(document.data.activity, document.data.historyRetention);
+    const data = choreStoragePolicy.compactChoreWorkspace(document.data);
+    const next = Object.assign({}, document, {
+      storageMaintenanceVersion: 2, data,
+      revision: document.revision + (data !== document.data ? 1 : 0),
+      updatedAt: data !== document.data ? nowIso() : document.updatedAt,
+    });
+    persistDocument(document, next);
+    return next;
+  }
   const timestamp = nowIso();
   const now = Date.parse(timestamp);
   appendEventHistory(document.data.activity, document.data.historyRetention);
@@ -2735,14 +2774,15 @@ function repairStoredWorkspace(document, previous) {
       recordSafety.setOwnRecordValue(occurrences, id, item);
     }
   }
-  const changed = Object.keys(removed).length > 0;
+  const compacted = choreStoragePolicy.compactChoreWorkspace(document.data);
+  const changed = Object.keys(removed).length > 0 || compacted !== document.data;
   const next = Object.assign({}, document, {
-    storageMaintenanceVersion: 1,
+    storageMaintenanceVersion: 2,
     revision: document.revision + (changed ? 1 : 0),
     updatedAt: changed ? timestamp : document.updatedAt,
-    data: changed ? Object.assign({}, document.data, {
+    data: changed ? Object.assign({}, compacted, {
       occurrencesById: occurrences,
-      outbox: document.data.outbox.filter(function (item) {
+      outbox: compacted.outbox.filter(function (item) {
         return item.status === 'delivered' || !removed[item.occurrenceId];
       }),
     }) : document.data,
@@ -2781,6 +2821,10 @@ function sameObjectKeys(left, right) {
 }
 
 function materializePeriodicWindow(document, timestamp) {
+  const key = durableHash(JSON.stringify([
+    timestamp.slice(0, 10), document.data.definitionsById, document.data.participantsById,
+  ]));
+  if (getMaterializationKey() === key) return document;
   const now = Date.parse(timestamp);
   const commandId = 'periodic:materialize:' + timestamp;
   const candidate = applyWorkspaceAction(document.data, commandId, {
@@ -2788,7 +2832,8 @@ function materializePeriodicWindow(document, timestamp) {
     rangeStart: new Date(now - 90 * 86400000).toISOString(),
     rangeEnd: new Date(now + 45 * 86400000).toISOString(),
   }, timestamp);
-  if (sameObjectKeys(candidate.occurrencesById, document.data.occurrencesById)) {
+  if (choreStoragePolicy.isChoreMaterializationUnchanged(document.data, candidate)) {
+    setMaterializationKey(key);
     return document;
   }
   const next = {
@@ -2799,6 +2844,7 @@ function materializePeriodicWindow(document, timestamp) {
   };
   persistDocument(document, next);
   appendEventHistory(next.data.activity, next.data.historyRetention);
+  setMaterializationKey(key);
   return next;
 }
 
@@ -2887,7 +2933,9 @@ async function runPeriodic(_session) {
   const timestamp = nowIso();
   lastSchedulerRunAt = timestamp;
   const document = withEventHistoryCache(function () {
-    return applyScheduledState(materializePeriodicWindow(readDocument(), timestamp));
+    const current = readDocument();
+    const materialized = materializePeriodicWindow(current, timestamp);
+    return materialized === current ? current : applyScheduledState(materialized);
   });
   const reminders = pendingHomeAssistantReminders(document, timestamp);
   for (let index = 0; index < reminders.length; index += 1) {
@@ -2945,6 +2993,7 @@ function readDocument() {
   }
   const backup = readDocumentCandidate(CHORE_LAST_GOOD_WORKSPACE_PATH);
   if (backup) {
+    setMaterializationKey(null);
     const recovered = Object.assign({}, backup, {
       revision: backup.revision + 1,
       updatedAt: nowIso(),
@@ -3121,7 +3170,7 @@ function loadWorkspace(r, principal) {
 }
 
 function loadEventHistory(r) {
-  sendJson(r, 200, readEventHistory());
+  sendJson(r, 200, { contractVersion: CONTRACT_VERSION, events: readEventHistory().events });
 }
 
 function loadBackup(r, document) {
@@ -3194,22 +3243,9 @@ function loadAutomationEvents(r) {
       })
     : [];
   const allowedTypes = requestedTypes.length > 0 ? requestedTypes : CHORE_AUTOMATION_EVENT_TYPES;
-  const events = [];
-  let cursor = Math.min(after, history.events.length);
-  while (cursor < history.events.length && events.length < limit) {
-    const event = history.events[cursor];
-    cursor += 1;
-    if (!includesValue(allowedTypes, event.type)) continue;
-    if (args.occurrenceId && event.occurrenceId !== args.occurrenceId) continue;
-    if (args.definitionId && event.definitionId !== args.definitionId) continue;
-    events.push(event);
-  }
-  sendJson(r, 200, {
-    contractVersion: CONTRACT_VERSION,
-    cursor: String(cursor),
-    hasMore: cursor < history.events.length,
-    events,
-  });
+  sendJson(r, 200, choreStoragePolicy.readChoreHistoryPage(
+    history, after, limit, allowedTypes, args.occurrenceId, args.definitionId
+  ));
 }
 
 function hasCommand(document, journal, commandId) {
@@ -3373,6 +3409,7 @@ function recoverWorkspace(r, principal) {
     return;
   }
 
+  setMaterializationKey(null);
   if (restoreBackup) {
     const backup = readDocumentCandidate(CHORE_LAST_GOOD_WORKSPACE_PATH);
     if (!backup) {
@@ -3472,6 +3509,12 @@ function commitCommand(r, principal) {
     sendJson(r, 409, {
       error: error && error.message ? error.message : 'Chore action could not be applied',
     });
+    return;
+  }
+
+  if (request.action.type === 'materialize_occurrences' &&
+      choreStoragePolicy.isChoreMaterializationUnchanged(current.data, nextData)) {
+    sendJson(r, 200, publicDocument(current, principal.tenantId));
     return;
   }
 
@@ -3639,6 +3682,7 @@ function commitAdministration(r, principal, operation) {
     writeJson(CHORE_JOURNAL_PATH, nextJournal, MAX_CHORE_JOURNAL_BYTES);
     replaceEventHistory(nextEvents);
   }
+  setMaterializationKey(null);
   applyRevisionHeader(r, next.revision);
   sendJson(r, 200, publicDocument(next, principal.tenantId));
 }

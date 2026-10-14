@@ -6,6 +6,11 @@ import {
   shouldPruneChoreOccurrence,
 } from './chore-recurrence-policy';
 import {
+  compactChoreHistory,
+  compactChoreWorkspace,
+  readChoreHistoryPage,
+} from './chore-storage-policy';
+import {
   applyChoreOccurrenceCommand,
   applyChoreWorkspaceAction,
   applyChoreWorkspaceOccurrenceCommand,
@@ -3193,5 +3198,100 @@ describe('durable fixed-work supersession', () => {
     expect(
       Object.values(result.occurrencesById).filter((item) => item.status === 'available')
     ).toHaveLength(0);
+  });
+});
+
+// Rewrite policy: internal scheduling/delivery chatter is removable; household accounting is not.
+describe('chore storage cleanup', () => {
+  const event = (
+    id: string,
+    type: 'workspace_materialized' | 'completed' | 'points_adjusted' | 'outbox_delivery_updated'
+  ) => ({
+    id,
+    commandId: id,
+    type,
+    timestamp: '2026-10-13T10:00:00.000Z',
+  });
+
+  it('removes bookkeeping and stable-ID duplicates while preserving cursor positions and distinct actions', () => {
+    const completed = event('complete:one', 'completed');
+    const points = event('points:one', 'points_adjusted');
+    const compacted = compactChoreHistory({
+      contractVersion: 1,
+      events: [
+        event('materialize', 'workspace_materialized'),
+        completed,
+        { ...completed },
+        event('delivery', 'outbox_delivery_updated'),
+        points,
+      ],
+    });
+    expect(compacted.events).toEqual([completed, points]);
+    expect(compacted.nextCursor).toBe(5);
+    expect(readChoreHistoryPage(compacted, 0, 1, ['completed'])).toMatchObject({
+      cursor: '2',
+      events: [completed],
+      hasMore: true,
+    });
+    expect(readChoreHistoryPage(compacted, 2, 10, ['completed'])).toMatchObject({
+      cursor: '5',
+      events: [],
+      hasMore: false,
+    });
+    const next = event('points:two', 'points_adjusted');
+    const appended = compactChoreHistory({ ...compacted, events: [...compacted.events, next] });
+    expect(appended.events).toEqual([completed, points, next]);
+    expect(appended.nextCursor).toBe(6);
+    expect(readChoreHistoryPage(appended, 5, 10, ['points_adjusted'])).toMatchObject({
+      cursor: '6',
+      events: [next],
+    });
+    expect(compactChoreHistory(appended)).toBe(appended);
+  });
+
+  it('preserves balances, rewards and all accounting while removing duplicate delivery work without replay', () => {
+    const workspace = createEmptyChoreWorkspace();
+    workspace.experience = createChoreExperienceState();
+    workspace.experience.earnedPointsByParticipant = { alice: 250 };
+    workspace.experience.rewardRequestsById.movie = {
+      id: 'movie',
+      rewardId: 'cinema',
+      rewardTitle: 'Cinema',
+      cost: 40,
+      participantId: 'alice',
+      status: 'approved',
+      requestedAt: '2026-10-13T10:00:00.000Z',
+      updatedAt: '2026-10-13T10:00:00.000Z',
+    };
+    const completed = event('complete', 'completed');
+    const internal = event('internal', 'workspace_materialized');
+    const notification = createChoreOutboxItem(completed);
+    workspace.activity = [internal, completed, { ...completed }];
+    workspace.outbox = [
+      createChoreOutboxItem(internal),
+      notification,
+      { ...notification, status: 'delivered' },
+    ];
+    const accounting = structuredClone(workspace.experience);
+    const cleaned = compactChoreWorkspace(workspace);
+    expect(cleaned.activity).toEqual([completed]);
+    expect(cleaned.outbox).toEqual([{ ...notification, status: 'delivered' }]);
+    expect(cleaned.experience).toBe(workspace.experience);
+    expect(cleaned.experience).toEqual(accounting);
+    expect(compactChoreWorkspace(cleaned)).toBe(cleaned);
+  });
+
+  it('keeps feed cursors monotonic across retention and rejects damaged cursor metadata', () => {
+    const first = event('first', 'completed');
+    const second = event('second', 'completed');
+    const compacted = compactChoreHistory({ contractVersion: 1, events: [first, second] });
+    const retained = compactChoreHistory({ ...compacted, events: [second] });
+    expect(readChoreHistoryPage(retained, 0, 10, ['completed'])).toMatchObject({
+      cursor: '2',
+      events: [second],
+    });
+    expect(() =>
+      compactChoreHistory({ ...compacted, eventCursors: { first: 2, second: 1 } })
+    ).toThrow('cursors');
   });
 });

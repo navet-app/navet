@@ -365,6 +365,98 @@ def _storage_size(value: Any) -> int:
     return len(json.dumps(value, separators=(",", ":")).encode())
 
 
+def _bookkeeping(kind: str) -> bool:
+    return kind in ("workspace_materialized", "outbox_delivery_updated")
+
+
+def _compact_activity(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    retained = []
+    for event in events:
+        if _bookkeeping(event["type"]) or event["id"] in seen:
+            continue
+        seen.add(event["id"])
+        retained.append(event)
+    return retained
+
+
+def _compact_workspace(data: dict[str, Any]) -> dict[str, Any]:
+    activity = _compact_activity(data.get("activity", []))
+    by_id: dict[str, dict[str, Any]] = {}
+    for item in data.get("outbox", []):
+        if _bookkeeping(item.get("eventType", "")):
+            continue
+        old = by_id.get(item["id"])
+        if old is None or (old.get("status") != "delivered" and (
+            item.get("status") == "delivered" or item.get("attempts", 0) > old.get("attempts", 0)
+        )):
+            by_id[item["id"]] = item
+    outbox = list(by_id.values())
+    return data if activity == data.get("activity", []) and outbox == data.get("outbox", []) else {
+        **data, "activity": activity, "outbox": outbox,
+    }
+
+
+def _compact_history(history: dict[str, Any]) -> dict[str, Any]:
+    sequenced = "eventCursors" in history and "nextCursor" in history
+    if ("eventCursors" in history or "nextCursor" in history) and (
+        not sequenced or not isinstance(history["eventCursors"], dict)
+        or type(history["nextCursor"]) is not int or history["nextCursor"] < 0
+    ):
+        raise ChoreStorageError("Chore history cursors are invalid")
+    next_cursor = history["nextCursor"] if sequenced else len(history["events"])
+    originals: dict[str, int] = {}
+    last_saved = 0
+    for index, event in enumerate(history["events"]):
+        if event["id"] in originals:
+            continue
+        saved = history["eventCursors"].get(event["id"]) if sequenced else None
+        if saved is not None:
+            if type(saved) is not int or saved <= last_saved or saved > history["nextCursor"]:
+                raise ChoreStorageError("Chore history cursors are invalid")
+            last_saved = saved
+        if saved is None:
+            if sequenced:
+                next_cursor += 1
+            saved = next_cursor if sequenced else index + 1
+        originals[event["id"]] = saved
+    events = _compact_activity(history["events"])
+    return {"contractVersion": CONTRACT_VERSION, "events": events,
+        "eventCursors": {event["id"]: originals[event["id"]] for event in events},
+        "nextCursor": next_cursor}
+
+
+def _history_page(history: dict[str, Any], message: Mapping[str, Any]) -> dict[str, Any]:
+    after = max(0, int(message.get("after", 0)))
+    limit = min(500, max(1, int(message.get("limit", 200))))
+    end = history.get("nextCursor", len(history["events"]))
+    cursor = min(after, end)
+    requested = message.get("types") or []
+    if isinstance(requested, str):
+        requested = requested.split(",")
+    types = set(requested) & set(AUTOMATION_EVENT_TYPES) or set(AUTOMATION_EVENT_TYPES)
+    events = []
+    index = 0
+    while index < len(history["events"]) and len(events) < limit:
+        event = history["events"][index]
+        position = history.get("eventCursors", {}).get(event["id"], index + 1)
+        index += 1
+        if position <= cursor:
+            continue
+        cursor = position
+        if event["type"] not in types:
+            continue
+        if message.get("occurrenceId") and event.get("occurrenceId") != message["occurrenceId"]:
+            continue
+        if message.get("definitionId") and event.get("definitionId") != message["definitionId"]:
+            continue
+        events.append(event)
+    if index == len(history["events"]) and len(events) < limit:
+        cursor = end
+    return {"contractVersion": CONTRACT_VERSION, "events": events,
+        "cursor": str(cursor), "hasMore": cursor < end}
+
+
 def _decode_history_storage(value: Any) -> dict[str, Any]:
     """A corrupt rebuildable sidecar must not prevent workspace recovery."""
     decoded = _unpack_storage(value)
@@ -1443,6 +1535,7 @@ class ChoreAuthority:
         self._loaded = False
         self._document: dict[str, Any] | None = None
         self._history: list[dict[str, Any]] = []
+        self._history_metadata: dict[str, Any] = {}
         self._journal: list[dict[str, Any]] = []
         self._security: dict[str, Any] | None = None
         self._alert_key: str = ""
@@ -1451,6 +1544,7 @@ class ChoreAuthority:
         self._unsub_interval: Callable[[], None] | None = None
         self._unsub_alert_actions: Callable[[], None] | None = None
         self._last_scheduler_run_at: str | None = None
+        self._materialization_key: str | None = None
         self._last_delivery_error: str | None = None
         self._recovery: dict[str, Any] | None = None
         self._stores = {
@@ -1567,6 +1661,7 @@ class ChoreAuthority:
         async with self._lock:
             if self._loaded:
                 return
+            self._materialization_key = None
             primary = await self._stores["primary"].async_load()
             history = await self._stores["history"].async_load()
             journal = await self._stores["journal"].async_load()
@@ -1642,21 +1737,21 @@ class ChoreAuthority:
             except ChoreStorageError:
                 history_needs_repair = True
                 self._history = list(data.get("activity", []))
+            self._history_metadata = decoded_history or {}
             self._journal = list(journal.get("commands", [])) if isinstance(journal, Mapping) else []
             self._security = dict(security) if isinstance(security, Mapping) else None
             self._alert_key = alert_key
             self._loaded = True
-            history_needs_compaction = (
-                not (isinstance(history, Mapping) and history.get("storageEncoding"))
-                and await self.hass.async_add_executor_job(_pack_storage, decoded_history) is not decoded_history
-            )
-            if run_initial_tick and (self._document.get("storageMaintenanceVersion") != 1
+            history_needs_compaction = isinstance(decoded_history, Mapping) and "eventCursors" not in decoded_history
+            if run_initial_tick and (self._document.get("storageMaintenanceVersion") != 2
                 or history_needs_repair or history_needs_compaction):
                 previous = copy.deepcopy(self._document)
                 timestamp = _iso(_now())
-                repaired = _repair_legacy_repeats(data, timestamp)
+                repaired = await self.hass.async_add_executor_job(_compact_workspace,
+                    _repair_legacy_repeats(data, timestamp)
+                    if self._document.get("storageMaintenanceVersion") not in (1, 2) else data)
                 changed = repaired != data
-                next_document = {**self._document, "storageMaintenanceVersion": 1,
+                next_document = {**self._document, "storageMaintenanceVersion": 2,
                     "revision": self.revision + (1 if changed else 0),
                     "updatedAt": timestamp if changed else self._document["updatedAt"], "data": repaired}
                 existing = {event.get("id") for event in self._history}
@@ -1809,7 +1904,9 @@ class ChoreAuthority:
             return
 
     async def _save(self, next_document: dict[str, Any], previous: dict[str, Any], *, storage_maintenance: bool = False, notify: bool = True) -> None:
-        next_document["storageMaintenanceVersion"] = 1
+        next_document["storageMaintenanceVersion"] = 2
+        next_document["data"] = await self.hass.async_add_executor_job(_compact_workspace, next_document["data"])
+        previous = {**previous, "data": await self.hass.async_add_executor_job(_compact_workspace, previous["data"])}
         if not storage_maintenance:
             next_document["data"]["outbox"] = _without_stale_alerts(next_document["data"])
             retention = next_document["data"].get("historyRetention") or DEFAULT_RETENTION
@@ -1820,11 +1917,14 @@ class ChoreAuthority:
                 if _valid_timestamp(event.get("timestamp"))
                 and _parse_iso(event["timestamp"]) >= boundary
             ][-min(MAX_HISTORY_ITEMS, int(retention["maxEvents"])):]
+        self._history_metadata = await self.hass.async_add_executor_job(_compact_history, {**self._history_metadata,
+            "contractVersion": CONTRACT_VERSION, "events": self._history})
+        self._history = self._history_metadata["events"]
         try:
             payloads = {
                 "primary": await self._encode_storage(next_document),
                 "last_good": await self._encode_storage(previous),
-                "history": await self.hass.async_add_executor_job(_pack_storage, {"contractVersion": CONTRACT_VERSION, "events": self._history}),
+                "history": await self.hass.async_add_executor_job(_pack_storage, self._history_metadata),
                 "journal": {"contractVersion": CONTRACT_VERSION, "commands": self._journal[-MAX_JOURNAL_ITEMS:]},
             }
         except Exception as err:  # noqa: BLE001
@@ -1865,6 +1965,8 @@ class ChoreAuthority:
         self.hass.bus.async_fire("navet_chore_projection", projection)
 
     async def _commit_locked(self, data: dict[str, Any], activities: list[dict[str, Any]], command_id: str, timestamp: str) -> dict[str, Any]:
+        if any(activity["type"] == "workspace_imported" for activity in activities):
+            self._materialization_key = None
         previous = dict(self._document or {})
         previous["data"] = json.loads(json.dumps(self.data))
         stale_delivered = [item for item in previous["data"].get("outbox", [])
@@ -1872,7 +1974,11 @@ class ChoreAuthority:
             and (old := previous["data"].get("occurrencesById", {}).get(item.get("occurrenceId")))
             and old.get("updatedAt") == item.get("occurrenceUpdatedAt")
             and data.get("occurrencesById", {}).get(item.get("occurrenceId"), {}).get("updatedAt") != old.get("updatedAt")]
-        self._history.extend(activity for activity in activities if activity["id"] not in {item.get("id") for item in self._history})
+        existing_history_ids = {item.get("id") for item in self._history}
+        for activity in activities:
+            if not _bookkeeping(activity["type"]) and activity["id"] not in existing_history_ids:
+                self._history.append(activity)
+                existing_history_ids.add(activity["id"])
         data["activity"] = (list(data.get("activity", [])) + activities)[-MAX_ACTIVITY_ITEMS:]
         existing_outbox = {item.get("id") for item in data.get("outbox", [])}
         additions = [
@@ -1901,6 +2007,8 @@ class ChoreAuthority:
         previous = dict(self._document or {})
         previous["data"] = json.loads(json.dumps(self.data))
         self._history = []
+        self._materialization_key = None
+        self._history_metadata = {}
         self._journal = []
         self._security = None
         self._sessions.clear()
@@ -1955,7 +2063,9 @@ class ChoreAuthority:
                     activities.extend(additional)
             elif action.get("type") == "materialize_occurrences":
                 data, additional = _materialize(data, str(action.get("rangeStart")), str(action.get("rangeEnd")), timestamp, command_id)
-                activities.append(_activity(command_id, timestamp, "workspace_materialized"))
+                if (data["occurrencesById"] == self.data["occurrencesById"]
+                    and data.get("outbox", []) == self.data.get("outbox", [])):
+                    return self._public_document()
                 activities.extend(additional)
             elif action.get("type") == "vacation_reschedule":
                 data, additional = _vacation_reschedule(data, action, timestamp, command_id)
@@ -2345,9 +2455,11 @@ class ChoreAuthority:
             mode = str(request.get("mode", "replace"))
             if mode not in {"merge", "replace"}:
                 raise ChoreAuthorityError("Chore restore mode is invalid")
+            self._materialization_key = None
             if mode == "replace":
                 data = {**imported, "outbox": []}
                 self._history = list(document.get("events", []))[-MAX_HISTORY_ITEMS:]
+                self._history_metadata = {}
             else:
                 data, merged_events = _merge_imported_workspace(
                     self.data,
@@ -2385,7 +2497,13 @@ class ChoreAuthority:
             timestamp = _iso(now)
             range_start = _iso(now - timedelta(days=RETENTION_DAYS))
             range_end = _iso(now + timedelta(days=MATERIALIZATION_DAYS))
-            data, materialized = _materialize(json.loads(json.dumps(self.data)), range_start, range_end, timestamp, f"scheduler:materialize:{timestamp[:10]}")
+            key = hashlib.sha256(json.dumps([timestamp[:10], self.data["definitionsById"],
+                self.data["participantsById"]], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            if self._materialization_key != key:
+                data, materialized = _materialize(json.loads(json.dumps(self.data)), range_start, range_end,
+                    timestamp, f"scheduler:materialize:{timestamp[:10]}")
+            else:
+                data, materialized = dict(self.data), []
             activities = list(materialized)
             existing = {item.get("id") for item in data.get("activity", [])} | {item.get("id") for item in self._history}
             occurrences = dict(data["occurrencesById"])
@@ -2540,6 +2658,7 @@ class ChoreAuthority:
                 self._history.extend(item for item in activities if item["id"] not in {event.get("id") for event in self._history})
                 next_document = {"contractVersion": CONTRACT_VERSION, "revision": self.revision + 1, "updatedAt": timestamp, "data": data}
                 await self._save(next_document, previous)
+            self._materialization_key = key
             self._last_scheduler_run_at = timestamp
         await self._deliver_pending()
 
@@ -2647,9 +2766,7 @@ class ChoreAuthority:
         if message_type == "navet/chores/history/get":
             return {"contractVersion": CONTRACT_VERSION, "events": list(self._history)}
         if message_type == "navet/chores/events/get":
-            after = max(0, int(message.get("after", 0)))
-            events = [item for item in self._history[after:] if item.get("type") in AUTOMATION_EVENT_TYPES][: min(500, max(1, int(message.get("limit", 200))))]
-            return {"contractVersion": CONTRACT_VERSION, "cursor": str(after + len(events)), "hasMore": after + len(events) < len(self._history), "events": events}
+            return _history_page({**self._history_metadata, "events": self._history}, message)
         if message_type == "navet/chores/backup/get":
             await self.async_initialize()
             return {"contract": "navet.chores", "version": 1, "exportedAt": _iso(_now()), "workspace": self.data, "events": self._history}
