@@ -1,0 +1,5 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+summary: Fixed Docker and Home Assistant add-on startup on hosts with larger memory pages.
