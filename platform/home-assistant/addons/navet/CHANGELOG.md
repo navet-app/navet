@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.1
+
+## New features
+
+- Create timed and all-day events from calendar cards when the selected calendar supports writing.
+- Explore entity state history and recorded Home Assistant activity for a selected date range from the user menu.
+
+## Improvements and bug fixes
+
+- Fix stuck chore completion and reset, and automatically repair and compress affected storage on upgrade without losing history.
+
 ## 0.18.0
 
 ## New features
