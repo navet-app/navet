@@ -301,3 +301,7 @@ accounting and replay protection. Activity is
 capped at 5,000 entries in the client document, immutable event history uses the manager-selected
 bounded policy (730 days and 50,000 events by default), and the idempotency journal retains the most
 recent 500 commands.
+
+The maintainer-confirmed [data-control design](household-chores-data-control.md) specifies planned
+storage information, history cleanup, and automatic retention. It is not implemented; the runtime
+limits above describe current behavior.
