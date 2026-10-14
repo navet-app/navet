@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.2-beta.1
+
+## Improvements and bug fixes
+
+- Reduce chore scheduling and concurrent write costs with paged accounting storage, preserving scores, rewards, history, and recovery.
+
 ## 0.18.1-beta.1
 
 ## New features
