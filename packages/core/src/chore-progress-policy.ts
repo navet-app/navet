@@ -26,7 +26,7 @@ export function archiveChorePointProgress(
   previous: ChorePointProgress | undefined,
   transactions: readonly ChorePointTransaction[],
   occurrenceIds: readonly string[],
-  liveOccurrences: Record<string, Pick<ChoreOccurrence, 'definitionId'>> = {}
+  liveOccurrences?: Record<string, Pick<ChoreOccurrence, 'definitionId'>>
 ): ChorePointProgress {
   const totals = Object.assign(Object.create(null), previous?.totals || {});
   const definitions = Object.assign(Object.create(null), previous?.definitions || {});
@@ -59,7 +59,7 @@ export function archiveChorePointProgress(
       'monthly:' + progressCycleKey('monthly', transaction.timestamp),
     ];
     const id = transaction.occurrenceId;
-    const definitionId = chorePointDefinitionId(transaction, liveOccurrences);
+    const definitionId = chorePointDefinitionId(transaction, liveOccurrences || {});
     const definitionGroups = definitionId
       ? Object.assign(Object.create(null), definitions[definitionId] || {})
       : null;

@@ -10,7 +10,7 @@ function chorePointDefinitionId(transaction, occurrences) {
 	return match ? match[1] : undefined;
 }
 /** Increment a read model only when records move from the recent ledger into history. */
-function archiveChorePointProgress(previous, transactions, occurrenceIds, liveOccurrences = {}) {
+function archiveChorePointProgress(previous, transactions, occurrenceIds, liveOccurrences) {
 	const totals = Object.assign(Object.create(null), (previous === null || previous === void 0 ? void 0 : previous.totals) || {});
 	const definitions = Object.assign(Object.create(null), (previous === null || previous === void 0 ? void 0 : previous.definitions) || {});
 	const occurrences = Object.create(null);
@@ -36,7 +36,7 @@ function archiveChorePointProgress(previous, transactions, occurrenceIds, liveOc
 			"monthly:" + progressCycleKey("monthly", transaction.timestamp)
 		];
 		const id = transaction.occurrenceId;
-		const definitionId = chorePointDefinitionId(transaction, liveOccurrences);
+		const definitionId = chorePointDefinitionId(transaction, liveOccurrences || {});
 		const definitionGroups = definitionId ? Object.assign(Object.create(null), definitions[definitionId] || {}) : null;
 		const groups = id && present[id] ? Object.assign(Object.create(null), occurrences[id] || {}) : null;
 		for (let period = 0; period < periods.length; period++) {

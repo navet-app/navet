@@ -38,7 +38,7 @@ for (const [name, directory] of entries) {
   const code = usesRecordSafety
     ? transformed.replace(/\bsetOwnRecordValue\(/g, 'recordSafety.setOwnRecordValue(')
     : transformed;
-  if (/^\s*export\b/m.test(code) || /\b(?:const|let|var)\s+[\[{]/.test(code) || /\bfor\s*\([^)]*\bof\b/.test(code) || /\bObject\.hasOwn\(/.test(code)) {
+  if (/^\s*export\b/m.test(code) || /\b(?:const|let|var)\s+[\[{]/.test(code) || /\bfor\s*\([^)]*\bof\b/.test(code) || /\bObject\.hasOwn\(/.test(code) || /\bfunction\s+\w+\s*\([^)]*=/.test(code)) {
     throw new Error('Runtime policy contains syntax or built-ins unsupported by NJS: ' + name);
   }
   const generated =
