@@ -44,4 +44,11 @@ describe('UserDropdown', () => {
     expect(screen.getByText('Homey')).toBeInTheDocument();
     expect(screen.getByText('openHAB')).toBeInTheDocument();
   });
+  it('opens the general history explorer from the user menu', async () => {
+    renderWithProviders(<UserDropdown />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'History and activity' }));
+    expect(await screen.findByRole('dialog', { name: 'History and activity' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /^Entity/ })).toBeInTheDocument();
+  });
 });

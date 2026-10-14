@@ -25,9 +25,14 @@ import {
 import { refreshPwaApp } from '@navet/app/pwa/pwa-update-store';
 import { integrationSelectors } from '@navet/app/stores/selectors';
 import { INTEGRATION_PROVIDER_IDS, INTEGRATION_PROVIDERS } from '@navet/app/types/provider';
-import { LogOut, RefreshCw } from 'lucide-react';
-import { memo, useMemo, useState } from 'react';
+import { History, LogOut, RefreshCw } from 'lucide-react';
+import { lazy, memo, Suspense, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+
+const ProviderHistoryDialog = lazy(async () => {
+  const module = await import('@navet/app/features/history/components/provider-history-dialog');
+  return { default: module.ProviderHistoryDialog };
+});
 
 interface UserDropdownProps {
   avatarUrl?: string | null;
@@ -39,6 +44,7 @@ export const UserDropdown = memo(function UserDropdown({
   variant = 'desktop',
 }: UserDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const isMobile = variant === 'mobile';
   const dropdownRef = useClickOutside<HTMLDivElement>(() => setIsOpen(false), isOpen && !isMobile);
@@ -150,6 +156,17 @@ export const UserDropdown = memo(function UserDropdown({
       </div>
 
       <div className={`space-y-2 border-t p-4 ${divider}`}>
+        <button
+          type="button"
+          onClick={() => {
+            setIsOpen(false);
+            setShowHistory(true);
+          }}
+          className={refreshButtonClassName}
+        >
+          <History aria-hidden="true" className="h-4 w-4" />
+          <span className="text-sm font-medium">{t('history.title')}</span>
+        </button>
         <button type="button" onClick={handleRefreshApp} className={refreshButtonClassName}>
           <RefreshCw className="h-4 w-4" />
           <span className="text-sm font-medium">{t('pwa.refreshApp')}</span>
@@ -213,6 +230,11 @@ export const UserDropdown = memo(function UserDropdown({
         </SheetSurface>
       ) : null}
 
+      {showHistory ? (
+        <Suspense fallback={null}>
+          <ProviderHistoryDialog onClose={() => setShowHistory(false)} />
+        </Suspense>
+      ) : null}
       <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>

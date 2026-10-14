@@ -1,4 +1,30 @@
 export const deMessages = {
+  'history.title': 'Verlauf und Aktivitäten',
+  'history.userAction': 'Benutzeraktion',
+  'history.entity': 'Entität',
+  'history.chooseEntity': 'Entität auswählen',
+  'history.search': 'Entität suchen',
+  'history.view': 'Ansicht',
+  'history.states': 'Zustandsverlauf',
+  'history.activity': 'Aktivitäten',
+  'history.load': 'Einträge laden',
+  'history.loading': 'Einträge werden geladen…',
+  'history.offline': 'Diese Quelle ist getrennt. Stelle die Verbindung wieder her.',
+  'history.unsupported': 'Für diese Entität ist kein Verlauf verfügbar.',
+  'history.activityUnsupported': 'Für diese Quelle sind keine Aktivitäten verfügbar.',
+  'history.noEntities': 'Die ausgewählten Quellen enthalten keine Entitäten.',
+  'history.empty':
+    'Keine Einträge für diesen Zeitraum. Die Quelle kann diese Entität ausschließen oder ältere Daten gelöscht haben.',
+  'history.retention': 'Es werden nur von der Quelle gespeicherte Daten angezeigt.',
+  'history.failed':
+    'Einträge konnten nicht geladen werden. Prüfe die Verbindung und ob die Quelle den Verlauf speichert, und versuche es erneut.',
+  'history.invalidRange':
+    'Wähle einen gültigen Beginn und ein späteres Ende mit höchstens 31 Tagen Abstand.',
+  'history.recordedEvent': 'Aufgezeichnetes Ereignis',
+  'history.atStart': 'Zustand zu Beginn des Zeitraums',
+  'history.more': 'Mehr anzeigen',
+  'history.limited':
+    'Die neuesten {count} Einträge werden angezeigt. Wähle einen kürzeren Zeitraum für mehr Details.',
   'calendar.create.title': 'Termin hinzufügen',
   'calendar.create.name': 'Titel',
   'calendar.create.start': 'Beginn',

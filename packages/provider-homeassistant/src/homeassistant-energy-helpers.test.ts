@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   augmentConfigWithLivePowerEntities,
   type HaEnergyPrefs,
-  mapPrefsToConfig,
 } from './homeassistant-energy-helpers';
+import { mapPrefsToConfig } from './homeassistant-energy-source-config';
 
 describe('mapPrefsToConfig', () => {
   it('maps top-level grid import and export energy statistics from Home Assistant prefs', () => {

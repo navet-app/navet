@@ -161,11 +161,35 @@ export interface PlatformEntityHistoryPoint {
   changedAt: string;
   updatedAt?: string;
   attributes?: Record<string, unknown>;
+  /** A retained initial state supplied at the requested range boundary. */
+  atStart?: boolean;
 }
 
 export interface PlatformEntityHistorySeries {
   entityId: string;
   points: PlatformEntityHistoryPoint[];
+}
+
+export interface PlatformActivityRequest {
+  entityIds: string[];
+  startTime: string;
+  endTime: string;
+  signal?: AbortSignal;
+}
+
+export interface PlatformActivityEntry {
+  entityId: string;
+  timestamp: string;
+  state?: string;
+  name?: string;
+  message?: string;
+  context?: {
+    name?: string;
+    message?: string;
+    service?: string;
+    source?: string;
+    userId?: string;
+  };
 }
 
 export type PlatformStatisticsPeriod = '5minute' | 'hour' | 'day' | 'week' | 'month' | 'year';

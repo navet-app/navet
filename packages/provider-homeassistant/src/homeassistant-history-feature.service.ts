@@ -1,4 +1,5 @@
 import type {
+  PlatformActivityEntry,
   PlatformEntityHistoriesRequest,
   PlatformEntityHistoryPoint,
   PlatformEntityHistorySeries,
@@ -48,10 +49,11 @@ function throwIfHistoryRequestAborted(signal?: AbortSignal) {
 
 function parseEntityHistoryPoints(
   entries: HomeAssistantHistoryState[],
-  includeAttributes: boolean
+  includeAttributes: boolean,
+  startTime: string
 ): PlatformEntityHistoryPoint[] {
   return entries
-    .map((entry) => {
+    .map((entry, index) => {
       const changedAt = parseTimestamp(entry.last_changed ?? entry.last_updated);
       if (typeof entry.state !== 'string' || !changedAt) {
         return null;
@@ -71,6 +73,7 @@ function parseEntityHistoryPoints(
         changedAt,
         ...(updatedAt ? { updatedAt } : {}),
         ...(attributes ? { attributes } : {}),
+        ...(index === 0 && Date.parse(changedAt) <= Date.parse(startTime) ? { atStart: true } : {}),
       };
     })
     .filter((point): point is PlatformEntityHistoryPoint => point !== null);
@@ -121,7 +124,8 @@ async function loadEntityHistories(
     entityId,
     points: parseEntityHistoryPoints(
       entriesByEntityId.get(entityId) ?? [],
-      request.includeAttributes === true
+      request.includeAttributes === true,
+      request.startTime
     ),
   }));
 }
@@ -165,6 +169,63 @@ function parseStatisticsPoint(value: unknown): PlatformStatisticsHistoryPoint | 
 export const homeAssistantHistoryFeatureService: ProviderHistoryFeatureService = {
   getMessageClient: () => getHomeAssistantConnection(),
   getEntityHistories: loadEntityHistories,
+  async getActivity(request) {
+    throwIfHistoryRequestAborted(request.signal);
+    validatePeriod(request.startTime, request.endTime);
+    if (request.entityIds.length === 0) return [];
+    const connection = getHomeAssistantConnection();
+    if (!connection) throw new Error('Home Assistant activity requires an active connection');
+    const response = await connection.sendMessagePromise<unknown>({
+      type: 'logbook/get_events',
+      start_time: request.startTime,
+      end_time: request.endTime,
+      entity_ids: request.entityIds,
+    });
+    throwIfHistoryRequestAborted(request.signal);
+    if (!Array.isArray(response)) throw new Error('Invalid Home Assistant activity response');
+    const selected = new Set(request.entityIds);
+    const startMs = Date.parse(request.startTime);
+    const endMs = Date.parse(request.endTime);
+    return response
+      .flatMap((value): PlatformActivityEntry[] => {
+        if (!value || typeof value !== 'object') return [];
+        const entry = value as Record<string, unknown>;
+        if (
+          typeof entry.entity_id !== 'string' ||
+          !selected.has(entry.entity_id) ||
+          typeof entry.when !== 'number' ||
+          !Number.isFinite(entry.when)
+        )
+          return [];
+        const date = new Date(entry.when * 1000);
+        if (!Number.isFinite(date.getTime()) || date.getTime() < startMs || date.getTime() >= endMs)
+          return [];
+        const context: NonNullable<PlatformActivityEntry['context']> = {};
+        const contextFields = {
+          name: entry.context_name ?? entry.context_entity_id_name,
+          message: entry.context_message,
+          service: entry.context_service,
+          source: entry.context_source,
+          userId: entry.context_user_id,
+        };
+        for (const [key, value] of Object.entries(contextFields)) {
+          if (typeof value === 'string' && value.trim()) {
+            context[key as keyof typeof context] = value;
+          }
+        }
+        return [
+          {
+            entityId: entry.entity_id,
+            timestamp: date.toISOString(),
+            ...(typeof entry.state === 'string' ? { state: entry.state } : {}),
+            ...(typeof entry.name === 'string' ? { name: entry.name } : {}),
+            ...(typeof entry.message === 'string' ? { message: entry.message } : {}),
+            ...(Object.keys(context).length ? { context } : {}),
+          },
+        ];
+      })
+      .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+  },
   async getEntityHistory(request) {
     const [series] = await loadEntityHistories({
       ...request,

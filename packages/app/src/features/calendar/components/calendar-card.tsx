@@ -1,4 +1,5 @@
-import { BaseCard, Button } from '@navet/app/components/primitives';
+import { BaseCard } from '@navet/app/components/primitives';
+import { RoundControlButton } from '@navet/app/components/primitives/round-control-button';
 import {
   type CardSize,
   getCompactCardSize,
@@ -8,6 +9,7 @@ import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mo
 import { getCustomCardTintSurface } from '@navet/app/components/shared/theme/custom-card-tint-surface';
 import { useI18n, useTheme } from '@navet/app/hooks';
 import { integrationCalendarFeatureService } from '@navet/app/services/integration-calendar-feature.service';
+import { Plus } from 'lucide-react';
 import { memo, useState } from 'react';
 import { CalendarCreateEventDialog } from './calendar/calendar-create-event-dialog';
 import { CalendarEventDialog } from './calendar/calendar-event-dialog';
@@ -108,20 +110,25 @@ export const CalendarCard = memo(function CalendarCard({
           </>
         }
         contentClassName="h-full"
+        actionRow={
+          !inEditMode && writableCalendars.length > 0
+            ? {
+                rightContent: (
+                  <RoundControlButton
+                    theme={theme}
+                    size="small"
+                    title={t('calendar.create.title')}
+                    disabled={!writableCalendars.some((calendar) => calendar.available)}
+                    onClick={() => setIsCreateOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  </RoundControlButton>
+                ),
+              }
+            : undefined
+        }
       >
-        <div className="relative flex h-full flex-col">
-          {!inEditMode && writableCalendars.length > 0 ? (
-            <div className="mb-2 flex justify-end">
-              <Button
-                size="small"
-                variant="soft"
-                disabled={!writableCalendars.some((calendar) => calendar.available)}
-                onClick={() => setIsCreateOpen(true)}
-              >
-                {t('calendar.create.title')}
-              </Button>
-            </div>
-          ) : null}
+        <div className="relative flex h-full min-h-0 flex-col">
           {!nextEvent ? (
             <div
               className="flex flex-1 items-center justify-center text-sm"
