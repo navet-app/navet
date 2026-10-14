@@ -2,6 +2,20 @@ import { enMessages } from './en';
 
 export const itMessages = {
   ...enMessages,
+  'widgets.map.historyUntil': 'Registrato fino a {time}',
+  'widgets.map.history': 'Cronologia delle posizioni',
+  'widgets.map.period': 'Periodo',
+  'widgets.map.lastHours': 'Ultime {hours} ore',
+  'widgets.map.samples':
+    'Le linee collegano posizioni registrate e non descrivono un percorso effettuato. I dati mancanti lasciano interruzioni.',
+  'widgets.map.historyUnavailable':
+    'La cronologia delle posizioni non è disponibile per questa fonte.',
+  'widgets.map.noHistory':
+    'Posizioni registrate insufficienti per tracciare un percorso. La fonte può escludere questa entità o aver eliminato i dati.',
+  'widgets.map.pointCount': '{count} posizioni registrate',
+  'widgets.map.showHistory': 'Mostra sulla mappa',
+  'widgets.map.clearHistory': 'Cancella cronologia',
+  'widgets.map.zonePeople': 'Persone: {count}',
   'history.title': 'Cronologia e attività',
   'history.userAction': 'Azione utente',
   'history.entity': 'Entità',
@@ -2733,8 +2747,8 @@ export const itMessages = {
     'Crea un attivatore scena con scene.turn_on gia precompilato.',
   'widgets.map.title': 'Mappa',
   'widgets.map.eyebrow': 'Posizione',
-  'widgets.map.noTrackers': 'Nessun tracker disponibile',
-  'widgets.map.trackerCount': '{count} tracker',
+  'widgets.map.noTrackers': 'Nessuna posizione disponibile',
+  'widgets.map.trackerCount': 'Posizioni: {count}',
   'dashboard.addCard.templates.map.name': 'Mappa',
   'dashboard.addCard.templates.map.description': 'Mostra persone e tracker su una mappa.',
   'dashboard.addCard.templates.sensorGroup.name': 'Gruppo sensori',

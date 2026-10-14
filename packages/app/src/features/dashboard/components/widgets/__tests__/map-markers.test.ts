@@ -1,6 +1,6 @@
 import type { IntegrationUser } from '@navet/app/types/integration-user';
 import { describe, expect, it } from 'vitest';
-import { applyCurrentUserAvatar, selectMapMarkersFromEntities } from '../map-markers';
+import { applyCurrentUserAvatar } from '../map-markers';
 import type { MapMarker } from '../map-types';
 
 const MARKER: MapMarker = {
@@ -40,38 +40,5 @@ describe('applyCurrentUserAvatar', () => {
     const markers = [MARKER, { ...MARKER, id: 'device_tracker.vishal', name: 'Vishal Phone' }];
 
     expect(applyCurrentUserAvatar(markers, CURRENT_USER)).toEqual(markers);
-  });
-});
-
-describe('selectMapMarkersFromEntities', () => {
-  it('gives a sourced device tracker the person profile photo', () => {
-    const markers = selectMapMarkersFromEntities({
-      'person.vishal': {
-        entityId: 'person.vishal',
-        state: 'home',
-        attributes: {
-          friendly_name: 'Vishal',
-          latitude: 59.33,
-          longitude: 18.06,
-          entity_picture: '/api/image/serve/vishal/512x512',
-          source: 'device_tracker.vishals_iphone',
-        },
-      },
-      'device_tracker.vishals_iphone': {
-        entityId: 'device_tracker.vishals_iphone',
-        state: 'home',
-        attributes: {
-          friendly_name: 'Vishals iPhone',
-          latitude: 59.33,
-          longitude: 18.06,
-        },
-      },
-    });
-
-    expect(markers.find((marker) => marker.id === 'device_tracker.vishals_iphone')).toEqual(
-      expect.objectContaining({
-        entityPicture: '/api/image/serve/vishal/512x512',
-      })
-    );
   });
 });

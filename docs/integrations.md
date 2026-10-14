@@ -35,6 +35,7 @@ on the capabilities of your devices.
 | Energy configuration and statistics | Yes | No | No |
 | Entity state history | Yes | Supported Insights logs | No |
 | Recorded activity | Yes | No | No |
+| Map zones, geolocation and recorded locations | Yes | No | No |
 | Calendar and weather data | Yes | No | No |
 | Calendar event creation (writable calendars) | Yes | No | No |
 | Notifications | Yes | Read and hide locally | No |
@@ -69,6 +70,27 @@ once the newest 1,000 records and the limit indicator are known. Sources such as
 a retained period are read once for the selected range. Results offer **Show more** for additional
 rows within that limit. Choose a shorter range for more detail.
 Home Assistant uses the existing authenticated transport in standalone, Ingress and custom panel.
+
+### Map context and recorded locations
+
+The map shows available people, device trackers, non-passive zones and geolocation entities from
+supported selected sources. Home Assistant zones include their radius and people count;
+geolocation markers show the source's distance value. Invalid or unavailable coordinates are omitted.
+Marker pictures and recorded-location requests use the marker's owning provider.
+
+Choose **Location history** on the map, select a person or tracker and a 6-hour or 24-hour period,
+then **Load records** → **Show on map**. This requests retained coordinate attributes through the
+existing authenticated transport in Docker, Ingress and custom panel. The overlay shows when
+its data was recorded through; **Clear history** removes it.
+
+Lines connect recorded samples rather than describe a travelled route. Missing coordinates,
+unavailable states, gaps over an hour and antimeridian crossings break the line. A single location
+or repeated identical locations cannot establish a path. Empty/expired/excluded history explains
+why no path is shown; unsupported readers and failed requests have separate feedback.
+
+Home Assistant floors and labels are not imported into Navet's room organization. Floors group
+areas, while labels can span rooms and entity types. Adopting them requires a separately selected
+product and provider-contract scope that preserves existing room identities.
 
 ### Home Assistant
 
