@@ -53,6 +53,7 @@ export const TEST_TIERS = {
       'scripts/ha-integration-packaging.test.mjs',
       'scripts/hacs-changelog.test.mjs',
       'scripts/github-actions-runtime.test.mjs',
+      'scripts/nginx-shared-zones.test.mjs',
       'scripts/run-private-preview.test.mjs',
       'scripts/vite-preload-graph.test.mjs',
       'scripts/package-import-policy.test.mjs',

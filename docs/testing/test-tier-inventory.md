@@ -13,6 +13,7 @@ These suites block release-oriented workflows and should stay intentionally smal
 
 | Group | Why it exists | Status |
 |---|---|---|
+| `scripts/nginx-shared-zones.test.mjs` | Docker and add-on startup on hosts with 64 KiB memory pages requires njs shared dictionaries of at least eight pages | Keep |
 | `packages/provider-homeassistant/src/homeassistant-calendar-feature.service.lazy.test.ts` | Deferred calendar creation preserves synchronous reads/capabilities and rejects writes across a household-session change | Keep |
 | `scripts/agent-validation-receipt.test.mjs` | Native validation receipt provenance, exact commit/hook identity and redaction | Keep |
 | `scripts/agent-codex-usage.test.mjs` | Private execution accounting verifies thread identity, cumulative counter integrity, incomplete-write handling and redacted observations | Keep |
