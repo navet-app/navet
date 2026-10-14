@@ -6,6 +6,13 @@ import {
   shouldPruneChoreOccurrence,
 } from './chore-recurrence-policy';
 import {
+  compactChoreHistory,
+  compactChoreWorkspace,
+  getChoreSchedulerDeadline,
+  hasChoreCommandCoverage,
+  readChoreHistoryPage,
+} from './chore-storage-policy';
+import {
   applyChoreOccurrenceCommand,
   applyChoreWorkspaceAction,
   applyChoreWorkspaceOccurrenceCommand,
@@ -3193,5 +3200,213 @@ describe('durable fixed-work supersession', () => {
     expect(
       Object.values(result.occurrencesById).filter((item) => item.status === 'available')
     ).toHaveLength(0);
+  });
+});
+
+// Rewrite policy: internal scheduling/delivery chatter is removable; household accounting is not.
+describe('chore storage cleanup', () => {
+  it('rebases only within contiguous retained command identities', () => {
+    const commands = [8, 9, 10].map((revision) => ({ commandId: `cmd:${revision}`, revision }));
+    expect(hasChoreCommandCoverage(7, 10, commands)).toBe(true);
+    expect(hasChoreCommandCoverage(9, 10, commands)).toBe(true);
+    expect(hasChoreCommandCoverage(6, 10, commands)).toBe(false);
+    expect(hasChoreCommandCoverage(8, 10, [commands[0], commands[2]])).toBe(false);
+    expect(hasChoreCommandCoverage(9, 10, commands.slice(0, 2))).toBe(false);
+    expect(hasChoreCommandCoverage(0, 10, [{ commandId: 'recovered', revision: 0 }])).toBe(false);
+    expect(hasChoreCommandCoverage(9, 10, [{ commandId: '', revision: 10 }])).toBe(false);
+    expect(hasChoreCommandCoverage(7, 10, commands.concat(commands))).toBe(true);
+    for (const base of [-1, 10, 11])
+      expect(hasChoreCommandCoverage(base, 10, commands)).toBe(false);
+  });
+
+  const event = (
+    id: string,
+    type: 'workspace_materialized' | 'completed' | 'points_adjusted' | 'outbox_delivery_updated'
+  ) => ({
+    id,
+    commandId: id,
+    type,
+    timestamp: '2026-10-13T10:00:00.000Z',
+  });
+
+  it.each(['__proto__', 'constructor', 'prototype'])(
+    'rejects unsafe cleanup record ID %s',
+    (id) => {
+      expect(() =>
+        compactChoreHistory({ contractVersion: 1, events: [event(id, 'completed')] })
+      ).toThrow('Unsafe record key');
+      const workspace = createEmptyChoreWorkspace();
+      workspace.outbox = [{ ...createChoreOutboxItem(event('safe', 'completed')), id }];
+      expect(() => compactChoreWorkspace(workspace)).toThrow('Unsafe record key');
+    }
+  );
+
+  it('removes bookkeeping and stable-ID duplicates while preserving cursor positions and distinct actions', () => {
+    const completed = event('complete:one', 'completed');
+    const points = event('points:one', 'points_adjusted');
+    const compacted = compactChoreHistory({
+      contractVersion: 1,
+      events: [
+        event('materialize', 'workspace_materialized'),
+        completed,
+        { ...completed },
+        event('delivery', 'outbox_delivery_updated'),
+        points,
+      ],
+    });
+    expect(compacted.events).toEqual([completed, points]);
+    expect(compacted.nextCursor).toBe(5);
+    expect(readChoreHistoryPage(compacted, 0, 1, ['completed'])).toMatchObject({
+      cursor: '2',
+      events: [completed],
+      hasMore: true,
+    });
+    expect(readChoreHistoryPage(compacted, 2, 10, ['completed'])).toMatchObject({
+      cursor: '5',
+      events: [],
+      hasMore: false,
+    });
+    const next = event('points:two', 'points_adjusted');
+    const appended = compactChoreHistory({ ...compacted, events: [...compacted.events, next] });
+    expect(appended.events).toEqual([completed, points, next]);
+    expect(appended.nextCursor).toBe(6);
+    expect(readChoreHistoryPage(appended, 5, 10, ['points_adjusted'])).toMatchObject({
+      cursor: '6',
+      events: [next],
+    });
+    expect(compactChoreHistory(appended)).toBe(appended);
+  });
+
+  it('preserves balances, rewards and all accounting while removing duplicate delivery work without replay', () => {
+    const workspace = createEmptyChoreWorkspace();
+    workspace.experience = createChoreExperienceState();
+    workspace.experience.earnedPointsByParticipant = { alice: 250 };
+    workspace.experience.rewardRequestsById.movie = {
+      id: 'movie',
+      rewardId: 'cinema',
+      rewardTitle: 'Cinema',
+      cost: 40,
+      participantId: 'alice',
+      status: 'approved',
+      requestedAt: '2026-10-13T10:00:00.000Z',
+      updatedAt: '2026-10-13T10:00:00.000Z',
+    };
+    const completed = event('complete', 'completed');
+    const internal = event('internal', 'workspace_materialized');
+    const notification = createChoreOutboxItem(completed);
+    workspace.activity = [internal, completed, { ...completed }];
+    workspace.outbox = [
+      createChoreOutboxItem(internal),
+      notification,
+      { ...notification, status: 'delivered' },
+    ];
+    const accounting = structuredClone(workspace.experience);
+    const cleaned = compactChoreWorkspace(workspace);
+    expect(cleaned.activity).toEqual([completed]);
+    expect(cleaned.outbox).toEqual([{ ...notification, status: 'delivered' }]);
+    expect(cleaned.experience).toBe(workspace.experience);
+    expect(cleaned.experience).toEqual(accounting);
+    expect(compactChoreWorkspace(cleaned)).toBe(cleaned);
+  });
+
+  it('keeps feed cursors monotonic across retention and rejects damaged cursor metadata', () => {
+    const first = event('first', 'completed');
+    const second = event('second', 'completed');
+    const compacted = compactChoreHistory({ contractVersion: 1, events: [first, second] });
+    const retained = compactChoreHistory({ ...compacted, events: [second] });
+    expect(readChoreHistoryPage(retained, 0, 10, ['completed'])).toMatchObject({
+      cursor: '2',
+      events: [second],
+    });
+    expect(() =>
+      compactChoreHistory({ ...compacted, eventCursors: { first: 2, second: 1 } })
+    ).toThrow('cursors');
+  });
+});
+
+describe('chore scheduler deadlines', () => {
+  const workspace = () => {
+    const data = createEmptyChoreWorkspace();
+    data.participantsById = { alice, bob };
+    const definition = makeDefinition({
+      reminderPolicy: {
+        enabled: true,
+        beforeDueMinutes: [30],
+        atDue: true,
+        overdueEveryMinutes: 15,
+        maxOverdueReminders: 2,
+        approvalAfterMinutes: 20,
+      },
+    });
+    data.definitionsById[definition.id] = definition;
+    const occurrence = makeOccurrence();
+    data.occurrencesById[occurrence.id] = occurrence;
+    return data;
+  };
+
+  it.each([
+    ['2026-08-10T15:00:00.000Z', '2026-08-10T16:00:00.000Z'],
+    ['2026-08-10T16:00:00.000Z', '2026-08-10T18:30:00.000Z'],
+    ['2026-08-10T18:30:00.000Z', '2026-08-10T19:00:00.000Z'],
+    ['2026-08-10T19:00:00.000Z', '2026-08-10T19:00:00.001Z'],
+    ['2026-08-10T19:00:00.001Z', '2026-08-10T19:15:00.000Z'],
+    ['2026-08-10T19:15:00.000Z', '2026-08-10T19:30:00.000Z'],
+    ['2026-08-10T19:30:00.000Z', '2026-08-11T00:00:00.000Z'],
+  ])('wakes after %s at %s', (now, expected) => {
+    expect(getChoreSchedulerDeadline(workspace(), now)).toBe(Date.parse(expected));
+  });
+
+  it('includes missed-work grace, approval, pauses and delivery retry boundaries', () => {
+    const data = workspace();
+    const occurrence = Object.values(data.occurrencesById)[0];
+    data.definitionsById[occurrence.definitionId].missedPolicy = {
+      action: 'skip',
+      graceMinutes: 5,
+    };
+    const now = '2026-08-10T19:00:00.002Z';
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:05:00Z'));
+    occurrence.status = 'awaiting_approval';
+    occurrence.completedAt = '2026-08-10T18:45:00Z';
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:05:00Z'));
+    data.participantsById.alice = {
+      ...alice,
+      pausedAt: '2026-08-10T18:00:00Z',
+      resumeAt: '2026-08-10T19:02:00Z',
+    };
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:02:00Z'));
+    data.outbox.push({
+      id: 'retry',
+      activityId: 'reminder',
+      eventType: 'reminder_due',
+      status: 'failed',
+      attempts: 1,
+      createdAt: now,
+      nextAttemptAt: '2026-08-10T19:01:00Z',
+      occurrenceId: occurrence.id,
+      destination: 'provider',
+      occurrenceUpdatedAt: occurrence.updatedAt,
+    });
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:01:00Z'));
+    data.outbox[0].nextAttemptAt = now;
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse(now));
+    data.outbox[0].occurrenceUpdatedAt = 'stale';
+    expect(getChoreSchedulerDeadline(data, now)).toBe(Date.parse('2026-08-10T19:02:00Z'));
+  });
+
+  it('does not skip any scheduler change between computed deadlines', () => {
+    let data = workspace();
+    const ids = new Set<string>();
+    const started = Date.parse('2026-08-10T15:00:00Z');
+    for (let now = started; now <= started + 10 * 3600000; now += 60000) {
+      const at = new Date(now).toISOString();
+      const result = runChoreWorkspaceScheduler(data, at, { existingEventIds: ids });
+      for (const event of result.activities) ids.add(event.id);
+      data = { ...result.data, outbox: [...data.outbox, ...result.outboxItems] };
+      const next = getChoreSchedulerDeadline(data, at);
+      const probe = new Date(Math.min(next - 1, now + 59000)).toISOString();
+      const unchanged = runChoreWorkspaceScheduler(data, probe, { existingEventIds: ids });
+      expect(unchanged.activities).toEqual([]);
+      expect(unchanged.outboxItems).toEqual([]);
+    }
   });
 });

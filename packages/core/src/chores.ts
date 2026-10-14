@@ -2089,6 +2089,7 @@ function applyChoreWorkspaceActionWithoutRecurrence(
             timestamp,
             commandId,
             occurrenceId: previousOccurrence.id,
+            definitionId: previousOccurrence.definitionId,
           },
         ],
       };
@@ -2122,6 +2123,7 @@ function applyChoreWorkspaceActionWithoutRecurrence(
         occurrences: Object.values(eventData.occurrencesById),
         transactions: nextExperience.pointTransactions,
         existingAwards: nextExperience.progressAwards,
+        pointProgress: nextExperience.pointProgress,
         at: timestamp,
       });
       if (progress.awards.length) {
@@ -2455,6 +2457,8 @@ function applyChoreWorkspaceActionWithoutRecurrence(
         JSON.stringify(currentExperience.rewardRequestsById) ||
       JSON.stringify(action.experience.pointTransactions) !==
         JSON.stringify(currentExperience.pointTransactions) ||
+      JSON.stringify(action.experience.pointProgress) !==
+        JSON.stringify(currentExperience.pointProgress) ||
       JSON.stringify(action.experience.progressAwards) !==
         JSON.stringify(currentExperience.progressAwards) ||
       JSON.stringify(action.experience.earnedPointsByParticipant) !==

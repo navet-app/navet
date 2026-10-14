@@ -68,7 +68,11 @@ export function createChoreInterchangeDocument(input: {
 }): ChoreInterchangeDocument {
   const exportedAt = input.exportedAt ?? new Date().toISOString();
   if (!validTimestamp(exportedAt)) throw new Error('Invalid chore export timestamp');
-  if (!isChoreWorkspaceData(input.workspace)) throw new Error('Invalid chore workspace export');
+  if (
+    !isChoreWorkspaceData(input.workspace) ||
+    input.workspace.experience?.pointProgress !== undefined
+  )
+    throw new Error('Invalid chore workspace export');
   const eventIds = new Set<string>();
   const events = input.events.filter((event) => {
     if (

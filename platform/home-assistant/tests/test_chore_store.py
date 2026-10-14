@@ -302,6 +302,73 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             "ha-user-1",
         )
 
+    async def test_unchanged_materialization_does_not_write_or_advance_revision(self):
+        await self._create_manager()
+        before = copy.deepcopy(self.authority._public_document())
+        disk_before = copy.deepcopy(_Store.values)
+        with patch.object(_Store, "async_save", side_effect=AssertionError("No-op must not write")):
+            for index in range(5):
+                result = await self.authority.async_command({"commandId": f"redundant:{index}",
+                    "baseRevision": self.authority.revision, "action": {"type": "materialize_occurrences",
+                    "rangeStart": "2026-08-10T00:00:00.000Z", "rangeEnd": "2026-08-11T00:00:00.000Z"}}, "ha-user-1")
+                self.assertEqual(result, before)
+        self.assertEqual(_Store.values, disk_before)
+
+    async def test_settled_ticks_skip_serialization_and_delivery_until_a_boundary(self):
+        start = datetime(2026, 10, 13, 10, tzinfo=timezone.utc)
+        with patch.object(chores, "_now", return_value=start) as clock:
+            await self._create_manager()
+            await self.authority.async_tick()
+            revision = self.authority.revision
+            with patch.object(chores.json, "dumps", side_effect=AssertionError("Idle tick must not serialize")):
+                for minute in range(30):
+                    clock.return_value = start + timedelta(minutes=minute)
+                    await self.authority.async_tick()
+            self.assertEqual(self.authority.revision, revision)
+            with patch.object(chores, "_materialize", wraps=chores._materialize) as materialize:
+                clock.return_value = start + timedelta(days=1)
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 1)
+                clock.return_value = start - timedelta(minutes=1)
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 2)
+
+    def test_scheduler_deadlines_include_reminders_pause_and_delivery(self):
+        data = chores._empty_data()
+        now = datetime(2026, 8, 10, 19, tzinfo=timezone.utc)
+        data["participantsById"] = {"manager": _participant()}
+        data["definitionsById"] = {"d": {"reminderPolicy": {"enabled": True,
+            "beforeDueMinutes": [30], "overdueEveryMinutes": 15, "maxOverdueReminders": 2}}}
+        data["occurrencesById"] = {"o": {"id": "o", "definitionId": "d", "status": "available",
+            "scheduledAt": "2026-08-10T16:00:00Z", "dueAt": "2026-08-10T19:00:00Z", "updatedAt": "2026-08-10T16:00:00Z"}}
+        for minutes, expected in [(1, 15), (15, 30), (30, 300)]:
+            self.assertEqual(chores._scheduler_deadline(data, now + timedelta(minutes=minutes)),
+                now + timedelta(minutes=expected))
+        data["participantsById"]["manager"].update(pausedAt="2026-08-10T18:00:00Z", resumeAt="2026-08-10T19:02:00Z")
+        self.assertEqual(chores._scheduler_deadline(data, now + timedelta(seconds=1)), now + timedelta(minutes=2))
+        data["outbox"] = [{"status": "failed", "destination": "provider", "occurrenceId": "o",
+            "nextAttemptAt": "2026-08-10T19:01:00Z"}]
+        self.assertEqual(chores._scheduler_deadline(data, now + timedelta(seconds=1)), now + timedelta(minutes=1))
+        self.assertEqual(chores._scheduler_deadline(data, now + timedelta(minutes=1)), now + timedelta(minutes=1))
+
+    async def test_background_window_rebuilds_once_per_day_or_input_edit(self):
+        start = datetime(2026, 10, 13, 10, tzinfo=timezone.utc)
+        with patch.object(chores, "_now", return_value=start) as clock:
+            await self._create_manager()
+            with patch.object(chores, "_materialize", wraps=chores._materialize) as materialize:
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 1)
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 1)
+                clock.return_value = start + timedelta(days=1)
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 2)
+                await self.authority.async_command({"commandId": "edit-manager",
+                    "baseRevision": self.authority.revision, "action": {"type": "participant_update",
+                    "actorParticipantId": "manager", "participant": {**_participant(), "displayName": "Updated"}}}, "ha-user-1")
+                await self.authority.async_tick()
+                self.assertEqual(materialize.call_count, 3)
+
     def _seed_continuous_writes(self):
         original_now = chores._now
         chores._now = lambda: datetime(2026, 10, 13, 10, tzinfo=timezone.utc)
@@ -317,13 +384,16 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         await self.authority.async_initialize()
         expected = {key: item for key, item in document["data"]["occurrencesById"].items() if item["status"] != "available"}
         self.assertEqual(self.authority.data["occurrencesById"], expected)
-        self.assertEqual(self.authority._history, events)
+        self.assertEqual(self.authority._history, [event for event in events if event["type"] != "workspace_materialized"])
         after_bytes = len(json.dumps(_Store.values, separators=(",", ":")).encode())
         self.assertLess(after_bytes, before_bytes * 0.3)
         backup = await self.authority._decode_storage(_Store.values[chores.LAST_GOOD_KEY])
-        self.assertEqual(backup["data"], document["data"])
+        self.assertEqual(backup["data"], {**document["data"],
+            "activity": [event for event in document["data"]["activity"] if event["type"] != "workspace_materialized"],
+            "outbox": [item for item in document["data"]["outbox"] if item["eventType"] != "workspace_materialized"]})
         history = await self.authority.async_handle_ws({"type": "navet/chores/history/get"}, "ha-user-1")
-        self.assertEqual(history["events"], events)
+        self.assertEqual(history["events"], [event for event in events if event["type"] != "workspace_materialized"])
+
         restarted = chores.ChoreAuthority(self.hass)
         await restarted.async_initialize()
         self.assertEqual(restarted.data, self.authority.data)
@@ -333,6 +403,38 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             "action": {"type": "occurrence_action", "occurrenceId": missed["id"],
                 "action": {"type": "complete", "participantId": "manager"}}}, "ha-user-1")
         self.assertEqual(result["data"]["occurrencesById"][missed["id"]]["status"], "done")
+
+    async def test_cleans_previous_hotfix_preserving_scores_rewards_and_automation_cursors(self):
+        # Rewrite: bookkeeping is intentionally removed; household accounting remains exact.
+        document, events = self._seed_continuous_writes()
+        document["storageMaintenanceVersion"] = 1
+        experience = document["data"]["experience"]
+        experience["earnedPointsByParticipant"] = {"manager": 250}
+        experience["pointTransactions"] = [{"id": "earned", "participantId": "manager",
+            "pointsDelta": 250, "kind": "adjustment", "timestamp": document["updatedAt"]}]
+        experience["rewardRequestsById"]["movie"] = {"id": "movie", "rewardId": "cinema",
+            "rewardTitle": "Cinema", "cost": 40, "participantId": "manager", "status": "requested",
+            "requestedAt": document["updatedAt"], "updatedAt": document["updatedAt"]}
+        duplicate = events[100]
+        pending = chores._outbox(duplicate)
+        document["data"]["outbox"] = document["data"]["outbox"][-4998:] + [pending, {**pending, "status": "delivered"}]
+        _Store.values[chores.WORKSPACE_KEY] = copy.deepcopy(document)
+        _Store.values[chores.HISTORY_KEY] = {"contractVersion": 1, "events": events + [duplicate]}
+        await self.authority.async_initialize()
+        self.assertEqual(self.authority.data["experience"], experience)
+        self.assertEqual([event["id"] for event in self.authority._history].count(duplicate["id"]), 1)
+        self.assertFalse(any(event["type"] in ("workspace_materialized", "outbox_delivery_updated")
+            for event in self.authority._history))
+        self.assertEqual([item for item in self.authority.data["outbox"] if item["id"] == pending["id"]],
+            [{**pending, "status": "delivered"}])
+        feed = await self.authority.async_handle_ws({"type": "navet/chores/events/get", "after": 50, "limit": 1}, "ha-user-1")
+        self.assertEqual(feed["cursor"], "101")
+        self.assertEqual(feed["events"], [duplicate])
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        self.assertEqual(restarted.data["experience"], experience)
+        backup = await restarted._decode_storage(_Store.values[chores.LAST_GOOD_KEY])
+        self.assertEqual(backup["data"]["experience"], experience)
 
     async def test_malformed_history_is_rebuilt_before_upgrade_maintenance(self):
         timestamp = chores._iso(chores._now())
@@ -356,13 +458,14 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
                 _Store.values[chores.HISTORY_KEY] = history
                 authority = chores.ChoreAuthority(self.hass)
                 await authority.async_initialize()
-                self.assertEqual(authority.revision, 7)
-                self.assertEqual(authority._history, [event])
+                self.assertEqual(authority.revision, 8)
+                self.assertEqual(authority._history, [])
                 stored = chores._unpack_storage(_Store.values[chores.HISTORY_KEY])
-                self.assertEqual(stored, {"contractVersion": 1, "events": [event]})
+                self.assertEqual(stored["events"], [])
+                self.assertEqual(stored["nextCursor"], 1)
                 restarted = chores.ChoreAuthority(self.hass)
                 await restarted.async_initialize()
-                self.assertEqual(restarted._history, [event])
+                self.assertEqual(restarted._history, [])
 
     async def test_storage_computation_runs_outside_the_home_assistant_event_loop(self):
         document, events = self._seed_continuous_writes()
@@ -381,7 +484,7 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         self.hass.async_add_executor_job = executor
         with patch.object(chores, "_pack_storage", side_effect=pack), patch.object(chores, "_unpack_storage", side_effect=unpack):
             await self.authority.async_initialize()
-            self.assertEqual(self.authority._history, events)
+            self.assertEqual(self.authority._history, [event for event in events if event["type"] != "workspace_materialized"])
             missed = next(item for item in document["data"]["occurrencesById"].values() if item["status"] == "missed")
             pack_calls.clear()
             await self.authority.async_command({"commandId": "complete-off-loop", "baseRevision": self.authority.revision,
@@ -415,7 +518,7 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
                 for key, item in data["occurrencesById"].items():
                     if item["status"] != "available":
                         self.assertEqual(authority.data["occurrencesById"][key], item)
-                self.assertEqual(authority._history[:len(events)], events)
+                self.assertEqual(authority._history[:len([event for event in events if event["type"] != "workspace_materialized"])], [event for event in events if event["type"] != "workspace_materialized"])
                 restarted = chores.ChoreAuthority(self.hass)
                 await restarted.async_initialize()
                 self.assertEqual(restarted.data, authority.data)
@@ -437,7 +540,7 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         finally:
             _Store.async_save = original_save
         await self.authority.async_initialize()
-        self.assertEqual(self.authority._history, events)
+        self.assertEqual(self.authority._history, [event for event in events if event["type"] != "workspace_materialized"])
         self.assertEqual(self.authority.data["participantsById"], document["data"]["participantsById"])
 
     async def test_compressed_storage_checks_integrity_and_bounded_inflation(self):
@@ -456,7 +559,7 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         restarted = chores.ChoreAuthority(self.hass)
         await restarted.async_initialize()
         self.assertEqual(restarted.data["participantsById"], self.authority.data["participantsById"])
-        self.assertEqual(restarted._history, events)
+        self.assertEqual(restarted._history, [event for event in events if event["type"] != "workspace_materialized"])
 
     async def test_collects_only_chunks_unreferenced_by_both_committed_copies(self):
         self._seed_continuous_writes()
@@ -471,6 +574,36 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             for name in (chores.WORKSPACE_KEY, chores.LAST_GOOD_KEY):
                 restored = await self.authority._decode_storage(_Store.values[name])
                 self.assertIn("manager", restored["data"]["participantsById"])
+
+    async def test_chunks_oversized_progress_and_preserves_legacy_manifests(self):
+        await self._create_manager()
+        summary = {"version": 1, "totals": {"once": {"manager": 42}}, "occurrences": {}, "definitions": {
+            f"deleted-definition:{definition}": {
+                f"weekly:{(datetime(2010, 1, 4) + timedelta(weeks=week)).date().isoformat()}": {"household-member-é": 42}
+                for week in range(520)
+            } for definition in range(100)
+        }}
+        document = copy.deepcopy(self.authority._document)
+        document["data"]["experience"]["pointProgress"] = summary
+        self.assertGreater(chores._storage_size(document), chores.MAX_WORKSPACE_BYTES)
+        stored = await self.authority._encode_storage(document)
+        manifest = chores._unpack_storage(stored)
+        self.assertLess(chores._storage_size(manifest), chores.MAX_WORKSPACE_BYTES)
+        self.assertNotIn("pointProgress", manifest["data"]["experience"])
+        restarted = chores.ChoreAuthority(self.hass)
+        self.assertEqual(await restarted._decode_storage(stored), document)
+        key = manifest["durableCollections"]["pointProgress"][0]
+        chunk = _Store.values.pop(f"{chores.WORKSPACE_KEY}.chunk.{key}")
+        with self.assertRaises(chores.ChoreStorageError):
+            await restarted._decode_storage(stored)
+        _Store.values[f"{chores.WORKSPACE_KEY}.chunk.{key}"] = chunk
+        legacy = copy.deepcopy(manifest)
+        legacy["durableCollections"]["version"] = 1
+        del legacy["durableCollections"]["pointProgress"]
+        legacy_summary = {"version": 1, "totals": {}, "occurrences": {}}
+        legacy["data"]["experience"]["pointProgress"] = legacy_summary
+        restored = await restarted._decode_storage(legacy)
+        self.assertEqual(restored["data"]["experience"]["pointProgress"], legacy_summary)
 
     async def test_oversized_expanded_manifest_is_rejected_without_replacing_healthy_storage(self):
         await self._create_manager()
@@ -505,6 +638,254 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             decoded = await restarted._decode_storage(_Store.values[key])
             self.assertEqual(decoded["data"]["definitionsById"], original["definitionsById"])
 
+    def test_progress_stays_compact_for_15000_live_completions(self):
+        at = "2026-10-14T10:00:00.000Z"
+        records = [{"id": f"points:{index}", "occurrenceId": f"dishes:{at}:manager:{index}",
+            "definitionId": "dishes", "participantId": "manager", "kind": "completion",
+            "pointsDelta": 1, "timestamp": at} for index in range(15000)]
+        summary = chores._archive_point_progress(None, records, {row["occurrenceId"] for row in records})
+        self.assertEqual(summary["occurrences"], {})
+        self.assertLess(len(json.dumps(summary)), 1024)
+        for cycle in ("once", "weekly", "monthly"):
+            self.assertEqual(chores._archived_point_progress(summary,
+                {"cycle": cycle, "definitionIds": ["dishes"]}, "manager", set(), at), 15000)
+        old = {**summary, "occurrences": {"legacy": summary["totals"]}}
+        self.assertEqual(chores._archive_point_progress(old, [], {"legacy"}), summary)
+
+    def test_archived_points_preserve_progress_for_all_cycles(self):
+        records = [{"id": "old-complete", "participantId": "manager", "occurrenceId": "task", "kind": "completion", "pointsDelta": 10, "timestamp": "2026-09-28T10:00:00.000Z"},
+            {"id": "old-reopen", "participantId": "manager", "occurrenceId": "task", "kind": "reopen", "pointsDelta": -3, "timestamp": "2026-09-29T10:00:00.000Z"},
+            {"id": "adjust", "participantId": "manager", "kind": "adjustment", "pointsDelta": 1000, "timestamp": "2026-09-29T10:00:00.000Z"}]
+        data = chores._empty_data()
+        data["occurrencesById"] = {"task": {"id": "task", "definitionId": "dishes", "status": "done", "completedBy": "manager", "completedAt": "2026-09-28T10:00:00.000Z", "scheduledAt": "2026-09-28T10:00:00.000Z"}}
+        data["experience"]["pointTransactions"] = records
+        for cycle in ("once", "weekly", "monthly"):
+            for selected in ([], ["dishes"]):
+                target = {"metric": "points", "cycle": cycle, "definitionIds": selected}
+                at = "2026-09-30T10:00:00.000Z"
+                expected = chores._progress_value(target, "manager", data, at)
+                projected = copy.deepcopy(data)
+                projected["experience"]["pointTransactions"] = records[1:]
+                projected["experience"]["pointProgress"] = chores._archive_point_progress(None, records[:1], {"task"}, data["occurrencesById"])
+                self.assertEqual(chores._progress_value(target, "manager", projected, at), expected)
+                self.assertEqual(expected, 7)
+
+    async def test_rebuilds_scoped_progress_for_pruned_chores_once_on_upgrade(self):
+        await self._create_manager()
+        previous = copy.deepcopy(self.authority._document)
+        data = copy.deepcopy(self.authority.data)
+        records = [{"id": f"old:{index}", "participantId": "manager", "occurrenceId": "kitchen:dishes:2026-01-05T10:00:00.000Z:manager",
+            "kind": "completion", "pointsDelta": 1, "timestamp": "2026-01-05T10:00:00.000Z"} for index in range(300)]
+        records[1] = {**records[1], "kind": "reopen", "pointsDelta": -1}
+        data["experience"]["pointTransactions"] = records
+        data["experience"]["earnedPointsByParticipant"] = {"manager": 298}
+        await self.authority._save({**previous, "revision": previous["revision"] + 1, "data": data}, previous)
+        legacy = chores._unpack_storage(_Store.values[chores.WORKSPACE_KEY])
+        del legacy["data"]["experience"]["pointProgress"]["definitions"]
+        _Store.values[chores.WORKSPACE_KEY] = chores._pack_storage(legacy)
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        target = {"metric": "points", "definitionIds": ["kitchen:dishes", "kitchen:dishes"], "cycle": "once"}
+        self.assertEqual(chores._progress_value(target, "manager", restarted.data, "2026-10-14T10:00:00.000Z"), 298)
+        self.assertEqual(restarted.revision, legacy["revision"] + 1)
+        self.assertEqual(restarted.data["experience"]["pointProgress"]["occurrences"], {})
+        saved = copy.deepcopy(_Store.values)
+        again = chores.ChoreAuthority(self.hass)
+        await again.async_initialize()
+        self.assertEqual(_Store.values, saved)
+        backup = await again.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+        self.assertEqual(backup["workspace"]["experience"]["pointTransactions"], records)
+        # Keep: already-upgraded summaries must compact once without replaying history.
+        redundant = chores._unpack_storage(_Store.values[chores.WORKSPACE_KEY])
+        redundant["data"]["experience"]["pointProgress"]["occurrences"] = {"old": {"once": {"manager": 172}}}
+        _Store.values[chores.WORKSPACE_KEY] = chores._pack_storage(redundant)
+        again = chores.ChoreAuthority(self.hass)
+        await again.async_initialize()
+        self.assertEqual(again.revision, redundant["revision"] + 1)
+        self.assertEqual(again.data["experience"]["pointProgress"]["occurrences"], {})
+        self.assertEqual(chores._progress_value(target, "manager", again.data, "2026-10-14T10:00:00.000Z"), 298)
+        saved = copy.deepcopy(_Store.values)
+        await chores.ChoreAuthority(self.hass).async_initialize()
+        self.assertEqual(_Store.values, saved)
+        awarded_data = copy.deepcopy(again.data)
+        awarded_data["experience"]["badgesById"] = {"scoped": {**target, "id": "scoped", "title": "Dishes", "target": 298, "awardPoints": 5}}
+        earned = chores._award_progress(awarded_data, "2026-10-14T10:00:00.000Z")
+        self.assertEqual(len(earned["experience"]["progressAwards"]), 1)
+        self.assertEqual(earned["experience"]["earnedPointsByParticipant"]["manager"], 303)
+        self.assertEqual(chores._award_progress(copy.deepcopy(earned), "2026-10-14T10:00:00.000Z"), earned)
+
+    async def test_retries_a_committed_point_change_after_journal_failure_without_double_credit(self):
+        await self._create_manager()
+        request = {"commandId": "journal-interruption", "baseRevision": self.authority.revision,
+            "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}
+        original_save = _Store.async_save
+        async def fail_journal(store, value):
+            if store.key == chores.JOURNAL_KEY:
+                raise OSError("Interrupted journal write")
+            await original_save(store, value)
+        _Store.async_save = fail_journal
+        try:
+            with self.assertRaises(chores.ChoreStorageError):
+                await self.authority.async_command(request, "ha-user-1")
+        finally:
+            _Store.async_save = original_save
+        retried = await self.authority.async_command(request, "ha-user-1")
+        self.assertEqual(retried["data"]["experience"]["earnedPointsByParticipant"]["manager"], 10)
+        self.assertEqual(len(retried["data"]["experience"]["pointTransactions"]), 1)
+
+    async def test_concurrent_additive_intents_rebase_but_future_revisions_do_not(self):
+        await self._create_manager()
+        revision = self.authority.revision
+        async def adjust(command_id):
+            return await self.authority.async_command({"commandId": command_id, "baseRevision": revision,
+                "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}, "ha-user-1")
+        await asyncio.gather(adjust("first-concurrent"), adjust("second-concurrent"))
+        self.assertEqual(self.authority.data["experience"]["earnedPointsByParticipant"]["manager"], 20)
+        self.assertEqual(len(self.authority.data["experience"]["pointTransactions"]), 2)
+        for invalid_revision in (-1, self.authority.revision + 1):
+            with self.assertRaises(chores.ChoreConflictError):
+                await self.authority.async_command({"commandId": "future-revision", "baseRevision": invalid_revision,
+                    "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}, "ha-user-1")
+        self.assertEqual(self.authority.data["experience"]["earnedPointsByParticipant"]["manager"], 20)
+
+    async def test_expired_adjustment_replay_is_rejected_after_restart(self):
+        await self._create_manager()
+        base = self.authority.revision
+        action = {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}
+        request = {"commandId": "expired-adjustment", "baseRevision": base, "action": action}
+        await self.authority.async_command(request, "ha-user-1")
+        previous = copy.deepcopy(self.authority._document)
+        document = copy.deepcopy(previous)
+        document["revision"] += 6000
+        document["data"]["activity"] = []
+        self.authority._journal = [{"commandId": f"later:{index}", "revision": document["revision"] - 499 + index,
+            "timestamp": document["updatedAt"]} for index in range(500)]
+        await self.authority._save(document, previous)
+        restarted = chores.ChoreAuthority(self.hass)
+        await restarted.async_initialize()
+        before = copy.deepcopy(_Store.values)
+        with self.assertRaises(chores.ChoreCommandExpiredError):
+            await restarted.async_command(request, "ha-user-1")
+        self.assertEqual(_Store.values, before)
+        self.assertEqual(restarted.data["experience"]["earnedPointsByParticipant"]["manager"], 10)
+        fresh = {"commandId": "covered-adjustment", "baseRevision": restarted.revision - 500, "action": action}
+        await restarted.async_command(fresh, "ha-user-1")
+        await restarted.async_command(fresh, "ha-user-1")
+        self.assertEqual(restarted.data["experience"]["earnedPointsByParticipant"]["manager"], 20)
+        self.assertEqual(len(restarted.data["experience"]["pointTransactions"]), 2)
+
+    async def test_backup_pins_its_accounting_snapshot_during_a_concurrent_write(self):
+        await self._create_manager()
+        previous = copy.deepcopy(self.authority._document)
+        data = copy.deepcopy(self.authority.data)
+        data["experience"]["earnedPointsByParticipant"] = {"manager": 300}
+        data["experience"]["pointTransactions"] = [{"id": f"ledger:{index}", "participantId": "manager", "pointsDelta": 1,
+            "kind": "adjustment", "timestamp": "2026-09-30T08:00:00.000Z"} for index in range(300)]
+        await self.authority._save({**previous, "revision": previous["revision"] + 1, "data": data}, previous)
+        started, release = asyncio.Event(), asyncio.Event()
+        original_rows = self.authority._point_rows
+        async def delayed_rows(page):
+            started.set()
+            await release.wait()
+            return await original_rows(page)
+        with patch.object(self.authority, "_point_rows", side_effect=delayed_rows):
+            exporting = asyncio.create_task(self.authority.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1"))
+            await started.wait()
+            writing = asyncio.create_task(self.authority.async_command({"commandId": "during-export", "baseRevision": self.authority.revision,
+                "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 1}}, "ha-user-1"))
+            try:
+                await asyncio.sleep(0)
+                self.assertFalse(writing.done())
+            finally:
+                release.set()
+            exported, saved = await asyncio.gather(exporting, writing)
+        self.assertEqual(exported["workspace"]["experience"]["pointTransactions"], data["experience"]["pointTransactions"])
+        self.assertEqual(exported["workspace"]["experience"]["earnedPointsByParticipant"]["manager"], 300)
+        self.assertEqual(saved["data"]["experience"]["earnedPointsByParticipant"]["manager"], 301)
+
+    async def test_recovery_restores_the_backup_ledger_without_using_current_archives(self):
+        for archived_backup in (True, False):
+            with self.subTest(archived_backup=archived_backup):
+                _Store.values.clear()
+                self.authority = chores.ChoreAuthority(self.hass)
+                await self._create_manager()
+                previous = copy.deepcopy(self.authority._document)
+                data = copy.deepcopy(self.authority.data)
+                count = 300 if archived_backup else 2
+                records = [{"id": f"recovery-ledger:{index}", "participantId": "manager", "pointsDelta": 1,
+                    "kind": "adjustment", "timestamp": "2026-09-30T08:00:00.000Z"} for index in range(count)]
+                records[0] = {**records[0], "kind": "completion", "occurrenceId": "historic-task"}
+                data["experience"]["earnedPointsByParticipant"] = {"manager": count}
+                data["experience"]["pointTransactions"] = records
+                await self.authority._save({**previous, "revision": previous["revision"] + 1, "data": data}, previous)
+                healthy = copy.deepcopy(self.authority._document)
+                current = copy.deepcopy(data)
+                current["experience"]["earnedPointsByParticipant"] = {"manager": 600}
+                current["experience"]["pointTransactions"] = [{**records[0], "id": f"different-ledger:{index}"} for index in range(600)]
+                await self.authority._save({**healthy, "revision": healthy["revision"] + 1, "data": current}, healthy,
+                    replace_point_history=True)
+                self.assertNotEqual(self.authority._document.get("pointHistory"), healthy.get("pointHistory"))
+                result = await self.authority.async_recover({"action": "restore_backup", "confirmation": "REPAIR CHORES"}, "ha-user-1")
+                self.assertEqual(result["data"]["experience"], healthy["data"]["experience"])
+                self.assertEqual(self.authority._document.get("pointHistory"), healthy.get("pointHistory"))
+                restarted = chores.ChoreAuthority(self.hass)
+                await restarted.async_initialize()
+                for authority in (self.authority, restarted):
+                    page = await authority.async_handle_ws({"type": "navet/chores/points/get", "limit": 500}, "ha-user-1")
+                    self.assertEqual(page["points"], records)
+                    self.assertFalse(page["hasMore"])
+                    backup = await authority.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+                    self.assertEqual(backup["workspace"]["experience"]["pointTransactions"], records)
+                await restarted.async_command({"commandId": "adjust-after-recovery", "baseRevision": restarted.revision,
+                    "action": {"type": "experience_points_adjust", "actorParticipantId": "manager",
+                        "participantId": "manager", "pointsDelta": 7}}, "ha-user-1")
+                backup = await restarted.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+                self.assertEqual(backup["workspace"]["experience"]["earnedPointsByParticipant"], {"manager": count + 7})
+                self.assertEqual(backup["workspace"]["experience"]["pointTransactions"][:-1], records)
+
+    async def test_reset_clears_archived_points_exports_and_unreferenced_chunks(self):
+        for recovery_reset in (False, True):
+            with self.subTest(recovery_reset=recovery_reset), tempfile.TemporaryDirectory() as directory:
+                _Store.values.clear()
+                self.hass.config = types.SimpleNamespace(path=lambda _name: directory)
+                self.authority = chores.ChoreAuthority(self.hass)
+                await self._create_manager()
+                previous = copy.deepcopy(self.authority._document)
+                data = copy.deepcopy(self.authority.data)
+                data["experience"]["earnedPointsByParticipant"] = {"manager": 300}
+                data["experience"]["pointTransactions"] = [{"id": f"reset-ledger:{index}", "participantId": "manager",
+                    "pointsDelta": 1, "kind": "adjustment", "timestamp": "2026-09-30T08:00:00.000Z"} for index in range(300)]
+                # Include chunked working state so reset collects both kinds of ledger chunks.
+                data["experience"]["progressAwards"] = [{"id": f"reset-award:{index}:" + "x" * 150,
+                    "targetId": "target", "participantId": "manager", "cycleKey": f"cycle:{index}",
+                    "awardedAt": "2026-09-30T08:00:00.000Z"} for index in range(8000)]
+                await self.authority._save({**previous, "revision": previous["revision"] + 1, "data": data}, previous)
+                self.assertGreater(self.authority._document["pointHistory"]["count"], 0)
+                self.assertIn("durableCollections", chores._unpack_storage(_Store.values[chores.WORKSPACE_KEY]))
+                chunk_keys = [key for key in _Store.values if ".chunk." in key]
+                self.assertTrue(chunk_keys)
+                for key in chunk_keys:
+                    pathlib.Path(directory, key).touch()
+                if recovery_reset:
+                    result = await self.authority.async_recover({"action": "reset", "confirmation": "RESET CHORES"}, "ha-user-1")
+                else:
+                    result = await self.authority.async_reset({"commandId": "reset-archived-ledger",
+                        "baseRevision": self.authority.revision, "actorParticipantId": "manager",
+                        "confirmation": "DELETE ALL CHORES"}, "ha-user-1")
+                self.assertEqual(result["data"], chores._empty_data())
+                self.assertNotIn("pointHistory", chores._unpack_storage(_Store.values[chores.WORKSPACE_KEY]))
+                self.assertNotIn(chores.LAST_GOOD_KEY, _Store.values)
+                self.assertFalse(any(".chunk." in key for key in _Store.values))
+                restarted = chores.ChoreAuthority(self.hass)
+                await restarted.async_initialize()
+                self.assertEqual(restarted.data, chores._empty_data())
+                for authority in (self.authority, restarted):
+                    page = await authority.async_handle_ws({"type": "navet/chores/points/get"}, "ha-user-1")
+                    self.assertEqual(page["points"], [])
+                    self.assertFalse(page["hasMore"])
+                    backup = await authority.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+                    self.assertEqual(backup["workspace"]["experience"]["pointTransactions"], [])
+
     async def test_large_ledger_survives_restart_and_chunk_failure(self):
         await self._create_manager()
         data = copy.deepcopy(self.authority.data)
@@ -518,11 +899,20 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(len(json.dumps(_Store.values[chores.WORKSPACE_KEY]).encode()), chores.MAX_WORKSPACE_BYTES)
         restarted = chores.ChoreAuthority(self.hass)
         await restarted.async_initialize()
-        self.assertEqual(restarted.data["experience"], data["experience"])
-        result = await restarted.async_command({"commandId": "large-adjust", "baseRevision": restarted.revision,
+        self.assertLessEqual(len(restarted.data["experience"]["pointTransactions"]), 128)
+        exported = await restarted.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+        self.assertEqual(exported["workspace"]["experience"], data["experience"])
+        with self.assertRaises(chores.ChoreAuthorityError):
+            await restarted.async_restore({"commandId": "partial-import", "baseRevision": restarted.revision, "actorParticipantId": "manager", "mode": "replace",
+                "document": {"contract": "navet.chores", "version": 1, "exportedAt": "2026-09-30T08:00:00.000Z", "workspace": copy.deepcopy(restarted.data), "events": []}}, "ha-user-1")
+        result = await restarted.async_command({"commandId": "large-adjust:" + "x" * 170, "baseRevision": restarted.revision,
             "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}, "ha-user-1")
         self.assertEqual(result["data"]["experience"]["earnedPointsByParticipant"]["manager"], 12010)
-        self.assertEqual(len(result["data"]["experience"]["pointTransactions"]), 12001)
+        self.assertLessEqual(len(result["data"]["experience"]["pointTransactions"]), 128)
+        page = await restarted.async_handle_ws({"type": "navet/chores/points/get", "after": 11990, "limit": 20}, "ha-user-1")
+        self.assertEqual(len(page["points"]), 11)
+        self.assertEqual(page["points"][-1]["pointsDelta"], 10)
+        self.assertFalse(page["hasMore"])
         original_save = _Store.async_save
         async def fail_chunk(store, value):
             if ".chunk." in store.key:
@@ -531,19 +921,20 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
         _Store.async_save = fail_chunk
         try:
             with self.assertRaises(chores.ChoreStorageError):
-                await restarted.async_command({"commandId": "failed-adjust", "baseRevision": restarted.revision,
+                await restarted.async_command({"commandId": "failed-adjust:" + "x" * 170, "baseRevision": restarted.revision,
                     "action": {"type": "experience_points_adjust", "actorParticipantId": "manager", "participantId": "manager", "pointsDelta": 10}}, "ha-user-1")
         finally:
             _Store.async_save = original_save
         recovered = chores.ChoreAuthority(self.hass)
         await recovered.async_initialize()
         self.assertEqual(recovered.data["experience"], result["data"]["experience"])
-        stored = _Store.values[chores.WORKSPACE_KEY]
-        broken_key = stored["durableCollections"]["pointTransactions"][-1]
+        stored = chores._unpack_storage(_Store.values[chores.WORKSPACE_KEY])
+        broken_key = stored["pointHistory"]["pages"][-1]["key"]
         _Store.values[f"{chores.WORKSPACE_KEY}.chunk.{broken_key}"] = {"invalid": True}
         backup = chores.ChoreAuthority(self.hass)
         await backup.async_initialize()
-        self.assertEqual(backup.data["experience"], data["experience"])
+        exported = await backup.async_handle_ws({"type": "navet/chores/backup/get"}, "ha-user-1")
+        self.assertEqual(exported["workspace"]["experience"], data["experience"])
 
     async def test_shared_occurrence_transition_conformance_vectors(self):
         path = pathlib.Path(__file__).parents[3] / "packages/core/src/chore-conformance-vectors.json"

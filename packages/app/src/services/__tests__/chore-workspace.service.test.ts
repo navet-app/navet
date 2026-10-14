@@ -7,6 +7,7 @@ import {
   loadChoreEvents,
   loadChoreHistory,
   loadChoreOccurrences,
+  loadChorePointHistory,
   loadChoreRuntimeCapabilities,
   loadChoreWorkspace,
   recoverChoreWorkspace,
@@ -35,6 +36,21 @@ afterEach(() => {
 });
 
 describe('chore workspace service', () => {
+  it('reads a bounded point history page without loading the workspace', async () => {
+    const value = { contractVersion: 1, revision: 4, cursor: '6000', hasMore: true, points: [] };
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify(value), { status: 200 }));
+    await expect(loadChorePointHistory({ after: '5900', limit: 100 })).resolves.toMatchObject({
+      available: true,
+      value,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      '/__navet_chores__/points?after=5900&limit=100'
+    );
+  });
+
   it('uses the authenticated Home Assistant WebSocket transport in custom-panel mode', async () => {
     window.__NAVET_PANEL__ = true;
     resetRuntimeContextForTests();
@@ -203,6 +219,32 @@ describe('chore workspace service', () => {
     });
   });
 
+  it('does not automatically retry an expired panel command', async () => {
+    window.__NAVET_PANEL__ = true;
+    resetRuntimeContextForTests();
+    homeAssistantService.setPanelHass({
+      states: {},
+      config: {},
+      callService: vi.fn(),
+      callWS: vi.fn().mockRejectedValue({
+        code: 'command_expired',
+        message: 'Chore action could not be applied',
+      }),
+    } as never);
+    await expect(
+      sendChoreWorkspaceCommand({
+        commandId: 'expired-adjustment',
+        baseRevision: 1,
+        action: {
+          type: 'experience_points_adjust',
+          actorParticipantId: 'manager',
+          participantId: 'manager',
+          pointsDelta: 10,
+        },
+      })
+    ).resolves.toMatchObject({ saved: false, preconditionFailed: false, retryable: false });
+  });
+
   it('loads and conditionally refreshes the shared document', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
@@ -308,6 +350,38 @@ describe('chore workspace service', () => {
       commandId: 'command-complete',
     });
     expect(requestBody).not.toHaveProperty('data');
+  });
+
+  it.each([true, false])('validates the workspace supplied with a conflict (%s)', async (valid) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          contractVersion: 1,
+          revision: 4,
+          updatedAt: '2026-08-10T08:00:00.000Z',
+          data: valid ? emptyData : { invalid: true },
+          error: 'changed',
+        }),
+        { status: 412, headers: { 'X-Navet-Chore-Revision': '4' } }
+      )
+    );
+    const result = await sendChoreWorkspaceCommand({
+      commandId: 'conflict',
+      baseRevision: 3,
+      action: {
+        type: 'materialize_occurrences',
+        rangeStart: '2026-08-10T00:00:00.000Z',
+        rangeEnd: '2026-08-11T00:00:00.000Z',
+      },
+    });
+    expect(result).toMatchObject({
+      saved: false,
+      preconditionFailed: true,
+      revision: 4,
+      error: 'changed',
+    });
+    if (valid) expect(result.document).toMatchObject({ revision: 4, data: emptyData });
+    else expect(result.document).toBeNull();
   });
 
   it('returns the storage authority error for a rejected action', async () => {

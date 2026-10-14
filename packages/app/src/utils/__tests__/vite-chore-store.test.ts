@@ -188,6 +188,48 @@ afterEach(() => {
 });
 
 describe('Vite chore workspace store', () => {
+  it('does not persist unchanged materialization with fresh command IDs', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chores-noop-'));
+    tempDirs.push(directory);
+    const filePath = join(directory, 'chores.json');
+    const handler = createViteChoreStoreRequestHandler({
+      filePath,
+      resolvePrincipal: () => PRINCIPAL,
+    });
+    const first = createResponse();
+    await handler(createRequest('GET', '/workspace'), first.response);
+    const revision = JSON.parse(first.body).revision;
+    const disk = () =>
+      readdirSync(directory).map((name) => {
+        const stat = statSync(join(directory, name));
+        return { name, inode: stat.ino, modified: stat.mtimeMs };
+      });
+    const before = disk();
+    for (let index = 0; index < 5; index++) {
+      const response = createResponse();
+      await handler(
+        createRequest(
+          'POST',
+          '/commands',
+          { 'x-navet-base-revision': String(revision) },
+          JSON.stringify({
+            commandId: `redundant:${index}`,
+            baseRevision: revision,
+            action: {
+              type: 'materialize_occurrences',
+              rangeStart: '2026-08-10T00:00:00.000Z',
+              rangeEnd: '2026-08-11T00:00:00.000Z',
+            },
+          })
+        ),
+        response.response
+      );
+      expect(response.status).toBe(200);
+      expect(JSON.parse(response.body).revision).toBe(revision);
+    }
+    expect(disk()).toEqual(before);
+  });
+
   it('persists legacy marker-only scheduler backfill without requiring new activities', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-18T08:00:00.000Z'));
@@ -410,6 +452,252 @@ describe('Vite chore workspace store', () => {
     });
   });
 
+  it('serializes concurrent additive actions without lost updates or client retries', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chore-concurrency-'));
+    tempDirs.push(directory);
+    const handler = createViteChoreStoreRequestHandler({
+      filePath: join(directory, 'chores.json'),
+      resolvePrincipal: () => PRINCIPAL,
+    });
+    const manager = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': '0' },
+        participantActionBody('manager', 0)
+      ),
+      manager.response
+    );
+    const responses = [createResponse(), createResponse()];
+    await Promise.all(
+      responses.map((response, index) =>
+        handler(
+          createRequest(
+            'POST',
+            '/commands',
+            { 'x-navet-base-revision': '1' },
+            pointAdjustmentActionBody('parallel:' + index, 1)
+          ),
+          response.response
+        )
+      )
+    );
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    const latest = createResponse();
+    await handler(createRequest('GET', '/workspace'), latest.response);
+    expect(JSON.parse(latest.body).data.experience.earnedPointsByParticipant.maya).toBe(-24);
+    expect(JSON.parse(latest.body).data.experience.pointTransactions).toHaveLength(2);
+  });
+
+  it('rejects expired adjustment replays after restart while retaining recent concurrent edits', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chore-expiry-'));
+    tempDirs.push(directory);
+    const filePath = join(directory, 'chores.json');
+    const makeHandler = () =>
+      createViteChoreStoreRequestHandler({ filePath, resolvePrincipal: () => PRINCIPAL });
+    let handler = makeHandler();
+    const manager = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': '0' },
+        participantActionBody('manager', 0)
+      ),
+      manager.response
+    );
+    const original = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': '1' },
+        pointAdjustmentActionBody('expired-adjustment', 1)
+      ),
+      original.response
+    );
+    expect(original.status).toBe(200);
+    const document = durableStorage.unpack(
+      JSON.parse(readFileSync(filePath, 'utf8')),
+      (value: string) => createHash('sha256').update(value).digest('hex')
+    ) as {
+      revision: number;
+      updatedAt: string;
+      data: { activity: unknown[]; experience: { pointTransactions: unknown[] } };
+    };
+    document.revision += 6000;
+    document.data.activity = [];
+    writeFileSync(filePath, JSON.stringify(document));
+    const commands = Array.from({ length: 500 }, (_, index) => ({
+      commandId: `later:${index}`,
+      revision: document.revision - 499 + index,
+      timestamp: document.updatedAt,
+    }));
+    writeFileSync(filePath + '.journal', JSON.stringify({ contractVersion: 1, commands }));
+    handler = makeHandler();
+    const replay = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': '1' },
+        pointAdjustmentActionBody('expired-adjustment', 1)
+      ),
+      replay.response
+    );
+    expect(replay.status).toBe(409);
+    expect(JSON.parse(replay.body).code).toBe('command_expired');
+    const unchanged = createResponse();
+    await handler(createRequest('GET', '/workspace'), unchanged.response);
+    expect(JSON.parse(unchanged.body).revision).toBe(document.revision);
+    expect(JSON.parse(unchanged.body).data.experience.pointTransactions).toEqual(
+      document.data.experience.pointTransactions
+    );
+    const base = document.revision - 500;
+    const fresh = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': String(base) },
+        pointAdjustmentActionBody('covered-adjustment', base)
+      ),
+      fresh.response
+    );
+    expect(fresh.status).toBe(200);
+    expect(JSON.parse(fresh.body).data.experience.earnedPointsByParticipant.maya).toBe(-24);
+    const retry = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/commands',
+        { 'x-navet-base-revision': String(base) },
+        pointAdjustmentActionBody('covered-adjustment', base)
+      ),
+      retry.response
+    );
+    expect(retry.body).toBe(fresh.body);
+  });
+
+  it('advances a version-1 revision when only the point ledger needs archival', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chore-upgrade-'));
+    tempDirs.push(directory);
+    const filePath = join(directory, 'chores.json');
+    const { document } = continuousMaterializationFixture();
+    Object.assign(document, { storageMaintenanceVersion: 1, tenantId: TENANT_ID });
+    document.data.definitionsById = {};
+    document.data.occurrencesById = {};
+    document.data.activity = [];
+    document.data.outbox = [];
+    document.data.experience = createChoreExperienceState();
+    document.data.experience.pointTransactions = Array.from({ length: 129 }, (_, index) => ({
+      id: `ledger:${index}`,
+      participantId: 'manager',
+      pointsDelta: 1,
+      kind: 'adjustment' as const,
+      timestamp: document.updatedAt,
+    }));
+    document.data.experience.earnedPointsByParticipant = { manager: 129 };
+    writeFileSync(filePath, JSON.stringify(document));
+    const handler = createViteChoreStoreRequestHandler({
+      filePath,
+      resolvePrincipal: () => PRINCIPAL,
+    });
+    const read = createResponse();
+    await handler(
+      createRequest('GET', '/workspace', { 'x-navet-chore-revision': String(document.revision) }),
+      read.response
+    );
+    expect(read.status).toBe(200);
+    expect(JSON.parse(read.body).revision).toBe(document.revision + 1);
+    expect(JSON.parse(read.body).data.experience.pointTransactions).toHaveLength(128);
+    expect(JSON.parse(read.body).data.experience.earnedPointsByParticipant.manager).toBe(129);
+    const warm = createResponse();
+    await handler(
+      createRequest('GET', '/workspace', {
+        'x-navet-chore-revision': String(document.revision + 1),
+      }),
+      warm.response
+    );
+    expect(warm.status).toBe(304);
+  });
+
+  it.each(['legacy', 'redundant'])(
+    'repairs %s scoped summaries once while preserving complete history',
+    async (format) => {
+      const directory = mkdtempSync(join(tmpdir(), 'navet-chore-scoped-progress-'));
+      tempDirs.push(directory);
+      const filePath = join(directory, 'chores.json');
+      const { document } = continuousMaterializationFixture();
+      document.data.definitionsById = {};
+      document.data.occurrencesById = {};
+      document.data.activity = [];
+      document.data.outbox = [];
+      document.data.experience = createChoreExperienceState();
+      const rows = Array.from({ length: 300 }, (_, index) => ({
+        id: `old:${index}`,
+        participantId: 'manager',
+        occurrenceId: 'dishes:2026-01-05T10:00:00.000Z:manager',
+        kind: 'completion' as const,
+        pointsDelta: 1,
+        timestamp: '2026-01-05T10:00:00.000Z',
+      }));
+      document.data.experience.pointTransactions = rows;
+      document.data.experience.earnedPointsByParticipant = { manager: 300 };
+      writeFileSync(filePath, JSON.stringify(document));
+      const makeHandler = () =>
+        createViteChoreStoreRequestHandler({ filePath, resolvePrincipal: () => PRINCIPAL });
+      const first = createResponse();
+      await makeHandler()(createRequest('GET', '/workspace'), first.response);
+      const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+      const legacy = durableStorage.unpack(JSON.parse(readFileSync(filePath, 'utf8')), hash) as {
+        revision: number;
+        data: { experience: { pointProgress: { definitions?: unknown } } };
+      };
+      if (format === 'legacy') delete legacy.data.experience.pointProgress.definitions;
+      else
+        Object.assign(legacy.data.experience.pointProgress, {
+          occurrences: { obsolete: { once: { maya: 172 } } },
+        });
+      writeFileSync(filePath, JSON.stringify(durableStorage.pack(legacy, hash)));
+      const handler = makeHandler();
+      const repaired = createResponse();
+      await handler(createRequest('GET', '/workspace'), repaired.response);
+      expect(
+        JSON.parse(repaired.body).data.experience.pointProgress.definitions.dishes.once.manager
+      ).toBe(172);
+      expect(JSON.parse(repaired.body).revision).toBe(legacy.revision + 1);
+      const saved = readFileSync(filePath, 'utf8');
+      const warm = createResponse();
+      await handler(createRequest('GET', '/workspace'), warm.response);
+      expect(warm.body).toBe(repaired.body);
+      expect(readFileSync(filePath, 'utf8')).toBe(saved);
+      const backup = createResponse();
+      await handler(createRequest('GET', '/backup'), backup.response);
+      expect(JSON.parse(backup.body).workspace.experience.pointTransactions).toEqual(rows);
+      const revision = JSON.parse(repaired.body).revision;
+      expect(readdirSync(directory).some((name) => name.includes('.chunk-'))).toBe(true);
+      const reset = createResponse();
+      await handler(
+        createRequest(
+          'POST',
+          '/reset',
+          { 'x-navet-base-revision': String(revision) },
+          JSON.stringify({
+            commandId: 'reset-archived',
+            baseRevision: revision,
+            actorParticipantId: 'manager',
+            confirmation: 'DELETE ALL CHORES',
+          })
+        ),
+        reset.response
+      );
+      expect(reset.status).toBe(200);
+      expect(readdirSync(directory).filter((name) => name.includes('.chunk-'))).toEqual([]);
+    }
+  );
+
   it('upgrades a nearly full inline ledger and keeps its complete history through restart and backup', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'navet-chore-store-'));
     tempDirs.push(directory);
@@ -442,19 +730,23 @@ describe('Vite chore workspace store', () => {
       item.id += 'x'.repeat(Math.floor(spare / 6000) + (index < spare % 6000 ? 1 : 0));
     });
     writeFileSync(filePath, JSON.stringify(document));
+    // Rewrite: the migration changes the public projection once, preserving the full export.
+    const working = createResponse();
+    await handler(createRequest('GET', '/workspace'), working.response);
+    const workingRevision = JSON.parse(working.body).revision;
     const adjusted = createResponse();
     await handler(
       createRequest(
         'POST',
         '/commands',
-        { 'x-navet-base-revision': '1' },
-        pointAdjustmentActionBody('large-adjustment', 1)
+        { 'x-navet-base-revision': String(workingRevision) },
+        pointAdjustmentActionBody('large-adjustment', workingRevision)
       ),
       adjusted.response
     );
     expect(adjusted.status).toBe(200);
     const data = JSON.parse(adjusted.body).data;
-    expect(data.experience.pointTransactions).toHaveLength(6001);
+    expect(data.experience.pointTransactions.length).toBeLessThanOrEqual(128);
     expect(data.experience.earnedPointsByParticipant.maya).toBe(5988);
     expect(Buffer.byteLength(readFileSync(filePath, 'utf8'), 'utf8')).toBeLessThan(maxBytes);
     handler = makeHandler();
@@ -463,18 +755,38 @@ describe('Vite chore workspace store', () => {
     expect(JSON.parse(reloaded.body).data.experience).toEqual(data.experience);
     const backup = createResponse();
     await handler(createRequest('GET', '/backup'), backup.response);
-    expect(JSON.parse(backup.body).workspace.experience.pointTransactions).toEqual(
-      data.experience.pointTransactions
+    expect(JSON.parse(backup.body).workspace.experience.pointTransactions).toHaveLength(6001);
+    const points = createResponse();
+    await handler(createRequest('GET', '/points?after=5990&limit=20'), points.response);
+    expect(JSON.parse(points.body).points).toHaveLength(11);
+    expect(JSON.parse(points.body).hasMore).toBe(false);
+    const revision = JSON.parse(adjusted.body).revision;
+    const partial = createResponse();
+    await handler(
+      createRequest(
+        'POST',
+        '/restore',
+        { 'x-navet-base-revision': String(revision) },
+        JSON.stringify({
+          commandId: 'reject-partial-import',
+          baseRevision: revision,
+          actorParticipantId: 'maya',
+          mode: 'replace',
+          document: { ...JSON.parse(backup.body), workspace: data },
+        })
+      ),
+      partial.response
     );
+    expect(partial.status).toBe(400);
     const restore = createResponse();
     await handler(
       createRequest(
         'POST',
         '/restore',
-        { 'x-navet-base-revision': '2' },
+        { 'x-navet-base-revision': String(revision) },
         JSON.stringify({
           commandId: 'restore-large-ledger',
-          baseRevision: 2,
+          baseRevision: revision,
           actorParticipantId: 'maya',
           mode: 'replace',
           document: JSON.parse(backup.body),
@@ -627,7 +939,6 @@ describe('Vite chore workspace store', () => {
       'occurrence_created',
       'due',
       'overdue',
-      'workspace_materialized',
       'completed',
     ]);
 
@@ -1128,7 +1439,9 @@ describe('Vite automatic chore storage repair', () => {
     expect(existsSync(orphan)).toBe(false);
     const history = createResponse();
     await handler(createRequest('GET', '/history'), history.response);
-    expect(JSON.parse(history.body).events).toEqual(events);
+    expect(JSON.parse(history.body).events).toEqual(
+      events.filter((event) => event.type !== 'workspace_materialized')
+    );
     const feed = createResponse();
     await handler(createRequest('GET', '/events?after=50&limit=1'), feed.response);
     expect(JSON.parse(feed.body)).toMatchObject({ cursor: '101', events: [events[100]] });
@@ -1227,6 +1540,8 @@ describe('Vite automatic chore storage repair', () => {
     expect(JSON.parse(retry.body).data.participantsById).toEqual(document.data.participantsById);
     const history = createResponse();
     await handler(createRequest('GET', '/history'), history.response);
-    expect(JSON.parse(history.body).events).toEqual(events);
+    expect(JSON.parse(history.body).events).toEqual(
+      events.filter((event) => event.type !== 'workspace_materialized')
+    );
   });
 });

@@ -1,6 +1,7 @@
 import storage from '/etc/nginx/njs/chore-durable-storage.js';
 import choreStore from '/etc/nginx/njs/chore-store.js';
 import recurrence from '/etc/nginx/njs/chore-recurrence-policy.js';
+import storagePolicy from '/etc/nginx/njs/chore-storage-policy.js';
 import crypto from 'crypto';
 import zlib from 'zlib';
 let assertions = 0;
@@ -67,6 +68,12 @@ const manifest = storage.encode(doc, 2 * 1024 * 1024, hash, (key, chunk) => {
 });
 assert(Buffer.byteLength(JSON.stringify(manifest)) < 2 * 1024 * 1024, 'Manifest stays bounded');
 const restored = storage.decode(manifest, hash, (key) => files[key]);
+const verified = Object.create(null);
+storage.decode(manifest, hash, (key) => files[key], (key) => { verified[key] = true; });
+let repeatedChunkWrites = 0;
+storage.encode(restored, 2 * 1024 * 1024, hash, () => { repeatedChunkWrites++; },
+  (key) => verified[key] === true);
+assert(repeatedChunkWrites === 0, 'Verified immutable chunks are reused without compression or disk writes');
 assert(
   JSON.stringify(restored.data.experience.pointTransactions) ===
     JSON.stringify(doc.data.experience.pointTransactions),
@@ -78,13 +85,37 @@ for (let index = 0; index < 2000; index++) historyRows.push({
   type: 'workspace_materialized', timestamp, reason: 'Preserve åäö and event order',
 });
 const historyDocument = { contractVersion: 1, events: historyRows };
+const meaningfulEvent = { id: 'completion:keep', commandId: 'complete:keep', type: 'completed', timestamp };
+const cleanedHistory = storagePolicy.compactChoreHistory({ contractVersion: 1,
+  events: historyRows.concat([meaningfulEvent, meaningfulEvent]) });
+assert(cleanedHistory.events.length === 1 && cleanedHistory.events[0].id === meaningfulEvent.id,
+  'Native cleanup removes internal chatter and duplicate IDs, retaining completion');
+assert(storagePolicy.readChoreHistoryPage(cleanedHistory, 1999, 1, ['completed']).cursor === '2001',
+  'Native cleanup preserves legacy cursor positions');
+assert(storagePolicy.readChoreHistoryPage(cleanedHistory, 2001, 10, ['completed']).cursor === '2002',
+  'Native cursor advances past removed duplicates');
+const notification = { id: 'notification', eventType: 'completed', status: 'pending', attempts: 0 };
+const cleanedWorkspace = storagePolicy.compactChoreWorkspace(Object.assign({}, doc.data, {
+  activity: historyRows.slice(0, 5).concat([meaningfulEvent, meaningfulEvent]),
+  outbox: [notification, Object.assign({}, notification, { status: 'delivered' })],
+}));
+assert(cleanedWorkspace.experience === doc.data.experience && cleanedWorkspace.experience.pointTransactions.length === 12000,
+  'Native cleanup preserves the complete accounting ledger');
+assert(cleanedWorkspace.activity.length === 1 && cleanedWorkspace.outbox.length === 1 && cleanedWorkspace.outbox[0].status === 'delivered',
+  'Native cleanup retains a delivered notification rather than replaying a duplicate');
+let unsafeRecordRejected = false;
+try { storagePolicy.compactChoreHistory({ contractVersion: 1,
+  events: [Object.assign({}, meaningfulEvent, { id: '__proto__' })] }); }
+catch (error) { unsafeRecordRejected = error.message === 'Unsafe record key'; }
+assert(unsafeRecordRejected, 'Native cleanup rejects inherited-property record identifiers');
 const compressedHistory = storage.pack(historyDocument, hash);
 assert(compressedHistory.storageEncoding === 'deflate-v1', 'Native history uses deflate');
 assert(JSON.stringify(compressedHistory).length < JSON.stringify(historyDocument).length * 0.3, 'Native history compression shrinks repeated writes');
 assert(JSON.stringify(storage.unpack(compressedHistory, hash)) === JSON.stringify(historyDocument), 'Native deflate preserves every event and UTF-8 text');
 // Exercise stored, fixed-Huffman, and dynamic-Huffman blocks in the native runtime.
 const deflateText = JSON.stringify({ text: 'abc åäö '.repeat(20000) });
-const deflateOptions = [{ level: 0 }, { strategy: zlib.constants.Z_FIXED }, {}];
+const deflateOptions = [{ level: 0 }, { strategy: zlib.constants.Z_FIXED },
+  { strategy: zlib.constants.Z_HUFFMAN_ONLY }, { strategy: zlib.constants.Z_RLE }, {}];
 for (let index = 0; index < deflateOptions.length; index++) {
   const envelope = {
     storageEncoding: 'deflate-v1', uncompressedBytes: Buffer.byteLength(deflateText),
@@ -100,6 +131,22 @@ for (let index = 0; index < deflateOptions.length; index++) {
   zlib.inflateSync = inflate;
   assert(nativeInflations === 0 && sizeError.indexOf('exceeds expanded size') !== -1,
     'Underdeclared expansion is rejected before allocating native output');
+}
+// Skewed frequencies exercise long Huffman codes; short streams exercise the
+// end-of-input fallback where the nine-bit lookup cannot safely peek ahead.
+let skewed = '';
+for (let index = 0; index < 14; index++) skewed += String.fromCharCode(65 + index).repeat(1 << index);
+const edgeTexts = [JSON.stringify({ text: skewed }), '0', '{}', '"å"'];
+for (let index = 0; index < edgeTexts.length; index++) {
+  const text = edgeTexts[index];
+  const envelope = {
+    storageEncoding: 'deflate-v1', uncompressedBytes: Buffer.byteLength(text),
+    checksum: hash(text), payload: zlib.deflateSync(text, {
+      strategy: zlib.constants.Z_HUFFMAN_ONLY,
+    }).toString('base64'),
+  };
+  assert(JSON.stringify(storage.unpack(envelope, hash)) === text,
+    'Long Huffman codes and short final blocks round-trip');
 }
 const truncatedEnvelope = Object.assign({}, compressedHistory, {
   payload: Buffer.from(compressedHistory.payload, 'base64').subarray(0, 10).toString('base64'),
@@ -132,10 +179,13 @@ function missing() {
   throw err;
 }
 let failChunk = false;
+let writeCount = 0;
+let historyReadCount = 0;
 const descriptors = {};
 let nextDescriptor = 1;
 choreStore.setChoreStoreFsForTests({
   openSync: (path) => {
+    if (path === '/data/navet-chore-events.json') historyReadCount++;
     if (paths[path] === undefined) missing();
     const descriptor = nextDescriptor++;
     descriptors[descriptor] = { bytes: Buffer.from(paths[path]), offset: 0 };
@@ -154,10 +204,14 @@ choreStore.setChoreStoreFsForTests({
   readdirSync: (directory) => Object.keys(paths)
     .filter(function (path) { return path.indexOf(directory + '/') === 0; })
     .map(function (path) { return path.slice(directory.length + 1); }),
-  statSync: (path) =>
-    paths[path] === undefined ? missing() : { size: Buffer.byteLength(paths[path]) },
+  statSync: (path) => {
+    if (paths[path] === undefined) missing();
+    const version = Number.parseInt(hash(paths[path]).slice(0, 12), 16);
+    return { size: Buffer.byteLength(paths[path]), mtimeMs: version, ctimeMs: version, ino: 1 };
+  },
   readFileSync: (path) => (paths[path] === undefined ? missing() : paths[path]),
   writeFileSync: (path, value) => {
+    writeCount++;
     if (failChunk && path.indexOf('.chunk-') !== -1) throw new Error('Interrupted chunk write');
     paths[path] = value;
   },
@@ -176,11 +230,11 @@ choreStore.setChoreStorePrincipalResolverForTests(() => ({
   tenantId: 'hat_' + 'a'.repeat(64),
   sessionId: 'native',
 }));
-function request(method, uri, command) {
+function request(method, uri, command, args) {
   const r = {
     method,
     uri,
-    args: '',
+    args: args || '',
     headersOut: {},
     headersIn: { Host: 'navet.example', Origin: 'http://navet.example' },
     requestText: command ? JSON.stringify(command) : '',
@@ -193,9 +247,27 @@ function request(method, uri, command) {
   choreStore.handle(r);
   return r;
 }
+const beforeNoop = request('GET', '/__navet_chores__/workspace');
+const partialImport = request('POST', '/__navet_chores__/restore', {
+  commandId: 'reject-truncated-import', baseRevision: beforeNoop.body.revision,
+  actorParticipantId: 'manager', mode: 'replace', document: { contract: 'navet.chores', version: 1,
+    exportedAt: timestamp, workspace: beforeNoop.body.data, events: [] },
+});
+assert(partialImport.status === 400, 'A working projection cannot silently replace the complete accounting ledger');
+const beforeNoopHistoryReads = historyReadCount;
+request('GET', '/__navet_chores__/workspace');
+assert(historyReadCount === beforeNoopHistoryReads,
+  'Native settled refresh skips history hydration until a scheduler deadline');
+const beforeNoopWrites = writeCount;
+const nativeNoop = request('POST', '/__navet_chores__/commands', {
+  commandId: 'native-noop', baseRevision: beforeNoop.body.revision,
+  action: { type: 'materialize_occurrences', rangeStart: '2026-10-13T00:00:00.000Z', rangeEnd: '2026-10-14T00:00:00.000Z' },
+});
+assert(nativeNoop.status === 200 && nativeNoop.body.revision === beforeNoop.body.revision && writeCount === beforeNoopWrites,
+  'Native unchanged materialization performs zero writes and preserves revision');
 let result = request('POST', '/__navet_chores__/commands', {
   commandId: 'native-adjust',
-  baseRevision: 1,
+  baseRevision: beforeNoop.body.revision,
   action: {
     type: 'experience_points_adjust',
     actorParticipantId: 'manager',
@@ -205,8 +277,8 @@ let result = request('POST', '/__navet_chores__/commands', {
 });
 assert(result.status === 200, 'Native authority commits large ledger: ' + JSON.stringify(result));
 assert(
-  result.body.data.experience.pointTransactions.length === 12001,
-  'Native authority retains transactions'
+  result.body.data.experience.pointTransactions.length <= 128,
+  'Native authority bounds recent transactions'
 );
 assert(
   result.body.data.experience.earnedPointsByParticipant.manager === 12010,
@@ -214,7 +286,7 @@ assert(
 );
 result = request('POST', '/__navet_chores__/commands', {
   commandId: 'native-adjust',
-  baseRevision: 1,
+  baseRevision: beforeNoop.body.revision,
   action: {
     type: 'experience_points_adjust',
     actorParticipantId: 'manager',
@@ -223,18 +295,22 @@ result = request('POST', '/__navet_chores__/commands', {
   },
 });
 assert(result.status === 200, 'Committed command replay is accepted');
+const nativePointPage = request('GET', '/__navet_chores__/points', null, { after: '11990', limit: '20' });
+assert(nativePointPage.status === 200 && nativePointPage.body.points.length === 11 && !nativePointPage.body.hasMore,
+  'Native object query parameters preserve point pagination and cursor limits');
 assert(
-  result.body.data.experience.pointTransactions.length === 12001,
-  'Command replay retains one transaction'
+  request('GET', '/__navet_chores__/backup').body.workspace.experience.pointTransactions.length === 12001,
+  'Command replay retains every archived and recent transaction exactly once'
 );
 assert(
   result.body.data.experience.earnedPointsByParticipant.manager === 12010,
   'Command replay does not spend or award points twice'
 );
+const committedRevision = result.body.revision;
 failChunk = true;
 result = request('POST', '/__navet_chores__/commands', {
-  commandId: 'failed-adjust',
-  baseRevision: 2,
+  commandId: 'failed-adjust:' + 'x'.repeat(170),
+  baseRevision: committedRevision,
   action: {
     type: 'experience_points_adjust',
     actorParticipantId: 'manager',

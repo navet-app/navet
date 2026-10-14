@@ -1,9 +1,127 @@
 import type {
+  ChorePointProgress,
   ChorePointTransaction,
   ChoreProgressAward,
   ChoreProgressTarget,
 } from './chore-experience.ts';
 import type { ChoreOccurrence } from './chores.ts';
+import { setOwnRecordValue } from './record-safety.ts';
+
+const hasOwn = Object.prototype.hasOwnProperty;
+
+/** Legacy generated IDs retain their definition even after the occurrence is pruned. */
+export function chorePointDefinitionId(
+  transaction: ChorePointTransaction,
+  occurrences: Record<string, Pick<ChoreOccurrence, 'definitionId'>>
+): string | undefined {
+  const id = transaction.occurrenceId;
+  if (transaction.definitionId) return transaction.definitionId;
+  if (id && hasOwn.call(occurrences, id)) return occurrences[id].definitionId;
+  const match = id && /^(.+?):\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z:/.exec(id);
+  return match ? match[1] : undefined;
+}
+
+/** Increment a read model only when records move from the recent ledger into history. */
+export function archiveChorePointProgress(
+  previous: ChorePointProgress | undefined,
+  transactions: readonly ChorePointTransaction[],
+  _occurrenceIds: readonly string[],
+  liveOccurrences?: Record<string, Pick<ChoreOccurrence, 'definitionId'>>
+): ChorePointProgress {
+  const totals = Object.assign(Object.create(null), previous?.totals || {});
+  const definitions = Object.assign(Object.create(null), previous?.definitions || {});
+  const occurrences: ChorePointProgress['occurrences'] = Object.create(null);
+  // Definition totals replace the per-occurrence index; keep its empty legacy field readable.
+  function add(
+    groups: ChorePointProgress['totals'],
+    period: string,
+    person: string,
+    delta: number
+  ) {
+    const group = Object.assign(Object.create(null), groups[period] || {});
+    const next = (group[person] || 0) + delta;
+    if (!Number.isSafeInteger(next)) throw new Error('Chore progress points are too large');
+    setOwnRecordValue(group, person, next);
+    setOwnRecordValue(groups, period, group);
+  }
+  for (let index = 0; index < transactions.length; index++) {
+    const transaction = transactions[index];
+    if (transaction.kind !== 'completion' && transaction.kind !== 'reopen') continue;
+    const periods = [
+      'once',
+      'weekly:' + progressCycleKey('weekly', transaction.timestamp),
+      'monthly:' + progressCycleKey('monthly', transaction.timestamp),
+    ];
+    const definitionId = chorePointDefinitionId(transaction, liveOccurrences || {});
+    const definitionGroups = definitionId
+      ? Object.assign(Object.create(null), definitions[definitionId] || {})
+      : null;
+    for (let period = 0; period < periods.length; period++) {
+      add(totals, periods[period], transaction.participantId, transaction.pointsDelta);
+      if (definitionGroups)
+        add(definitionGroups, periods[period], transaction.participantId, transaction.pointsDelta);
+    }
+    if (definitionId && definitionGroups)
+      setOwnRecordValue(definitions, definitionId, definitionGroups);
+  }
+  return { version: 1, totals, occurrences, definitions };
+}
+
+export function isChorePointProgress(value: unknown): value is ChorePointProgress {
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    !isRecord(value.totals) ||
+    !isRecord(value.occurrences)
+  )
+    return false;
+  function groupsValid(groups: unknown): boolean {
+    if (!isRecord(groups)) return false;
+    const periods = Object.values(groups);
+    return periods.every(
+      (group) => isRecord(group) && Object.values(group).every(Number.isSafeInteger)
+    );
+  }
+  return (
+    groupsValid(value.totals) &&
+    Object.values(value.occurrences).every(groupsValid) &&
+    (value.definitions === undefined ||
+      (isRecord(value.definitions) && Object.values(value.definitions).every(groupsValid)))
+  );
+}
+
+export function archivedChoreTargetPoints(
+  summary: ChorePointProgress | undefined,
+  cycle: ChoreProgressTarget['cycle'],
+  participantId: string,
+  occurrenceIds: readonly string[] | null,
+  at: string,
+  definitionIds?: readonly string[]
+): number {
+  if (!summary) return 0;
+  const period =
+    cycle === 'weekly' || cycle === 'monthly' ? cycle + ':' + progressCycleKey(cycle, at) : 'once';
+  function points(groups: ChorePointProgress['totals'] | undefined): number {
+    const group = groups?.[period];
+    return group && hasOwn.call(group, participantId) ? group[participantId] : 0;
+  }
+  if (!occurrenceIds) return points(summary.totals);
+  if (definitionIds && summary.definitions) {
+    let total = 0;
+    const seen = Object.create(null);
+    for (let index = 0; index < definitionIds.length; index++) {
+      const id = definitionIds[index];
+      if (seen[id]) continue;
+      setOwnRecordValue(seen, id, true);
+      total += points(summary.definitions[id]);
+    }
+    return total;
+  }
+  let total = 0;
+  for (let index = 0; index < occurrenceIds.length; index++)
+    total += points(summary.occurrences[occurrenceIds[index]]);
+  return total;
+}
 
 export function progressCycleKey(cycle: ChoreProgressTarget['cycle'], at: string): string {
   if (cycle === 'monthly') return at.slice(0, 7);
@@ -29,7 +147,8 @@ export function choreTargetProgress(
   participantId: string,
   occurrences: readonly ChoreOccurrence[],
   transactions: readonly ChorePointTransaction[],
-  at: string
+  at: string,
+  pointProgress?: ChorePointProgress
 ): number {
   const cycleKey = progressCycleKey(target.cycle, at);
   const relevant = occurrences.filter(
@@ -42,18 +161,29 @@ export function choreTargetProgress(
   );
   if (target.metric === 'selected_chore' || target.metric === 'count') return completed.length;
   if (target.metric === 'points') {
+    const byId: Record<string, Pick<ChoreOccurrence, 'definitionId'>> = Object.create(null);
+    for (let index = 0; index < occurrences.length; index++)
+      setOwnRecordValue(byId, occurrences[index].id, occurrences[index]);
     return Math.max(
       0,
-      transactions
-        .filter(
-          (item) =>
-            item.participantId === participantId &&
-            (item.kind === 'completion' || item.kind === 'reopen') &&
-            inCycle(target.cycle, item.timestamp, cycleKey) &&
-            (!target.definitionIds?.length ||
-              relevant.some((occurrence) => occurrence.id === item.occurrenceId))
-        )
-        .reduce((sum, item) => sum + item.pointsDelta, 0)
+      archivedChoreTargetPoints(
+        pointProgress,
+        target.cycle,
+        participantId,
+        target.definitionIds?.length ? relevant.map((item) => item.id) : null,
+        at,
+        target.definitionIds
+      ) +
+        transactions
+          .filter(
+            (item) =>
+              item.participantId === participantId &&
+              (item.kind === 'completion' || item.kind === 'reopen') &&
+              inCycle(target.cycle, item.timestamp, cycleKey) &&
+              (!target.definitionIds?.length ||
+                target.definitionIds.includes(chorePointDefinitionId(item, byId) ?? ''))
+          )
+          .reduce((sum, item) => sum + item.pointsDelta, 0)
     );
   }
   if (target.metric === 'days') {
@@ -91,6 +221,7 @@ export function earnChoreProgressAwards(input: {
   occurrences: readonly ChoreOccurrence[];
   transactions: readonly ChorePointTransaction[];
   existingAwards: readonly ChoreProgressAward[];
+  pointProgress?: ChorePointProgress;
   at: string;
 }): { awards: ChoreProgressAward[]; transactions: ChorePointTransaction[] } {
   const awards: ChoreProgressAward[] = [];
@@ -118,7 +249,8 @@ export function earnChoreProgressAwards(input: {
           participantId,
           input.occurrences,
           input.transactions,
-          input.at
+          input.at,
+          input.pointProgress
         ) < target.target
       )
         continue;
@@ -174,7 +306,8 @@ export function isPointTransaction(value: unknown): value is ChorePointTransacti
     isOptionalTimestamp(value.timestamp) &&
     (value.commandId === undefined || typeof value.commandId === 'string') &&
     (value.rewardRequestId === undefined || typeof value.rewardRequestId === 'string') &&
-    (value.occurrenceId === undefined || typeof value.occurrenceId === 'string')
+    (value.occurrenceId === undefined || typeof value.occurrenceId === 'string') &&
+    (value.definitionId === undefined || typeof value.definitionId === 'string')
   );
 }
 

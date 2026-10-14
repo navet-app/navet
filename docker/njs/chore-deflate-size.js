@@ -30,7 +30,19 @@ function huffman(lengths) {
       if (lengths[symbol] === length) symbols.push(symbol);
     }
   }
-  return { counts, first, offsets, symbols };
+  // Most DEFLATE symbols fit in nine bits. Decode those in one lookup instead
+  // of calling the bit reader once per bit; keep the canonical long-code path.
+  const fast = new Array(512).fill(0);
+  for (let length = 1; length <= 9; length++) {
+    for (let index = 0; index < counts[length]; index++) {
+      let code = first[length] + index;
+      let reversed = 0;
+      for (let bit = 0; bit < length; bit++, code >>>= 1) reversed = (reversed << 1) | (code & 1);
+      const entry = (symbols[offsets[length] + index] << 4) | length;
+      for (let slot = reversed; slot < 512; slot += 1 << length) fast[slot] = entry;
+    }
+  }
+  return { counts, first, offsets, symbols, fast };
 }
 
 function assertDeflateSize(input, expectedBytes) {
@@ -41,12 +53,22 @@ function assertDeflateSize(input, expectedBytes) {
   let output = 0;
   function bits(count) {
     if (position + count > end) invalid();
-    let value = 0;
-    for (let index = 0; index < count; index++, position++)
-      value |= ((input[position >>> 3] >>> (position & 7)) & 1) << index;
+    const byte = position >>> 3;
+    const value = ((input[byte] | (input[byte + 1] << 8) | (input[byte + 2] << 16)) >>>
+      (position & 7)) & ((1 << count) - 1);
+    position += count;
     return value;
   }
   function symbol(table) {
+    if (position + 9 <= end) {
+      const byte = position >>> 3;
+      const entry = table.fast[((input[byte] | (input[byte + 1] << 8) |
+        (input[byte + 2] << 16)) >>> (position & 7)) & 511];
+      if (entry) {
+        position += entry & 15;
+        return entry >>> 4;
+      }
+    }
     let code = 0;
     for (let length = 1; length <= 15; length++) {
       code = code * 2 + bits(1);

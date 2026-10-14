@@ -70,6 +70,7 @@ The shared endpoint exposes a revisioned document:
 
 - `GET /__navet_chores__/workspace`
 - `GET /__navet_chores__/history`
+- `GET /__navet_chores__/points?after=0&limit=100`
 - `POST /__navet_chores__/commands`
 - `GET /__navet_chores__/definitions`
 - `GET /__navet_chores__/occurrences`
@@ -85,18 +86,79 @@ The shared endpoint exposes a revisioned document:
 - `X-Navet-Base-Revision` for compare-and-swap writes
 - `X-Navet-Chore-Management-Session` for PIN-unlocked management writes
 
-Every mutation has an idempotent command ID and a primary matching activity entry. Materialization
-may additionally append one occurrence-created lifecycle event per new occurrence. A stale write
-returns `412`; the client loads the newest document, rebuilds the mutation against it, and retries
-once. The command journal and activity log both detect retries after a partially successful durable
-write.
+Every mutation has an idempotent command ID; household actions have a matching activity entry. Materialization
+may additionally append one occurrence-created lifecycle event per new occurrence. Ordinary
+occurrence actions, additive point adjustments, reward requests/decisions, and reminder
+acknowledgements execute against the latest state under the authority's serialization boundary,
+so unrelated household changes do not require client retries. Actor permissions, balances,
+occurrence status, reward status, and explicit occurrence preconditions still validate at commit.
+Future base revisions and stale replacement/management edits return `412`; Docker/NJS and Vite include the validated current workspace in that response. The
+client rebuilds the action against that snapshot without another read, retains the command ID,
+and retries once after a short randomized delay. Replacement edits retry only if the affected
+record is unchanged; a conflicting edit remains visible rather than being overwritten. Older HTTP authorities and
+Home Assistant panel errors retain the refresh-and-retry-once fallback. Domain validation and
+revision checks still run on every attempt; stale actions are never silently accepted. The
+command journal and activity log detect retries after a partially successful durable
+write. Internal materialization and delivery-status bookkeeping use the bounded command journal
+without retaining separate audit or outbox records.
+An explicit materialization command that leaves occurrences and delivery work unchanged returns
+the current revision without rewriting the workspace, history, or journal, even if a client sends
+fresh command IDs. Background authorities rebuild the 90-day past/45-day future window once per
+UTC day or when definitions or participants change; restart, restore, and recovery invalidate the
+window cache. After a settled scheduling pass, the authority retains a disposable in-memory
+checkpoint with the next scheduled, due, overdue, missed-work, reminder, participant pause/resume,
+delivery-retry, or UTC-day boundary. Reads and background ticks skip scheduling until that deadline
+or a workspace change. NJS shares this small checkpoint across request VMs and checks the workspace
+and history file identities, sizes, and modification/change timestamps before reusing it. A changed
+file, unsupported metadata, clock rollback, or lost checkpoint falls back to normal reconciliation.
+The 60-second background timer remains a lightweight wake-up check; unchanged ticks do not hydrate
+storage, scan history, or write timer records. A pass that changes domain state remains uncached
+until a subsequent pass settles, preserving catch-up after downtime and carry-forward work.
+Completing an after-completion chore still creates its next date synchronously.
 
-The workspace revision is the authority. Small workspaces are stored inline. When the hydrated
+Stale intent commands can rebase only across a contiguous suffix of revisions whose command IDs
+remain in the bounded journal. Known retries still return the current state without applying twice.
+A request older than that coverage, or across a journal gap, fails with `command_expired` (HTTP 409)
+and is not automatically resubmitted at a newer revision. Replacement edits retain compare-and-swap.
+
+The workspace revision is the authority. The working state retains at most 128 recent point
+transactions within a 32 KiB expanded budget. Older transactions move into immutable point-history
+pages targeting 256 KiB. Only the tail page is read and replaced during an append. The workspace
+manifest commits the page references, recent rows, balances, and `experience.pointProgress`
+summaries together; unpublished pages cannot change accounting. Summaries preserve lifetime,
+weekly, monthly, and selected-chore point progress without replaying the ledger. Definition-scoped
+totals survive occurrence pruning; new completion and reopen transactions retain their definition
+identity. Older generated occurrence IDs supply that identity for historical rows. Existing summaries
+without definition totals are rebuilt once from the archived ledger on load, preserving its records
+and advancing the workspace revision. Once definition totals exist, the redundant per-occurrence
+summary is cleared on load and remains empty, so live completions do not add manifest entries. Rewards,
+refundable requests, earned awards, and current balances retain their existing domain semantics.
+
+`GET /__navet_chores__/points?after=0&limit=100` and the native-panel
+`navet/chores/points/get` command page through archived and recent records in their original order.
+The limit is 1–500; responses include `points`, a string `cursor`, `hasMore`, and the workspace
+revision. Moving recent rows to history does not change cursor positions. Full backup export
+reassembles every point transaction and omits the derived progress summary; importing a partial
+working-state projection as a complete backup is rejected. A legacy full ledger is split on load,
+advancing the public revision once while preserving the complete previous recovery copy.
+
+Small working documents are stored inline. When the hydrated
 workspace exceeds 2 MiB, the storage authority writes occurrences, point transactions, progress
 awards, reward requests, activity, and delivery work into immutable chunks targeting 256 KiB, with
 a 2 MiB hard limit per hydrated chunk to preserve large legacy records. The manifest records each
 chunk's SHA-256 identity. Records are written before the manifest is committed; reads verify and
-hydrate every referenced chunk before accepting the revision.
+hydrate every referenced working-state chunk before accepting the revision. NJS and Vite check
+point-history file identities on normal reads and verify checksums when metadata changes or a
+page is requested. Changed valid identities are refreshed once without changing the domain
+revision. Home Assistant verifies history pages during initialization and keeps the working state
+in memory. Full exports verify every historical page. Missing or corrupt pages trigger recovery
+rather than discarding accounting records.
+Within a synchronous NJS transaction, working-state writes reuse only chunks that were just
+verified or successfully written. Unchanged working-state chunks are neither recompressed nor rewritten. The recovery
+copy reuses the validated primary's encoded representation when no cleanup is needed. These
+transaction caches are discarded before the next request or asynchronous delivery; external
+damage still triggers validation and recovery. Authorities skip chunk collection entirely when
+there are no chunk files, avoiding decoding two inline snapshots after each write.
 
 Workspace documents, chunks, recovery copies, and immutable history use a versioned deflate
 storage envelope when records exceed 32 KiB and compression saves at least 10%. The envelope
@@ -104,17 +166,24 @@ records the expanded byte count and SHA-256 checksum. Readers bound expansion be
 the decoded payload; NJS preflights the DEFLATE stream because its native inflater has no output
 limit. Home Assistant prepares, compresses, and decodes storage in its executor, keeping Store
 calls on the event loop. Readers retain support for uncompressed
-inline documents and chunk manifests. Public workspace, history, and backup formats remain
-complete hydrated JSON; compression does not remove or reorder events or change automation
-cursor offsets.
+inline documents and chunk manifests. Workspace responses contain the bounded recent point
+ledger and its progress summary; the points endpoint and complete backups expose older rows.
+Event history and backup documents remain hydrated JSON. Compression and archival do not remove
+or reorder records or change automation cursor offsets.
 
-On the first load after upgrading, the authority compresses existing records and reconciles
-obsolete future available after-completion repeats. Outstanding work, completions, people,
-definitions, points, and history remain intact. Recurrence repair computes the next schedule from
+On the first load after upgrading, the authority reconciles obsolete future available
+after-completion repeats and removes internal `workspace_materialized` and `outbox_delivery_updated`
+records from history, projected activity, and delivery work. Repeated activity IDs retain their
+first event; repeated outbox IDs retain a delivered result in preference to pending work. Distinct
+action IDs remain distinct even when their descriptions match. Scores, point transactions, reward
+requests and goals, badges, progress awards, completions, people, definitions, and recurrence
+anchors remain intact. Writes apply the same cleanup so bookkeeping cannot accumulate again.
+Recurrence repair computes the next schedule from
 completions and retained outstanding work, excluding unprotected future available rows from that
-calculation so a stale row cannot validate itself. It saves the pre-repair workspace as the healthy
-recovery copy before committing the maintenance marker. Interrupted writes can retry the repair;
-representation-only changes preserve the workspace revision. After a successful write, the
+calculation so a stale row cannot validate itself. The healthy recovery copy retains the previous
+domain state with the same bookkeeping cleanup. The maintenance marker is committed only after
+the recovery copy is written. Interrupted writes can retry the repair; cleaning projected activity
+and delivery work advances the workspace revision once, while compression alone preserves it. After a successful write, the
 serialized authority collects chunks referenced by neither the current manifest nor its recovery
 copy. Failed-file diagnostic snapshots prevent collection when their references cannot be verified.
 Core owns the unchanged domain contracts; Docker/NJS, Vite, and the Home Assistant integration own
@@ -164,13 +233,22 @@ installation key; the event handler checks the signature, recipient capability, 
 before sending a command to the authority.
 
 The capped workspace activity array is a rebuildable UI projection. Both authorities also append
-each unique activity to a separate versioned event-history file. Reads reconcile the current
-projection into that file, which closes the normal interrupted-write gap without letting statistics
-or export depend on the projection's retention limit.
+each unique activity to a separate versioned event-history file. After a changed workspace or
+history file, a lost checkpoint, or an elapsed deadline, reads reconcile the current projection into
+that file. This closes the normal interrupted-write gap without making unchanged refreshes scan
+history or making statistics/export depend on projection retention. NJS hydrates and verifies that
+history at most once per synchronous request or scheduler transaction, reusing it during repair,
+scheduling, and reconciliation. A committed history write updates the transaction's view. That view is discarded
+before another request or an asynchronous notification delivery so concurrent writes and damaged
+storage are observed on the next read.
 
 An active manager can choose a bounded immutable-history policy between 30 and 3,650 days and
 between 1,000 and 100,000 events. The policy changes through the same command envelope and preserves
-append order so automation cursors remain stable. The Household review surface reads immutable
+append order for meaningful events. Internal history cursor metadata retains original event
+positions and the consumed upper bound when cleanup removes bookkeeping or duplicate IDs, so
+existing automation cursors neither skip retained events nor replay them. New events advance
+from that upper bound; public history and backup events do not expose the cursor metadata.
+The Household review surface reads immutable
 history, provides 7- and 30-day household/profile views, builds the weekly report, explains workload
 imbalance without changing assignments, and exports filtered history as JSON or CSV.
 
@@ -178,7 +256,8 @@ The automation read surface lists definitions and bounded occurrence projections
 the mutable workspace document. The action endpoint is a stable alias for the same authoritative,
 revisioned command envelope. The event endpoint is an append-only cursor feed of occurrence-created,
 due, overdue, claim, completion, approval, rejection, skip, reopen, reassignment, and missed events.
-Setup and delivery bookkeeping remain available only through the audit history. Lifecycle timing
+Household setup and configuration actions remain in audit history; internal scheduling and
+delivery-status bookkeeping are discarded. Lifecycle timing
 events use deterministic IDs and the authority reconciles them against immutable history, so a
 restart does not duplicate them after the capped workspace projection rolls forward.
 

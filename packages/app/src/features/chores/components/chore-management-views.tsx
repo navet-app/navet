@@ -1332,7 +1332,8 @@ export function ProgressView({
                         person.id,
                         Object.values(data.occurrencesById),
                         experience.pointTransactions,
-                        now.toISOString()
+                        now.toISOString(),
+                        experience.pointProgress
                       );
                       return (
                         <div

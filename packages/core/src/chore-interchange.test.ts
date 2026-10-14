@@ -17,6 +17,24 @@ const participant: ChoreParticipant = {
 };
 
 describe('chore interchange', () => {
+  it('rejects a working-state projection as a complete backup', () => {
+    const workspace = createEmptyChoreWorkspace();
+    if (!workspace.experience) throw new Error('Expected experience');
+    workspace.experience.pointProgress = { version: 1, totals: {}, occurrences: {} };
+    expect(() => createChoreInterchangeDocument({ workspace, events: [] })).toThrow(
+      'Invalid chore workspace export'
+    );
+    expect(() =>
+      parseChoreInterchangeDocument({
+        contract: 'navet.chores',
+        version: 1,
+        exportedAt: '2026-10-14T00:00:00.000Z',
+        workspace,
+        events: [],
+      })
+    ).toThrow();
+  });
+
   it('round-trips a versioned backup and rejects unsupported documents', () => {
     const workspace = createEmptyChoreWorkspace();
     workspace.participantsById.maya = participant;
