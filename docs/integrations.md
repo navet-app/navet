@@ -64,9 +64,10 @@ unavailable message. Activity follows Home Assistant's filters and can omit freq
 numeric sensors. An empty result can mean there were no records, the entity is excluded, or the
 source no longer retains that period. Navet cannot reconstruct deleted records.
 
-Queries cover up to 31 days. Navet reads recent windows first and stops once the newest 1,000
-records and the limit indicator are known. Results offer **Show more** for additional rows within
-that limit. Choose a shorter range for more detail.
+Queries cover up to 31 days. Navet reads recent records first, widens sparse requests, and stops
+once the newest 1,000 records and the limit indicator are known. Sources such as Homey that return
+a retained period are read once for the selected range. Results offer **Show more** for additional
+rows within that limit. Choose a shorter range for more detail.
 Home Assistant uses the existing authenticated transport in standalone, Ingress and custom panel.
 
 ### Home Assistant

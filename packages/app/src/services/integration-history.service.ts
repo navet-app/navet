@@ -18,6 +18,14 @@ import {
 
 const ENTITY_HISTORY_FALLBACK_CONCURRENCY = 6;
 
+export function getIntegrationEntityHistoryQueryMode(entityId: string) {
+  const providerId = resolveIntegrationProviderId(entityId);
+  return (
+    getProviderRuntimeRegistration(providerId).historyFeatureService?.entityHistoryQueryMode ??
+    'time-range'
+  );
+}
+
 function readNativeEntityId(entityId: string) {
   return entityId.replace(/^[^:]+:/, '');
 }

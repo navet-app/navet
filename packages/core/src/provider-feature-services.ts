@@ -204,6 +204,8 @@ export interface ProviderAdminFeatureService extends ProviderRoomAdminFeatureSer
 }
 
 export interface ProviderHistoryFeatureService {
+  /** Retained-series readers should receive one range, rather than refetching a fixed period. */
+  entityHistoryQueryMode?: 'time-range' | 'retained-series';
   /** Recorded activity is separate from state history and numeric statistics. */
   getActivity?: (request: PlatformActivityRequest) => Promise<PlatformActivityEntry[]>;
   getMessageClient: () => PlatformMessageClient | null;

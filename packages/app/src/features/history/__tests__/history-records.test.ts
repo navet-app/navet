@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { histories, activity } = vi.hoisted(() => ({ histories: vi.fn(), activity: vi.fn() }));
+const { histories, activity, queryMode } = vi.hoisted(() => ({
+  histories: vi.fn(),
+  activity: vi.fn(),
+  queryMode: vi.fn(),
+}));
 vi.mock('@navet/app/services/integration-history.service', () => ({
   getIntegrationEntityHistories: histories,
   getIntegrationActivity: activity,
+  getIntegrationEntityHistoryQueryMode: queryMode,
 }));
 
 import {
@@ -20,7 +25,95 @@ const query: HistoryQuery = {
   mode: 'states',
 };
 describe('entity history exploration', () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    queryMode.mockReturnValue('time-range');
+  });
+
+  it.each([1, 31])('batches an empty %i-day range instead of reading every hour', async (days) => {
+    histories.mockResolvedValue([{ entityId: query.entityId, points: [] }]);
+    const end = Date.parse(query.endTime);
+    const request = {
+      ...query,
+      startTime: new Date(end - days * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    await expect(loadHistoryRecords(request, new AbortController().signal)).resolves.toEqual([]);
+    expect(histories.mock.calls.length).toBeLessThanOrEqual(days === 1 ? 5 : 35);
+    expect(histories.mock.calls.at(-1)?.[0].startTime).toBe(request.startTime);
+    for (const [range] of histories.mock.calls) {
+      expect(Date.parse(range.endTime) - Date.parse(range.startTime)).toBeLessThanOrEqual(
+        24 * 60 * 60 * 1000 + 1
+      );
+    }
+  });
+
+  it('reads a retained series once for the full requested range and still caps dense results', async () => {
+    queryMode.mockReturnValue('retained-series');
+    const end = Date.parse(query.endTime);
+    const request = {
+      ...query,
+      entityId: 'homey:device#temperature',
+      startTime: new Date(end - 31 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    histories.mockResolvedValue([
+      {
+        entityId: request.entityId,
+        points: Array.from({ length: 20000 }, (_, index) => ({
+          state: String(index),
+          changedAt: new Date(end - (index + 1) * 10).toISOString(),
+        })),
+      },
+    ]);
+    const records = await loadHistoryRecords(request, new AbortController().signal);
+    expect(records).toHaveLength(1001);
+    expect(histories).toHaveBeenCalledTimes(1);
+    expect(histories.mock.calls[0][0]).toMatchObject({
+      startTime: request.startTime,
+      endTime: new Date(end).toISOString(),
+    });
+    expect(queryMode).toHaveBeenCalledWith(request.entityId);
+  });
+
+  it('batches sparse activity without applying the state reader policy', async () => {
+    queryMode.mockReturnValue('retained-series');
+    activity.mockResolvedValue([]);
+    const end = Date.parse(query.endTime);
+    await expect(
+      loadHistoryRecords(
+        {
+          ...query,
+          mode: 'activity',
+          startTime: new Date(end - 24 * 60 * 60 * 1000).toISOString(),
+        },
+        new AbortController().signal
+      )
+    ).resolves.toEqual([]);
+    expect(activity).toHaveBeenCalledTimes(5);
+    expect(queryMode).not.toHaveBeenCalled();
+  });
+
+  it('keeps the dense cutoff when an older window follows a sparse window', async () => {
+    const end = Date.parse(query.endTime);
+    const denseEnd = end - 60 * 60 * 1000;
+    histories.mockResolvedValueOnce([{ entityId: query.entityId, points: [] }]);
+    histories.mockResolvedValueOnce([
+      {
+        entityId: query.entityId,
+        points: Array.from({ length: 20000 }, (_, index) => ({
+          state: String(index),
+          changedAt: new Date(denseEnd - (index + 1) * 10).toISOString(),
+        })),
+      },
+    ]);
+    const records = await loadHistoryRecords(
+      { ...query, startTime: new Date(end - 31 * 24 * 60 * 60 * 1000).toISOString() },
+      new AbortController().signal
+    );
+    expect(records).toHaveLength(1001);
+    expect(records?.[0].value).toBe('0');
+    expect(records?.[1000].value).toBe('1000');
+    expect(histories).toHaveBeenCalledTimes(2);
+  });
   it('preserves numeric and nonnumeric values and marks a carried initial state', async () => {
     histories.mockResolvedValue([
       {

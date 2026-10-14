@@ -13,6 +13,7 @@ import {
   getIntegrationActivity,
   getIntegrationEntityHistories,
   getIntegrationEntityHistory,
+  getIntegrationEntityHistoryQueryMode,
   getIntegrationHistoryMessageClient,
   getIntegrationStatisticsHistory,
   integrationHistoryService,
@@ -27,6 +28,20 @@ describe('integrationHistoryService', () => {
       historyFeatureService: null,
     }));
     integrationStore.getState().setCurrentProviderId('home_assistant');
+  });
+
+  it('reads the owning adapter query policy independently from the current provider', () => {
+    integrationStore.getState().setCurrentProviderId('openhab');
+    getProviderRuntimeRegistrationMock.mockImplementation((providerId) => ({
+      historyFeatureService:
+        providerId === 'homey' ? { entityHistoryQueryMode: 'retained-series' } : null,
+    }));
+    expect(getIntegrationEntityHistoryQueryMode('homey:device#temperature')).toBe(
+      'retained-series'
+    );
+    expect(getIntegrationEntityHistoryQueryMode('home_assistant:sensor.temperature')).toBe(
+      'time-range'
+    );
   });
 
   it('routes activity to the owning provider and keeps canonical identities', async () => {

@@ -1,12 +1,14 @@
 import {
   getIntegrationActivity,
   getIntegrationEntityHistories,
+  getIntegrationEntityHistoryQueryMode,
 } from '@navet/app/services/integration-history.service';
 import type { PlatformActivityEntry } from '@navet/core/provider-feature-models';
 
 export const HISTORY_RECORD_LIMIT = 1000;
 const FETCH_LIMIT = HISTORY_RECORD_LIMIT + 1;
 const HISTORY_WINDOW_MS = 60 * 60 * 1000;
+const MAX_HISTORY_WINDOW_MS = 24 * HISTORY_WINDOW_MS;
 
 export type HistoryMode = 'states' | 'activity';
 export interface HistoryQuery {
@@ -50,6 +52,10 @@ export async function loadHistoryRecords(
 ): Promise<HistoryRecord[] | null> {
   const start = Date.parse(query.startTime);
   const end = Date.parse(query.endTime);
+  const retainedSeries =
+    query.mode === 'states' &&
+    getIntegrationEntityHistoryQueryMode(query.entityId) === 'retained-series';
+  let windowSpan = retainedSeries ? end - start : HISTORY_WINDOW_MS;
   const records: HistoryRecord[] = [];
   const trim = () => {
     records.sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp));
@@ -63,7 +69,8 @@ export async function loadHistoryRecords(
 
   for (let windowEnd = end; windowEnd > start; ) {
     signal.throwIfAborted();
-    const windowStart = Math.max(start, windowEnd - HISTORY_WINDOW_MS);
+    const windowStart = Math.max(start, windowEnd - windowSpan);
+    let windowRecords = 0;
     const range = {
       entityIds: [query.entityId],
       // Overlap by one millisecond so strict provider endpoints retain boundary changes.
@@ -85,6 +92,7 @@ export async function loadHistoryRecords(
           name: entry.name,
           context: entry.context,
         });
+        windowRecords += 1;
       }
     } else {
       const series = await getIntegrationEntityHistories(
@@ -104,10 +112,15 @@ export async function loadHistoryRecords(
           value: point.state,
           atStart: point.atStart === true || timestamp < start,
         });
+        windowRecords += 1;
       }
     }
     trim();
     if (records.length >= FETCH_LIMIT) break;
+    // Widen sparse reads without starting dense readers with an entire month of data.
+    if (!retainedSeries && windowRecords < FETCH_LIMIT / 4) {
+      windowSpan = Math.min(windowSpan * 2, MAX_HISTORY_WINDOW_MS);
+    }
     windowEnd = windowStart;
   }
   return records;

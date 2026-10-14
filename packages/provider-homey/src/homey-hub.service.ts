@@ -357,6 +357,7 @@ export const homeyHubFeatureService: ProviderHubFeatureService = {
 };
 
 export const homeyHistoryFeatureService: ProviderHistoryFeatureService = {
+  entityHistoryQueryMode: 'retained-series',
   getMessageClient: () => null,
   supportsEntityHistory: (entityId) => {
     const snapshot = homeyService.getSnapshot();
