@@ -5,6 +5,7 @@ import {
   archiveChorePointProgress,
   choreTargetProgress,
   earnChoreProgressAwards,
+  isChorePointProgress,
   progressCycleKey,
 } from './chore-progress-policy.ts';
 import type { ChoreOccurrence } from './chores.ts';
@@ -51,8 +52,10 @@ describe('chore progression', () => {
         timestamp: items[0].scheduledAt,
       });
       const ids = items.map((item) => item.id);
-      const first = archiveChorePointProgress(undefined, transactions.slice(0, 40), ids);
-      const summary = archiveChorePointProgress(first, transactions.slice(40, 80), ids);
+      // Keep: compare full ledgers with the archived read model for every supported cycle.
+      const byId = Object.fromEntries(items.map((item) => [item.id, item]));
+      const first = archiveChorePointProgress(undefined, transactions.slice(0, 40), ids, byId);
+      const summary = archiveChorePointProgress(first, transactions.slice(40, 80), ids, byId);
       const recent = transactions.slice(80);
       for (const selected of [false, true]) {
         const target: ChoreProgressTarget = {
@@ -94,6 +97,100 @@ describe('chore progression', () => {
       }
       expect(first.totals.once.maya).not.toBe(summary.totals.once.maya);
       expect(Object.keys(archiveChorePointProgress(summary, [], []).occurrences)).toHaveLength(0);
+    }
+  );
+
+  it.each(['once', 'weekly', 'monthly'] as const)(
+    'retains scoped %s points and awards after occurrences are pruned',
+    (cycle) => {
+      const at = '2026-01-05T10:00:00.000Z';
+      const old = { ...occurrence('custom-old-id', 'done', at), definitionId: 'kitchen:dishes' };
+      const rows: ChorePointTransaction[] = [
+        {
+          id: 'old',
+          participantId: 'maya',
+          occurrenceId: old.id,
+          pointsDelta: 10,
+          kind: 'completion',
+          timestamp: at,
+        },
+        {
+          id: 'reopen',
+          participantId: 'maya',
+          occurrenceId: `kitchen:dishes:${at}:maya`,
+          pointsDelta: -3,
+          kind: 'reopen',
+          timestamp: at,
+        },
+        {
+          id: 'unrelated',
+          participantId: 'maya',
+          definitionId: 'laundry',
+          pointsDelta: 50,
+          kind: 'completion',
+          timestamp: at,
+        },
+        {
+          id: 'adjustment',
+          participantId: 'maya',
+          definitionId: 'kitchen:dishes',
+          pointsDelta: 999,
+          kind: 'adjustment',
+          timestamp: at,
+        },
+        {
+          id: 'recent',
+          participantId: 'maya',
+          definitionId: 'kitchen:dishes',
+          occurrenceId: 'custom-pruned-id',
+          pointsDelta: 5,
+          kind: 'completion',
+          timestamp: at,
+        },
+      ];
+      const first = archiveChorePointProgress(undefined, rows.slice(0, 1), [old.id], {
+        [old.id]: old,
+      });
+      const summary = archiveChorePointProgress(first, rows.slice(1, 4), []);
+      expect(Object.keys(summary.occurrences)).toEqual([]);
+      const target: ChoreProgressTarget = {
+        id: 'scoped',
+        title: 'Dishes',
+        metric: 'points',
+        cycle,
+        definitionIds: ['kitchen:dishes', 'kitchen:dishes'],
+        target: 12,
+        awardPoints: 2,
+      };
+      const now = cycle === 'once' ? '2026-10-14T12:00:00.000Z' : at;
+      for (const policy of [{ choreTargetProgress, earnChoreProgressAwards }, njsProgress]) {
+        expect(policy.choreTargetProgress(target, 'maya', [], rows.slice(4), now, summary)).toBe(
+          12
+        );
+        expect(policy.choreTargetProgress(target, 'other', [], rows.slice(4), now, summary)).toBe(
+          0
+        );
+        const input = {
+          badges: { scoped: target },
+          achievements: {},
+          participantIds: ['maya'],
+          occurrences: [],
+          transactions: rows.slice(4),
+          existingAwards: [],
+          pointProgress: summary,
+          at: now,
+        };
+        const earned = policy.earnChoreProgressAwards(input);
+        expect(earned.awards).toHaveLength(1);
+        expect(earned.transactions).toMatchObject([{ pointsDelta: 2 }]);
+        expect(
+          policy.earnChoreProgressAwards({ ...input, existingAwards: earned.awards }).awards
+        ).toEqual([]);
+      }
+      expect(isChorePointProgress(summary)).toBe(true);
+      expect(
+        isChorePointProgress({ ...summary, definitions: { dishes: { once: { maya: '12' } } } })
+      ).toBe(false);
     }
   );
 

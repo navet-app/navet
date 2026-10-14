@@ -576,6 +576,51 @@ describe('NJS chore workspace store', () => {
     );
   });
 
+  it('rebuilds legacy scoped summaries once without changing archived records', () => {
+    const mockFs = createMockFs();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    const document = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
+    document.storageMaintenanceVersion = 2;
+    document.data.definitionsById = {};
+    document.data.occurrencesById = {};
+    document.data.experience = createChoreExperienceState();
+    const rows = Array.from({ length: 300 }, (_, index) => ({
+      id: `old:${index}`,
+      participantId: 'maya',
+      occurrenceId: OCCURRENCE_ID,
+      kind: 'completion',
+      pointsDelta: 1,
+      timestamp: document.updatedAt,
+    }));
+    document.data.experience.pointTransactions = rows;
+    document.data.experience.earnedPointsByParticipant = { maya: 300 };
+    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(document));
+    choreStore.handle(createRequest());
+    const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+    const legacy = durableStorage.unpack(
+      JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}'),
+      hash
+    ) as typeof document;
+    delete legacy.data.experience.pointProgress.definitions;
+    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(durableStorage.pack(legacy, hash)));
+    const repaired = createRequest();
+    choreStore.handle(repaired);
+    expect(parseResponse(repaired).data.experience.pointProgress.definitions.dishes.once.maya).toBe(
+      172
+    );
+    expect(parseResponse(repaired).revision).toBe(legacy.revision + 1);
+    mockFs.writeFileSync.mockClear();
+    const warm = createRequest();
+    choreStore.handle(warm);
+    expect(parseResponse(warm)).toEqual(parseResponse(repaired));
+    expect(mockFs.writeFileSync).not.toHaveBeenCalled();
+    const backup = createRequest({ uri: '/__navet_chores__/backup' });
+    choreStore.handle(backup);
+    expect(parseResponse(backup).workspace.experience.pointTransactions).toEqual(rows);
+  });
+
   it('keeps large accounting and unfinished work durable across commands, restarts and backup recovery', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));

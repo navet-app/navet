@@ -2089,6 +2089,7 @@ function applyChoreWorkspaceActionWithoutRecurrence(
             timestamp,
             commandId,
             occurrenceId: previousOccurrence.id,
+            definitionId: previousOccurrence.definitionId,
           },
         ],
       };

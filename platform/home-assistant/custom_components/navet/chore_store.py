@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import html
 import json
+import re
 import secrets
 import zlib
 from pathlib import Path
@@ -1283,7 +1284,7 @@ def _update_experience_points(
     experience["pointTransactions"] = [*experience.get("pointTransactions", []), {
         "id": f"points:{command_id}", "participantId": participant_id,
         "pointsDelta": points_delta, "kind": "completion" if became_final else "reopen",
-        "timestamp": timestamp, "commandId": command_id, "occurrenceId": previous.get("id"),
+        "timestamp": timestamp, "commandId": command_id, "occurrenceId": previous.get("id"), "definitionId": previous.get("definitionId"),
     }]
     return experience, participant_id, points_delta
 
@@ -1313,16 +1314,34 @@ def _valid_point_progress(value: Any) -> bool:
         return isinstance(groups, Mapping) and all(isinstance(group, Mapping)
             and all(type(number) is int and abs(number) <= 9007199254740991 for number in group.values()) for group in groups.values())
     return (isinstance(value, Mapping) and value.get("version") == 1 and groups_valid(value.get("totals"))
-        and isinstance(value.get("occurrences"), Mapping) and all(groups_valid(groups) for groups in value["occurrences"].values()))
+        and isinstance(value.get("occurrences"), Mapping) and all(groups_valid(groups) for groups in value["occurrences"].values())
+        and ("definitions" not in value or (isinstance(value["definitions"], Mapping)
+            and all(groups_valid(groups) for groups in value["definitions"].values()))))
 
 
-def _archive_point_progress(previous: Mapping[str, Any] | None, records: list[dict[str, Any]], occurrence_ids: set[str]) -> dict[str, Any]:
+def _point_definition_id(item: Mapping[str, Any], occurrences: Mapping[str, Any]) -> str | None:
+    if item.get("definitionId"):
+        return item["definitionId"]
+    occurrence_id = item.get("occurrenceId") or ""
+    if not isinstance(occurrence_id, str):
+        return None
+    if occurrence_id in occurrences:
+        return occurrences[occurrence_id]["definitionId"]
+    match = re.match(r"^(.+?):\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z:", occurrence_id)
+    return match[1] if match else None
+
+
+def _archive_point_progress(previous: Mapping[str, Any] | None, records: list[dict[str, Any]], occurrence_ids: set[str], occurrences: Mapping[str, Any] | None = None) -> dict[str, Any]:
     summary = copy.deepcopy(previous or {"version": 1, "totals": {}, "occurrences": {}})
+    summary.setdefault("definitions", {})
     summary["occurrences"] = {key: value for key, value in summary["occurrences"].items() if key in occurrence_ids}
     for item in records:
         if item.get("kind") not in {"completion", "reopen"}:
             continue
         groups = [summary["totals"]]
+        definition_id = _point_definition_id(item, occurrences or {})
+        if definition_id:
+            groups.append(summary["definitions"].setdefault(definition_id, {}))
         if item.get("occurrenceId") in occurrence_ids:
             groups.append(summary["occurrences"].setdefault(item["occurrenceId"], {}))
         for group in groups:
@@ -1340,6 +1359,8 @@ def _archived_point_progress(summary: Mapping[str, Any] | None, target: Mapping[
     period = f"{cycle}:{_progress_cycle_key(cycle, at)}" if cycle in {"weekly", "monthly"} else "once"
     if not target.get("definitionIds"):
         return summary["totals"].get(period, {}).get(participant_id, 0)
+    if "definitions" in summary:
+        return sum(summary["definitions"].get(key, {}).get(period, {}).get(participant_id, 0) for key in set(target["definitionIds"]))
     return sum(summary["occurrences"].get(key, {}).get(period, {}).get(participant_id, 0) for key in occurrence_ids)
 
 
@@ -1359,7 +1380,7 @@ def _progress_value(target: Mapping[str, Any], participant_id: str, data: Mappin
         return max(0, _archived_point_progress(data["experience"].get("pointProgress"), target, participant_id, relevant_ids, at) + sum(item.get("pointsDelta", 0) for item in data["experience"].get("pointTransactions", [])
             if item.get("participantId") == participant_id and item.get("kind") in {"completion", "reopen"}
             and _progress_cycle_key(cycle, item["timestamp"]) == cycle_key
-            and (not selected or item.get("occurrenceId") in relevant_ids)))
+            and (not selected or _point_definition_id(item, data["occurrencesById"]) in selected)))
     if metric == "days":
         return len({item["completedAt"][:10] for item in completed if item.get("completedAt")})
     days: dict[str, str] = {}
@@ -1763,6 +1784,12 @@ class ChoreAuthority:
 
     async def _archive_points(self, document: dict[str, Any]) -> None:
         experience = document["data"]["experience"]
+        if document.get("pointHistory") and "definitions" not in (experience.get("pointProgress") or {}):
+            records = await self._point_page(document, 0, document["pointHistory"]["count"])
+            summary = await self.hass.async_add_executor_job(_archive_point_progress, None, records,
+                set(document["data"]["occurrencesById"]), document["data"]["occurrencesById"])
+            experience = {**experience, "pointProgress": summary}
+            document["data"] = {**document["data"], "experience": experience}
         archived, recent = await self.hass.async_add_executor_job(_split_recent_points, experience["pointTransactions"])
         if not archived:
             return
@@ -1774,7 +1801,7 @@ class ChoreAuthority:
         for key, stored, count in prepared:
             await self._chunk_store(key).async_save(stored)
             pages.append({"key": key, "count": count, "identity": None})
-        summary = await self.hass.async_add_executor_job(_archive_point_progress, experience.get("pointProgress"), archived, set(document["data"]["occurrencesById"]))
+        summary = await self.hass.async_add_executor_job(_archive_point_progress, experience.get("pointProgress"), archived, set(document["data"]["occurrencesById"]), document["data"]["occurrencesById"])
         document["pointHistory"] = {"version": 1, "count": history["count"] + len(archived), "pages": pages}
         document["data"] = {**document["data"], "experience": {**experience, "pointTransactions": recent, "pointProgress": summary}}
 
@@ -1925,14 +1952,15 @@ class ChoreAuthority:
             self._alert_key = alert_key
             self._loaded = True
             history_needs_compaction = isinstance(decoded_history, Mapping) and "eventCursors" not in decoded_history
+            progress_needs_rebuild = bool(self._document.get("pointHistory")) and "definitions" not in (data["experience"].get("pointProgress") or {})
             if run_initial_tick and (self._document.get("storageMaintenanceVersion") != 2
-                or history_needs_repair or history_needs_compaction or _split_recent_points(data["experience"]["pointTransactions"])[0]):
+                or history_needs_repair or history_needs_compaction or progress_needs_rebuild or _split_recent_points(data["experience"]["pointTransactions"])[0]):
                 previous = copy.deepcopy(self._document)
                 timestamp = _iso(_now())
                 repaired = await self.hass.async_add_executor_job(_compact_workspace,
                     _repair_legacy_repeats(data, timestamp)
                     if self._document.get("storageMaintenanceVersion") not in (1, 2) else data)
-                changed = repaired != data or bool(_split_recent_points(repaired["experience"]["pointTransactions"])[0])
+                changed = repaired != data or progress_needs_rebuild or bool(_split_recent_points(repaired["experience"]["pointTransactions"])[0])
                 next_document = {**self._document, "storageMaintenanceVersion": 2,
                     "revision": self.revision + (1 if changed else 0),
                     "updatedAt": timestamp if changed else self._document["updatedAt"], "data": repaired}

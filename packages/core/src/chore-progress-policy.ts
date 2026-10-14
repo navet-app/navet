@@ -9,13 +9,27 @@ import { setOwnRecordValue } from './record-safety.ts';
 
 const hasOwn = Object.prototype.hasOwnProperty;
 
+/** Legacy generated IDs retain their definition even after the occurrence is pruned. */
+export function chorePointDefinitionId(
+  transaction: ChorePointTransaction,
+  occurrences: Record<string, Pick<ChoreOccurrence, 'definitionId'>>
+): string | undefined {
+  const id = transaction.occurrenceId;
+  if (transaction.definitionId) return transaction.definitionId;
+  if (id && hasOwn.call(occurrences, id)) return occurrences[id].definitionId;
+  const match = id && /^(.+?):\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z:/.exec(id);
+  return match ? match[1] : undefined;
+}
+
 /** Increment a read model only when records move from the recent ledger into history. */
 export function archiveChorePointProgress(
   previous: ChorePointProgress | undefined,
   transactions: readonly ChorePointTransaction[],
-  occurrenceIds: readonly string[]
+  occurrenceIds: readonly string[],
+  liveOccurrences: Record<string, Pick<ChoreOccurrence, 'definitionId'>> = {}
 ): ChorePointProgress {
   const totals = Object.assign(Object.create(null), previous?.totals || {});
+  const definitions = Object.assign(Object.create(null), previous?.definitions || {});
   const occurrences: ChorePointProgress['occurrences'] = Object.create(null);
   const present: Record<string, boolean> = Object.create(null);
   for (let index = 0; index < occurrenceIds.length; index++) {
@@ -45,15 +59,23 @@ export function archiveChorePointProgress(
       'monthly:' + progressCycleKey('monthly', transaction.timestamp),
     ];
     const id = transaction.occurrenceId;
+    const definitionId = chorePointDefinitionId(transaction, liveOccurrences);
+    const definitionGroups = definitionId
+      ? Object.assign(Object.create(null), definitions[definitionId] || {})
+      : null;
     const groups =
       id && present[id] ? Object.assign(Object.create(null), occurrences[id] || {}) : null;
     for (let period = 0; period < periods.length; period++) {
       add(totals, periods[period], transaction.participantId, transaction.pointsDelta);
       if (groups) add(groups, periods[period], transaction.participantId, transaction.pointsDelta);
+      if (definitionGroups)
+        add(definitionGroups, periods[period], transaction.participantId, transaction.pointsDelta);
     }
     if (id && groups) setOwnRecordValue(occurrences, id, groups);
+    if (definitionId && definitionGroups)
+      setOwnRecordValue(definitions, definitionId, definitionGroups);
   }
-  return { version: 1, totals, occurrences };
+  return { version: 1, totals, occurrences, definitions };
 }
 
 export function isChorePointProgress(value: unknown): value is ChorePointProgress {
@@ -71,7 +93,12 @@ export function isChorePointProgress(value: unknown): value is ChorePointProgres
       (group) => isRecord(group) && Object.values(group).every(Number.isSafeInteger)
     );
   }
-  return groupsValid(value.totals) && Object.values(value.occurrences).every(groupsValid);
+  return (
+    groupsValid(value.totals) &&
+    Object.values(value.occurrences).every(groupsValid) &&
+    (value.definitions === undefined ||
+      (isRecord(value.definitions) && Object.values(value.definitions).every(groupsValid)))
+  );
 }
 
 export function archivedChoreTargetPoints(
@@ -79,7 +106,8 @@ export function archivedChoreTargetPoints(
   cycle: ChoreProgressTarget['cycle'],
   participantId: string,
   occurrenceIds: readonly string[] | null,
-  at: string
+  at: string,
+  definitionIds?: readonly string[]
 ): number {
   if (!summary) return 0;
   const period =
@@ -89,6 +117,17 @@ export function archivedChoreTargetPoints(
     return group && hasOwn.call(group, participantId) ? group[participantId] : 0;
   }
   if (!occurrenceIds) return points(summary.totals);
+  if (definitionIds && summary.definitions) {
+    let total = 0;
+    const seen = Object.create(null);
+    for (let index = 0; index < definitionIds.length; index++) {
+      const id = definitionIds[index];
+      if (seen[id]) continue;
+      setOwnRecordValue(seen, id, true);
+      total += points(summary.definitions[id]);
+    }
+    return total;
+  }
   let total = 0;
   for (let index = 0; index < occurrenceIds.length; index++)
     total += points(summary.occurrences[occurrenceIds[index]]);
@@ -133,6 +172,9 @@ export function choreTargetProgress(
   );
   if (target.metric === 'selected_chore' || target.metric === 'count') return completed.length;
   if (target.metric === 'points') {
+    const byId: Record<string, Pick<ChoreOccurrence, 'definitionId'>> = Object.create(null);
+    for (let index = 0; index < occurrences.length; index++)
+      setOwnRecordValue(byId, occurrences[index].id, occurrences[index]);
     return Math.max(
       0,
       archivedChoreTargetPoints(
@@ -140,7 +182,8 @@ export function choreTargetProgress(
         target.cycle,
         participantId,
         target.definitionIds?.length ? relevant.map((item) => item.id) : null,
-        at
+        at,
+        target.definitionIds
       ) +
         transactions
           .filter(
@@ -149,7 +192,7 @@ export function choreTargetProgress(
               (item.kind === 'completion' || item.kind === 'reopen') &&
               inCycle(target.cycle, item.timestamp, cycleKey) &&
               (!target.definitionIds?.length ||
-                relevant.some((occurrence) => occurrence.id === item.occurrenceId))
+                target.definitionIds.includes(chorePointDefinitionId(item, byId) ?? ''))
           )
           .reduce((sum, item) => sum + item.pointsDelta, 0)
     );
@@ -274,7 +317,8 @@ export function isPointTransaction(value: unknown): value is ChorePointTransacti
     isOptionalTimestamp(value.timestamp) &&
     (value.commandId === undefined || typeof value.commandId === 'string') &&
     (value.rewardRequestId === undefined || typeof value.rewardRequestId === 'string') &&
-    (value.occurrenceId === undefined || typeof value.occurrenceId === 'string')
+    (value.occurrenceId === undefined || typeof value.occurrenceId === 'string') &&
+    (value.definitionId === undefined || typeof value.definitionId === 'string')
   );
 }
 

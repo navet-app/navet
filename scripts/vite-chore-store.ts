@@ -505,14 +505,19 @@ export function createViteChoreStoreRequestHandler(options: {
     return document
   }
   const archiveStoredPoints = (document: PersistedChoreWorkspaceDocument): void => {
-    const experience = document.data.experience
+    let experience = document.data.experience
     if (!experience) return
+    if (document.pointHistory && !experience.pointProgress?.definitions) {
+      const records = choreDurableStorage.readPointHistory<ChorePointTransaction>(document.pointHistory, 0, document.pointHistory.count, durableHash, readPointChunk)
+      experience = { ...experience, pointProgress: archiveChorePointProgress(undefined, records, Object.keys(document.data.occurrencesById), document.data.occurrencesById) }
+      document.data = { ...document.data, experience }
+    }
     const split = choreDurableStorage.splitRecentPoints(experience.pointTransactions)
     if (!split.archived.length) return
     document.pointHistory = choreDurableStorage.appendPointHistory(document.pointHistory, split.archived, durableHash, readPointChunk,
       (key, chunk) => writeJson(`${filePath}.chunk-${key}`, chunk, choreDurableStorage.CHUNK_BYTES), pointChunkIdentity)
     document.data = { ...document.data, experience: { ...experience, pointTransactions: split.recent,
-      pointProgress: archiveChorePointProgress(experience.pointProgress, split.archived, Object.keys(document.data.occurrencesById)) } }
+      pointProgress: archiveChorePointProgress(experience.pointProgress, split.archived, Object.keys(document.data.occurrencesById), document.data.occurrencesById) } }
   }
   const fullPointData = (document: PersistedChoreWorkspaceDocument): ChoreWorkspaceData => {
     if (!document.pointHistory || !document.data.experience) return document.data
@@ -696,7 +701,8 @@ export function createViteChoreStoreRequestHandler(options: {
       document = next
       documentNeedsMigration = false
     }
-    if (document.data.experience && choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length) {
+    if (document.data.experience && (choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length ||
+        (document.pointHistory && !document.data.experience.pointProgress?.definitions))) {
       const next = { ...document, revision: document.revision + 1, updatedAt: timestamp }
       persistDocument(document, next)
       document = next

@@ -84,6 +84,7 @@ export interface ChorePointTransaction {
   commandId?: string;
   rewardRequestId?: string;
   occurrenceId?: string;
+  definitionId?: string;
 }
 
 export interface ChoreProgressTarget {
@@ -130,6 +131,7 @@ export interface ChorePointProgress {
   version: 1;
   totals: Record<string, Record<string, number>>;
   occurrences: Record<string, Record<string, Record<string, number>>>;
+  definitions?: Record<string, Record<string, Record<string, number>>>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

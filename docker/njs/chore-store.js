@@ -1631,6 +1631,7 @@ function updateExperiencePoints(data, previousOccurrence, nextOccurrence, comman
         pointsDelta: becameFinal ? points : -points,
         kind: becameFinal ? 'completion' : 'reopen', timestamp, commandId,
         occurrenceId: previousOccurrence.id,
+        definitionId: previousOccurrence.definitionId,
       }]) });
   }
   const awardedMissionIds = (experience.awardedMissionIds || []).slice();
@@ -2709,9 +2710,16 @@ function pointChunkIdentity(key) {
 }
 
 function archiveStoredPoints(document) {
-  const experience = document.data.experience;
+  let experience = document.data.experience;
+  const rebuilding = document.pointHistory && (!experience.pointProgress || !experience.pointProgress.definitions);
+  if (rebuilding) {
+    const records = choreDurableStorage.readPointHistory(document.pointHistory, 0, document.pointHistory.count, durableHash, readPointChunk);
+    experience = Object.assign({}, experience, { pointProgress: choreProgressPolicy.archiveChorePointProgress(undefined,
+      records, Object.keys(document.data.occurrencesById), document.data.occurrencesById) });
+    document.data = Object.assign({}, document.data, { experience });
+  }
   const split = choreDurableStorage.splitRecentPoints(experience.pointTransactions);
-  if (!split.archived.length) return false;
+  if (!split.archived.length) return Boolean(rebuilding);
   const pointHistory = choreDurableStorage.appendPointHistory(document.pointHistory, split.archived,
     durableHash, readPointChunk,
     function (key, chunk) { writeJson(CHORE_WORKSPACE_PATH + '.chunk-' + key, chunk, choreDurableStorage.CHUNK_BYTES); },
@@ -2720,13 +2728,14 @@ function archiveStoredPoints(document) {
   document.data = Object.assign({}, document.data, { experience: Object.assign({}, experience, {
     pointTransactions: split.recent,
     pointProgress: choreProgressPolicy.archiveChorePointProgress(experience.pointProgress,
-      split.archived, Object.keys(document.data.occurrencesById)),
+      split.archived, Object.keys(document.data.occurrencesById), document.data.occurrencesById),
   }) });
   return true;
 }
 
 function prepareWorkingDocument(document) {
-  if (!choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length) {
+  if (!choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length &&
+      !(document.pointHistory && (!document.data.experience.pointProgress || !document.data.experience.pointProgress.definitions))) {
     if (storedDocumentCache && storedDocumentCache.document === document && storedDocumentCache.pointIdentitiesChanged)
       writeStoredDocument(CHORE_WORKSPACE_PATH, document);
     return document;

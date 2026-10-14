@@ -121,7 +121,11 @@ transactions within a 32 KiB expanded budget. Older transactions move into immut
 pages targeting 256 KiB. Only the tail page is read and replaced during an append. The workspace
 manifest commits the page references, recent rows, balances, and `experience.pointProgress`
 summaries together; unpublished pages cannot change accounting. Summaries preserve lifetime,
-weekly, monthly, and selected-chore point progress without replaying the ledger. Rewards,
+weekly, monthly, and selected-chore point progress without replaying the ledger. Definition-scoped
+totals survive occurrence pruning; new completion and reopen transactions retain their definition
+identity. Older generated occurrence IDs supply that identity for historical rows. Existing summaries
+without definition totals are rebuilt once from the archived ledger on load, preserving its records
+and advancing the workspace revision. Rewards,
 refundable requests, earned awards, and current balances retain their existing domain semantics.
 
 `GET /__navet_chores__/points?after=0&limit=100` and the native-panel

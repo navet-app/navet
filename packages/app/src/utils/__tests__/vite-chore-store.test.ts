@@ -490,6 +490,55 @@ describe('Vite chore workspace store', () => {
     expect(JSON.parse(latest.body).data.experience.pointTransactions).toHaveLength(2);
   });
 
+  it('rebuilds legacy scoped summaries once while preserving complete history', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chore-scoped-progress-'));
+    tempDirs.push(directory);
+    const filePath = join(directory, 'chores.json');
+    const { document } = continuousMaterializationFixture();
+    document.data.definitionsById = {};
+    document.data.occurrencesById = {};
+    document.data.activity = [];
+    document.data.outbox = [];
+    document.data.experience = createChoreExperienceState();
+    const rows = Array.from({ length: 300 }, (_, index) => ({
+      id: `old:${index}`,
+      participantId: 'manager',
+      occurrenceId: 'dishes:2026-01-05T10:00:00.000Z:manager',
+      kind: 'completion' as const,
+      pointsDelta: 1,
+      timestamp: '2026-01-05T10:00:00.000Z',
+    }));
+    document.data.experience.pointTransactions = rows;
+    document.data.experience.earnedPointsByParticipant = { manager: 300 };
+    writeFileSync(filePath, JSON.stringify(document));
+    const makeHandler = () =>
+      createViteChoreStoreRequestHandler({ filePath, resolvePrincipal: () => PRINCIPAL });
+    const first = createResponse();
+    await makeHandler()(createRequest('GET', '/workspace'), first.response);
+    const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+    const legacy = durableStorage.unpack(JSON.parse(readFileSync(filePath, 'utf8')), hash) as {
+      revision: number;
+      data: { experience: { pointProgress: { definitions?: unknown } } };
+    };
+    delete legacy.data.experience.pointProgress.definitions;
+    writeFileSync(filePath, JSON.stringify(durableStorage.pack(legacy, hash)));
+    const handler = makeHandler();
+    const repaired = createResponse();
+    await handler(createRequest('GET', '/workspace'), repaired.response);
+    expect(
+      JSON.parse(repaired.body).data.experience.pointProgress.definitions.dishes.once.manager
+    ).toBe(172);
+    expect(JSON.parse(repaired.body).revision).toBe(legacy.revision + 1);
+    const saved = readFileSync(filePath, 'utf8');
+    const warm = createResponse();
+    await handler(createRequest('GET', '/workspace'), warm.response);
+    expect(warm.body).toBe(repaired.body);
+    expect(readFileSync(filePath, 'utf8')).toBe(saved);
+    const backup = createResponse();
+    await handler(createRequest('GET', '/backup'), backup.response);
+    expect(JSON.parse(backup.body).workspace.experience.pointTransactions).toEqual(rows);
+  });
+
   it('upgrades a nearly full inline ledger and keeps its complete history through restart and backup', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'navet-chore-store-'));
     tempDirs.push(directory);
