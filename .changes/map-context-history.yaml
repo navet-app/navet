@@ -1,0 +1,5 @@
+type: new
+audiences:
+  - standalone
+  - home-assistant
+summary: Show Home Assistant zones and geolocation markers on the map, with optional paths drawn from retained person or tracker locations.

@@ -15,6 +15,7 @@ import type {
   ProviderEntityRuntimeService,
   ProviderHistoryFeatureService,
   ProviderLightFeatureService,
+  ProviderMapFeatureService,
   ProviderMediaFeatureService,
   ProviderNativeActionFeatureService,
   ProviderNotificationFeatureService,
@@ -84,6 +85,7 @@ export interface IntegrationProviderRuntimeRegistration {
   energyFeatureService?: ProviderEnergyFeatureService;
   entityRuntimeService?: ProviderEntityRuntimeService;
   historyFeatureService?: ProviderHistoryFeatureService;
+  mapFeatureService?: ProviderMapFeatureService;
   hubFeatureService?: ProviderHubFeatureService;
   lightFeatureService?: ProviderLightFeatureService;
   mediaFeatureService?: ProviderMediaFeatureService;
