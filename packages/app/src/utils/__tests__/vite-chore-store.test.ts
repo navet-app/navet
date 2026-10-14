@@ -580,6 +580,49 @@ describe('Vite chore workspace store', () => {
     expect(retry.body).toBe(fresh.body);
   });
 
+  it('advances a version-1 revision when only the point ledger needs archival', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'navet-chore-upgrade-'));
+    tempDirs.push(directory);
+    const filePath = join(directory, 'chores.json');
+    const { document } = continuousMaterializationFixture();
+    Object.assign(document, { storageMaintenanceVersion: 1, tenantId: TENANT_ID });
+    document.data.definitionsById = {};
+    document.data.occurrencesById = {};
+    document.data.activity = [];
+    document.data.outbox = [];
+    document.data.experience = createChoreExperienceState();
+    document.data.experience.pointTransactions = Array.from({ length: 129 }, (_, index) => ({
+      id: `ledger:${index}`,
+      participantId: 'manager',
+      pointsDelta: 1,
+      kind: 'adjustment' as const,
+      timestamp: document.updatedAt,
+    }));
+    document.data.experience.earnedPointsByParticipant = { manager: 129 };
+    writeFileSync(filePath, JSON.stringify(document));
+    const handler = createViteChoreStoreRequestHandler({
+      filePath,
+      resolvePrincipal: () => PRINCIPAL,
+    });
+    const read = createResponse();
+    await handler(
+      createRequest('GET', '/workspace', { 'x-navet-chore-revision': String(document.revision) }),
+      read.response
+    );
+    expect(read.status).toBe(200);
+    expect(JSON.parse(read.body).revision).toBe(document.revision + 1);
+    expect(JSON.parse(read.body).data.experience.pointTransactions).toHaveLength(128);
+    expect(JSON.parse(read.body).data.experience.earnedPointsByParticipant.manager).toBe(129);
+    const warm = createResponse();
+    await handler(
+      createRequest('GET', '/workspace', {
+        'x-navet-chore-revision': String(document.revision + 1),
+      }),
+      warm.response
+    );
+    expect(warm.status).toBe(304);
+  });
+
   it.each(['legacy', 'redundant'])(
     'repairs %s scoped summaries once while preserving complete history',
     async (format) => {

@@ -504,6 +504,10 @@ export function createViteChoreStoreRequestHandler(options: {
     }
     return document
   }
+  const needsPointMaintenance = (document: PersistedChoreWorkspaceDocument): boolean => Boolean(
+    document.data.experience && (choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length ||
+      (document.pointHistory && (!document.data.experience.pointProgress?.definitions || Object.keys(document.data.experience.pointProgress.occurrences).length))),
+  )
   const archiveStoredPoints = (document: PersistedChoreWorkspaceDocument): void => {
     let experience = document.data.experience
     if (!experience) return
@@ -682,7 +686,7 @@ export function createViteChoreStoreRequestHandler(options: {
           .map((item) => item.id),
       )
       const cleaned = compactChoreWorkspace(document.data)
-      const changed = removed.size > 0 || documentNeedsMigration || cleaned !== document.data
+      const changed = removed.size > 0 || documentNeedsMigration || cleaned !== document.data || needsPointMaintenance(document)
       const next = {
         ...document,
         storageMaintenanceVersion: 2,
@@ -706,8 +710,7 @@ export function createViteChoreStoreRequestHandler(options: {
       document = next
       documentNeedsMigration = false
     }
-    if (document.data.experience && (choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length ||
-        (document.pointHistory && (!document.data.experience.pointProgress?.definitions || Object.keys(document.data.experience.pointProgress.occurrences).length)))) {
+    if (needsPointMaintenance(document)) {
       const next = { ...document, revision: document.revision + 1, updatedAt: timestamp }
       persistDocument(document, next)
       document = next

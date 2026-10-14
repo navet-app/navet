@@ -2738,9 +2738,13 @@ function archiveStoredPoints(document) {
   return true;
 }
 
+function needsPointMaintenance(document) {
+  return Boolean(choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length ||
+      (document.pointHistory && (!document.data.experience.pointProgress || !document.data.experience.pointProgress.definitions || Object.keys(document.data.experience.pointProgress.occurrences).length)));
+}
+
 function prepareWorkingDocument(document) {
-  if (!choreDurableStorage.splitRecentPoints(document.data.experience.pointTransactions).archived.length &&
-      !(document.pointHistory && (!document.data.experience.pointProgress || !document.data.experience.pointProgress.definitions || Object.keys(document.data.experience.pointProgress.occurrences).length))) {
+  if (!needsPointMaintenance(document)) {
     if (storedDocumentCache && storedDocumentCache.document === document && storedDocumentCache.pointIdentitiesChanged)
       writeStoredDocument(CHORE_WORKSPACE_PATH, document);
     return document;
@@ -2882,10 +2886,11 @@ function repairStoredWorkspace(document, previous) {
   if (document.storageMaintenanceVersion === 1) {
     appendEventHistory(document.data.activity, document.data.historyRetention);
     const data = choreStoragePolicy.compactChoreWorkspace(document.data);
+    const changed = data !== document.data || needsPointMaintenance(document);
     const next = Object.assign({}, document, {
       storageMaintenanceVersion: 2, data,
-      revision: document.revision + (data !== document.data ? 1 : 0),
-      updatedAt: data !== document.data ? nowIso() : document.updatedAt,
+      revision: document.revision + (changed ? 1 : 0),
+      updatedAt: changed ? nowIso() : document.updatedAt,
     });
     persistDocument(document, next);
     return next;

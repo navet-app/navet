@@ -519,6 +519,42 @@ describe('NJS chore workspace store', () => {
     expect(parseResponse(retry)).toEqual(parseResponse(fresh));
   });
 
+  it('advances a version-1 revision when only the point ledger needs archival', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T08:00:00.000Z'));
+    const mockFs = createMockFs();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    const document = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
+    document.storageMaintenanceVersion = 1;
+    document.data.activity = [];
+    document.data.outbox = [];
+    document.data.experience = createChoreExperienceState();
+    document.data.experience.pointTransactions = Array.from({ length: 129 }, (_, index) => ({
+      id: `ledger:${index}`,
+      participantId: 'maya',
+      pointsDelta: 1,
+      kind: 'adjustment',
+      timestamp: document.updatedAt,
+    }));
+    document.data.experience.earnedPointsByParticipant = { maya: 129 };
+    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(document));
+    const read = createRequest({
+      headersIn: { 'X-Navet-Chore-Revision': String(document.revision) },
+    });
+    choreStore.handle(read);
+    expect(read.return.mock.calls.at(-1)?.[0]).toBe(200);
+    expect(parseResponse(read).revision).toBe(document.revision + 1);
+    expect(parseResponse(read).data.experience.pointTransactions).toHaveLength(128);
+    expect(parseResponse(read).data.experience.earnedPointsByParticipant.maya).toBe(129);
+    const warm = createRequest({
+      headersIn: { 'X-Navet-Chore-Revision': String(document.revision + 1) },
+    });
+    choreStore.handle(warm);
+    expect(warm.return.mock.calls.at(-1)?.[0]).toBe(304);
+  });
+
   it('bounds the recent point ledger by expanded UTF-8 bytes as well as row count', () => {
     const base = {
       id: '',
