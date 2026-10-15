@@ -1962,7 +1962,7 @@ function assertDefinitionReferences(
   }
 }
 
-function isWorkspaceMissionComplete(workspace: ChoreWorkspaceData, mission: ChoreMission) {
+export function isWorkspaceMissionComplete(workspace: ChoreWorkspaceData, mission: ChoreMission) {
   const startsAt = Date.parse(mission.startsAt ?? mission.createdAt);
   const endsAt = mission.endsAt ? Date.parse(mission.endsAt) : Number.POSITIVE_INFINITY;
   const completedDefinitionIds = new Set(

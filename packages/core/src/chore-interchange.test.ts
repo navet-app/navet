@@ -22,6 +22,87 @@ const participant: ChoreParticipant = {
 };
 
 describe('chore interchange', () => {
+  it.each([0, 10])(
+    'resets dynamically completed mission windows with %i reward points',
+    (rewardPoints) => {
+      const workspace = convertChoreOpsChores({
+        chores: [{ id: 'plants', name: 'Water plants', assigneeIds: ['maya'] }],
+        participants: [participant],
+        timeZone: 'UTC',
+      }).workspace;
+      const definition = Object.values(workspace.definitionsById)[0];
+      if (!workspace.experience) throw new Error('Expected experience settings');
+      workspace.experience.gamificationMode = 'family';
+      workspace.experience.missionsById.garden = {
+        id: 'garden',
+        title: 'Garden',
+        definitionIds: [definition.id],
+        status: 'active',
+        startsAt: '2026-08-01T00:00:00.000Z',
+        endsAt: '2026-08-31T00:00:00.000Z',
+        rewardPoints,
+        createdAt: participant.createdAt,
+        updatedAt: participant.updatedAt,
+      };
+      workspace.occurrencesById.plants = {
+        id: 'plants',
+        definitionId: definition.id,
+        scheduledAt: participant.createdAt,
+        dueAt: participant.createdAt,
+        assignmentSlot: 'maya',
+        assigneeIds: ['maya'],
+        status: 'available',
+        updatedAt: participant.updatedAt,
+      };
+      const completed = applyChoreWorkspaceAction({
+        workspace,
+        commandId: 'complete',
+        timestamp: participant.createdAt,
+        action: {
+          type: 'occurrence_action',
+          occurrenceId: 'plants',
+          action: { type: 'complete', participantId: 'maya' },
+        },
+      }).data;
+      expect(completed.experience?.missionsById.garden.status).toBe('active');
+      expect(completed.experience?.awardedMissionIds).toEqual(rewardPoints ? ['garden'] : []);
+      const before = JSON.stringify(completed);
+      const restored = parseChoreInterchangeDocument(
+        createChoreConfigurationDocument({
+          workspace: completed,
+          exportedAt: '2030-01-01T00:00:00Z',
+        })
+      ).workspace;
+      expect(restored.experience?.missionsById.garden).toEqual({
+        ...workspace.experience.missionsById.garden,
+        startsAt: undefined,
+        endsAt: undefined,
+      });
+      expect(restored.occurrencesById).toEqual({});
+      expect(restored.experience?.awardedMissionIds).toEqual([]);
+      const future = '2030-01-01T10:00:00.000Z';
+      restored.occurrencesById.future = {
+        ...workspace.occurrencesById.plants,
+        id: 'future',
+        scheduledAt: future,
+        dueAt: future,
+        updatedAt: future,
+      };
+      const recompleted = applyChoreWorkspaceAction({
+        workspace: restored,
+        commandId: 'future-complete',
+        timestamp: future,
+        action: {
+          type: 'occurrence_action',
+          occurrenceId: 'future',
+          action: { type: 'complete', participantId: 'maya' },
+        },
+      }).data;
+      expect(recompleted.experience?.householdBonusPoints).toBe(rewardPoints);
+      expect(JSON.stringify(completed)).toBe(before);
+    }
+  );
+
   it('merges colliding appearance and goal configuration while preserving destination progress', () => {
     const current = convertChoreOpsChores({
       chores: [{ id: 'plants', name: 'Current plants', assigneeIds: ['maya'] }],

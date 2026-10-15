@@ -6,6 +6,7 @@ import {
   type ChoreWorkspaceData,
   createEmptyChoreWorkspace,
   isChoreWorkspaceData,
+  isWorkspaceMissionComplete,
   migrateChoreWorkspaceData,
 } from './chores.ts';
 import { setOwnRecordValue } from './record-safety.ts';
@@ -144,7 +145,10 @@ export function createChoreConfigurationDocument(input: {
       achievementsById: clone(source.achievementsById),
     };
     for (const mission of Object.values(workspace.experience.missionsById)) {
-      if (mission.status === 'complete') {
+      if (
+        mission.status === 'complete' ||
+        (mission.definitionIds.length > 0 && isWorkspaceMissionComplete(input.workspace, mission))
+      ) {
         mission.status = 'active';
         delete mission.startsAt;
         delete mission.endsAt;
