@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.18.2
+
+## Improvements and bug fixes
+
+- Reduce chore scheduling and concurrent write costs with paged accounting storage, preserving scores, rewards, history, and recovery.
+- Fixed Docker and Home Assistant add-on startup on hosts with larger memory pages.
+
 ## 0.18.1
 
 ## New features
