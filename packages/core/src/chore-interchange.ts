@@ -1,3 +1,4 @@
+import { createChoreExperienceState } from './chore-experience.ts';
 import {
   type ChoreActivity,
   type ChoreDefinition,
@@ -111,6 +112,44 @@ export function parseChoreInterchangeDocument(value: unknown): ChoreInterchangeD
     events: value.events as ChoreActivity[],
     exportedAt: value.exportedAt,
   });
+}
+
+/** Export reusable household configuration without work instances or earned progress. */
+export function createChoreConfigurationDocument(input: {
+  workspace: ChoreWorkspaceData;
+  exportedAt?: string;
+}): ChoreInterchangeDocument {
+  if (!isChoreWorkspaceData(input.workspace)) throw new Error('Invalid chore workspace export');
+  const workspace = createEmptyChoreWorkspace();
+  workspace.participantsById = clone(input.workspace.participantsById);
+  workspace.definitionsById = clone(input.workspace.definitionsById);
+  if (input.workspace.historyRetention) {
+    workspace.historyRetention = clone(input.workspace.historyRetention);
+  }
+  for (const definition of Object.values(workspace.definitionsById)) {
+    delete definition.assignment.rotationCursor;
+  }
+  const source = input.workspace.experience;
+  if (source) {
+    workspace.experience = {
+      ...createChoreExperienceState(),
+      setupStartedAt: source.setupStartedAt,
+      setupCompletedAt: source.setupCompletedAt,
+      gamificationMode: source.gamificationMode,
+      presentationByDefinitionId: clone(source.presentationByDefinitionId),
+      missionsById: clone(source.missionsById),
+      rewardGoalsById: clone(source.rewardGoalsById),
+      badgesById: clone(source.badgesById),
+      achievementsById: clone(source.achievementsById),
+    };
+    for (const mission of Object.values(workspace.experience.missionsById)) {
+      if (mission.status === 'complete') mission.status = 'active';
+    }
+    for (const reward of Object.values(workspace.experience.rewardGoalsById)) {
+      delete reward.startingPoints;
+    }
+  }
+  return createChoreInterchangeDocument({ workspace, events: [], exportedAt: input.exportedAt });
 }
 
 function nextImportedId(sourceId: string, occupied: Set<string>) {

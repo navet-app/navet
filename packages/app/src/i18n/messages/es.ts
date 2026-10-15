@@ -506,6 +506,12 @@ export const esMessages = {
   'household.data.title': 'Datos y recuperación',
   'household.data.description':
     'Descarga una copia completa, restaura una copia o reinicia este espacio de tareas.',
+  'household.data.exportConfiguration': 'Exportar tareas',
+  'household.data.configurationDescription':
+    'Exporta la configuración y apariencia de las tareas sin historial ni progreso.',
+  'household.data.configurationExported': 'Configuración de tareas exportada.',
+  'household.data.configurationExportFailed':
+    'No se pudo exportar la configuración de tareas. Inténtalo de nuevo.',
   'household.data.export': 'Descargar copia',
   'household.data.import': 'Importar copia',
   'household.data.reset': 'Reiniciar tareas',

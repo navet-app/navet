@@ -127,6 +127,17 @@ Navet validates the backup before replacing the empty workspace. The backup must
 household manager. A completed backup opens the restored household directly; an incomplete backup
 returns to the appropriate setup state.
 
+## Export chore configuration
+
+In **Household → Settings → Data and recovery**, choose **Export chores** to download your
+people, chores, assignments, schedules, reminders, motivation settings, and chore appearance.
+The file excludes occurrences, completions, activity, earned points, and reward history.
+Rotation progress and completed goals also start fresh.
+
+To reuse the setup, choose **Import backup** and select the configuration file. **Merge** adds it
+to the current household; **Replace** starts from the exported setup without its previous history.
+Schedules retain their configured dates. Dashboard card placement and size are not included.
+
 ## Download a backup
 
 1. Open **Household → Settings**.

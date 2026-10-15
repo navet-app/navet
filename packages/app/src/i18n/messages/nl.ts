@@ -502,6 +502,12 @@ export const nlMessages = {
   'household.data.title': 'Gegevens en herstel',
   'household.data.description':
     'Download een volledige back-up, herstel er een of wis deze huishoudelijke takenruimte.',
+  'household.data.exportConfiguration': 'Taken exporteren',
+  'household.data.configurationDescription':
+    'Exporteert taakinstellingen en uiterlijk zonder geschiedenis of voortgang.',
+  'household.data.configurationExported': 'Taakconfiguratie geëxporteerd.',
+  'household.data.configurationExportFailed':
+    'De taakconfiguratie kon niet worden geëxporteerd. Probeer het opnieuw.',
   'household.data.export': 'Back-up downloaden',
   'household.data.import': 'Back-up importeren',
   'household.data.reset': 'Taken wissen',

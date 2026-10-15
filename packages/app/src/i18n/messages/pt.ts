@@ -504,6 +504,12 @@ export const ptMessages = {
   'household.data.title': 'Dados e recuperação',
   'household.data.description':
     'Descarregue uma cópia completa, restaure uma cópia ou reponha este espaço de tarefas.',
+  'household.data.exportConfiguration': 'Exportar tarefas',
+  'household.data.configurationDescription':
+    'Exporta as definições e o aspeto das tarefas sem histórico nem progresso.',
+  'household.data.configurationExported': 'Configuração das tarefas exportada.',
+  'household.data.configurationExportFailed':
+    'Não foi possível exportar a configuração das tarefas. Tente novamente.',
   'household.data.export': 'Descarregar cópia',
   'household.data.import': 'Importar cópia',
   'household.data.reset': 'Repor tarefas',

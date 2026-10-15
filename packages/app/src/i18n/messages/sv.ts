@@ -500,6 +500,12 @@ export const svMessages = {
   'household.data.title': 'Data och återställning',
   'household.data.description':
     'Hämta en fullständig säkerhetskopia, återställ en kopia eller nollställ hushållets sysslor.',
+  'household.data.exportConfiguration': 'Exportera sysslor',
+  'household.data.configurationDescription':
+    'Exporterar sysslornas inställningar och utseende utan historik eller framsteg.',
+  'household.data.configurationExported': 'Sysslornas inställningar har exporterats.',
+  'household.data.configurationExportFailed':
+    'Sysslornas inställningar kunde inte exporteras. Försök igen.',
   'household.data.export': 'Hämta säkerhetskopia',
   'household.data.import': 'Importera säkerhetskopia',
   'household.data.reset': 'Nollställ sysslor',

@@ -507,6 +507,12 @@ export const frMessages = {
   'household.data.title': 'Données et récupération',
   'household.data.description':
     'Téléchargez une sauvegarde complète, restaurez-en une ou réinitialisez cet espace de tâches.',
+  'household.data.exportConfiguration': 'Exporter les tâches',
+  'household.data.configurationDescription':
+    'Exporte les paramètres et l’apparence des tâches sans historique ni progression.',
+  'household.data.configurationExported': 'Configuration des tâches exportée.',
+  'household.data.configurationExportFailed':
+    'La configuration des tâches n’a pas pu être exportée. Réessayez.',
   'household.data.export': 'Télécharger la sauvegarde',
   'household.data.import': 'Importer une sauvegarde',
   'household.data.reset': 'Réinitialiser les tâches',

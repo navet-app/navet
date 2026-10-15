@@ -501,6 +501,12 @@ export const fiMessages = {
   'household.data.title': 'Tiedot ja palautus',
   'household.data.description':
     'Lataa täydellinen varmuuskopio, palauta kopio tai nollaa tämä kotitöiden työtila.',
+  'household.data.exportConfiguration': 'Vie askareet',
+  'household.data.configurationDescription':
+    'Vie askareiden asetukset ja ulkoasun ilman historiaa tai edistymistä.',
+  'household.data.configurationExported': 'Askareiden asetukset viety.',
+  'household.data.configurationExportFailed':
+    'Askareiden asetuksia ei voitu viedä. Yritä uudelleen.',
   'household.data.export': 'Lataa varmuuskopio',
   'household.data.import': 'Tuo varmuuskopio',
   'household.data.reset': 'Nollaa kotityöt',

@@ -510,6 +510,12 @@ export const itMessages = {
   'household.data.title': 'Dati e ripristino',
   'household.data.description':
     'Scarica un backup completo, ripristinane uno o azzera questo spazio delle faccende.',
+  'household.data.exportConfiguration': 'Esporta attività',
+  'household.data.configurationDescription':
+    'Esporta impostazioni e aspetto delle attività senza cronologia o progressi.',
+  'household.data.configurationExported': 'Configurazione delle attività esportata.',
+  'household.data.configurationExportFailed':
+    'Impossibile esportare la configurazione delle attività. Riprova.',
   'household.data.export': 'Scarica backup',
   'household.data.import': 'Importa backup',
   'household.data.reset': 'Azzera faccende',

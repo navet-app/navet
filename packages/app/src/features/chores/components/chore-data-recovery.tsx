@@ -12,14 +12,28 @@ import {
 import { useI18n, useTheme } from '@navet/app/hooks';
 import { loadChoreBackup } from '@navet/app/services/chore-workspace.service';
 import {
+  type ChoreInterchangeDocument,
   convertChoreOpsChores,
   convertHomeAssistantTodoItems,
+  createChoreConfigurationDocument,
   parseChoreInterchangeDocument,
 } from '@navet/core/chore-interchange';
 import type { ChoreParticipant } from '@navet/core/chores';
 import { Download, Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useChoreWorkspaceStore } from '../chore-workspace-store';
+
+function downloadDocument(value: ChoreInterchangeDocument, filename: string) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(value)], { type: 'application/json' }));
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export function ChoreDataRecovery({
   managerActorId,
@@ -33,6 +47,8 @@ export function ChoreDataRecovery({
   const { t } = useI18n();
   const { theme } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
+  const data = useChoreWorkspaceStore((state) => state.data);
+  const exportDescriptionId = useId();
   const restoreBackup = useChoreWorkspaceStore((state) => state.restoreBackup);
   const deleteAll = useChoreWorkspaceStore((state) => state.deleteAll);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,16 +68,23 @@ export function ChoreDataRecovery({
       setFeedback(t('household.data.exportFailed'));
       return;
     }
-    const blob = new Blob([JSON.stringify(result.value)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `navet-chores-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadDocument(result.value, `navet-chores-${new Date().toISOString().slice(0, 10)}.json`);
     setFeedback(t('household.data.exported'));
+  };
+
+  const exportChores = () => {
+    setFeedback(null);
+    if (!data) return;
+    try {
+      const document = createChoreConfigurationDocument({ workspace: data });
+      downloadDocument(
+        document,
+        `navet-chores-configuration-${document.exportedAt.slice(0, 10)}.json`
+      );
+      setFeedback(t('household.data.configurationExported'));
+    } catch {
+      setFeedback(t('household.data.configurationExportFailed'));
+    }
   };
 
   const readBackup = async (file: File | undefined) => {
@@ -161,6 +184,17 @@ export function ChoreDataRecovery({
             variant="secondary"
             className="min-h-10"
             leading={<Download className="h-4 w-4 shrink-0" />}
+            disabled={!data}
+            aria-describedby={exportDescriptionId}
+            onClick={exportChores}
+          >
+            {t('household.data.exportConfiguration')}
+          </Button>
+          <Button
+            size="compact"
+            variant="secondary"
+            className="min-h-10"
+            leading={<Download className="h-4 w-4 shrink-0" />}
             onClick={() => void downloadBackup()}
           >
             {t('household.data.export')}
@@ -183,6 +217,9 @@ export function ChoreDataRecovery({
             {t('household.data.reset')}
           </Button>
         </div>
+        <p id={exportDescriptionId} className={`mt-3 text-xs ${surface.textSecondary}`}>
+          {t('household.data.configurationDescription')}
+        </p>
         <input
           ref={fileInputRef}
           className="sr-only"

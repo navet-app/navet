@@ -2161,6 +2161,12 @@ export const enMessages = {
   'household.data.title': 'Data and recovery',
   'household.data.description':
     'Download a complete chores backup, restore one, or reset this household workspace.',
+  'household.data.exportConfiguration': 'Export chores',
+  'household.data.configurationDescription':
+    'Exports chore settings and appearance without history or progress.',
+  'household.data.configurationExported': 'Chore configuration exported.',
+  'household.data.configurationExportFailed':
+    'The chore configuration could not be exported. Try again.',
   'household.data.export': 'Download backup',
   'household.data.import': 'Import backup',
   'household.data.reset': 'Reset chores',

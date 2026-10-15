@@ -1,0 +1,3 @@
+type: new
+audiences: [standalone, home-assistant, hacs]
+summary: Export chore settings and appearance without completion history or earned progress.

@@ -1162,6 +1162,7 @@ export const SettingsAndRecovery: Story = {
     await userEvent.click(within(navigation).getByRole('button', { name: 'Data and recovery' }));
     const recoveryPanel = within(workspace).getByRole('main', { name: 'Data and recovery' });
     await expect(recoveryPanel).toBeInTheDocument();
+    await expect(within(workspace).getByRole('button', { name: 'Export chores' })).toBeEnabled();
     await expect(within(workspace).getByRole('button', { name: 'Download backup' })).toBeVisible();
     await expect(
       within(recoveryPanel).queryByRole('combobox', { name: 'Motivation style' })

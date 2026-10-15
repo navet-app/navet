@@ -500,6 +500,12 @@ export const noMessages = {
   'household.data.title': 'Data og gjenoppretting',
   'household.data.description':
     'Last ned en fullstendig sikkerhetskopi, gjenopprett en kopi eller nullstill dette oppgaveområdet.',
+  'household.data.exportConfiguration': 'Eksporter gjøremål',
+  'household.data.configurationDescription':
+    'Eksporterer innstillinger og utseende for gjøremål uten historikk eller fremdrift.',
+  'household.data.configurationExported': 'Oppsettet for gjøremål er eksportert.',
+  'household.data.configurationExportFailed':
+    'Oppsettet for gjøremål kunne ikke eksporteres. Prøv igjen.',
   'household.data.export': 'Last ned sikkerhetskopi',
   'household.data.import': 'Importer sikkerhetskopi',
   'household.data.reset': 'Nullstill oppgaver',

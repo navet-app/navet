@@ -501,6 +501,12 @@ export const daMessages = {
   'household.data.title': 'Data og gendannelse',
   'household.data.description':
     'Hent en komplet sikkerhedskopi, gendan en kopi eller nulstil dette opgaveområde.',
+  'household.data.exportConfiguration': 'Eksportér pligter',
+  'household.data.configurationDescription':
+    'Eksporterer indstillinger og udseende for pligter uden historik eller fremskridt.',
+  'household.data.configurationExported': 'Opsætningen for pligter er eksporteret.',
+  'household.data.configurationExportFailed':
+    'Opsætningen for pligter kunne ikke eksporteres. Prøv igen.',
   'household.data.export': 'Hent sikkerhedskopi',
   'household.data.import': 'Importér sikkerhedskopi',
   'household.data.reset': 'Nulstil opgaver',

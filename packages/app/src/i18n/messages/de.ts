@@ -506,6 +506,12 @@ export const deMessages = {
   'household.data.title': 'Daten und Wiederherstellung',
   'household.data.description':
     'Eine vollständige Sicherung herunterladen, wiederherstellen oder diesen Aufgabenbereich zurücksetzen.',
+  'household.data.exportConfiguration': 'Aufgaben exportieren',
+  'household.data.configurationDescription':
+    'Exportiert Aufgabeneinstellungen und Aussehen ohne Verlauf oder Fortschritt.',
+  'household.data.configurationExported': 'Aufgabeneinstellungen exportiert.',
+  'household.data.configurationExportFailed':
+    'Die Aufgabeneinstellungen konnten nicht exportiert werden. Versuche es erneut.',
   'household.data.export': 'Sicherung herunterladen',
   'household.data.import': 'Sicherung importieren',
   'household.data.reset': 'Aufgaben zurücksetzen',

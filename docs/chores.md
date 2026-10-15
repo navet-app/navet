@@ -130,7 +130,9 @@ ID, and use the Navet chores calendar to see upcoming due work.
 Access to the installation and chore management are separate: screens must be authenticated,
 while household roles and the optional management PIN govern planning and recovery actions.
 
-Use **Settings → Data and recovery** to download a complete backup. Restoring with **Merge** keeps
+Use **Settings → Data and recovery → Export chores** to save chore configuration and appearance
+without history or earned progress. **Download backup** includes the complete workspace and history.
+Both files use **Import backup**. Restoring with **Merge** keeps
 the current workspace and remaps conflicts; **Replace** removes the current workspace before the
 backup is restored. A damaged workspace keeps its saved file unchanged while Navet offers retry,
 last-known-good recovery, and an explicit start-over path.

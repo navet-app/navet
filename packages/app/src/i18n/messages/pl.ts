@@ -502,6 +502,12 @@ export const plMessages = {
   'household.data.title': 'Dane i odzyskiwanie',
   'household.data.description':
     'Pobierz pełną kopię, przywróć ją lub wyzeruj ten obszar obowiązków.',
+  'household.data.exportConfiguration': 'Eksportuj obowiązki',
+  'household.data.configurationDescription':
+    'Eksportuje ustawienia i wygląd obowiązków bez historii i postępów.',
+  'household.data.configurationExported': 'Wyeksportowano konfigurację obowiązków.',
+  'household.data.configurationExportFailed':
+    'Nie udało się wyeksportować konfiguracji obowiązków. Spróbuj ponownie.',
   'household.data.export': 'Pobierz kopię',
   'household.data.import': 'Importuj kopię',
   'household.data.reset': 'Wyzeruj obowiązki',
