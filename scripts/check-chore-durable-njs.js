@@ -502,4 +502,40 @@ for (let quietIndex = 0; quietIndex < quietEvidenceSources.length; quietIndex +=
   const quietRecovered = request('GET', '/__navet_chores__/workspace');
   assert(quietRecovered.status === 200 && quietRecovered.body.data.occurrencesById[quietOriginal.id].supersededAt === quietBoundary, 'Backup recovery retains quiet durable history without successor');
 }
+// Exercise the HTTP action path: direct materializer tests do not include the
+// large action-handler frame that exhausted the native NJS stack on completion.
+const completionAssignmentModes = ['person', 'everyone'];
+for (let modeIndex = 0; modeIndex < completionAssignmentModes.length; modeIndex++) {
+  const assignmentMode = completionAssignmentModes[modeIndex];
+  const completionDefinition = Object.assign({}, archiveDefinition, {
+    id: 'completion-stack',
+    assignment: { mode: assignmentMode, participantIds: ['manager'] },
+    schedule: { frequency: 'after_completion', startDate: new Date(Date.now() - 86400000).toISOString().slice(0, 10), time: '18:00', timeZone: 'Europe/Stockholm', intervalDays: 3 },
+  });
+  const completionOccurrence = Object.assign({}, historicalMissed, {
+    id: 'completion-stack:missed', definitionId: completionDefinition.id,
+    supersededAt: undefined, scheduledAt: new Date(Date.now() - 86400000).toISOString(),
+    dueAt: new Date(Date.now() - 82800000).toISOString(),
+  });
+  const completionData = Object.assign({}, archiveData, {
+    definitionsById: { 'completion-stack': completionDefinition },
+    occurrencesById: { 'completion-stack:missed': completionOccurrence },
+  });
+  const completionDocument = JSON.stringify(Object.assign({}, doc, { revision: 1, data: completionData }));
+  paths['/data/navet-chore-workspace.json'] = completionDocument;
+  paths['/data/navet-chore-workspace.last-good.json'] = completionDocument;
+  const completionRead = request('GET', '/__navet_chores__/workspace');
+  const completionResult = request('POST', '/__navet_chores__/commands', {
+    commandId: 'native-completion-stack-' + assignmentMode,
+    baseRevision: completionRead.body.revision,
+    action: { type: 'occurrence_action', occurrenceId: completionOccurrence.id, action: { type: 'complete', participantId: 'manager' } },
+  });
+  assert(completionResult.status === 200, 'Native repeating completion succeeds for ' + assignmentMode + ': ' + JSON.stringify(completionResult.body));
+  assert(completionResult.body.data.occurrencesById[completionOccurrence.id].status === 'done', 'Native completion is committed');
+  const completionReload = request('GET', '/__navet_chores__/workspace');
+  assert(completionReload.body.data.occurrencesById[completionOccurrence.id].status === 'done', 'Native completion survives reload');
+  assert(Object.values(completionReload.body.data.occurrencesById).some(function (item) {
+    return item.definitionId === completionDefinition.id && item.status === 'available' && Date.parse(item.scheduledAt) > Date.now();
+  }), 'Native completion persists the next interval');
+}
 print('Passed native NJS chore recurrence assertions');

@@ -1991,7 +1991,7 @@ function appendWorkspaceActivities(data, activities) {
   return next;
 }
 
-function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefinitionId) {
+function applyWorkspaceAction(data, commandId, action, timestamp) {
   recordSafety.assertSafeRecord(action);
   data = Object.assign({}, data, { occurrencesById: choreRecurrencePolicy.retainChoreSupersession(data.occurrencesById, data.definitionsById, timestamp, data.activity, Object.keys(data.participantsById)) });
   if (action.type === 'occurrence_action') {
@@ -2002,7 +2002,7 @@ function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefi
     if (occurrence && previous.completedAt !== occurrence.completedAt &&
       definition && definition.schedule.frequency === 'after_completion') {
       const now = Date.parse(timestamp);
-      return applyWorkspaceAction(next, commandId + ':recurrence', {
+      return materializeWorkspaceOccurrences(next, commandId + ':recurrence', {
         type: 'materialize_occurrences',
         rangeStart: new Date(now - 90 * 86400000).toISOString(),
         rangeEnd: new Date(now + 45 * 86400000).toISOString(),
@@ -2549,6 +2549,11 @@ function applyWorkspaceAction(data, commandId, action, timestamp, recurrenceDefi
     return appendWorkspaceActivities(Object.assign({}, data, { occurrencesById, outbox }), activities);
   }
 
+  return materializeWorkspaceOccurrences(data, commandId, action, timestamp);
+}
+
+// Keep recurrence out of the large action frame: NJS has a small VM stack.
+function materializeWorkspaceOccurrences(data, commandId, action, timestamp, recurrenceDefinitionId) {
   const rangeStart = Date.parse(action.rangeStart);
   const rangeEnd = Date.parse(action.rangeEnd);
   if (
