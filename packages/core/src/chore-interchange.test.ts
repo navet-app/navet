@@ -22,6 +22,101 @@ const participant: ChoreParticipant = {
 };
 
 describe('chore interchange', () => {
+  it('reserves deleted goal IDs retained in award history when merging configuration', () => {
+    const current = convertChoreOpsChores({
+      chores: [{ id: 'plants', name: 'Water plants', assigneeIds: ['maya'] }],
+      participants: [participant],
+      timeZone: 'UTC',
+      importedAt: participant.createdAt,
+    }).workspace;
+    const incoming = structuredClone(current);
+    const definitionId = Object.keys(current.definitionsById)[0];
+    if (!current.experience || !incoming.experience)
+      throw new Error('Expected experience settings');
+    current.experience.gamificationMode = 'family';
+    current.experience.awardedMissionIds = ['mission', 'mission~import-2'];
+    current.experience.householdBonusPoints = 20;
+    current.experience.progressAwards = ['badge', 'achievement'].flatMap((id) =>
+      [id, `${id}~import-2`].map((targetId) => ({
+        id: `progress:${targetId}:maya:once`,
+        targetId,
+        participantId: 'maya',
+        cycleKey: 'once',
+        awardedAt: participant.createdAt,
+      }))
+    );
+    incoming.experience.missionsById.mission = {
+      id: 'mission',
+      title: 'Garden',
+      definitionIds: [definitionId],
+      status: 'active',
+      rewardPoints: 10,
+      createdAt: participant.createdAt,
+      updatedAt: participant.updatedAt,
+    };
+    incoming.experience.badgesById.badge = {
+      id: 'badge',
+      title: 'First chore',
+      metric: 'count',
+      target: 1,
+      awardPoints: 3,
+    };
+    incoming.experience.achievementsById.achievement = {
+      id: 'achievement',
+      title: 'First day',
+      metric: 'days',
+      target: 1,
+      awardPoints: 5,
+    };
+    const before = JSON.stringify(current);
+    const merged = mergeChoreInterchange({
+      current,
+      currentEvents: [],
+      imported: createChoreConfigurationDocument({ workspace: incoming }),
+      importedAt: participant.createdAt,
+    }).data;
+    expect(Object.keys(merged.experience?.missionsById ?? {})).toEqual(['mission~import-3']);
+    expect(Object.keys(merged.experience?.badgesById ?? {})).toEqual(['badge~import-3']);
+    expect(Object.keys(merged.experience?.achievementsById ?? {})).toEqual([
+      'achievement~import-3',
+    ]);
+    expect(merged.experience?.awardedMissionIds).toEqual(current.experience.awardedMissionIds);
+    expect(merged.experience?.progressAwards).toEqual(current.experience.progressAwards);
+    expect(merged.experience?.householdBonusPoints).toBe(20);
+    merged.occurrencesById.plants = {
+      id: 'plants',
+      definitionId,
+      scheduledAt: participant.createdAt,
+      dueAt: participant.createdAt,
+      assignmentSlot: 'maya',
+      assigneeIds: ['maya'],
+      status: 'available',
+      updatedAt: participant.updatedAt,
+    };
+    const completed = applyChoreWorkspaceAction({
+      workspace: merged,
+      commandId: 'complete',
+      timestamp: participant.createdAt,
+      action: {
+        type: 'occurrence_action',
+        occurrenceId: 'plants',
+        action: { type: 'complete', participantId: 'maya' },
+      },
+    }).data;
+    expect(completed.experience?.awardedMissionIds).toEqual([
+      ...current.experience.awardedMissionIds,
+      'mission~import-3',
+    ]);
+    expect(completed.experience?.householdBonusPoints).toBe(30);
+    expect(completed.experience?.progressAwards.map((award) => award.targetId)).toEqual([
+      ...current.experience.progressAwards.map((award) => award.targetId),
+      'badge~import-3',
+      'achievement~import-3',
+    ]);
+    expect(completed.experience?.earnedPointsByParticipant?.maya).toBe(8);
+    expect(JSON.stringify(current)).toBe(before);
+  });
+
   it.each([0, 10])(
     'resets dynamically completed mission windows with %i reward points',
     (rewardPoints) => {

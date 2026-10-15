@@ -199,6 +199,14 @@ function mergeExperienceConfiguration(
     'badgesById',
     'achievementsById',
   ] as const) {
+    const occupied = new Set(Object.keys(experience[name]));
+    const historicalIds =
+      name === 'missionsById'
+        ? (experience.awardedMissionIds ?? [])
+        : name === 'badgesById' || name === 'achievementsById'
+          ? experience.progressAwards.map((award) => award.targetId)
+          : [];
+    for (const id of historicalIds) occupied.add(id);
     for (const source of Object.values(imported[name])) {
       const item = clone(source);
       if ('definitionIds' in item && item.definitionIds) {
@@ -207,9 +215,9 @@ function mergeExperienceConfiguration(
       if ('participantId' in item && item.participantId) {
         item.participantId = participantMap.get(item.participantId) ?? item.participantId;
       }
-      const occupied = new Set(Object.keys(experience[name]));
       if (sameValue(experience[name][item.id], item)) continue;
       item.id = nextImportedId(item.id, occupied);
+      occupied.add(item.id);
       setOwnRecordValue(experience[name], item.id, item);
     }
   }
