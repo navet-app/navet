@@ -275,7 +275,10 @@ restore, and reset writes without that session; ordinary occurrence completion r
 
 The versioned `navet.chores` interchange document contains one workspace and its immutable events.
 Restore supports explicit merge and replace modes. Merge deterministically remaps participant,
-definition, occurrence, and event ID collisions; imported outbox work is never replayed. Reset
+definition, occurrence, and event ID collisions; badges and achievements share one target-ID
+namespace. Merge retains corresponding mission and progress-award identities with remapped
+references so imported history cannot earn the same awards again. Destination balances, point
+transactions, and reward requests remain intact; imported outbox work is never replayed. Reset
 requires an active manager, the current base revision, an idempotent command ID, and the exact
 confirmation phrase. The UI accepts Navet backups, documented Home Assistant todo export objects,
 and normalized ChoreOps export objects after validating every required field.

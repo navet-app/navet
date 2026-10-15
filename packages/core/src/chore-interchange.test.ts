@@ -22,6 +22,115 @@ const participant: ChoreParticipant = {
 };
 
 describe('chore interchange', () => {
+  it.each(['count', 'days', 'streak'] as const)(
+    'keeps full-backup %s award identities without re-crediting imported work',
+    (metric) => {
+      const source = convertChoreOpsChores({
+        chores: [{ id: 'plants', name: 'Water plants', assigneeIds: ['maya'] }],
+        participants: [participant],
+        timeZone: 'UTC',
+        importedAt: participant.createdAt,
+      }).workspace;
+      const definitionId = Object.keys(source.definitionsById)[0];
+      if (!source.experience) throw new Error('Expected experience settings');
+      source.experience.gamificationMode = 'family';
+      source.experience.badgesById.goal = {
+        id: 'goal',
+        title: 'Goal',
+        metric,
+        target: 1,
+        awardPoints: 5,
+        participantId: 'maya',
+        definitionIds: [definitionId],
+      };
+      source.experience.progressAwards = [
+        {
+          id: 'progress:goal:maya:once',
+          targetId: 'goal',
+          participantId: 'maya',
+          cycleKey: 'once',
+          awardedAt: participant.createdAt,
+        },
+      ];
+      source.experience.earnedPointsByParticipant = { maya: 5 };
+      source.experience.pointTransactions = [
+        {
+          id: 'points:progress:goal:maya:once',
+          participantId: 'maya',
+          pointsDelta: 5,
+          kind: 'progress_award',
+          timestamp: participant.createdAt,
+        },
+      ];
+      source.occurrencesById.past = {
+        id: 'past',
+        definitionId,
+        scheduledAt: participant.createdAt,
+        dueAt: participant.createdAt,
+        assigneeIds: ['maya'],
+        assignmentSlot: 'maya',
+        status: 'done',
+        completedBy: 'maya',
+        completedAt: participant.createdAt,
+        updatedAt: participant.updatedAt,
+      };
+      const current = createEmptyChoreWorkspace();
+      current.participantsById.maya = { ...participant, displayName: 'Current Maya' };
+      if (!current.experience) throw new Error('Expected experience settings');
+      current.experience.gamificationMode = 'family';
+      current.experience.badgesById.goal = {
+        id: 'goal',
+        title: 'Existing',
+        metric: 'count',
+        target: 100,
+      };
+      current.experience.progressAwards = [{ ...source.experience.progressAwards[0] }];
+      current.experience.earnedPointsByParticipant = { maya: 20 };
+      const before = JSON.stringify(source);
+      const merged = mergeChoreInterchange({
+        current,
+        currentEvents: [],
+        imported: createChoreInterchangeDocument({ workspace: source, events: [] }),
+      }).data;
+      expect(merged.experience?.progressAwards).toEqual([
+        ...current.experience.progressAwards,
+        {
+          ...source.experience.progressAwards[0],
+          id: 'progress:goal~import-2:maya~import-2:once',
+          targetId: 'goal~import-2',
+          participantId: 'maya~import-2',
+        },
+      ]);
+      expect(merged.experience?.pointTransactions).toEqual([]);
+      expect(merged.occurrencesById.past.status).toBe('done');
+      const future = '2026-08-11T08:00:00.000Z';
+      merged.occurrencesById.future = {
+        ...merged.occurrencesById.past,
+        id: 'future',
+        status: 'available',
+        scheduledAt: future,
+        dueAt: future,
+        updatedAt: future,
+        completedAt: undefined,
+        completedBy: undefined,
+      };
+      const completed = applyChoreWorkspaceAction({
+        workspace: merged,
+        commandId: 'complete-after-import',
+        timestamp: future,
+        action: {
+          type: 'occurrence_action',
+          occurrenceId: 'future',
+          action: { type: 'complete', participantId: 'maya~import-2' },
+        },
+      }).data;
+      expect(completed.experience?.progressAwards).toEqual(merged.experience?.progressAwards);
+      expect(completed.experience?.pointTransactions).toEqual([]);
+      expect(completed.experience?.earnedPointsByParticipant).toEqual({ maya: 20 });
+      expect(JSON.stringify(source)).toBe(before);
+    }
+  );
+
   it('reserves deleted goal IDs retained in award history when merging configuration', () => {
     const current = convertChoreOpsChores({
       chores: [{ id: 'plants', name: 'Water plants', assigneeIds: ['maya'] }],

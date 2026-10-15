@@ -238,7 +238,15 @@ describe('NJS chore workspace store', () => {
     seedOccurrenceWorkspace();
     const stored = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
     const incoming = structuredClone(stored.data);
-    const target = { id: 'goal', title: 'Imported', metric: 'count', target: 1, awardPoints: 5 };
+    incoming.participantsById.maya.displayName = 'Imported Maya';
+    const target = {
+      id: 'goal',
+      title: 'Imported',
+      metric: 'count',
+      target: 1,
+      awardPoints: 5,
+      participantId: 'maya',
+    };
     incoming.experience.badgesById.goal = target;
     incoming.experience.achievementsById.goal = target;
     incoming.experience.missionsById.goal = {
@@ -251,6 +259,7 @@ describe('NJS chore workspace store', () => {
       updatedAt: stored.updatedAt,
     };
     const experience = stored.data.experience;
+    experience.gamificationMode = 'family';
     experience.awardedMissionIds = ['goal', 'goal~import-2'];
     experience.progressAwards = ['goal', 'goal~import-2'].map((targetId) => ({
       id: `progress:${targetId}:maya:once`,
@@ -260,6 +269,19 @@ describe('NJS chore workspace store', () => {
       awardedAt: stored.updatedAt,
     }));
     experience.badgesById['goal~import-3'] = { ...target, id: 'goal~import-3', target: 100 };
+    incoming.experience.awardedMissionIds = ['goal'];
+    incoming.experience.progressAwards = [
+      {
+        id: 'progress:goal:maya:once',
+        targetId: 'goal',
+        participantId: 'maya',
+        cycleKey: 'once',
+        awardedAt: stored.updatedAt,
+      },
+    ];
+    incoming.occurrencesById[OCCURRENCE_ID].status = 'done';
+    incoming.occurrencesById[OCCURRENCE_ID].completedBy = 'maya';
+    incoming.occurrencesById[OCCURRENCE_ID].completedAt = stored.updatedAt;
     mockFs.writeFileSync(CHORE_PATH, JSON.stringify(stored));
     const restore = createRequest({
       method: 'POST',
@@ -286,8 +308,26 @@ describe('NJS chore workspace store', () => {
     expect(Object.keys(merged.missionsById)).toEqual(['goal~import-3']);
     expect(Object.keys(merged.badgesById)).toEqual(['goal~import-3', 'goal~import-4']);
     expect(Object.keys(merged.achievementsById)).toEqual(['goal~import-5']);
-    expect(merged.awardedMissionIds).toEqual(experience.awardedMissionIds);
-    expect(merged.progressAwards).toEqual(experience.progressAwards);
+    expect(merged.awardedMissionIds).toEqual([...experience.awardedMissionIds, 'goal~import-3']);
+    expect(merged.progressAwards).toEqual([
+      ...experience.progressAwards,
+      ...['goal~import-4', 'goal~import-5'].map((targetId) => ({
+        ...incoming.experience.progressAwards[0],
+        targetId,
+        participantId: 'maya~import-2',
+        id: `progress:${targetId}:maya~import-2:once`,
+      })),
+    ]);
+    const complete = createActionRequest('complete-after-merge', result.revision, {
+      type: 'occurrence_action',
+      occurrenceId: OCCURRENCE_ID,
+      action: { type: 'complete', participantId: 'maya' },
+    });
+    choreStore.handle(complete);
+    const completed = parseResponse(complete);
+    expect(completed.revision).toBe(result.revision + 1);
+    expect(completed.data.experience.progressAwards).toEqual(merged.progressAwards);
+    expect(completed.data.experience.pointTransactions).toEqual(experience.pointTransactions);
   });
 
   it('waits for deadlines across request VMs and detects same-size history edits and clock rollback', async () => {

@@ -2677,6 +2677,8 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
     async def test_merge_reserves_award_history_and_shared_progress_target_ids(self):
         current = chores._empty_data()
         imported = chores._empty_data()
+        current["participantsById"]["manager"] = _participant()
+        imported["participantsById"]["manager"] = {**_participant(), "displayName": "Imported"}
         experience = current["experience"]
         experience["awardedMissionIds"] = ["goal", "goal~import-2"]
         experience["progressAwards"] = [
@@ -2692,14 +2694,20 @@ class ChoreAuthorityTests(unittest.IsolatedAsyncioTestCase):
             "id": "goal", "title": "Imported mission", "definitionIds": [], "status": "active",
             "rewardPoints": 10, "createdAt": "2026-10-15T08:00:00Z", "updatedAt": "2026-10-15T08:00:00Z",
         }
+        imported["experience"]["awardedMissionIds"] = ["goal"]
+        imported["experience"]["progressAwards"] = [copy.deepcopy(experience["progressAwards"][0])]
         before = copy.deepcopy(current)
         merged, _ = chores._merge_imported_workspace(current, [], imported, [], "2026-10-15T10:00:00Z")
         result = merged["experience"]
         self.assertEqual(list(result["missionsById"]), ["goal~import-3"])
         self.assertEqual(list(result["badgesById"]), ["goal~import-3", "goal~import-4"])
         self.assertEqual(list(result["achievementsById"]), ["goal~import-5"])
-        self.assertEqual(result["awardedMissionIds"], experience["awardedMissionIds"])
-        self.assertEqual(result["progressAwards"], experience["progressAwards"])
+        self.assertEqual(result["awardedMissionIds"], [*experience["awardedMissionIds"], "goal~import-3"])
+        self.assertEqual(result["progressAwards"], [*experience["progressAwards"], *[
+            {**imported["experience"]["progressAwards"][0], "id": f"progress:{target_id}:manager~import-2:once",
+             "targetId": target_id, "participantId": "manager~import-2"}
+            for target_id in ("goal~import-4", "goal~import-5")
+        ]])
         self.assertEqual(current, before)
 
     async def test_notification_failure_is_retained_and_retried(self):

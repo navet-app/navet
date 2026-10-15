@@ -556,6 +556,8 @@ mergeImported.experience.missionsById = { garden: { id: 'garden', title: 'Garden
 mergeImported.experience.rewardGoalsById = { movie: { id: 'movie', title: 'Movie', type: 'saving', participantId: 'manager', targetPoints: 100, enabled: true, createdAt: timestamp, updatedAt: timestamp } };
 mergeImported.experience.earnedPointsByParticipant = {};
 mergeImported.experience.pointTransactions = [];
+mergeImported.experience.awardedMissionIds = ['garden'];
+mergeImported.experience.progressAwards = [{ id: 'progress:goal:manager:once', targetId: 'goal', participantId: 'manager', cycleKey: 'once', awardedAt: timestamp }];
 const mergeDocument = JSON.stringify(Object.assign({}, doc, { revision: 20, data: mergeCurrent }));
 paths['/data/navet-chore-workspace.json'] = mergeDocument;
 paths['/data/navet-chore-workspace.last-good.json'] = mergeDocument;
@@ -569,10 +571,12 @@ assert(mergeResult.status === 200, 'Native configuration merge succeeds: ' + JSO
 const mergeExperience = mergeResult.body.data.experience;
 assert(mergeExperience.presentationByDefinitionId['archive-fixed'].icon === 'house' && mergeExperience.presentationByDefinitionId['archive-fixed~import-2'] && mergeExperience.presentationByDefinitionId['archive-fixed~import-2'].icon === 'leaf', 'Merge preserves both chore appearances');
 assert(mergeExperience.badgesById['goal~import-2'].definitionIds[0] === 'archive-fixed~import-2' && mergeExperience.badgesById['goal~import-2'].participantId === 'manager~import-2', 'Merge remaps badge references and collisions');
-assert(mergeExperience.achievementsById.goal.participantId === 'manager~import-2', 'Merge remaps achievement references');
+assert(mergeExperience.achievementsById['goal~import-3'].participantId === 'manager~import-2', 'Merge remaps achievement references with a distinct progress-target ID');
 assert(mergeExperience.missionsById.garden.definitionIds[0] === 'archive-fixed~import-2', 'Merge remaps mission definitions');
 assert(mergeExperience.rewardGoalsById.movie.participantId === 'manager~import-2', 'Merge remaps reward participants');
 assert(mergeExperience.earnedPointsByParticipant.manager === 50 && mergeExperience.pointTransactions.length === 1, 'Merge preserves destination earned progress');
+assert(mergeExperience.awardedMissionIds.indexOf('garden') !== -1, 'Full backup merge retains mission award identity');
+assert(mergeExperience.progressAwards.length === 2 && mergeExperience.progressAwards[0].id === 'progress:goal~import-2:manager~import-2:once' && mergeExperience.progressAwards[1].id === 'progress:goal~import-3:manager~import-2:once', 'Full backup merge remaps progress awards for both target collections');
 const mergeReload = request('GET', '/__navet_chores__/workspace');
 assert(mergeReload.body.data.experience.presentationByDefinitionId['archive-fixed~import-2'].icon === 'leaf', 'Merged appearance survives reload');
 print('Passed native NJS chore recurrence assertions');

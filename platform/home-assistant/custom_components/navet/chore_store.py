@@ -851,6 +851,8 @@ def _merge_imported_workspace(
             experience["presentationByDefinitionId"][definition_map.get(source_id, source_id)] = json.loads(json.dumps(metadata))
         progress_target_ids = set(experience["badgesById"]) | set(experience["achievementsById"])
         progress_target_ids.update(award["targetId"] for award in experience["progressAwards"])
+        mission_map: dict[str, str] = {}
+        progress_target_map: dict[str, list[str]] = {}
         for name in ("missionsById", "rewardGoalsById", "badgesById", "achievementsById"):
             occupied = progress_target_ids if name in ("badgesById", "achievementsById") else set(experience[name])
             if name == "missionsById":
@@ -861,11 +863,30 @@ def _merge_imported_workspace(
                     item["definitionIds"] = [definition_map.get(key, key) for key in item["definitionIds"]]
                 if item.get("participantId"):
                     item["participantId"] = participant_map.get(item["participantId"], item["participantId"])
-                if experience[name].get(item["id"]) == item:
+                if experience[name].get(item["id"]) != item:
+                    item["id"] = _next_imported_id(item["id"], occupied)
+                    occupied.add(item["id"])
+                    experience[name][item["id"]] = item
+                if name == "missionsById":
+                    mission_map[source["id"]] = item["id"]
+                if name in ("badgesById", "achievementsById"):
+                    progress_target_map.setdefault(source["id"], []).append(item["id"])
+        awarded_mission_ids = experience.setdefault("awardedMissionIds", [])
+        for source_id in source_experience.get("awardedMissionIds", []):
+            target_id = mission_map.get(source_id)
+            if target_id and target_id not in awarded_mission_ids:
+                awarded_mission_ids.append(target_id)
+        award_ids = {award["id"] for award in experience["progressAwards"]}
+        for award in source_experience["progressAwards"]:
+            participant_id = participant_map.get(award["participantId"])
+            if not participant_id:
+                continue
+            for target_id in progress_target_map.get(award["targetId"], []):
+                award_id = f"progress:{target_id}:{participant_id}:{award['cycleKey']}"
+                if award_id in award_ids:
                     continue
-                item["id"] = _next_imported_id(item["id"], occupied)
-                occupied.add(item["id"])
-                experience[name][item["id"]] = item
+                award_ids.add(award_id)
+                experience["progressAwards"].append({**award, "id": award_id, "targetId": target_id, "participantId": participant_id})
 
     occurrence_map: dict[str, str] = {}
     occupied_occurrences = set(data["occurrencesById"])

@@ -198,6 +198,8 @@ function mergeExperienceConfiguration(
     ...Object.keys(experience.achievementsById),
     ...experience.progressAwards.map((award) => award.targetId),
   ]);
+  const missionMap = new Map<string, string>();
+  const progressTargetMap = new Map<string, string[]>();
   for (const name of [
     'missionsById',
     'rewardGoalsById',
@@ -219,13 +221,36 @@ function mergeExperienceConfiguration(
       if ('participantId' in item && item.participantId) {
         item.participantId = participantMap.get(item.participantId) ?? item.participantId;
       }
-      if (sameValue(experience[name][item.id], item)) continue;
-      item.id = nextImportedId(item.id, occupied);
-      occupied.add(item.id);
-      setOwnRecordValue(experience[name], item.id, item);
+      if (!sameValue(experience[name][item.id], item)) {
+        item.id = nextImportedId(item.id, occupied);
+        occupied.add(item.id);
+        setOwnRecordValue(experience[name], item.id, item);
+      }
+      if (name === 'missionsById') missionMap.set(source.id, item.id);
+      if (name === 'badgesById' || name === 'achievementsById') {
+        progressTargetMap.set(source.id, [...(progressTargetMap.get(source.id) ?? []), item.id]);
+      }
     }
   }
-  // Merge configuration only; destination balances, ledgers, requests and awards remain intact.
+  const awardedMissionIds = new Set(experience.awardedMissionIds ?? []);
+  for (const id of imported.awardedMissionIds ?? []) {
+    const targetId = missionMap.get(id);
+    if (targetId) awardedMissionIds.add(targetId);
+  }
+  experience.awardedMissionIds = [...awardedMissionIds];
+  const awardIds = new Set(experience.progressAwards.map((award) => award.id));
+  for (const award of imported.progressAwards) {
+    const participantId = participantMap.get(award.participantId);
+    if (!participantId) continue;
+    for (const targetId of progressTargetMap.get(award.targetId) ?? []) {
+      const id = `progress:${targetId}:${participantId}:${award.cycleKey}`;
+      if (awardIds.has(id)) continue;
+      awardIds.add(id);
+      experience.progressAwards.push({ ...award, id, targetId, participantId });
+    }
+  }
+  // Preserve award identities so imported work cannot earn the same points again.
+  // Destination balances, ledgers and reward requests remain intact.
   return experience;
 }
 
