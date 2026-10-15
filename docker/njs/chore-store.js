@@ -757,16 +757,19 @@ function mergeExperienceConfiguration(current, imported, participantMap, definit
     recordSafety.setOwnRecordValue(experience.presentationByDefinitionId, definitionMap[id] || id, cloneValue(imported.presentationByDefinitionId[id]));
   });
   const collections = ['missionsById', 'rewardGoalsById', 'badgesById', 'achievementsById'];
+  const progressTargetIds = Object.create(null);
+  Object.keys(experience.badgesById).concat(Object.keys(experience.achievementsById), experience.progressAwards.map(function (award) { return award.targetId; })).forEach(function (id) { recordSafety.setOwnRecordValue(progressTargetIds, id, true); });
   for (let index = 0; index < collections.length; index++) {
     const name = collections[index];
+    const occupied = name === 'badgesById' || name === 'achievementsById' ? progressTargetIds : Object.create(null);
+    Object.keys(experience[name]).concat(name === 'missionsById' ? (experience.awardedMissionIds || []) : []).forEach(function (id) { recordSafety.setOwnRecordValue(occupied, id, true); });
     Object.values(imported[name]).forEach(function (source) {
       const item = cloneValue(source);
       if (Array.isArray(item.definitionIds)) item.definitionIds = item.definitionIds.map(function (id) { return definitionMap[id] || id; });
       if (item.participantId) item.participantId = participantMap[item.participantId] || item.participantId;
       if (JSON.stringify(experience[name][item.id]) === JSON.stringify(item)) return;
-      const occupied = Object.create(null);
-      Object.keys(experience[name]).forEach(function (id) { recordSafety.setOwnRecordValue(occupied, id, true); });
       item.id = nextImportedId(item.id, occupied);
+      recordSafety.setOwnRecordValue(occupied, item.id, true);
       recordSafety.setOwnRecordValue(experience[name], item.id, item);
     });
   }

@@ -68,6 +68,16 @@ describe('chore interchange', () => {
       target: 1,
       awardPoints: 5,
     };
+    const target = {
+      id: 'shared',
+      title: 'Shared',
+      metric: 'count' as const,
+      target: 1,
+      awardPoints: 2,
+    };
+    current.experience.badgesById.shared = { ...target, title: 'Existing', target: 100 };
+    incoming.experience.badgesById.shared = target;
+    incoming.experience.achievementsById.shared = target;
     const before = JSON.stringify(current);
     const merged = mergeChoreInterchange({
       current,
@@ -76,9 +86,14 @@ describe('chore interchange', () => {
       importedAt: participant.createdAt,
     }).data;
     expect(Object.keys(merged.experience?.missionsById ?? {})).toEqual(['mission~import-3']);
-    expect(Object.keys(merged.experience?.badgesById ?? {})).toEqual(['badge~import-3']);
+    expect(Object.keys(merged.experience?.badgesById ?? {})).toEqual([
+      'shared',
+      'badge~import-3',
+      'shared~import-2',
+    ]);
     expect(Object.keys(merged.experience?.achievementsById ?? {})).toEqual([
       'achievement~import-3',
+      'shared~import-3',
     ]);
     expect(merged.experience?.awardedMissionIds).toEqual(current.experience.awardedMissionIds);
     expect(merged.experience?.progressAwards).toEqual(current.experience.progressAwards);
@@ -111,9 +126,11 @@ describe('chore interchange', () => {
     expect(completed.experience?.progressAwards.map((award) => award.targetId)).toEqual([
       ...current.experience.progressAwards.map((award) => award.targetId),
       'badge~import-3',
+      'shared~import-2',
       'achievement~import-3',
+      'shared~import-3',
     ]);
-    expect(completed.experience?.earnedPointsByParticipant?.maya).toBe(8);
+    expect(completed.experience?.earnedPointsByParticipant?.maya).toBe(12);
     expect(JSON.stringify(current)).toBe(before);
   });
 
@@ -267,8 +284,11 @@ describe('chore interchange', () => {
       remappedDefinition,
     ]);
     expect(merged.experience?.rewardGoalsById['goal~import-2'].participantId).toBe('maya~import-2');
-    for (const name of ['badgesById', 'achievementsById'] as const) {
-      expect(merged.experience?.[name]['goal~import-2']).toMatchObject({
+    for (const [name, id] of [
+      ['badgesById', 'goal~import-2'],
+      ['achievementsById', 'goal~import-3'],
+    ] as const) {
+      expect(merged.experience?.[name][id]).toMatchObject({
         participantId: 'maya~import-2',
         definitionIds: [remappedDefinition],
       });

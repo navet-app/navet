@@ -193,20 +193,24 @@ function mergeExperienceConfiguration(
       clone(metadata)
     );
   }
+  const progressTargetIds = new Set([
+    ...Object.keys(experience.badgesById),
+    ...Object.keys(experience.achievementsById),
+    ...experience.progressAwards.map((award) => award.targetId),
+  ]);
   for (const name of [
     'missionsById',
     'rewardGoalsById',
     'badgesById',
     'achievementsById',
   ] as const) {
-    const occupied = new Set(Object.keys(experience[name]));
-    const historicalIds =
-      name === 'missionsById'
-        ? (experience.awardedMissionIds ?? [])
-        : name === 'badgesById' || name === 'achievementsById'
-          ? experience.progressAwards.map((award) => award.targetId)
-          : [];
-    for (const id of historicalIds) occupied.add(id);
+    const occupied =
+      name === 'badgesById' || name === 'achievementsById'
+        ? progressTargetIds
+        : new Set([
+            ...Object.keys(experience[name]),
+            ...(name === 'missionsById' ? (experience.awardedMissionIds ?? []) : []),
+          ]);
     for (const source of Object.values(imported[name])) {
       const item = clone(source);
       if ('definitionIds' in item && item.definitionIds) {

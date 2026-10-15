@@ -229,6 +229,67 @@ afterEach(() => {
 });
 
 describe('NJS chore workspace store', () => {
+  it('reserves retained award IDs and shares progress-target IDs during merge restore', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T09:00:00Z'));
+    const mockFs = createMockFs();
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    seedOccurrenceWorkspace();
+    const stored = JSON.parse(mockFs.getFile(CHORE_PATH) ?? '{}');
+    const incoming = structuredClone(stored.data);
+    const target = { id: 'goal', title: 'Imported', metric: 'count', target: 1, awardPoints: 5 };
+    incoming.experience.badgesById.goal = target;
+    incoming.experience.achievementsById.goal = target;
+    incoming.experience.missionsById.goal = {
+      id: 'goal',
+      title: 'Imported mission',
+      definitionIds: ['dishes'],
+      status: 'active',
+      rewardPoints: 10,
+      createdAt: stored.updatedAt,
+      updatedAt: stored.updatedAt,
+    };
+    const experience = stored.data.experience;
+    experience.awardedMissionIds = ['goal', 'goal~import-2'];
+    experience.progressAwards = ['goal', 'goal~import-2'].map((targetId) => ({
+      id: `progress:${targetId}:maya:once`,
+      targetId,
+      participantId: 'maya',
+      cycleKey: 'once',
+      awardedAt: stored.updatedAt,
+    }));
+    experience.badgesById['goal~import-3'] = { ...target, id: 'goal~import-3', target: 100 };
+    mockFs.writeFileSync(CHORE_PATH, JSON.stringify(stored));
+    const restore = createRequest({
+      method: 'POST',
+      uri: '/__navet_chores__/restore',
+      headersIn: { 'X-Navet-Base-Revision': String(stored.revision) },
+      requestText: JSON.stringify({
+        commandId: 'merge-awards',
+        baseRevision: stored.revision,
+        actorParticipantId: 'maya',
+        mode: 'merge',
+        document: {
+          contract: 'navet.chores',
+          version: 1,
+          exportedAt: stored.updatedAt,
+          workspace: incoming,
+          events: [],
+        },
+      }),
+    });
+    choreStore.handle(restore);
+    const result = parseResponse(restore);
+    expect(result.revision).toBe(stored.revision + 1);
+    const merged = result.data.experience;
+    expect(Object.keys(merged.missionsById)).toEqual(['goal~import-3']);
+    expect(Object.keys(merged.badgesById)).toEqual(['goal~import-3', 'goal~import-4']);
+    expect(Object.keys(merged.achievementsById)).toEqual(['goal~import-5']);
+    expect(merged.awardedMissionIds).toEqual(experience.awardedMissionIds);
+    expect(merged.progressAwards).toEqual(experience.progressAwards);
+  });
+
   it('waits for deadlines across request VMs and detects same-size history edits and clock rollback', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-10T09:00:00Z'));

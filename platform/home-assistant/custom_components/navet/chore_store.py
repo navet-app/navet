@@ -849,7 +849,12 @@ def _merge_imported_workspace(
                     experience.pop(key, None)
         for source_id, metadata in source_experience["presentationByDefinitionId"].items():
             experience["presentationByDefinitionId"][definition_map.get(source_id, source_id)] = json.loads(json.dumps(metadata))
+        progress_target_ids = set(experience["badgesById"]) | set(experience["achievementsById"])
+        progress_target_ids.update(award["targetId"] for award in experience["progressAwards"])
         for name in ("missionsById", "rewardGoalsById", "badgesById", "achievementsById"):
+            occupied = progress_target_ids if name in ("badgesById", "achievementsById") else set(experience[name])
+            if name == "missionsById":
+                occupied.update(experience.get("awardedMissionIds", []))
             for source in source_experience[name].values():
                 item = json.loads(json.dumps(source))
                 if isinstance(item.get("definitionIds"), list):
@@ -858,7 +863,8 @@ def _merge_imported_workspace(
                     item["participantId"] = participant_map.get(item["participantId"], item["participantId"])
                 if experience[name].get(item["id"]) == item:
                     continue
-                item["id"] = _next_imported_id(item["id"], set(experience[name]))
+                item["id"] = _next_imported_id(item["id"], occupied)
+                occupied.add(item["id"])
                 experience[name][item["id"]] = item
 
     occurrence_map: dict[str, str] = {}
