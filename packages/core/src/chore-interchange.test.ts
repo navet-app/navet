@@ -243,9 +243,13 @@ describe('chore interchange', () => {
     expect(JSON.stringify(current)).toBe(before);
   });
 
-  it.each([0, 10])(
-    'resets dynamically completed mission windows with %i reward points',
-    (rewardPoints) => {
+  it.each([
+    [0, false],
+    [10, false],
+    [10, true],
+  ] as const)(
+    'resets dynamically completed mission windows with %i reward points (pruned: %s)',
+    (rewardPoints, pruned) => {
       const workspace = convertChoreOpsChores({
         chores: [{ id: 'plants', name: 'Water plants', assigneeIds: ['maya'] }],
         participants: [participant],
@@ -287,10 +291,27 @@ describe('chore interchange', () => {
       }).data;
       expect(completed.experience?.missionsById.garden.status).toBe('active');
       expect(completed.experience?.awardedMissionIds).toEqual(rewardPoints ? ['garden'] : []);
-      const before = JSON.stringify(completed);
+      const exportSource = pruned
+        ? applyChoreWorkspaceAction({
+            workspace: completed,
+            commandId: 'prune',
+            timestamp: '2030-01-01T00:00:00.000Z',
+            action: {
+              type: 'materialize_occurrences',
+              rangeStart: '2030-01-01T00:00:00.000Z',
+              rangeEnd: '2030-01-02T00:00:00.000Z',
+            },
+          }).data
+        : completed;
+      if (pruned) {
+        expect(exportSource.occurrencesById).toEqual({});
+        expect(exportSource.experience?.awardedMissionIds).toEqual(['garden']);
+        expect(exportSource.experience?.missionsById.garden.status).toBe('active');
+      }
+      const before = JSON.stringify(exportSource);
       const restored = parseChoreInterchangeDocument(
         createChoreConfigurationDocument({
-          workspace: completed,
+          workspace: exportSource,
           exportedAt: '2030-01-01T00:00:00Z',
         })
       ).workspace;
@@ -320,7 +341,7 @@ describe('chore interchange', () => {
         },
       }).data;
       expect(recompleted.experience?.householdBonusPoints).toBe(rewardPoints);
-      expect(JSON.stringify(completed)).toBe(before);
+      expect(JSON.stringify(exportSource)).toBe(before);
     }
   );
 

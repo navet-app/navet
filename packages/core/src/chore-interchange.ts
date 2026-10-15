@@ -144,9 +144,11 @@ export function createChoreConfigurationDocument(input: {
       badgesById: clone(source.badgesById),
       achievementsById: clone(source.achievementsById),
     };
+    const awardedMissionIds = new Set(source.awardedMissionIds ?? []);
     for (const mission of Object.values(workspace.experience.missionsById)) {
       if (
         mission.status === 'complete' ||
+        awardedMissionIds.has(mission.id) ||
         (mission.definitionIds.length > 0 && isWorkspaceMissionComplete(input.workspace, mission))
       ) {
         mission.status = 'active';
