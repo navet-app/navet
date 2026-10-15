@@ -745,6 +745,35 @@ function nextImportedId(sourceId, occupied) {
   return sourceId + '~import-' + index;
 }
 
+function mergeExperienceConfiguration(current, imported, participantMap, definitionMap, adoptSettings) {
+  const experience = cloneValue(current || createEmptyChoreExperience());
+  if (!imported) return experience;
+  if (adoptSettings) {
+    experience.gamificationMode = imported.gamificationMode;
+    experience.setupStartedAt = imported.setupStartedAt;
+    experience.setupCompletedAt = imported.setupCompletedAt;
+  }
+  Object.keys(imported.presentationByDefinitionId).forEach(function (id) {
+    recordSafety.setOwnRecordValue(experience.presentationByDefinitionId, definitionMap[id] || id, cloneValue(imported.presentationByDefinitionId[id]));
+  });
+  const collections = ['missionsById', 'rewardGoalsById', 'badgesById', 'achievementsById'];
+  for (let index = 0; index < collections.length; index++) {
+    const name = collections[index];
+    Object.values(imported[name]).forEach(function (source) {
+      const item = cloneValue(source);
+      if (Array.isArray(item.definitionIds)) item.definitionIds = item.definitionIds.map(function (id) { return definitionMap[id] || id; });
+      if (item.participantId) item.participantId = participantMap[item.participantId] || item.participantId;
+      if (JSON.stringify(experience[name][item.id]) === JSON.stringify(item)) return;
+      const occupied = Object.create(null);
+      Object.keys(experience[name]).forEach(function (id) { recordSafety.setOwnRecordValue(occupied, id, true); });
+      item.id = nextImportedId(item.id, occupied);
+      recordSafety.setOwnRecordValue(experience[name], item.id, item);
+    });
+  }
+  // Configuration must not replace destination balances, ledgers, requests or awards.
+  return experience;
+}
+
 function mergeImportedWorkspace(current, currentEvents, imported, timestamp) {
   const participantsById = cloneValue(current.participantsById);
   const participantMap = Object.create(null);
@@ -856,6 +885,7 @@ function mergeImportedWorkspace(current, currentEvents, imported, timestamp) {
       definitionsById,
       occurrencesById,
       activity: current.activity.concat(events.slice(currentEvents.length)).slice(-MAX_ACTIVITY_ITEMS),
+      experience: mergeExperienceConfiguration(current.experience, imported.workspace.experience, participantMap, definitionMap, Object.keys(current.definitionsById).length === 0),
       outbox: current.outbox,
     }),
     events,

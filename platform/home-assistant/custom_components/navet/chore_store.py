@@ -837,6 +837,30 @@ def _merge_imported_workspace(
         remapped["id"] = target_id
         data["definitionsById"][target_id] = remapped
 
+    # Add configuration with remapped references; retain destination earned progress.
+    experience = data.setdefault("experience", _empty_data()["experience"])
+    source_experience = imported.get("experience")
+    if source_experience:
+        if not current["definitionsById"]:
+            for key in ("gamificationMode", "setupStartedAt", "setupCompletedAt"):
+                if key in source_experience:
+                    experience[key] = source_experience[key]
+                else:
+                    experience.pop(key, None)
+        for source_id, metadata in source_experience["presentationByDefinitionId"].items():
+            experience["presentationByDefinitionId"][definition_map.get(source_id, source_id)] = json.loads(json.dumps(metadata))
+        for name in ("missionsById", "rewardGoalsById", "badgesById", "achievementsById"):
+            for source in source_experience[name].values():
+                item = json.loads(json.dumps(source))
+                if isinstance(item.get("definitionIds"), list):
+                    item["definitionIds"] = [definition_map.get(key, key) for key in item["definitionIds"]]
+                if item.get("participantId"):
+                    item["participantId"] = participant_map.get(item["participantId"], item["participantId"])
+                if experience[name].get(item["id"]) == item:
+                    continue
+                item["id"] = _next_imported_id(item["id"], set(experience[name]))
+                experience[name][item["id"]] = item
+
     occurrence_map: dict[str, str] = {}
     occupied_occurrences = set(data["occurrencesById"])
     imported_occurrences: list[dict[str, Any]] = []

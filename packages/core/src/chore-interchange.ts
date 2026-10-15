@@ -1,4 +1,4 @@
-import { createChoreExperienceState } from './chore-experience.ts';
+import { type ChoreExperienceState, createChoreExperienceState } from './chore-experience.ts';
 import {
   type ChoreActivity,
   type ChoreDefinition,
@@ -8,6 +8,7 @@ import {
   isChoreWorkspaceData,
   migrateChoreWorkspaceData,
 } from './chores.ts';
+import { setOwnRecordValue } from './record-safety.ts';
 
 export const CHORE_INTERCHANGE_VERSION = 1 as const;
 
@@ -143,7 +144,11 @@ export function createChoreConfigurationDocument(input: {
       achievementsById: clone(source.achievementsById),
     };
     for (const mission of Object.values(workspace.experience.missionsById)) {
-      if (mission.status === 'complete') mission.status = 'active';
+      if (mission.status === 'complete') {
+        mission.status = 'active';
+        delete mission.startsAt;
+        delete mission.endsAt;
+      }
     }
     for (const reward of Object.values(workspace.experience.rewardGoalsById)) {
       delete reward.startingPoints;
@@ -161,6 +166,51 @@ function nextImportedId(sourceId: string, occupied: Set<string>) {
 
 function sameValue(left: unknown, right: unknown) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function mergeExperienceConfiguration(
+  current: ChoreExperienceState | undefined,
+  imported: ChoreExperienceState | undefined,
+  participantMap: Map<string, string>,
+  definitionMap: Map<string, string>,
+  adoptSettings: boolean
+): ChoreExperienceState {
+  const experience = clone(current ?? createChoreExperienceState());
+  if (!imported) return experience;
+  if (adoptSettings) {
+    experience.gamificationMode = imported.gamificationMode;
+    experience.setupStartedAt = imported.setupStartedAt;
+    experience.setupCompletedAt = imported.setupCompletedAt;
+  }
+  for (const [id, metadata] of Object.entries(imported.presentationByDefinitionId)) {
+    setOwnRecordValue(
+      experience.presentationByDefinitionId,
+      definitionMap.get(id) ?? id,
+      clone(metadata)
+    );
+  }
+  for (const name of [
+    'missionsById',
+    'rewardGoalsById',
+    'badgesById',
+    'achievementsById',
+  ] as const) {
+    for (const source of Object.values(imported[name])) {
+      const item = clone(source);
+      if ('definitionIds' in item && item.definitionIds) {
+        item.definitionIds = item.definitionIds.map((id: string) => definitionMap.get(id) ?? id);
+      }
+      if ('participantId' in item && item.participantId) {
+        item.participantId = participantMap.get(item.participantId) ?? item.participantId;
+      }
+      const occupied = new Set(Object.keys(experience[name]));
+      if (sameValue(experience[name][item.id], item)) continue;
+      item.id = nextImportedId(item.id, occupied);
+      setOwnRecordValue(experience[name], item.id, item);
+    }
+  }
+  // Merge configuration only; destination balances, ledgers, requests and awards remain intact.
+  return experience;
 }
 
 export function mergeChoreInterchange(input: {
@@ -307,6 +357,13 @@ export function mergeChoreInterchange(input: {
       definitionsById,
       occurrencesById,
       activity,
+      experience: mergeExperienceConfiguration(
+        input.current.experience,
+        input.imported.workspace.experience,
+        participantMap,
+        definitionMap,
+        Object.keys(input.current.definitionsById).length === 0
+      ),
       // Imported delivery work is intentionally not replayed.
       outbox: input.current.outbox,
     },

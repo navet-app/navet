@@ -538,4 +538,41 @@ for (let modeIndex = 0; modeIndex < completionAssignmentModes.length; modeIndex+
     return item.definitionId === completionDefinition.id && item.status === 'available' && Date.parse(item.scheduledAt) > Date.now();
   }), 'Native completion persists the next interval');
 }
+// Configuration Merge must retain appearance/goals and remap their colliding IDs.
+const mergeCurrent = JSON.parse(JSON.stringify(archiveData));
+mergeCurrent.definitionsById = { 'archive-fixed': archiveDefinition };
+mergeCurrent.occurrencesById = {};
+mergeCurrent.experience.earnedPointsByParticipant = { manager: 50 };
+mergeCurrent.experience.pointTransactions = [{ id: 'merge-opening', participantId: 'manager', pointsDelta: 50, kind: 'opening_balance', timestamp }];
+mergeCurrent.experience.presentationByDefinitionId = { 'archive-fixed': { icon: 'house' } };
+mergeCurrent.experience.badgesById = { goal: { id: 'goal', title: 'Current goal', participantId: 'manager', definitionIds: ['archive-fixed'], metric: 'count', target: 5 } };
+const mergeImported = JSON.parse(JSON.stringify(mergeCurrent));
+mergeImported.participantsById.manager.displayName = 'Imported manager';
+mergeImported.definitionsById['archive-fixed'].title = 'Imported chore';
+mergeImported.experience.presentationByDefinitionId['archive-fixed'] = { icon: 'leaf' };
+mergeImported.experience.badgesById.goal.title = 'Imported goal';
+mergeImported.experience.achievementsById = JSON.parse(JSON.stringify(mergeImported.experience.badgesById));
+mergeImported.experience.missionsById = { garden: { id: 'garden', title: 'Garden', definitionIds: ['archive-fixed'], status: 'active', createdAt: timestamp, updatedAt: timestamp } };
+mergeImported.experience.rewardGoalsById = { movie: { id: 'movie', title: 'Movie', type: 'saving', participantId: 'manager', targetPoints: 100, enabled: true, createdAt: timestamp, updatedAt: timestamp } };
+mergeImported.experience.earnedPointsByParticipant = {};
+mergeImported.experience.pointTransactions = [];
+const mergeDocument = JSON.stringify(Object.assign({}, doc, { revision: 20, data: mergeCurrent }));
+paths['/data/navet-chore-workspace.json'] = mergeDocument;
+paths['/data/navet-chore-workspace.last-good.json'] = mergeDocument;
+const mergeRead = request('GET', '/__navet_chores__/workspace');
+const mergeResult = request('POST', '/__navet_chores__/restore', {
+  commandId: 'native-configuration-merge', baseRevision: mergeRead.body.revision,
+  actorParticipantId: 'manager', mode: 'merge',
+  document: { contract: 'navet.chores', version: 1, exportedAt: timestamp, workspace: mergeImported, events: [] },
+});
+assert(mergeResult.status === 200, 'Native configuration merge succeeds: ' + JSON.stringify(mergeResult.body));
+const mergeExperience = mergeResult.body.data.experience;
+assert(mergeExperience.presentationByDefinitionId['archive-fixed'].icon === 'house' && mergeExperience.presentationByDefinitionId['archive-fixed~import-2'] && mergeExperience.presentationByDefinitionId['archive-fixed~import-2'].icon === 'leaf', 'Merge preserves both chore appearances');
+assert(mergeExperience.badgesById['goal~import-2'].definitionIds[0] === 'archive-fixed~import-2' && mergeExperience.badgesById['goal~import-2'].participantId === 'manager~import-2', 'Merge remaps badge references and collisions');
+assert(mergeExperience.achievementsById.goal.participantId === 'manager~import-2', 'Merge remaps achievement references');
+assert(mergeExperience.missionsById.garden.definitionIds[0] === 'archive-fixed~import-2', 'Merge remaps mission definitions');
+assert(mergeExperience.rewardGoalsById.movie.participantId === 'manager~import-2', 'Merge remaps reward participants');
+assert(mergeExperience.earnedPointsByParticipant.manager === 50 && mergeExperience.pointTransactions.length === 1, 'Merge preserves destination earned progress');
+const mergeReload = request('GET', '/__navet_chores__/workspace');
+assert(mergeReload.body.data.experience.presentationByDefinitionId['archive-fixed~import-2'].icon === 'leaf', 'Merged appearance survives reload');
 print('Passed native NJS chore recurrence assertions');

@@ -7,7 +7,11 @@ import {
   mergeChoreInterchange,
   parseChoreInterchangeDocument,
 } from './chore-interchange';
-import { type ChoreParticipant, createEmptyChoreWorkspace } from './chores';
+import {
+  applyChoreWorkspaceAction,
+  type ChoreParticipant,
+  createEmptyChoreWorkspace,
+} from './chores';
 
 const participant: ChoreParticipant = {
   id: 'maya',
@@ -18,6 +22,87 @@ const participant: ChoreParticipant = {
 };
 
 describe('chore interchange', () => {
+  it('merges colliding appearance and goal configuration while preserving destination progress', () => {
+    const current = convertChoreOpsChores({
+      chores: [{ id: 'plants', name: 'Current plants', assigneeIds: ['maya'] }],
+      participants: [participant],
+      timeZone: 'UTC',
+    }).workspace;
+    const incoming = structuredClone(current);
+    const definitionId = Object.keys(current.definitionsById)[0];
+    incoming.participantsById.maya.displayName = 'Imported Maya';
+    incoming.definitionsById[definitionId].title = 'Imported plants';
+    const experience = current.experience;
+    const importedExperience = incoming.experience;
+    if (!experience || !importedExperience) throw new Error('Expected experience settings');
+    experience.gamificationMode = 'light';
+    experience.earnedPointsByParticipant = { maya: 50 };
+    experience.pointTransactions = [
+      {
+        id: 'existing',
+        participantId: 'maya',
+        pointsDelta: 50,
+        kind: 'adjustment',
+        timestamp: participant.createdAt,
+      },
+    ];
+    experience.presentationByDefinitionId[definitionId] = { icon: 'house' };
+    importedExperience.gamificationMode = 'family';
+    importedExperience.presentationByDefinitionId[definitionId] = { icon: 'leaf', points: 5 };
+    for (const state of [experience, importedExperience]) {
+      const title = state === experience ? 'Current goal' : 'Imported goal';
+      state.missionsById.goal = {
+        id: 'goal',
+        title,
+        definitionIds: [definitionId],
+        status: 'active',
+        createdAt: participant.createdAt,
+        updatedAt: participant.updatedAt,
+      };
+      state.rewardGoalsById.goal = {
+        id: 'goal',
+        title,
+        participantId: 'maya',
+        targetPoints: 100,
+        type: 'saving',
+        enabled: true,
+        createdAt: participant.createdAt,
+        updatedAt: participant.updatedAt,
+      };
+      state.badgesById.goal = {
+        id: 'goal',
+        title,
+        participantId: 'maya',
+        definitionIds: [definitionId],
+        metric: 'count',
+        target: 5,
+      };
+      state.achievementsById.goal = { ...state.badgesById.goal };
+    }
+    const before = JSON.stringify(current);
+    const document = createChoreConfigurationDocument({ workspace: incoming });
+    const merged = mergeChoreInterchange({ current, currentEvents: [], imported: document }).data;
+    const remappedDefinition = `${definitionId}~import-2`;
+    expect(merged.experience?.presentationByDefinitionId).toEqual({
+      [definitionId]: { icon: 'house' },
+      [remappedDefinition]: { icon: 'leaf', points: 5 },
+    });
+    expect(merged.experience?.missionsById['goal~import-2'].definitionIds).toEqual([
+      remappedDefinition,
+    ]);
+    expect(merged.experience?.rewardGoalsById['goal~import-2'].participantId).toBe('maya~import-2');
+    for (const name of ['badgesById', 'achievementsById'] as const) {
+      expect(merged.experience?.[name]['goal~import-2']).toMatchObject({
+        participantId: 'maya~import-2',
+        definitionIds: [remappedDefinition],
+      });
+    }
+    expect(merged.experience?.earnedPointsByParticipant).toEqual({ maya: 50 });
+    expect(merged.experience?.pointTransactions).toEqual(experience.pointTransactions);
+    expect(merged.experience?.gamificationMode).toBe('light');
+    expect(JSON.stringify(current)).toBe(before);
+  });
+
   it('exports importable configuration without occurrences, delivery work, or earned progress', () => {
     const original = convertChoreOpsChores({
       chores: [
@@ -51,6 +136,9 @@ describe('chore interchange', () => {
       title: 'Garden',
       definitionIds: [definition.id],
       status: 'complete',
+      startsAt: '2026-08-01T00:00:00.000Z',
+      endsAt: '2026-08-31T00:00:00.000Z',
+      rewardPoints: 10,
       createdAt: participant.createdAt,
       updatedAt: participant.updatedAt,
     };
@@ -161,6 +249,8 @@ describe('chore interchange', () => {
     });
     expect(restored.workspace.experience?.pointProgress).toBeUndefined();
     expect(restored.workspace.experience?.missionsById.garden.status).toBe('active');
+    expect(restored.workspace.experience?.missionsById.garden.startsAt).toBeUndefined();
+    expect(restored.workspace.experience?.missionsById.garden.endsAt).toBeUndefined();
     expect(restored.workspace.experience?.rewardGoalsById.movie).toEqual({
       ...experience.rewardGoalsById.movie,
       startingPoints: undefined,
@@ -175,6 +265,29 @@ describe('chore interchange', () => {
       restored.workspace.definitionsById[definition.id]
     );
     expect(merged.events).toEqual([]);
+    expect(merged.data.experience).toEqual(restored.workspace.experience);
+    const future = '2030-01-01T10:00:00.000Z';
+    merged.data.occurrencesById.future = {
+      id: 'future',
+      definitionId: definition.id,
+      scheduledAt: future,
+      dueAt: future,
+      assignmentSlot: 'maya',
+      assigneeIds: ['maya'],
+      status: 'available',
+      updatedAt: future,
+    };
+    const completed = applyChoreWorkspaceAction({
+      workspace: merged.data,
+      commandId: 'future-complete',
+      timestamp: future,
+      action: {
+        type: 'occurrence_action',
+        occurrenceId: 'future',
+        action: { type: 'complete', participantId: 'maya' },
+      },
+    });
+    expect(completed.data.experience?.awardedMissionIds).toContain('garden');
     expect(JSON.stringify(workspace)).toBe(before);
   });
 

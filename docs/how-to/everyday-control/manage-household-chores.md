@@ -132,11 +132,15 @@ returns to the appropriate setup state.
 In **Household → Settings → Data and recovery**, choose **Export chores** to download your
 people, chores, assignments, schedules, reminders, motivation settings, and chore appearance.
 The file excludes occurrences, completions, activity, earned points, and reward history.
-Rotation progress and completed goals also start fresh.
+Rotation progress and completed goals also start fresh. Completed goals lose their previous date
+windows so future work can complete them again.
 
 To reuse the setup, choose **Import backup** and select the configuration file. **Merge** adds it
 to the current household; **Replace** starts from the exported setup without its previous history.
-Schedules retain their configured dates. Dashboard card placement and size are not included.
+Schedules retain their configured dates. Merge preserves existing earned progress and remaps
+imported chore appearance and goal references when IDs collide. Existing households keep their
+motivation style; an empty chore library adopts the exported style. Dashboard card placement and
+size are not included.
 
 ## Download a backup
 
