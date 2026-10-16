@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.18.3-beta.1
+
+## New features
+
+- Export chore settings and appearance without completion history or earned progress.
+
+## Improvements and bug fixes
+
+- Fixed repeating chores failing to complete in Docker and the Home Assistant add-on.
+
 ## 0.18.2-beta.2
 
 ## Improvements and bug fixes
