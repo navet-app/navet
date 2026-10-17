@@ -15,6 +15,7 @@ import {
   resetPreviewRuntime,
 } from '../preview/runtime';
 import { demoHomeLibraryCards } from './demo-card-library';
+import { DemoRoomSummary } from './demo-room-summary';
 
 describe('demo preview runtime', () => {
   afterEach(() => {
@@ -52,6 +53,21 @@ describe('demo preview runtime', () => {
         }),
       })
     );
+  });
+
+  it('shows room-scoped summaries and updates them after demo commands', async () => {
+    document.documentElement.dataset.navetPreviewRuntime = 'demo';
+    installPreviewRuntime(getPreviewRuntimeScenario('demo'));
+    const { rerender } = renderWithProviders(<DemoRoomSummary room="Bathroom" />);
+    expect(within(screen.getByRole('navigation')).getByText('Lights')).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation')).getByText('1 On')).toBeInTheDocument();
+    await act(async () => {
+      await dispatchEntityCommand({ type: 'turn_off', entityId: 'light.bathroom_mirror' });
+    });
+    expect(within(screen.getByRole('navigation')).getByText('0 On')).toBeInTheDocument();
+    rerender(<DemoRoomSummary room="Unassigned" />);
+    expect(within(screen.getByRole('navigation')).queryByText('Lights')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('navigation')).getByText('Security')).toBeInTheDocument();
   });
 
   it('backs every named-room card with an entity in its room and compatibility registries', () => {

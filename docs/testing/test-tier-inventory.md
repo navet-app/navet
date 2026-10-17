@@ -18,7 +18,7 @@ These suites block release-oriented workflows and should stay intentionally smal
 | `scripts/agent-validation-receipt.test.mjs` | Native validation receipt provenance, exact commit/hook identity and redaction | Keep |
 | `scripts/agent-codex-usage.test.mjs` | Private execution accounting verifies thread identity, cumulative counter integrity, incomplete-write handling and redacted observations | Keep |
 | `scripts/agent-task-usage.test.mjs` | Verified participant inventory, accepted observable units and complete native turn coverage protect aggregate budgets; historical participants and per-thread monotonic counters survive restart | Keep |
-| `scripts/agent-team-*.test.mjs`, `scripts/agent-proposal-scope.test.mjs` | Coordinated team authority, role ownership, durable publication, verified accounting, interruption, recovery and terminal release | Keep |
+| `scripts/agent-team-*.test.mjs`, `scripts/agent-proposal-scope.test.mjs` | Coordinated team authority, role ownership, durable publication, verified accounting, shared observation deadlines/cancellation, interruption, recovery and terminal release | Keep |
 | `scripts/agent-task-store.test.mjs`, `scripts/agent-planning-scope.test.mjs`, `scripts/agent-linear-event.test.mjs`, `scripts/agent-linear-inbox.test.mjs`, `scripts/agent-linear-refresh.test.mjs` | Private lifecycle authority, signed planning events, durable receipt acknowledgement, fresh service-read reconciliation, scope withdrawal and duplicate/recovery boundaries | Keep |
 | `scripts/agent-linear-intake-run.test.mjs` | Authenticated planning intake preserves independent human authority, scoped proposal agreement, duplicate suppression, cancellation and durable queue receipts through token cleanup | Keep |
 | `scripts/agent-planning-dispatch.test.mjs` | Coordinator dispatch joins current ownership, exact human scope, fresh planning state and resource reservations; withdrawal latches block new execution while preserving receipt recovery | Keep |
@@ -77,6 +77,7 @@ rerun as a tagged-release publishing gate. Storybook browser coverage is a separ
 | `scripts/codex-review-completion.test.mjs` | Verified Codex completion produces a current-head COMMENT receipt; stale summaries, forged authors and duplicate events cannot create extra reviews | Keep |
 | `packages/app/src/features/dashboard/**` | Largest user-facing regression surface for layout, editing, widgets, and navigation | Keep |
 | `packages/app/src/features/media/**`, `lighting/**`, `security/**`, `energy/**`, `climate/**`, `rss/**`, `tasks/**`, `settings/**`, `sensors/**`, `vacuum/**`, `calendar/**`, `notifications/**` | User-visible feature regressions and UI behavior | Keep |
+| `packages/app/src/features/climate/components/climate-card/__tests__/{use-climate-card-controller,climate-reconciliation}.test.*` | Climate mode/range and water-heater behavior, optimistic command echoes, stale failures and owner isolation | Keep |
 | `packages/app/src/components/**` | Shared UI and interaction regressions | Keep |
 | most `packages/app/src/hooks/**` | Hook-level regression coverage for app behavior and feature composition | Keep |
 | most `packages/app/src/utils/**`, `packages/app/src/runtime/**`, `packages/app/src/navigation/**`, `packages/app/src/api/**` | Utility and runtime drift detection that is useful but not release-critical | Keep |
@@ -100,7 +101,6 @@ rewriting or deleting it; this classification changes neither executable members
 | `packages/app/src/features/security/components/__tests__/lock-card.test.tsx` | Missing contract-backed lock states | Rewrite |
 | `packages/app/src/features/security/components/cover-card/__tests__/cover-card.test.tsx` | Needs documented cover/tilt/partial-position behavior | Rewrite |
 | `packages/app/src/features/lighting/components/light-card/__tests__/light-card.test.tsx` | Needs stronger grouped-light and malformed-attribute fixtures | Rewrite |
-| `packages/app/src/features/climate/components/climate-card/__tests__/use-climate-card-controller.test.tsx` | Needs documented Climate mode/range coverage | Rewrite |
 | `packages/app/src/features/tasks/components/__tests__/tasks-section.test.tsx` | Needs realistic automation/script/todo fixtures | Rewrite |
 | `packages/app/src/features/calendar/components/calendar/__tests__/calendar-event-visibility.test.ts` | Needs real all-day and timed event payloads | Rewrite |
 | `packages/app/src/hooks/__tests__/ha-entity-utils.test.ts` | Needs malformed and unavailable fixture coverage | Rewrite |

@@ -1,3 +1,4 @@
+import { createTeamOperation } from './agent-team-operation.mjs';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
@@ -17,28 +18,9 @@ export async function runTeamAccounting({ store, owner, taskId, adapters, now = 
       typeof now !== 'function' || !Number.isSafeInteger(maxRunMs) || maxRunMs < 1 || maxRunMs > 60_000) {
     throw new Error('Team accounting configuration unavailable.');
   }
-  const controller = new AbortController();
-  const cancel = () => controller.abort();
-  signal?.addEventListener('abort', cancel, { once: true });
-  if (signal?.aborted) cancel();
-  const timer = setTimeout(cancel, maxRunMs);
-  const startedAt = now();
+  const operation = createTeamOperation({ now, maxRunMs, signal });
+  const { clock, remote: bounded } = operation;
   let receipt;
-  const clock = () => {
-    const time = now();
-    if (controller.signal.aborted || !Number.isSafeInteger(startedAt) || startedAt <= 0 ||
-        !Number.isSafeInteger(time) || time < startedAt || time - startedAt >= maxRunMs) throw new Error('Expired team accounting.');
-    return time;
-  };
-  const bounded = async (callback) => {
-    clock();
-    let rejectAbort;
-    const aborted = new Promise((_, reject) => { rejectAbort = reject; });
-    const onAbort = () => rejectAbort(new Error('Canceled team accounting.'));
-    controller.signal.addEventListener('abort', onAbort, { once: true });
-    try { const result = await Promise.race([callback(), aborted]); clock(); return result; }
-    finally { controller.signal.removeEventListener('abort', onAbort); }
-  };
   const current = async () => {
     const task = (await bounded(() => store.list())).find((item) => item.id === taskId);
     if (!task?.team?.plan || !task.resources || task.lease?.owner !== owner || task.lease.expiresAt <= clock()) {
@@ -52,7 +34,7 @@ export async function runTeamAccounting({ store, owner, taskId, adapters, now = 
     const inventory = async () => {
       const readStartedAt = clock();
       const value = await bounded(() => adapters.readTeamInventory({ taskId, revision: task.revision,
-        planRevision: task.team.plan.revision, owner }, { signal: controller.signal }));
+        planRevision: task.team.plan.revision, owner }, { signal: operation.signal }));
       if (value?.status !== 'verified' || value.complete !== true || value.taskId !== taskId ||
           value.revision !== task.revision || value.planRevision !== task.team.plan.revision ||
           !text(value.reference) || !Number.isSafeInteger(value.observedAt) || value.observedAt < readStartedAt ||
@@ -85,7 +67,7 @@ export async function runTeamAccounting({ store, owner, taskId, adapters, now = 
     const measurements = [];
     for (const member of first.members) {
       const usage = await bounded(() => observeCodexUsage({ sessionFile: member.sessionFile, threadId: member.threadId },
-        { now: clock(), signal: controller.signal }));
+        { now: clock(), signal: operation.signal }));
       if (usage.source.ignoredPartialTail || usage.nativeTurn?.runId !== member.runId ||
           usage.source.line <= usage.nativeTurn.startLine || usage.source.observedAt < usage.nativeTurn.startedAt ||
           (member.status === 'running' && (usage.nativeTurn.status !== 'running' || usage.source.observedAt < clock() - 60_000)) ||
@@ -141,7 +123,7 @@ export async function runTeamAccounting({ store, owner, taskId, adapters, now = 
     } catch { /* The result explicitly reports failure to persist the stop boundary. */ }
     return { status: 'pending', complete: false, reason: 'team-native-usage-unverified', invalidation,
       ...(receipt ? { accountingReference: receipt.reference } : {}) };
-  } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); cancel(); }
+  } finally { operation.close(); }
 }
 
 export function teamAccountingSettlements(task, members, owner, observedAt) {

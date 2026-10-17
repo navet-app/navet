@@ -37,7 +37,7 @@ import {
   setInstalledPreviewCommandHandler,
   setInstalledPreviewServiceHandler,
 } from './preview-action-bridge';
-import { applyPreviewCommandToEntity } from './preview-command-model';
+import { applyPreviewCommandToEntity, applyPreviewServiceToEntity } from './preview-command-model';
 import {
   createPreviewEntityRuntimeService,
   getPreviewSnapshotAttributes,
@@ -1804,54 +1804,47 @@ export function installPreviewRuntime(scenario: PreviewRuntimeScenario) {
         entry.canonicalId === command.entityId ||
         entry.externalId === command.entityId
     );
-    if (
-      !entity ||
-      ![
-        'turn_on',
-        'turn_off',
-        'set_brightness',
-        'set_color_temperature',
-        'set_fan_speed',
-        'set_temperature',
-        'set_climate_mode',
-        'set_position',
-        'open',
-        'close',
-        'stop',
-        'lock',
-        'unlock',
-        'set_number_value',
-        'select_option',
-        'set_text_value',
-        'set_datetime_value',
-        'press',
-        'set_climate_preset',
-        'set_climate_fan_mode',
-        'set_climate_swing_mode',
-        'set_climate_swing_horizontal_mode',
-        'set_climate_humidity',
-      ].includes(command.type)
-    )
-      return null;
-    return previewProviderPackageRegistration.providerContractAdapter.execute(command);
+    // Installed scenarios own all preview acknowledgements, including no-op commands.
+    // Never fall back to a second state store when the entity or command is absent.
+    if (!entity) return { accepted: true, requiresEventConfirmation: false };
+    const result =
+      await previewProviderPackageRegistration.providerContractAdapter.execute(command);
+    // Retain the acknowledgement policy callers observed before all actions shared scenario state.
+    const requiresEventConfirmation = [
+      'turn_on',
+      'turn_off',
+      'set_brightness',
+      'set_color_temperature',
+      'set_fan_speed',
+      'set_temperature',
+      'set_climate_mode',
+      'set_position',
+      'open',
+      'close',
+      'stop',
+      'lock',
+      'unlock',
+      'set_number_value',
+      'select_option',
+      'set_text_value',
+      'set_datetime_value',
+      'press',
+      'set_climate_preset',
+      'set_climate_fan_mode',
+      'set_climate_swing_mode',
+      'set_climate_swing_horizontal_mode',
+      'set_climate_humidity',
+    ].includes(command.type);
+    return { ...result, requiresEventConfirmation };
   });
   setInstalledPreviewServiceHandler((entityId, { domain, service, serviceData }) => {
     const entity = getActiveScenario()?.entities.find(
       (entry) => entry.externalId === entityId || entry.canonicalId === entityId
     );
-    if (!entity || domain !== 'fan') return false;
-    const patch =
-      service === 'set_direction' &&
-      (serviceData?.direction === 'forward' || serviceData?.direction === 'reverse')
-        ? { direction: serviceData.direction }
-        : service === 'oscillate' && typeof serviceData?.oscillating === 'boolean'
-          ? { oscillating: serviceData.oscillating }
-          : null;
-    if (!patch) return false;
-    updatePreviewEntity(entity.externalId, (current) => ({
-      ...current,
-      attributes: { ...current.attributes, ...patch },
-    }));
+    if (!entity) return true;
+    updatePreviewEntity(entity.externalId, (current) =>
+      applyPreviewServiceToEntity(current, { domain, service, serviceData })
+    );
     return true;
   });
 }

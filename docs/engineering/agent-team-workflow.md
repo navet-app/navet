@@ -22,6 +22,7 @@ consumers and acceptance criteria.
 | `agent-proposal-scope.mjs` | Private idea authority, exact private Project destination and proposal intake |
 | `agent-planning-intake.mjs` | Human approval bound to the selected delivery brief and proposal revision |
 | `agent-team-state.mjs` | Specialist plans, dependencies, file ownership, attempts, evidence and waiting states |
+| `agent-team-operation.mjs` | Shared cancellation, deadlines and bounded observation reads; durable mutations remain awaited by their owning workflow |
 | `agent-team-coordinator.mjs` | One specialist execution or observation per bounded invocation |
 | `agent-team-ticket.mjs` | Ticket transport, durable send permission and independent readback; Project adapter requires a pilot |
 | `agent-team-conversation.mjs` | Store-backed ticket publication and verified answer resumption |

@@ -45,7 +45,7 @@ export const SummaryBar = memo(function SummaryBar({
         tabIndex={isMobileViewport || singleRow ? 0 : undefined}
         className={cn(
           'scrollbar-hide flex gap-1.5 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 md:gap-2',
-          singleRow ? 'h-11 flex-nowrap items-center' : 'md:flex-wrap md:overflow-visible'
+          singleRow ? 'flex-nowrap items-center md:h-11' : 'md:flex-wrap md:overflow-visible'
         )}
       >
         {/* biome-ignore-end lint/a11y/noNoninteractiveTabindex: End scroll region opening tag. */}

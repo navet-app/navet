@@ -1,0 +1,5 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+summary: Room summaries match Home's mobile spacing and appear in demo rooms; chore and climate controls reject stale updates.

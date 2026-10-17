@@ -1,3 +1,4 @@
+import { createTeamOperation } from './agent-team-operation.mjs';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { readGitWorkerSnapshot } from './agent-worker-checkpoint.mjs';
@@ -14,31 +15,12 @@ export function createTeamCheckpointReader({ store, owner, readWorker, now = Dat
     throw new Error('Invalid team checkpoint reader.');
   }
   return async function readCheckpoint(identity, { signal: parentSignal } = {}) {
-    const controller = new AbortController();
-    const cancel = () => controller.abort();
-    parentSignal?.addEventListener('abort', cancel, { once: true });
-    if (parentSignal?.aborted) cancel();
-    const timer = setTimeout(cancel, maxReadMs);
+    const operation = createTeamOperation({ now, maxRunMs: maxReadMs, signal: parentSignal });
     try {
       if (!keys.every((key) => text(identity?.[key]))) throw new Error('Exact team checkpoint identity required.');
       identity = Object.fromEntries(keys.map((key) => [key, identity[key]]));
-      const startedAt = now();
-      const signal = controller.signal;
-      const clock = () => {
-        const time = now();
-        if (signal.aborted || !Number.isSafeInteger(time) || !Number.isSafeInteger(startedAt) || startedAt <= 0 ||
-            time < startedAt || time - startedAt >= maxReadMs) throw new Error('Expired team checkpoint read.');
-        return maxReadMs - (time - startedAt);
-      };
-      const remote = async (read) => {
-        clock();
-        let rejectAbort;
-        const aborted = new Promise((_, reject) => { rejectAbort = reject; });
-        const onAbort = () => rejectAbort(new Error('Canceled team checkpoint read.'));
-        signal.addEventListener('abort', onAbort, { once: true });
-        try { const value = await Promise.race([read(), aborted]); clock(); return structuredClone(value); }
-        finally { signal.removeEventListener('abort', onAbort); }
-      };
+      const { signal, remainingMs: clock } = operation;
+      const remote = async (read) => structuredClone(await operation.remote(read));
       const getTask = async () => {
         const tasks = await remote(() => store.list());
         const task = tasks.find((item) => item.id === identity.taskId);
@@ -79,7 +61,7 @@ export function createTeamCheckpointReader({ store, owner, readWorker, now = Dat
     } catch {
       return { status: 'unavailable' };
     } finally {
-      clearTimeout(timer); parentSignal?.removeEventListener('abort', cancel); cancel();
+      operation.close();
     }
   };
 }

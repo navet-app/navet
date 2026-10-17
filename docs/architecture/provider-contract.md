@@ -117,6 +117,10 @@ Owns:
 - session bootstrap wiring
 - any remaining compatibility-only derived state
 
+The app composes its session runtime directly around its session manager, including session
+compatibility conversion. Provider packages do not register or retain a bridge to that app-owned
+manager; provider-specific authentication and transport remain with their existing adapters.
+
 ## Current Providers
 
 - Home Assistant: implemented (reference adapter)

@@ -20,7 +20,6 @@
     "./homeassistant-runtime-registration": "./src/homeassistant-runtime-registration.ts",
     "./homeassistant-security-feature.service": "./src/homeassistant-security-feature.service.ts",
     "./homeassistant-service-bridge": "./src/homeassistant-service-bridge.ts",
-    "./homeassistant-session-runtime": "./src/homeassistant-session-runtime.ts",
     "./homeassistant-task-feature.service": "./src/homeassistant-task-feature.service.ts",
     "./homeassistant-weather-feature.service": "./src/homeassistant-weather-feature.service.ts"
   }

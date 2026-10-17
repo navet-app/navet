@@ -1,3 +1,4 @@
+import { createTeamOperation } from './agent-team-operation.mjs';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { validatePlanningRequestObservation, planningRequestMatchesTask } from './agent-planning-intake.mjs';
@@ -15,26 +16,12 @@ export async function resumeTeamWorker({ store, owner, taskId, intentId, questio
   if (!store || !text(owner) || !text(taskId) || !text(intentId) || !text(questionId) ||
       ['readIssue', 'readRequest', 'readWorker', 'resumeWorker', 'findResume'].some((key) => typeof adapters?.[key] !== 'function') ||
       !Number.isSafeInteger(maxRunMs) || maxRunMs < 1 || maxRunMs > 60_000) throw new Error('Team resume configuration unavailable.');
-  const controller = new AbortController(); const cancel = () => controller.abort();
-  signal?.addEventListener('abort', cancel, { once: true }); if (signal?.aborted) cancel();
-  const timer = setTimeout(cancel, maxRunMs); const startedAt = now();
-  const clock = () => {
-    const time = now();
-    if (controller.signal.aborted || !Number.isSafeInteger(startedAt) || startedAt <= 0 ||
-        !Number.isSafeInteger(time) || time < startedAt || time - startedAt >= maxRunMs) throw new Error('Team resume expired.');
-    return time;
-  };
-  const remote = async (callback) => {
-    clock(); let listener;
-    const canceled = new Promise((_, reject) => { listener = () => reject(new Error('Team resume canceled.')); });
-    controller.signal.addEventListener('abort', listener, { once: true });
-    try { const value = await Promise.race([callback(), canceled]); clock(); return value; }
-    finally { controller.signal.removeEventListener('abort', listener); }
-  };
+  const operation = createTeamOperation({ now, maxRunMs, signal });
+  const { clock, remote } = operation;
   const fresh = (value, after) => text(value?.reference) && Number.isSafeInteger(value.observedAt) &&
     value.observedAt >= after && value.observedAt <= clock();
   const current = async () => {
-    const task = (await store.list()).find((item) => item.id === taskId); clock();
+    const task = (await remote(() => store.list())).find((item) => item.id === taskId); clock();
     const worker = task?.team?.workers.find((item) => item.intentId === intentId && item.planRevision === task.team.plan?.revision);
     const question = task?.team?.questions.find((item) => item.questionId === questionId);
     if (!task || task.lease?.owner !== owner || task.lease.expiresAt <= clock() ||
@@ -54,14 +41,14 @@ export async function resumeTeamWorker({ store, owner, taskId, intentId, questio
     let resume = worker.resumes?.find((item) => item.resumeId === resumeId);
     if (resume?.status === 'running') {
       const after = clock();
-      const observed = await remote(() => adapters.readWorker(identity, { signal: controller.signal }));
+      const observed = await remote(() => adapters.readWorker(identity, { signal: operation.signal }));
       if (!fresh(observed, after) || !boundStatuses.has(observed.status) || observed.runId !== resume.runId ||
           Object.entries(identity).some(([key, value]) => observed[key] !== value)) return { status: 'pending', reason: 'team-resume-incarnation-unverified' };
       return { status: 'resumed', taskId, intentId, workerId: worker.workerId, runId: resume.runId };
     }
     const bind = async (runId) => {
       const after = clock();
-      const observation = await remote(() => adapters.readWorker(identity, { signal: controller.signal }));
+      const observation = await remote(() => adapters.readWorker(identity, { signal: operation.signal }));
       if (!fresh(observation, after) || !boundStatuses.has(observation.status) ||
           Object.entries(identity).some(([key, value]) => observation[key] !== value) || !text(observation.runId) ||
           observation.runId === resume.previousRunId || (runId && observation.runId !== runId)) throw new Error('Resumed incarnation unverified.');
@@ -70,7 +57,7 @@ export async function resumeTeamWorker({ store, owner, taskId, intentId, questio
     };
     if (resume?.attemptedAt) {
       const after = clock();
-      const found = await remote(() => adapters.findResume(identity, { signal: controller.signal }));
+      const found = await remote(() => adapters.findResume(identity, { signal: operation.signal }));
       if (!fresh(found, after) || found.status !== 'found' || !text(found.runId) ||
           Object.entries(identity).some(([key, value]) => found[key] !== value)) return { status: 'pending', reason: 'team-resume-reconciliation-required' };
       return await bind(found.runId);
@@ -82,11 +69,11 @@ export async function resumeTeamWorker({ store, owner, taskId, intentId, questio
     }
     const binding = task.proposal?.binding ?? task.planning?.binding;
     const scopeStarted = clock();
-    const scope = await remote(() => adapters.readIssue(binding.issueId, { signal: controller.signal }));
+    const scope = await remote(() => adapters.readIssue(binding.issueId, { signal: operation.signal }));
     if (!fresh(scope, scopeStarted)) throw new Error('Resume scope unverified.');
     await store.mutate(taskId, task.proposal ? 'proposal-observation' : 'planning-observation', { owner, observation: scope });
     const requestStarted = clock(); const requestIdentity = { source: task.source, requestId: task.requestId };
-    const requestObservation = await remote(() => adapters.readRequest(requestIdentity, { signal: controller.signal }));
+    const requestObservation = await remote(() => adapters.readRequest(requestIdentity, { signal: operation.signal }));
     if (requestObservation?.status === 'withdrawn') await store.mutate(taskId, 'request-revocation', { owner,
       observation: { ...requestIdentity, status: 'withdrawn', reference: task.authority.reference, observedAt: clock() } });
     const validate = task.proposal ? validateProposalRequestObservation : validatePlanningRequestObservation;
@@ -94,7 +81,7 @@ export async function resumeTeamWorker({ store, owner, taskId, intentId, questio
     const request = validate(requestObservation, requestIdentity, requestStarted, clock());
     if (!match(task, request)) throw new Error('Resume accepted scope changed.');
     const stoppedStarted = clock();
-    const stopped = await remote(() => adapters.readWorker({ taskId, intentId, workerId: worker.workerId }, { signal: controller.signal }));
+    const stopped = await remote(() => adapters.readWorker({ taskId, intentId, workerId: worker.workerId }, { signal: operation.signal }));
     if (!fresh(stopped, stoppedStarted) || stopped.status !== 'stopped' || stopped.taskId !== taskId ||
         stopped.intentId !== intentId || stopped.workerId !== worker.workerId || !text(stopped.runId) ||
         stopped.runId !== worker.observation?.runId) throw new Error('Stopped incarnation changed.');
@@ -102,7 +89,7 @@ export async function resumeTeamWorker({ store, owner, taskId, intentId, questio
       if (typeof adapters.readCheckpoint !== 'function') throw new Error('Fresh Git checkpoint reader required.');
       const checkpointStarted = clock();
       const captured = await remote(() => adapters.readCheckpoint({ taskId, intentId, workerId: worker.workerId,
-        runId: stopped.runId }, { signal: controller.signal }));
+        runId: stopped.runId }, { signal: operation.signal }));
       const immutable = ['taskId', 'intentId', 'workerId', 'runId', 'reference', 'head', 'stateHash', 'branch', 'worktree', 'nextAction'];
       if (!fresh(captured, checkpointStarted) || captured.status !== 'verified' ||
           immutable.some((key) => captured[key] !== worker.checkpoint[key])) throw new Error('Git checkpoint changed before resume.');
@@ -122,8 +109,8 @@ export async function resumeTeamWorker({ store, owner, taskId, intentId, questio
     clock();
     await remote(() => adapters.resumeWorker({ ...identity, previousRunId: stopped.runId,
       checkpoint: structuredClone(worker.checkpoint), answer: structuredClone(question.answer),
-      revision: task.revision, head: task.head, brief: structuredClone(task.brief) }, { signal: controller.signal }));
+      revision: task.revision, head: task.head, brief: structuredClone(task.brief) }, { signal: operation.signal }));
     return await bind();
   } catch { return { status: 'pending', reason: 'team-resume-unverified' }; }
-  finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); cancel(); }
+  finally { operation.close(); }
 }

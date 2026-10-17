@@ -13,6 +13,17 @@ const OUTPUT_DIR = resolve(repoRoot, process.env.NAVET_PR_REVIEW_OUTPUT ?? '.cac
 
 const scenarios = [
   { name: 'phone-home', path: '/demo/home', viewport: { width: 390, height: 844 } },
+  {
+    name: 'phone-room-living-room',
+    path: '/demo/home',
+    viewport: { width: 390, height: 844 },
+    prepare: async (page) => {
+      await page.getByRole('button', { name: 'Rooms', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Living Room', exact: true }).click();
+      await page.getByText('Living Room Air', { exact: true }).first().waitFor();
+      await page.getByRole('navigation', { name: 'Summary bar', exact: true }).waitFor();
+    },
+  },
   { name: 'tablet-portrait-home', path: '/demo/home', viewport: { width: 1024, height: 1366 } },
   { name: 'tablet-landscape-home', path: '/demo/home', viewport: { width: 1366, height: 1024 } },
   { name: 'desktop-home', path: '/demo/home', viewport: { width: 1440, height: 900 } },
@@ -63,6 +74,7 @@ for (const [room, sample] of Object.entries(namedRoomSamples)) {
         await page.getByRole('menuitem', { name: room, exact: true }).click();
       }
       await page.getByText(sample, { exact: true }).first().waitFor();
+      await page.getByRole('navigation', { name: 'Summary bar', exact: true }).waitFor();
     },
   });
 }
