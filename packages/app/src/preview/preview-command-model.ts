@@ -176,7 +176,12 @@ export function applyPreviewCommandToEntity<T extends NavetEntity>(
       return {
         ...entity,
         primaryState: 'on',
-        attributes: { ...entity.attributes, value: 'on', colorTemperatureKelvin: command.kelvin },
+        attributes: {
+          ...entity.attributes,
+          value: 'on',
+          colorTemperatureKelvin: command.kelvin,
+          colorMode: 'color_temp',
+        },
       };
     case 'lock':
       return {

@@ -100,6 +100,23 @@ describe('preview action bridge', () => {
 
     expect(homeAssistantStore.getState().entities?.['scene.movie_mode']?.state).toBe('scening');
   });
+
+  it('switches raw-only RGB fixtures to temperature mode after a temperature command', async () => {
+    const entity = homeAssistantStore.getState().entities?.['light.kitchen'];
+    if (!entity) throw new Error('Expected kitchen fixture');
+    homeAssistantStore.setState({
+      entities: { 'light.kitchen': { ...entity, attributes: { color_mode: 'rgb' } } },
+    });
+    await dispatchNavetCommand({
+      type: 'set_color_temperature',
+      entityId: 'light.kitchen',
+      kelvin: 3000,
+    });
+    expect(homeAssistantStore.getState().entities?.['light.kitchen']?.attributes).toMatchObject({
+      color_mode: 'color_temp',
+      color_temp_kelvin: 3000,
+    });
+  });
   it('retains raw-only fixture updates for fan, vacuum and media commands', async () => {
     const base = homeAssistantStore.getState().entities?.['light.kitchen'];
     if (!base) throw new Error('Expected kitchen fixture');

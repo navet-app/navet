@@ -50,6 +50,20 @@ describe('Climate command reconciliation', () => {
     expect(climate.getSnapshot().mode).toBe('off');
   });
 
+  it('restores confirmed state when consecutive replacement commands fail', () => {
+    const climate = createClimateReconciliation(initial);
+    const rejectFirstMode = climate.requestOperatingState({ mode: 'cool', isOn: true });
+    const rejectLastMode = climate.requestOperatingState({ mode: 'off', isOn: false });
+    rejectFirstMode();
+    rejectLastMode();
+    expect(climate.getSnapshot()).toMatchObject(initial);
+    const rejectFirstTemperature = climate.requestTemperature(23);
+    const rejectLastTemperature = climate.requestTemperature(25);
+    rejectFirstTemperature();
+    rejectLastTemperature();
+    expect(climate.getSnapshot().targetTemp).toBe(initial.targetTemp);
+  });
+
   it('restores the latest observed operating state when the active request fails', () => {
     const climate = createClimateReconciliation(initial);
     const reject = climate.requestOperatingState({ mode: 'off', isOn: false, action: 'idle' });

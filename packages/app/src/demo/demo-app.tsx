@@ -74,6 +74,7 @@ import {
 import type { CameraDevice, DeviceWithType, LockDevice, SensorDevice } from '../types/device.types';
 import { DEMO_CARD_TEMPLATE_IDS, demoHomeLibraryCards } from './demo-card-library';
 import { installDemoDeviceAuthority } from './demo-device-authority';
+import { DemoRoomSummary } from './demo-room-summary';
 import { PHOTO_FRAME_DEMO_IMAGES } from './photo-frame-demo-images';
 
 type DemoSection = Section;
@@ -1548,7 +1549,12 @@ function HomeRoomShot({
   addedWidgets: CustomCard[];
 }) {
   if (!isAllRooms(activeRoom)) {
-    return <RoomShot room={activeRoom} />;
+    return (
+      <SummaryBarStack>
+        <DemoRoomSummary room={activeRoom} />
+        <RoomShot room={activeRoom} />
+      </SummaryBarStack>
+    );
   }
 
   return (

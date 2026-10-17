@@ -45,6 +45,7 @@ export function createClimateReconciliation(initial: ClimateControlState) {
   };
 
   function lane<T>(read: () => T, apply: (value: T) => void, matches: (a: T, b: T) => boolean) {
+    let confirmed = read();
     let pending: { value: T; previous: T; deferred?: T } | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     // A request remains identifiable after echo expiry, but a newer request or
@@ -57,6 +58,7 @@ export function createClimateReconciliation(initial: ClimateControlState) {
     };
     return {
       observe(value: T) {
+        confirmed = value;
         if (pending && !matches(value, pending.value)) {
           pending.deferred = value;
           return;
@@ -66,7 +68,7 @@ export function createClimateReconciliation(initial: ClimateControlState) {
         apply(value);
       },
       request(value: T) {
-        const previous = read();
+        const previous = confirmed;
         clear();
         const request = { value, previous };
         pending = request;
@@ -91,6 +93,8 @@ export function createClimateReconciliation(initial: ClimateControlState) {
       dispose() {
         latestRequest = undefined;
         clear();
+        // Reconnection starts from the retained snapshot with no outstanding command.
+        confirmed = read();
       },
     };
   }
