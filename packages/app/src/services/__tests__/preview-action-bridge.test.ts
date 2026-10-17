@@ -117,6 +117,38 @@ describe('preview action bridge', () => {
       color_temp_kelvin: 3000,
     });
   });
+  it.each(['open', 'close', 'open_cover', 'close_cover'] as const)(
+    'updates the raw-only cover position after %s',
+    async (action) => {
+      const base = homeAssistantStore.getState().entities?.['light.kitchen'];
+      if (!base) throw new Error('Expected kitchen fixture');
+      homeAssistantStore.setState({
+        entities: {
+          'cover.kitchen': {
+            ...base,
+            entity_id: 'cover.kitchen',
+            state: 'open',
+            attributes: { current_position: 40 },
+          },
+        },
+      });
+      if (action === 'open' || action === 'close') {
+        await dispatchNavetCommand({ type: action, entityId: 'cover.kitchen' });
+      } else {
+        await invokeIntegrationNativeAction({
+          entityId: 'cover.kitchen',
+          domain: 'cover',
+          service: action,
+        });
+      }
+      const opening = action === 'open' || action === 'open_cover';
+      expect(homeAssistantStore.getState().entities?.['cover.kitchen']).toMatchObject({
+        state: opening ? 'open' : 'closed',
+        attributes: { current_position: opening ? 100 : 0 },
+      });
+    }
+  );
+
   it('retains raw-only fixture updates for fan, vacuum and media commands', async () => {
     const base = homeAssistantStore.getState().entities?.['light.kitchen'];
     if (!base) throw new Error('Expected kitchen fixture');

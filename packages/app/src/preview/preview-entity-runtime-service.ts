@@ -37,6 +37,14 @@ interface PreviewEntityRuntimeServiceOptions<TState extends PreviewEntityRuntime
 
 // Keep normalized preview state intact; legacy controls read these snapshot aliases.
 export function getPreviewSnapshotAttributes(entity: NavetEntity) {
+  if (entity.type === 'cover') {
+    return {
+      ...entity.attributes,
+      ...(typeof entity.attributes.position === 'number'
+        ? { current_position: entity.attributes.position }
+        : {}),
+    };
+  }
   if (entity.type === 'climate' || entity.type === 'hvac') {
     return {
       ...entity.attributes,
