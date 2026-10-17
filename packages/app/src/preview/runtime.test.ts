@@ -2,9 +2,11 @@ import { dispatchEntityCommand } from '@navet/app/commands';
 import { getProviderRuntimeRegistration } from '@navet/app/provider-runtime-registry';
 import { integrationStore } from '@navet/app/stores/integration-store';
 import { afterEach, describe, expect, it } from 'vitest';
+import { maybeHandlePreviewServiceCall } from './preview-action-bridge';
 import {
   createPreviewLightEntity,
   getPreviewDeviceCollection,
+  getPreviewHomeAssistantCompatibilityState,
   getPreviewRuntimeScenario,
   installPreviewRuntime,
   resetPreviewRuntime,
@@ -86,6 +88,46 @@ describe('preview runtime', () => {
         'light.kitchen_plants'
       )
     ).toBeUndefined();
+  });
+
+  it('keeps installed preview playback and volume actions aligned across readers', async () => {
+    document.documentElement.dataset.navetPreviewRuntime = 'storybook';
+    installPreviewRuntime(getPreviewRuntimeScenario('default'));
+    const entityId = 'home_assistant:media_player.living_room_speaker';
+    const readEntity = () => integrationStore.getState().providerEntitiesByCanonicalId[entityId];
+    const readSnapshot = () =>
+      getPreviewHomeAssistantCompatibilityState()?.entities?.['media_player.living_room_speaker'];
+
+    await dispatchEntityCommand({ type: 'play_pause', entityId });
+    expect(readEntity()?.primaryState).toBe('paused');
+    expect(readSnapshot()?.state).toBe('paused');
+    await dispatchEntityCommand({ type: 'set_volume', entityId, volume: 27 });
+    expect(readEntity()?.attributes.volume).toBe(27);
+    expect(readSnapshot()?.attributes.volume_level).toBe(0.27);
+    await maybeHandlePreviewServiceCall({
+      entityId,
+      domain: 'media_player',
+      service: 'volume_mute',
+      serviceData: { is_volume_muted: true },
+    });
+    expect(readEntity()?.attributes.isMuted).toBe(true);
+    expect(readSnapshot()?.attributes.is_volume_muted).toBe(true);
+  });
+
+  it('keeps missing targets and unsupported installed commands as accepted no-ops', async () => {
+    document.documentElement.dataset.navetPreviewRuntime = 'demo';
+    installPreviewRuntime(getPreviewRuntimeScenario('default'));
+    const before = integrationStore.getState().providerEntitiesByCanonicalId;
+    expect(
+      await dispatchEntityCommand({ type: 'turn_off', entityId: 'home_assistant:light.absent' })
+    ).toEqual({ accepted: true, requiresEventConfirmation: false });
+    expect(
+      await dispatchEntityCommand({
+        type: 'timer_finish',
+        entityId: 'home_assistant:light.living_room',
+      })
+    ).toEqual({ accepted: true, requiresEventConfirmation: false });
+    expect(integrationStore.getState().providerEntitiesByCanonicalId).toEqual(before);
   });
 
   it('provides deterministic media browsing for isolated previews', async () => {

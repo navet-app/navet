@@ -1,7 +1,16 @@
 import { homeAssistantStore } from '@navet/app/stores/home-assistant-store';
 import { getProviderNativeId } from '@navet/app/utils/provider-ids';
-import type { CommandResult, NavetCommand } from '@navet/core/types';
+import type { CommandResult, NavetCommand, NavetEntity } from '@navet/core/types';
 import type { HassEntities, HassEntity } from 'home-assistant-js-websocket';
+
+import {
+  applyPreviewCommandToEntity,
+  applyPreviewServiceToEntity as applyService,
+} from './preview-command-model';
+import {
+  getPreviewSnapshotAttributes,
+  getPreviewSnapshotState,
+} from './preview-entity-runtime-service';
 
 type PreviewRuntimeKind = 'storybook' | 'demo';
 
@@ -101,184 +110,79 @@ function withEntityPatch(
   };
 }
 
-function brightnessToHaScale(brightness: number) {
-  return Math.round((Math.max(0, Math.min(100, brightness)) / 100) * 255);
+// Raw-only legacy fixtures adapt to the same action model as installed scenarios.
+function adaptLegacyEntity(entity: HassEntity): NavetEntity {
+  const domain = entity.entity_id.split('.')[0];
+  const type: NavetEntity['type'] =
+    domain === 'media_player'
+      ? 'media_player'
+      : domain === 'light'
+        ? 'light'
+        : domain === 'cover'
+          ? 'cover'
+          : domain === 'climate' || domain === 'water_heater'
+            ? 'climate'
+            : 'unknown';
+  return {
+    id: entity.entity_id,
+    canonicalId: entity.entity_id,
+    externalId: entity.entity_id,
+    providerId: 'home_assistant',
+    name: entity.entity_id,
+    type,
+    primaryState: entity.state,
+    availability: 'available',
+    capabilities: [],
+    attributes: {
+      ...entity.attributes,
+      ...(typeof entity.attributes.volume_level === 'number'
+        ? { volume: entity.attributes.volume_level * 100 }
+        : {}),
+      ...(typeof entity.attributes.is_volume_muted === 'boolean'
+        ? { isMuted: entity.attributes.is_volume_muted }
+        : {}),
+      ...(Array.isArray(entity.attributes.group_members)
+        ? { groupMembers: entity.attributes.group_members }
+        : {}),
+    },
+  };
 }
 
-function volumeToHaScale(volume: number) {
-  return Math.max(0, Math.min(1, volume / 100));
-}
-
-function togglePlaybackState(state: string) {
-  return state === 'playing' ? 'paused' : 'playing';
+function applyLegacyAction(
+  entityId: string | undefined,
+  apply: (entity: NavetEntity) => NavetEntity
+) {
+  return updatePreviewEntity(entityId, (raw) => {
+    const entity = adaptLegacyEntity(raw);
+    const next = apply(entity);
+    if (next === entity) return raw;
+    return withEntityPatch(raw, {
+      state: getPreviewSnapshotState(next),
+      attributes: getPreviewSnapshotAttributes(next),
+    });
+  });
 }
 
 function applyPreviewCommand(command: NavetCommand): boolean {
-  switch (command.type) {
-    case 'turn_on':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'on' })
-      );
-    case 'turn_off':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: entity.entity_id.startsWith('cover.') ? 'closed' : 'off' })
-      );
-    case 'set_brightness':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, {
-          state: 'on',
-          attributes: { brightness: brightnessToHaScale(command.brightness) },
-        })
-      );
-    case 'set_color_temperature':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, {
-          state: 'on',
-          attributes: { color_temp_kelvin: command.kelvin, color_mode: 'color_temp' },
-        })
-      );
-    case 'set_fan_speed':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, {
-          state: command.percentage > 0 ? 'on' : 'off',
-          attributes: { percentage: command.percentage },
-        })
-      );
-    case 'set_vacuum_fan_speed':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, {
-          attributes: { fan_speed: command.fanSpeed },
-        })
-      );
-    case 'clean_vacuum_areas':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, {
-          state: 'cleaning',
-          attributes: { active_cleaning_area_ids: command.areaIds },
-        })
-      );
-    case 'play_pause':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: togglePlaybackState(entity.state) })
-      );
-    case 'previous_track':
-    case 'next_track':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'playing' })
-      );
-    case 'set_volume':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, {
-          attributes: { volume_level: volumeToHaScale(command.volume), is_volume_muted: false },
-        })
-      );
-    case 'mute':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { attributes: { is_volume_muted: true } })
-      );
-    case 'unmute':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { attributes: { is_volume_muted: false } })
-      );
-    case 'set_shuffle':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { attributes: { shuffle: command.shuffle } })
-      );
-    case 'set_repeat_mode':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { attributes: { repeat: command.repeatMode } })
-      );
-    case 'join_group':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { attributes: { group_members: command.members } })
-      );
-    case 'leave_group':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { attributes: { group_members: [] } })
-      );
-    case 'set_climate_mode':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, {
-          state: command.mode,
-          attributes: entity.entity_id.startsWith('water_heater.')
-            ? { operation_mode: command.mode }
-            : { hvac_mode: command.mode },
-        })
-      );
-    case 'set_temperature':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { attributes: { temperature: command.temperature } })
-      );
-    case 'lock':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'locked' })
-      );
-    case 'unlock':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'unlocked' })
-      );
-    case 'arm_home':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'armed_home' })
-      );
-    case 'arm_away':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'armed_away' })
-      );
-    case 'arm_night':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'armed_night' })
-      );
-    case 'arm_vacation':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'armed_vacation' })
-      );
-    case 'arm_custom_bypass':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'armed_custom_bypass' })
-      );
-    case 'disarm':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'disarmed' })
-      );
-    case 'trigger':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'triggered' })
-      );
-    case 'open':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'open', attributes: { current_position: 100 } })
-      );
-    case 'close':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'closed', attributes: { current_position: 0 } })
-      );
-    case 'start':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, {
-          state: entity.entity_id.startsWith('vacuum.') ? 'cleaning' : 'on',
-        })
-      );
-    case 'pause':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'paused' })
-      );
-    case 'stop':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'idle' })
-      );
-    case 'return_home':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'returning' })
-      );
-    case 'locate':
-    case 'clean_spot':
-      return updatePreviewEntity(command.entityId, (entity) =>
-        withEntityPatch(entity, { state: 'cleaning' })
-      );
-    default:
-      return false;
-  }
+  return applyLegacyAction(command.entityId, (entity) => {
+    // Preserve raw fixture semantics where the normalized preview intentionally does not act.
+    if (command.type === 'stop') return { ...entity, primaryState: 'idle' };
+    if (command.type === 'turn_off' && entity.type === 'cover') {
+      return { ...entity, primaryState: 'closed' };
+    }
+    const next = applyPreviewCommandToEntity(entity, command);
+    if (command.type === 'set_climate_mode') {
+      return {
+        ...next,
+        attributes: {
+          ...next.attributes,
+          [entity.externalId.startsWith('water_heater.') ? 'operation_mode' : 'hvac_mode']:
+            command.mode,
+        },
+      };
+    }
+    return next;
+  });
 }
 
 function getPreviewServiceEntityIds(request: PreviewServiceCallRequest) {
@@ -299,146 +203,7 @@ function getPreviewServiceEntityIds(request: PreviewServiceCallRequest) {
 }
 
 function applyPreviewServiceToEntity(entityId: string, request: PreviewServiceCallRequest) {
-  const { domain, service, serviceData } = request;
-
-  if (domain === 'scene' && service === 'turn_on') {
-    return updatePreviewEntity(entityId, (entity) => withEntityPatch(entity, { state: 'scening' }));
-  }
-
-  if (
-    (domain === 'script' || domain === 'button') &&
-    (service === 'turn_on' || service === 'press')
-  ) {
-    return updatePreviewEntity(entityId, (entity) => withEntityPatch(entity, { state: 'on' }));
-  }
-
-  if (domain === 'automation' && service === 'trigger') {
-    return updatePreviewEntity(entityId, (entity) =>
-      withEntityPatch(entity, {
-        attributes: { last_triggered: new Date().toISOString() },
-      })
-    );
-  }
-
-  if (service === 'turn_on') {
-    return applyPreviewCommand({ type: 'turn_on', entityId });
-  }
-
-  if (service === 'turn_off') {
-    return applyPreviewCommand({ type: 'turn_off', entityId });
-  }
-
-  if (service === 'toggle') {
-    return updatePreviewEntity(entityId, (entity) =>
-      withEntityPatch(entity, { state: entity.state === 'on' ? 'off' : 'on' })
-    );
-  }
-
-  if (
-    domain === 'fan' &&
-    service === 'set_percentage' &&
-    typeof serviceData?.percentage === 'number'
-  ) {
-    return applyPreviewCommand({
-      type: 'set_fan_speed',
-      entityId,
-      percentage: serviceData.percentage,
-    });
-  }
-
-  if (
-    (domain === 'climate' || domain === 'water_heater') &&
-    service === 'set_temperature' &&
-    typeof serviceData?.temperature === 'number'
-  ) {
-    return applyPreviewCommand({
-      type: 'set_temperature',
-      entityId,
-      temperature: serviceData.temperature,
-    });
-  }
-
-  if (
-    domain === 'climate' &&
-    service === 'set_hvac_mode' &&
-    typeof serviceData?.hvac_mode === 'string'
-  ) {
-    return applyPreviewCommand({
-      type: 'set_climate_mode',
-      entityId,
-      mode: serviceData.hvac_mode,
-    });
-  }
-
-  if (
-    domain === 'media_player' &&
-    service === 'volume_set' &&
-    typeof serviceData?.volume_level === 'number'
-  ) {
-    return updatePreviewEntity(entityId, (entity) =>
-      withEntityPatch(entity, {
-        attributes: { volume_level: serviceData.volume_level, is_volume_muted: false },
-      })
-    );
-  }
-
-  if (
-    domain === 'media_player' &&
-    service === 'volume_mute' &&
-    typeof serviceData?.is_volume_muted === 'boolean'
-  ) {
-    return updatePreviewEntity(entityId, (entity) =>
-      withEntityPatch(entity, {
-        attributes: { is_volume_muted: serviceData.is_volume_muted },
-      })
-    );
-  }
-
-  if (
-    domain === 'media_player' &&
-    service === 'shuffle_set' &&
-    typeof serviceData?.shuffle === 'boolean'
-  ) {
-    return updatePreviewEntity(entityId, (entity) =>
-      withEntityPatch(entity, {
-        attributes: { shuffle: serviceData.shuffle },
-      })
-    );
-  }
-
-  if (
-    domain === 'media_player' &&
-    service === 'repeat_set' &&
-    typeof serviceData?.repeat === 'string'
-  ) {
-    return updatePreviewEntity(entityId, (entity) =>
-      withEntityPatch(entity, {
-        attributes: { repeat: serviceData.repeat },
-      })
-    );
-  }
-
-  if (domain === 'lock' && service === 'lock') {
-    return applyPreviewCommand({ type: 'lock', entityId });
-  }
-
-  if (domain === 'lock' && service === 'unlock') {
-    return applyPreviewCommand({ type: 'unlock', entityId });
-  }
-
-  if (domain === 'cover' && service === 'open_cover') {
-    return applyPreviewCommand({ type: 'open', entityId });
-  }
-
-  if (domain === 'cover' && service === 'close_cover') {
-    return applyPreviewCommand({ type: 'close', entityId });
-  }
-
-  if (domain === 'vacuum' && service === 'return_to_base') {
-    return applyPreviewCommand({ type: 'return_home', entityId });
-  }
-
-  return updatePreviewEntity(entityId, (entity) => withEntityPatch(entity, {}));
+  return applyLegacyAction(entityId, (entity) => applyService(entity, request));
 }
 
 export async function maybeDispatchPreviewCommand(

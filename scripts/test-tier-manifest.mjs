@@ -11,6 +11,7 @@ export const TEST_TIERS = {
       'scripts/agent-dispatch-workflow.test.mjs',
       'scripts/agent-task-store.test.mjs',
       'scripts/agent-team-accounting.test.mjs',
+      'scripts/agent-team-operation.test.mjs',
       'scripts/agent-team-checkpoint.test.mjs',
       'scripts/agent-team-completion.test.mjs',
       'scripts/agent-team-conversation.test.mjs',

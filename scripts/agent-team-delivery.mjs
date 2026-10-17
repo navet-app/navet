@@ -1,3 +1,4 @@
+import { createTeamOperation } from './agent-team-operation.mjs';
 import { isDeepStrictEqual } from 'node:util';
 import { teamPlanComplete } from './agent-team-state.mjs';
 import { runTeamTicketUpdate } from './agent-team-conversation.mjs';
@@ -49,39 +50,17 @@ async function bounded(options, action) {
   if (!store || !owner || !taskId || !adapters || !Number.isSafeInteger(maxRunMs) || maxRunMs < 1 || maxRunMs > 60_000) {
     throw new Error('Delivery configuration unavailable.');
   }
-  const controller = new AbortController();
-  const cancel = () => controller.abort();
-  signal?.addEventListener('abort', cancel, { once: true });
-  if (signal?.aborted) cancel();
-  const timer = setTimeout(cancel, maxRunMs);
-  const startedAt = now();
-  const clock = () => {
-    const time = now();
-    if (controller.signal.aborted || !Number.isSafeInteger(time) || startedAt <= 0 || time < startedAt || time - startedAt >= maxRunMs) {
-      throw new Error('Delivery observation expired.');
-    }
-    return time;
-  };
-  const remote = async (operation) => {
-    clock();
-    let listener;
-    try {
-      return await Promise.race([operation(controller.signal), new Promise((_, reject) => {
-        listener = () => reject(new Error('Delivery observation canceled.'));
-        controller.signal.addEventListener('abort', listener, { once: true });
-        if (controller.signal.aborted) listener();
-      })]);
-    } finally { controller.signal.removeEventListener('abort', listener); clock(); }
-  };
+  const operation = createTeamOperation({ now, maxRunMs, signal });
+  const { clock, remote } = operation;
   const current = async () => {
-    const task = (await store.list()).find((item) => item.id === taskId);
+    const task = (await remote(() => store.list())).find((item) => item.id === taskId);
     if (!task || task.lease?.owner !== owner || task.lease.expiresAt <= clock() || !bindingOf(task) ||
         ['delivered', 'terminal-failure'].includes(task.state)) throw new Error('Delivery ownership unavailable.');
     return task;
   };
-  try { return await action({ current, clock, remote, signal: controller.signal, now }); }
+  try { return await action({ current, clock, remote, signal: operation.signal, now }); }
   catch { return { status: 'blocked', reason: 'delivery-observation-unverified' }; }
-  finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); controller.abort(); }
+  finally { operation.close(); }
 }
 
 export async function finishTeamArtifact(options) {

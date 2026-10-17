@@ -65,7 +65,5 @@ export {
   updateHomeAssistantLight,
   updateHomeAssistantMediaPlayerPower,
 } from './homeassistant-service-bridge';
-export * from './homeassistant-session-registration';
-export * from './homeassistant-session-runtime';
 export * from './homeassistant-task-feature.service';
 export * from './homeassistant-weather-feature.service';

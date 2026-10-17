@@ -62,10 +62,16 @@ const items: HomeStatusSummaryItem[] = [
   },
 ];
 
-function SummaryBarStory({ items: storyItems }: { items: HomeStatusSummaryItem[] }) {
+function SummaryBarStory({
+  items: storyItems,
+  singleRow,
+}: {
+  items: HomeStatusSummaryItem[];
+  singleRow?: boolean;
+}) {
   return (
     <div className="w-[min(56rem,100%)] rounded-[28px] border border-white/10 bg-zinc-950 p-5">
-      <SummaryBar items={storyItems} onNavigate={() => {}} />
+      <SummaryBar items={storyItems} singleRow={singleRow} onNavigate={() => {}} />
     </div>
   );
 }
@@ -96,6 +102,7 @@ export const Summary: Story = {
 
 export const RoomSummary: Story = {
   args: {
+    singleRow: true,
     items: [
       ...items
         .slice(0, 3)

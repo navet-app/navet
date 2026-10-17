@@ -94,6 +94,35 @@ function createClimateEntity(attributes: Record<string, unknown>, state = 'heat'
 }
 
 describe('useClimateCardController', () => {
+  it('resets pending state and cancels an unsent temperature command when the owner changes', () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHookWithProviders(
+      ({ id, temperature }) =>
+        useClimateCardController({
+          id,
+          name: id,
+          initialTemp: temperature,
+          initialCurrentTemp: temperature,
+          initialMode: 'heat',
+          initialState: true,
+          isEditMode: false,
+          size: 'medium',
+        }),
+      { initialProps: { id: 'climate.first', temperature: 21 } }
+    );
+    act(() => {
+      result.current.setTargetTemp(24);
+    });
+    expect(result.current.targetTemp).toBe(24);
+    rerender({ id: 'climate.second', temperature: 18 });
+    expect(result.current.targetTemp).toBe(18);
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(serviceMock.callService).not.toHaveBeenCalled();
+    expect(result.current.targetTemp).toBe(18);
+  });
+
   it('keeps fractional current and target temperatures in Celsius card labels', () => {
     useSettingsStore.setState({ temperatureUnit: 'celsius' });
     const { result } = renderHookWithProviders(() =>

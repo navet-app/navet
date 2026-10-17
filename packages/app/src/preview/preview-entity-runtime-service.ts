@@ -37,6 +37,27 @@ interface PreviewEntityRuntimeServiceOptions<TState extends PreviewEntityRuntime
 
 // Keep normalized preview state intact; legacy controls read these snapshot aliases.
 export function getPreviewSnapshotAttributes(entity: NavetEntity) {
+  if (entity.type === 'climate' || entity.type === 'hvac') {
+    return {
+      ...entity.attributes,
+      [entity.externalId.startsWith('water_heater.') ? 'operation_mode' : 'hvac_mode']:
+        entity.primaryState,
+    };
+  }
+  if (entity.type === 'media_player') {
+    return {
+      ...entity.attributes,
+      ...(typeof entity.attributes.volume === 'number'
+        ? { volume_level: entity.attributes.volume / 100 }
+        : {}),
+      ...(typeof entity.attributes.isMuted === 'boolean'
+        ? { is_volume_muted: entity.attributes.isMuted }
+        : {}),
+      ...(Array.isArray(entity.attributes.groupMembers)
+        ? { group_members: entity.attributes.groupMembers }
+        : {}),
+    };
+  }
   if (entity.type !== 'light') return entity.attributes;
   const attributes = { ...entity.attributes };
   const aliases = {
@@ -53,6 +74,10 @@ export function getPreviewSnapshotAttributes(entity: NavetEntity) {
     if (entity.attributes[normalized] !== undefined)
       attributes[snapshot] = entity.attributes[normalized];
   }
+  if (typeof entity.attributes.brightnessPct === 'number')
+    attributes.brightness = Math.round(
+      (Math.max(0, Math.min(100, entity.attributes.brightnessPct)) / 100) * 255
+    );
   return attributes;
 }
 

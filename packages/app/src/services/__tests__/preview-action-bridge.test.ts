@@ -100,4 +100,70 @@ describe('preview action bridge', () => {
 
     expect(homeAssistantStore.getState().entities?.['scene.movie_mode']?.state).toBe('scening');
   });
+  it('retains raw-only fixture updates for fan, vacuum and media commands', async () => {
+    const base = homeAssistantStore.getState().entities?.['light.kitchen'];
+    if (!base) throw new Error('Expected kitchen fixture');
+    homeAssistantStore.setState({
+      entities: {
+        ...homeAssistantStore.getState().entities,
+        'cover.kitchen': { ...base, entity_id: 'cover.kitchen', state: 'open', attributes: {} },
+        'fan.office': { ...base, entity_id: 'fan.office', attributes: { percentage: 0 } },
+        'vacuum.downstairs': {
+          ...base,
+          entity_id: 'vacuum.downstairs',
+          state: 'docked',
+          attributes: {},
+        },
+        'media_player.kitchen': {
+          ...base,
+          entity_id: 'media_player.kitchen',
+          state: 'playing',
+          attributes: { volume_level: 0.4, is_volume_muted: false, group_members: [] },
+        },
+      },
+    });
+    await invokeIntegrationNativeAction({
+      entityId: 'cover.kitchen',
+      domain: 'cover',
+      service: 'turn_off',
+    });
+    expect(homeAssistantStore.getState().entities?.['cover.kitchen']?.state).toBe('closed');
+    await dispatchNavetCommand({ type: 'set_fan_speed', entityId: 'fan.office', percentage: 65 });
+    expect(homeAssistantStore.getState().entities?.['fan.office']).toMatchObject({
+      state: 'on',
+      attributes: { percentage: 65 },
+    });
+    await dispatchNavetCommand({ type: 'start', entityId: 'vacuum.downstairs' });
+    expect(homeAssistantStore.getState().entities?.['vacuum.downstairs']?.state).toBe('cleaning');
+    await dispatchNavetCommand({ type: 'stop', entityId: 'vacuum.downstairs' });
+    expect(homeAssistantStore.getState().entities?.['vacuum.downstairs']?.state).toBe('idle');
+    await dispatchNavetCommand({ type: 'play_pause', entityId: 'media_player.kitchen' });
+    await dispatchNavetCommand({
+      type: 'join_group',
+      entityId: 'media_player.kitchen',
+      members: ['media_player.living_room'],
+    });
+    await invokeIntegrationNativeAction({
+      entityId: 'media_player.kitchen',
+      domain: 'media_player',
+      service: 'volume_set',
+      serviceData: { volume_level: 0.3 },
+    });
+    expect(homeAssistantStore.getState().entities?.['media_player.kitchen']).toMatchObject({
+      state: 'paused',
+      attributes: { volume_level: 0.3, group_members: ['media_player.living_room'] },
+    });
+  });
+
+  it('preserves accepted no-ops for missing targets and unsupported preview commands', async () => {
+    const before = homeAssistantStore.getState().entities;
+    expect(await dispatchNavetCommand({ type: 'turn_off', entityId: 'light.absent' })).toEqual({
+      accepted: true,
+      requiresEventConfirmation: false,
+    });
+    expect(await dispatchNavetCommand({ type: 'timer_finish', entityId: 'light.kitchen' })).toEqual(
+      { accepted: true, requiresEventConfirmation: false }
+    );
+    expect(homeAssistantStore.getState().entities).toEqual(before);
+  });
 });

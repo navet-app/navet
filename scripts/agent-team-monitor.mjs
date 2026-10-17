@@ -1,3 +1,4 @@
+import { createTeamOperation } from './agent-team-operation.mjs';
 import { randomUUID } from 'node:crypto';
 import { resourceStatus } from './agent-task-store.mjs';
 import { validatePlanningRequestObservation, planningRequestMatchesTask } from './agent-planning-intake.mjs';
@@ -12,25 +13,11 @@ export async function monitorTeamWorker({ store, owner, taskId, intentId, adapte
       ['readWorker', 'interruptWorker', 'readIssue', 'readRequest'].some((key) => typeof adapters?.[key] !== 'function')) {
     return { status: 'blocked', reason: 'team-monitor-policy-unconfigured' };
   }
-  const controller = new AbortController(); const cancel = () => controller.abort();
-  signal?.addEventListener('abort', cancel, { once: true }); if (signal?.aborted) cancel();
-  const timer = setTimeout(cancel, maxRunMs); const startedAt = now();
+  const operation = createTeamOperation({ now, maxRunMs, signal });
+  const { clock, remote } = operation;
   let stop;
-  const clock = () => {
-    const time = now();
-    if (controller.signal.aborted || !Number.isSafeInteger(time) || !Number.isSafeInteger(startedAt) || startedAt <= 0 || time < startedAt || time - startedAt >= maxRunMs) throw new Error('Expired monitor.');
-    return time;
-  };
-  const remote = async (operation) => {
-    clock(); let rejectAbort;
-    const canceled = new Promise((_, reject) => { rejectAbort = reject; });
-    const onAbort = () => rejectAbort(new Error('Canceled monitor.'));
-    controller.signal.addEventListener('abort', onAbort, { once: true });
-    try { const result = await Promise.race([operation(), canceled]); clock(); return result; }
-    finally { controller.signal.removeEventListener('abort', onAbort); }
-  };
   const current = async () => {
-    const task = (await store.list()).find((item) => item.id === taskId);
+    const task = (await remote(() => store.list())).find((item) => item.id === taskId);
     clock();
     const worker = task?.team?.workers.find((item) => item.intentId === intentId);
     if (!task || task.lease?.owner !== owner || task.lease.expiresAt <= now() || !worker?.workerId || ['delivered', 'terminal-failure'].includes(task.state)) throw new Error('Exact owned specialist required.');
@@ -44,7 +31,7 @@ export async function monitorTeamWorker({ store, owner, taskId, intentId, adapte
     const identity = { taskId, intentId, workerId: worker.workerId };
     const observe = async () => {
       const observedAfter = clock();
-      const observed = await remote(() => adapters.readWorker(identity, { signal: controller.signal }));
+      const observed = await remote(() => adapters.readWorker(identity, { signal: operation.signal }));
       if (observed?.taskId !== taskId || observed.intentId !== intentId || observed.workerId !== identity.workerId ||
           !['running', 'stopped', 'completed', 'failed', 'missing'].includes(observed.status) || !observed.runId || !observed.reference ||
           !Number.isSafeInteger(observed.observedAt) || observed.observedAt < observedAfter || observed.observedAt > clock()) throw new Error('Exact live incarnation unavailable.');
@@ -57,7 +44,7 @@ export async function monitorTeamWorker({ store, owner, taskId, intentId, adapte
       if (!latest.task.context) return;
       if (typeof adapters.readCheckpoint !== 'function') throw new Error('Team checkpoint reader unavailable.');
       const observedAfter = clock();
-      const checkpoint = await remote(() => adapters.readCheckpoint({ ...identity, runId: observed.runId }, { signal: controller.signal }));
+      const checkpoint = await remote(() => adapters.readCheckpoint({ ...identity, runId: observed.runId }, { signal: operation.signal }));
       if (checkpoint?.status !== 'verified' || checkpoint.observedAt < observedAfter || checkpoint.observedAt > clock()) throw new Error('Stopped recovery checkpoint unverified.');
       await store.mutate(taskId, 'team-checkpoint', { owner, checkpoint });
       observed.checkpoint = checkpoint;
@@ -91,7 +78,7 @@ export async function monitorTeamWorker({ store, owner, taskId, intentId, adapte
       let scope;
       try {
         const observedAfter = clock();
-        scope = await remote(() => adapters.readIssue(binding.issueId, { signal: controller.signal }));
+        scope = await remote(() => adapters.readIssue(binding.issueId, { signal: operation.signal }));
         if (!Number.isSafeInteger(scope?.observedAt) || scope.observedAt < observedAfter || scope.observedAt > clock()) throw new Error('Scope read stale.');
         const saved = await store.mutate(taskId, action, { owner, observation: scope });
         if ((saved.proposal ?? saved.planning).observation.result !== 'pass') reason ??= 'scope-unverified';
@@ -101,7 +88,7 @@ export async function monitorTeamWorker({ store, owner, taskId, intentId, adapte
       }
       try {
         const requestStarted = clock(); const requestIdentity = { source: task.source, requestId: task.requestId };
-        const authority = await remote(() => adapters.readRequest(requestIdentity, { signal: controller.signal }));
+        const authority = await remote(() => adapters.readRequest(requestIdentity, { signal: operation.signal }));
         if (authority?.status === 'withdrawn') {
           await store.mutate(taskId, 'request-revocation', { owner, observation: { ...requestIdentity, status: 'withdrawn', reference: task.authority.reference, observedAt: clock() } });
           reason = 'request-withdrawn';
@@ -128,12 +115,12 @@ export async function monitorTeamWorker({ store, owner, taskId, intentId, adapte
     const attempt = await event({ eventId: `stop-attempt:${stop.token}:${stop.attempts}`, type: 'worker-stop-attempt',
       intentId, stopToken: stop.token, worker: observed });
     if (attempt.teamDecision.action === 'send') {
-      try { await remote(() => adapters.interruptWorker({ ...identity, runId: stop.runId, stopToken: stop.token }, { signal: controller.signal })); }
+      try { await remote(() => adapters.interruptWorker({ ...identity, runId: stop.runId, stopToken: stop.token }, { signal: operation.signal })); }
       catch { clock(); }
     }
     observed = await observe();
     return await saveStop();
   } catch {
     return { status: 'pending', taskId, intentId, reason: 'team-monitor-unverified', ...(stop ? { stop } : {}) };
-  } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); controller.abort(); }
+  } finally { operation.close(); }
 }

@@ -3,7 +3,6 @@ import { isCompactCardSize } from '@navet/app/components/shared/card-size-select
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
 import { useEntityCardInteractionController } from '@navet/app/components/shared/entity-card-interaction-controller';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
-import { HA_PENDING_ECHO_WINDOW_MS } from '@navet/app/constants/interaction-timing';
 import { readNavetClimateState } from '@navet/app/core/navet-device-state';
 import {
   useHaCommandQueue,
@@ -36,21 +35,15 @@ import {
   formatTemperatureValueFromSourceUnit,
   type TemperatureUnit,
 } from '@navet/app/utils/temperature';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ClimateCardProps } from './climate-card.types';
-import { useClimateEntitySync } from './use-climate-entity-sync';
+import { resolveClimateEntityState } from './climate-entity-state';
+import { createClimateReconciliation } from './climate-reconciliation';
 import { useClimateVisualMode } from './use-climate-visual-mode';
 
 export interface ClimateSiblingEntity {
   id: string;
   entity: PlatformEntitySnapshot;
-}
-
-interface OperatingStateSnapshot {
-  mode: string;
-  isOn: boolean;
-  action?: string;
-  supportedClimateModes?: string[];
 }
 
 export type ClimateCardController = ReturnType<typeof useClimateCardController>;
@@ -74,28 +67,6 @@ function normalizeDisplayControlStep(step: number, temperatureUnit: TemperatureU
   }
 
   return Math.max(1, Math.round(step));
-}
-
-function climateModeListsEqual(left: string[] | undefined, right: string[] | undefined) {
-  if (left === right) {
-    return true;
-  }
-
-  if (!left || !right) {
-    return left === right;
-  }
-
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 function resolveDefaultTemperatureRange(sourceTemperatureUnit: TemperatureUnit | undefined) {
@@ -234,12 +205,6 @@ export function useClimateCardController({
   | 'size'
 > & { sourceTemperatureUnit?: TemperatureUnit }) {
   const { t } = useI18n();
-  const [targetTemp, setTargetTemp] = useState(initialTemp);
-  const [currentTemp, setCurrentTemp] = useState(initialCurrentTemp);
-  const [mode, setMode] = useState(initialMode);
-  const [action, setAction] = useState(initialAction);
-  const [supportedClimateModes, setSupportedClimateModes] = useState(initialSupportedClimateModes);
-  const [isOn, setIsOn] = useState(initialState);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const lastActiveModeRef = useRef(
     initialMode !== 'off'
@@ -280,205 +245,112 @@ export function useClimateCardController({
     [effectiveSourceTemperatureUnit, liveEntity]
   );
   const { siblingIds: siblingEntityIds } = useProviderClimateTopology(id);
-  const pendingTargetTempRef = useRef<number | null>(null);
-  const deferredTargetTempRef = useRef<number | null>(null);
-  const targetTempSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingOperatingStateRef = useRef<OperatingStateSnapshot | null>(null);
-  const deferredOperatingStateRef = useRef<OperatingStateSnapshot | null>(null);
-  const operatingStateSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initial = useMemo(
+    () => ({
+      targetTemp: initialTemp,
+      currentTemp: initialCurrentTemp,
+      mode: initialMode,
+      action: initialAction,
+      supportedClimateModes: initialSupportedClimateModes,
+      isOn: initialState,
+    }),
+    [
+      initialTemp,
+      initialCurrentTemp,
+      initialMode,
+      initialAction,
+      initialSupportedClimateModes,
+      initialState,
+    ]
+  );
+  // Each owner gets independent pending work and rollback callbacks.
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
+  const owner = `${resolvedProviderId}:${id}`;
+  const { reconciliation } = useMemo(
+    () => ({ owner, reconciliation: createClimateReconciliation(initialRef.current) }),
+    [owner]
+  );
+  const { targetTemp, currentTemp, mode, action, supportedClimateModes, isOn } =
+    useSyncExternalStore(
+      reconciliation.subscribe,
+      reconciliation.getSnapshot,
+      reconciliation.getSnapshot
+    );
+  useEffect(() => () => reconciliation.dispose(), [reconciliation]);
+  useEffect(() => {
+    reconciliation.observe(resolveClimateEntityState({ liveEntity, providerState, initial }));
+  }, [reconciliation, liveEntity, providerState, initial]);
+  useEffect(() => {
+    lastActiveModeRef.current =
+      initialMode !== 'off'
+        ? initialMode
+        : initialSupportedClimateModes?.find((entry) => entry !== 'off');
+  }, [id, resolvedProviderId]);
+
   const runTemperatureAction = useServiceActionHandler();
   const runModeAction = useServiceActionHandler();
-
-  useEffect(() => {
-    return () => {
-      if (targetTempSyncTimeoutRef.current !== null) {
-        clearTimeout(targetTempSyncTimeoutRef.current);
-      }
-      if (operatingStateSyncTimeoutRef.current !== null) {
-        clearTimeout(operatingStateSyncTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const syncTargetTempFromEntity = useCallback(
-    (nextValue: number | ((current: number) => number)) => {
-      setTargetTemp((current) => {
-        const resolvedValue = typeof nextValue === 'function' ? nextValue(current) : nextValue;
-
-        if (
-          pendingTargetTempRef.current !== null &&
-          Math.abs(resolvedValue - pendingTargetTempRef.current) > 0.05
-        ) {
-          deferredTargetTempRef.current = resolvedValue;
-          return current;
-        }
-
-        if (pendingTargetTempRef.current !== null) {
-          pendingTargetTempRef.current = null;
-          deferredTargetTempRef.current = null;
-          if (targetTempSyncTimeoutRef.current !== null) {
-            clearTimeout(targetTempSyncTimeoutRef.current);
-            targetTempSyncTimeoutRef.current = null;
-          }
-        }
-
-        return resolvedValue;
-      });
-    },
-    []
+  const { queue: queueTargetTempSync, cancel: cancelTargetTempSync } = useHaCommandQueue(
+    (request: { send: () => Promise<void>; rollback: () => void }) =>
+      runTemperatureAction(request.send, t('climate.feedback.updateTemperatureFailed'), {
+        onError: request.rollback,
+      })
   );
-
-  const { queue: queueTargetTempSync } = useHaCommandQueue((nextTemp: number) =>
-    runTemperatureAction(async () => {
-      const temperatureUpdate = resolveClimateTemperatureServiceData(id, liveEntity, nextTemp, {
-        mode: pendingOperatingStateRef.current?.mode ?? mode,
-        action: pendingOperatingStateRef.current ? pendingOperatingStateRef.current.action : action,
-      });
-      await integrationClimateFeatureService.setTargetTemperature(id, temperatureUpdate);
-    }, t('climate.feedback.updateTemperatureFailed'))
-  );
-
-  const schedulePendingTargetTemp = useCallback((nextTemp: number) => {
-    pendingTargetTempRef.current = nextTemp;
-    deferredTargetTempRef.current = null;
-    if (targetTempSyncTimeoutRef.current !== null) {
-      clearTimeout(targetTempSyncTimeoutRef.current);
-    }
-    targetTempSyncTimeoutRef.current = setTimeout(() => {
-      pendingTargetTempRef.current = null;
-      targetTempSyncTimeoutRef.current = null;
-      const deferredTargetTemp = deferredTargetTempRef.current;
-      deferredTargetTempRef.current = null;
-      if (deferredTargetTemp !== null) {
-        setTargetTemp(deferredTargetTemp);
-      }
-    }, HA_PENDING_ECHO_WINDOW_MS);
-  }, []);
-
-  const applyOperatingState = useCallback((nextState: OperatingStateSnapshot) => {
-    setMode((current) => (current === nextState.mode ? current : nextState.mode));
-    setIsOn((current) => (current === nextState.isOn ? current : nextState.isOn));
-    setAction((current) => (current === nextState.action ? current : nextState.action));
-    setSupportedClimateModes((current) =>
-      climateModeListsEqual(current, nextState.supportedClimateModes)
-        ? current
-        : nextState.supportedClimateModes
-    );
-  }, []);
-
-  const syncOperatingStateFromEntity = useCallback(
-    (nextState: OperatingStateSnapshot) => {
-      const pendingState = pendingOperatingStateRef.current;
-
-      if (pendingState) {
-        if (nextState.mode !== pendingState.mode || nextState.isOn !== pendingState.isOn) {
-          deferredOperatingStateRef.current = nextState;
-          return;
-        }
-
-        pendingOperatingStateRef.current = null;
-        deferredOperatingStateRef.current = null;
-        if (operatingStateSyncTimeoutRef.current !== null) {
-          clearTimeout(operatingStateSyncTimeoutRef.current);
-          operatingStateSyncTimeoutRef.current = null;
-        }
-      }
-
-      applyOperatingState(nextState);
-    },
-    [applyOperatingState]
-  );
-
-  const schedulePendingOperatingState = useCallback(
-    (nextState: OperatingStateSnapshot) => {
-      pendingOperatingStateRef.current = nextState;
-      deferredOperatingStateRef.current = null;
-      if (operatingStateSyncTimeoutRef.current !== null) {
-        clearTimeout(operatingStateSyncTimeoutRef.current);
-      }
-      operatingStateSyncTimeoutRef.current = setTimeout(() => {
-        pendingOperatingStateRef.current = null;
-        operatingStateSyncTimeoutRef.current = null;
-        const deferredOperatingState = deferredOperatingStateRef.current;
-        deferredOperatingStateRef.current = null;
-        if (deferredOperatingState !== null) {
-          applyOperatingState(deferredOperatingState);
-        }
-      }, HA_PENDING_ECHO_WINDOW_MS);
-    },
-    [applyOperatingState]
-  );
+  useEffect(() => cancelTargetTempSync, [reconciliation, cancelTargetTempSync]);
 
   const updateTargetTemp = useCallback(
     (nextTemp: number, immediate = false) => {
-      const normalizedTemp = snapClimateTemperature(
+      const temperature = snapClimateTemperature(
         nextTemp,
         temperatureRange.minTemp,
         temperatureRange.maxTemp,
         temperatureRange.step
       );
-      setTargetTemp(normalizedTemp);
-      schedulePendingTargetTemp(normalizedTemp);
-      queueTargetTempSync(normalizedTemp, immediate);
+      const rollback = reconciliation.requestTemperature(temperature);
+      queueTargetTempSync(
+        {
+          rollback,
+          send: async () => {
+            const pendingState = reconciliation.getSnapshot();
+            const temperatureUpdate = resolveClimateTemperatureServiceData(
+              id,
+              liveEntity,
+              temperature,
+              {
+                mode: pendingState.mode,
+                action: pendingState.action,
+              }
+            );
+            await integrationClimateFeatureService.setTargetTemperature(id, temperatureUpdate);
+          },
+        },
+        immediate
+      );
     },
-    [queueTargetTempSync, schedulePendingTargetTemp, temperatureRange]
+    [id, liveEntity, reconciliation, queueTargetTempSync, temperatureRange]
   );
 
   const updateMode = useCallback(
     (nextMode: string) => {
-      const previousMode = mode;
-      const previousIsOn = isOn;
-      const previousAction = action;
-      if (nextMode !== 'off') {
-        lastActiveModeRef.current = nextMode;
-      }
-      const nextOperatingState = {
+      if (nextMode !== 'off') lastActiveModeRef.current = nextMode;
+      const rollback = reconciliation.requestOperatingState({
         mode: nextMode,
         isOn: nextMode !== 'off',
         action: nextMode === 'off' ? 'idle' : undefined,
-        supportedClimateModes,
-      };
-      applyOperatingState(nextOperatingState);
-      schedulePendingOperatingState(nextOperatingState);
+        supportedClimateModes: reconciliation.getSnapshot().supportedClimateModes,
+      });
       void runModeAction(
         async () => {
           await dispatchEntityCommand(
-            {
-              type: 'set_climate_mode',
-              entityId: id,
-              mode: nextMode,
-            },
+            { type: 'set_climate_mode', entityId: id, mode: nextMode },
             resolvedProviderId
           );
         },
         t('climate.feedback.updateModeFailed'),
-        {
-          onError: () => {
-            pendingOperatingStateRef.current = null;
-            deferredOperatingStateRef.current = null;
-            if (operatingStateSyncTimeoutRef.current !== null) {
-              clearTimeout(operatingStateSyncTimeoutRef.current);
-              operatingStateSyncTimeoutRef.current = null;
-            }
-            setMode(previousMode);
-            setIsOn(previousIsOn);
-            setAction(previousAction);
-          },
-        }
+        { onError: rollback }
       );
     },
-    [
-      action,
-      applyOperatingState,
-      id,
-      isOn,
-      mode,
-      resolvedProviderId,
-      runModeAction,
-      schedulePendingOperatingState,
-      supportedClimateModes,
-      t,
-    ]
+    [id, resolvedProviderId, reconciliation, runModeAction, t]
   );
 
   const togglePower = useCallback(() => {
@@ -493,20 +365,6 @@ export function useClimateCardController({
       (initialMode !== 'off' ? initialMode : 'cool');
     updateMode(restoreMode);
   }, [initialMode, isOn, supportedClimateModes, updateMode]);
-
-  useClimateEntitySync({
-    liveEntity,
-    providerState,
-    initialTemp,
-    initialCurrentTemp,
-    initialMode,
-    initialAction,
-    initialSupportedClimateModes,
-    initialState,
-    setTargetTemp: syncTargetTempFromEntity,
-    setCurrentTemp,
-    syncOperatingState: syncOperatingStateFromEntity,
-  });
 
   const isSmall = isCompactCardSize(size);
   const isMedium = size === 'medium';
@@ -674,7 +532,6 @@ export function useClimateCardController({
     secondaryTextColor,
     siblingEntities,
     supportedClimateModes,
-    setIsOn,
     setIsSettingsOpen,
     setMode: updateMode,
     setTargetTemp: (nextTemp: number) => updateTargetTemp(nextTemp),

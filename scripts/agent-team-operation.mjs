@@ -10,6 +10,7 @@ export function createTeamOperation({ now = Date.now, maxRunMs = 30_000, signal 
     return time;
   };
   return { signal: controller.signal, clock,
+    remainingMs: () => maxRunMs - (clock() - startedAt),
     async remote(operation) {
       clock(); let rejectAbort;
       const canceled = new Promise((_, reject) => { rejectAbort = reject; });
