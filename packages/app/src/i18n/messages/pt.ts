@@ -941,17 +941,16 @@ export const ptMessages = {
   'settings.dashboard.keepAwake.status.blocked': 'Bloqueado por este navegador ou dispositivo',
   'settings.dashboard.keepAwake.status.unsupported': 'Sem suporte neste navegador ou dispositivo',
   'settings.dashboard.entityVisibility.title': 'Visibilidade das entidades',
+  'settings.dashboard.entityVisibility.restore': 'Restaurar entidades',
+  'settings.dashboard.entityVisibility.restoreAction': 'Restaurar',
+  'settings.dashboard.entityVisibility.restoreAll': 'Restaurar todas',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Encontre uma entidade oculta para restaurar ou restaure todas as entidades ocultas.',
+  'settings.dashboard.entityVisibility.empty': 'Nenhuma entidade oculta para restaurar.',
   'settings.dashboard.entityVisibility.description':
-    'O Navet agora usa um único modelo de visibilidade. Remova entidades no modo de edição e adicione-as de volta depois em Adicionar Entidade.',
-  'settings.dashboard.entityVisibility.revealAll':
-    'Adicionar de volta todas as entidades removidas',
+    'Restaure entidades ocultas individualmente ou todas de uma vez.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Entidades ocultas: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Reiniciar onboarding',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Ocultas no momento: {count}. Reinicie o onboarding se quiser escolher entre começar completo ou em branco novamente.',
-  'settings.dashboard.confirmReveal.title': 'Adicionar de volta todas as entidades removidas?',
-  'settings.dashboard.confirmReveal.description':
-    'Isso vai recolocar todas as entidades atualmente removidas no dashboard de uma vez.',
-  'settings.dashboard.confirmReveal.action': 'Adicionar todas',
   'settings.dashboard.confirmRestart.title': 'Reiniciar o onboarding?',
   'settings.dashboard.confirmRestart.description':
     'Isso reabre o assistente inicial para você escolher se quer começar com todas as entidades, um dashboard em branco ou importar um arquivo de configuração.',

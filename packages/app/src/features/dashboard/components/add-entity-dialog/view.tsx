@@ -34,7 +34,7 @@ import {
   ListFilter,
   Sparkles,
 } from 'lucide-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
   type DashboardLibraryCard,
   type DashboardLibraryEntityType,
@@ -58,6 +58,7 @@ interface AddEntityDialogViewProps {
   description?: string;
   actionLabel?: string;
   libraryEmptyText?: string;
+  footer?: ReactNode;
   libraryQuery: string;
   setLibraryQuery: (query: string) => void;
   hasLibraryQuery: boolean;
@@ -103,6 +104,7 @@ export function AddEntityDialogView({
   description,
   actionLabel,
   libraryEmptyText,
+  footer,
   libraryQuery,
   setLibraryQuery,
   hasLibraryQuery,
@@ -664,6 +666,8 @@ export function AddEntityDialogView({
                 </div>
               )}
             </div>
+
+            {footer ? <DialogFooter className="mt-4 shrink-0">{footer}</DialogFooter> : null}
 
             {activeTab === 'widgets' && selectedTemplate ? (
               <DialogFooter

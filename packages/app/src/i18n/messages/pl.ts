@@ -944,17 +944,17 @@ export const plMessages = {
   'settings.dashboard.keepAwake.status.unsupported':
     'Nieobsługiwane w tej przeglądarce lub urządzeniu',
   'settings.dashboard.entityVisibility.title': 'Widoczność encji',
+  'settings.dashboard.entityVisibility.restore': 'Przywróć encje',
+  'settings.dashboard.entityVisibility.restoreAction': 'Przywróć',
+  'settings.dashboard.entityVisibility.restoreAll': 'Przywróć wszystkie',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Znajdź ukrytą encję do przywrócenia lub przywróć wszystkie ukryte encje.',
+  'settings.dashboard.entityVisibility.empty': 'Brak ukrytych encji do przywrócenia.',
   'settings.dashboard.entityVisibility.description':
-    'Navet używa jednego modelu widoczności. Usuwaj encje w trybie edycji, a później przywracaj je przez Dodaj encję.',
-  'settings.dashboard.entityVisibility.revealAll': 'Dodaj wszystkie usunięte encje',
+    'Przywracaj ukryte encje pojedynczo lub wszystkie naraz.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Ukryte encje: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding':
     'Uruchom ponownie konfigurację początkową',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Ukryte: {count}. Uruchom ponownie konfigurację początkową, aby znów wybrać pełny albo pusty panel.',
-  'settings.dashboard.confirmReveal.title': 'Dodać z powrotem wszystkie usunięte encje?',
-  'settings.dashboard.confirmReveal.description':
-    'Wszystkie obecnie usunięte encje zostaną jednocześnie przywrócone do panelu.',
-  'settings.dashboard.confirmReveal.action': 'Dodaj wszystko',
   'settings.dashboard.confirmRestart.title': 'Uruchomić ponownie konfigurację początkową?',
   'settings.dashboard.confirmRestart.description':
     'Kreator uruchomi się ponownie i pozwoli wybrać wszystkie encje, pusty panel albo import pliku konfiguracyjnego.',

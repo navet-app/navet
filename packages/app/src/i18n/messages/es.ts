@@ -945,16 +945,16 @@ export const esMessages = {
   'settings.dashboard.keepAwake.status.unsupported':
     'No compatible con este navegador o dispositivo',
   'settings.dashboard.entityVisibility.title': 'Visibilidad de entidades',
+  'settings.dashboard.entityVisibility.restore': 'Restaurar entidades',
+  'settings.dashboard.entityVisibility.restoreAction': 'Restaurar',
+  'settings.dashboard.entityVisibility.restoreAll': 'Restaurar todas',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Busca una entidad oculta para restaurarla, o restaura todas las entidades ocultas.',
+  'settings.dashboard.entityVisibility.empty': 'No hay entidades ocultas para restaurar.',
   'settings.dashboard.entityVisibility.description':
-    'Navet ahora usa un solo modelo de visibilidad. Quita entidades desde el modo de edición y vuélvelas a agregar después desde Add Entity.',
-  'settings.dashboard.entityVisibility.revealAll': 'Agregar todas las entidades eliminadas',
+    'Restaura las entidades ocultas individualmente o todas a la vez.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Entidades ocultas: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Reiniciar onboarding',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Ocultas ahora: {count}. Reinicia el onboarding si quieres volver a elegir entre empezar completo o en blanco.',
-  'settings.dashboard.confirmReveal.title': '¿Agregar de nuevo todas las entidades eliminadas?',
-  'settings.dashboard.confirmReveal.description':
-    'Esto devolverá al panel todas las entidades eliminadas actualmente de una vez.',
-  'settings.dashboard.confirmReveal.action': 'Agregar todo',
   'settings.dashboard.confirmRestart.title': '¿Reiniciar onboarding?',
   'settings.dashboard.confirmRestart.description':
     'Esto reabrirá el asistente inicial para que puedas empezar con todas las entidades, un panel vacío o importando una configuración.',

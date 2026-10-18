@@ -1,0 +1,6 @@
+type: improved
+audiences:
+  - standalone
+  - home-assistant
+  - hacs
+summary: Restore individual hidden entities or all hidden entities from Entity visibility settings.

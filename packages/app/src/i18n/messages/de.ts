@@ -949,16 +949,17 @@ export const deMessages = {
   'settings.dashboard.keepAwake.status.unsupported':
     'Von diesem Browser oder Gerät nicht unterstützt',
   'settings.dashboard.entityVisibility.title': 'Gerätesichtbarkeit',
+  'settings.dashboard.entityVisibility.restore': 'Entitäten wiederherstellen',
+  'settings.dashboard.entityVisibility.restoreAction': 'Wiederherstellen',
+  'settings.dashboard.entityVisibility.restoreAll': 'Alle wiederherstellen',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Suche eine ausgeblendete Entität oder stelle alle ausgeblendeten Entitäten wieder her.',
+  'settings.dashboard.entityVisibility.empty':
+    'Keine ausgeblendeten Entitäten zum Wiederherstellen.',
   'settings.dashboard.entityVisibility.description':
-    'Navet verwendet jetzt ein gemeinsames Sichtbarkeitsmodell. Entferne Geräte im Bearbeitungsmodus und füge sie später über Add Entity wieder hinzu.',
-  'settings.dashboard.entityVisibility.revealAll': 'Alle entfernten Geräte wieder hinzufügen',
+    'Stelle ausgeblendete Entitäten einzeln oder alle auf einmal wieder her.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Ausgeblendete Entitäten: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Onboarding neu starten',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Derzeit verborgen: {count}. Starte das Onboarding neu, wenn du erneut zwischen vollem Start oder leerem Dashboard wählen möchtest.',
-  'settings.dashboard.confirmReveal.title': 'Alle entfernten Geräte wieder hinzufügen?',
-  'settings.dashboard.confirmReveal.description':
-    'Dadurch werden alle derzeit entfernten Geräte gleichzeitig wieder zum Dashboard hinzugefügt.',
-  'settings.dashboard.confirmReveal.action': 'Alle hinzufügen',
   'settings.dashboard.confirmRestart.title': 'Onboarding neu starten?',
   'settings.dashboard.confirmRestart.description':
     'Dadurch wird der Startassistent erneut geöffnet, damit du mit allen Geräten, einem leeren Dashboard oder einem Konfigurationsimport beginnen kannst.',

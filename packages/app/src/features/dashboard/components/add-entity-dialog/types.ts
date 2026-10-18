@@ -19,6 +19,7 @@ export interface AddEntityDialogPrimitiveProps {
   description?: string;
   actionLabel?: string;
   libraryEmptyText?: string;
+  footer?: ReactNode;
   allowedTemplateIds?: CardTemplateId[];
 }
 

@@ -30,8 +30,9 @@ Move or show the device if needed.
 
 ## 4. Check entity visibility
 
-Open **Settings → Dashboard → Entity visibility**. Restore removed entities, or search the Add
-Card library for a generic entity card.
+Open **Settings → Dashboard → Entity visibility → Restore entities**. Search for the hidden
+entity and choose **Restore** beside it. Choose **Restore all** to bring back every hidden entity.
+You can also search the Add Card library for a generic entity card.
 
 ![Entity visibility settings used to restore removed entities.](/docs/how-to/troubleshooting/restore-missing-entity.webp)
 

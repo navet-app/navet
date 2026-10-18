@@ -937,16 +937,16 @@ export const daMessages = {
   'settings.dashboard.keepAwake.status.unsupported':
     'Ikke understøttet på denne browser eller enhed',
   'settings.dashboard.entityVisibility.title': 'Enhedens synlighed',
+  'settings.dashboard.entityVisibility.restore': 'Gendan entiteter',
+  'settings.dashboard.entityVisibility.restoreAction': 'Gendan',
+  'settings.dashboard.entityVisibility.restoreAll': 'Gendan alle',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Find en skjult entitet at gendanne, eller gendan alle skjulte entiteter.',
+  'settings.dashboard.entityVisibility.empty': 'Ingen skjulte entiteter at gendanne.',
   'settings.dashboard.entityVisibility.description':
-    'Navet bruger nu én synlighedsmodel. Fjern enheder fra redigeringstilstand, og tilføj dem derefter igen senere fra Tilføj enhed.',
-  'settings.dashboard.entityVisibility.revealAll': 'Tilføj alle fjernede enheder',
+    'Gendan skjulte entiteter enkeltvis eller alle på én gang.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Skjulte entiteter: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Genstart onboarding',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Skjult lige nu: {count}. Genstart onboarding, hvis du vil vælge mellem at starte fuld eller tom igen.',
-  'settings.dashboard.confirmReveal.title': 'Vil du tilføje alle fjernede enheder tilbage?',
-  'settings.dashboard.confirmReveal.description':
-    'Dette vil sætte alle aktuelt fjernede enheder tilbage på dashboardet på én gang.',
-  'settings.dashboard.confirmReveal.action': 'Tilføj alle',
   'settings.dashboard.confirmRestart.title': 'Genstarte onboarding?',
   'settings.dashboard.confirmRestart.description':
     'Dette vil genåbne startguiden, så du kan vælge, om du vil begynde med alle entiteter, et tomt dashboard eller importere en konfigurationsfil.',

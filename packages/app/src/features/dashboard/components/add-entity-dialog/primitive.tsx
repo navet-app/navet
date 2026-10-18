@@ -36,6 +36,7 @@ export function AddEntityDialogPrimitive({
   description,
   actionLabel,
   libraryEmptyText,
+  footer,
   allowedTemplateIds,
 }: AddEntityDialogPrimitiveProps) {
   const { locale, t } = useI18n();
@@ -292,6 +293,7 @@ export function AddEntityDialogPrimitive({
       description={description}
       actionLabel={actionLabel}
       libraryEmptyText={libraryEmptyText}
+      footer={footer}
       libraryQuery={libraryQuery}
       setLibraryQuery={setLibraryQuery}
       hasLibraryQuery={hasLibraryQuery}

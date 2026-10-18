@@ -1,3 +1,4 @@
+import { Button } from '@navet/app/components/primitives';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, waitFor, within } from 'storybook/test';
 import { AddEntityDialogPrimitive } from './primitive';
@@ -192,4 +193,40 @@ export const EnergyLibrary: Story = {
     await userEvent.click(page.getByText('Energy Metric'));
     await expect(await page.findByRole('button', { name: /Add widget/i })).toBeVisible();
   },
+};
+
+/** Reuses EntityLibrary's search, row actions and responsive workspace for recovery. */
+export const RestoreEntities: Story = {
+  args: {
+    libraryOnly: true,
+    currentRoom: 'All',
+    title: 'Restore entities',
+    description: 'Find a hidden entity to restore, or restore all hidden entities.',
+    actionLabel: 'Restore',
+    libraryEmptyText: 'No hidden entities to restore.',
+    footer: <Button variant="secondary">Restore all</Button>,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Reference: pages-dashboard-add-entity-dialog--entity-library. Entity visibility reuses its picker and adds a secondary Restore all footer action. Rendered maintainer acceptance is pending.',
+      },
+    },
+  },
+  play: async ({ canvasElement, userEvent }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await page.findByRole('dialog', { name: 'Restore entities' });
+    await userEvent.type(page.getByPlaceholderText('Search entities'), 'Kitchen');
+    await userEvent.click(page.getByRole('button', { name: 'Restore: Kitchen Temperature' }));
+    await expect(
+      page.queryByRole('button', { name: 'Restore: Kitchen Temperature' })
+    ).not.toBeInTheDocument();
+    await expect(page.getByRole('button', { name: 'Restore all' })).toBeInTheDocument();
+  },
+};
+
+export const RestoreEntitiesPhone: Story = {
+  ...RestoreEntities,
+  globals: { viewport: { value: 'mobile1', isRotated: false } },
 };

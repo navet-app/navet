@@ -940,16 +940,16 @@ export const fiMessages = {
   'settings.dashboard.keepAwake.status.blocked': 'Tämä selain tai laite on estänyt',
   'settings.dashboard.keepAwake.status.unsupported': 'Ei tueta tässä selaimessa tai laitteessa',
   'settings.dashboard.entityVisibility.title': 'Kokonaisuuden näkyvyys',
+  'settings.dashboard.entityVisibility.restore': 'Palauta entiteettejä',
+  'settings.dashboard.entityVisibility.restoreAction': 'Palauta',
+  'settings.dashboard.entityVisibility.restoreAll': 'Palauta kaikki',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Etsi palautettava piilotettu entiteetti tai palauta kaikki piilotetut entiteetit.',
+  'settings.dashboard.entityVisibility.empty': 'Ei palautettavia piilotettuja entiteettejä.',
   'settings.dashboard.entityVisibility.description':
-    'Navet käyttää nyt yhtä näkyvyysmallia. Poista entiteetit muokkaustilasta ja lisää ne myöhemmin takaisin Lisää kokonaisuus -kohdasta.',
-  'settings.dashboard.entityVisibility.revealAll': 'Lisää kaikki poistetut entiteetit',
+    'Palauta piilotetut entiteetit yksitellen tai kaikki kerralla.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Piilotettuja entiteettejä: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Aloita käyttöönotto uudelleen',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Piilotettu juuri nyt: {count}. Aloita käyttöönotto uudelleen, jos haluat aloittaa kokonaan tai tyhjänä.',
-  'settings.dashboard.confirmReveal.title': 'Lisätäänkö kaikki poistetut entiteetit takaisin?',
-  'settings.dashboard.confirmReveal.description':
-    'Tämä asettaa kaikki tällä hetkellä poistetut entiteetit takaisin kojelautaan kerralla.',
-  'settings.dashboard.confirmReveal.action': 'Lisää kaikki',
   'settings.dashboard.confirmRestart.title': 'Aloitetaanko käyttöönotto uudelleen?',
   'settings.dashboard.confirmRestart.description':
     'Tämä avaa ohjatun käynnistystoiminnon uudelleen, jotta voit valita, aloitetaanko kaikista entiteeteistä, tyhjästä kojelaudasta vai tuodaanko asetustiedosto.',

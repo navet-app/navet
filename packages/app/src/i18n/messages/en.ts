@@ -366,15 +366,15 @@ export const enMessages = {
   'settings.dashboard.keepAwake.status.unsupported': 'Unsupported on this browser or device',
   'settings.dashboard.entityVisibility.title': 'Entity visibility',
   'settings.dashboard.entityVisibility.description':
-    'Navet now uses one visibility model. Remove entities from edit mode, then add them back later from Add Entity.',
-  'settings.dashboard.entityVisibility.revealAll': 'Add all removed entities',
+    'Restore hidden entities individually or bring them all back.',
+  'settings.dashboard.entityVisibility.restore': 'Restore entities',
+  'settings.dashboard.entityVisibility.restoreAction': 'Restore',
+  'settings.dashboard.entityVisibility.restoreAll': 'Restore all',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Find a hidden entity to restore, or restore all hidden entities.',
+  'settings.dashboard.entityVisibility.empty': 'No hidden entities to restore.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Restart onboarding',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Hidden right now: {count}. Restart onboarding if you want to choose between starting full or blank again.',
-  'settings.dashboard.confirmReveal.title': 'Add all removed entities back?',
-  'settings.dashboard.confirmReveal.description':
-    'This will put every currently removed entity back onto the dashboard at once.',
-  'settings.dashboard.confirmReveal.action': 'Add all',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Hidden entities: {count}.',
   'settings.dashboard.confirmRestart.title': 'Restart onboarding?',
   'settings.dashboard.confirmRestart.description':
     'This will reopen the startup wizard so you can choose whether to begin with all entities, a blank dashboard, or import a config file.',

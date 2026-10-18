@@ -944,16 +944,16 @@ export const nlMessages = {
   'settings.dashboard.keepAwake.status.unsupported':
     'Niet ondersteund op deze browser of dit apparaat',
   'settings.dashboard.entityVisibility.title': 'Zichtbaarheid van entiteiten',
+  'settings.dashboard.entityVisibility.restore': 'Entiteiten herstellen',
+  'settings.dashboard.entityVisibility.restoreAction': 'Herstellen',
+  'settings.dashboard.entityVisibility.restoreAll': 'Alles herstellen',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Zoek een verborgen entiteit om te herstellen, of herstel alle verborgen entiteiten.',
+  'settings.dashboard.entityVisibility.empty': 'Geen verborgen entiteiten om te herstellen.',
   'settings.dashboard.entityVisibility.description':
-    'Navet gebruikt nu één zichtbaarheidsmodel. Verwijder entiteiten uit de bewerkingsmodus en voeg ze later weer toe vanuit Entiteit toevoegen.',
-  'settings.dashboard.entityVisibility.revealAll': 'Voeg alle verwijderde entiteiten toe',
+    'Herstel verborgen entiteiten afzonderlijk of allemaal tegelijk.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Verborgen entiteiten: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Start de onboarding opnieuw',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Momenteel verborgen: {count}. Start de onboarding opnieuw als u wilt kiezen tussen volledig of blanco beginnen.',
-  'settings.dashboard.confirmReveal.title': 'Alle verwijderde entiteiten terug toevoegen?',
-  'settings.dashboard.confirmReveal.description':
-    'Hierdoor wordt elke momenteel verwijderde entiteit in één keer terug op het dashboard geplaatst.',
-  'settings.dashboard.confirmReveal.action': 'Voeg alles toe',
   'settings.dashboard.confirmRestart.title': 'Onboarding opnieuw starten?',
   'settings.dashboard.confirmRestart.description':
     'Hierdoor wordt de opstartwizard opnieuw geopend, zodat u kunt kiezen of u wilt beginnen met alle entiteiten, een leeg dashboard of een configuratiebestand wilt importeren.',

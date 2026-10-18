@@ -18,6 +18,7 @@ import {
 } from '@navet/app/hooks/use-keep-device-awake';
 import { HEADER_CUSTOM_TEXT_MAX_LENGTH } from '@navet/app/stores/settings-store';
 import { Download, LayoutGrid, Monitor, Scale, Upload } from 'lucide-react';
+import { lazy, Suspense } from 'react';
 import {
   DASHBOARD_PROFILE_MODE_OPTIONS,
   DASHBOARD_PROFILE_MODE_SCOPE_KEYS,
@@ -26,6 +27,8 @@ import {
 import type { SettingsSectionController } from '../hooks/use-settings-section-controller';
 import { OnOffPillToggle } from './settings-pill-toggle';
 import { SettingsItem, SettingsSectionGroup, SettingsSectionShell } from './settings-section-shell';
+
+const RestoreEntitiesDialog = lazy(() => import('./restore-entities-dialog'));
 
 interface SettingsDashboardSectionProps {
   controller: SettingsSectionController;
@@ -47,12 +50,11 @@ export function SettingsDashboardSection({ controller }: SettingsDashboardSectio
     kioskSwipeRooms,
     dashboardProfileMode,
     setShowRestartOnboardingConfirm,
-    setShowRevealAllConfirm,
+    setShowRestoreEntities,
     showHomeSummaryBar,
     choresEnabled,
-    showAllEntities,
     showRestartOnboardingConfirm,
-    showRevealAllConfirm,
+    showRestoreEntities,
     styles,
   } = controller;
 
@@ -333,11 +335,11 @@ export function SettingsDashboardSection({ controller }: SettingsDashboardSectio
               variant="secondary"
               size="small"
               leading={<LayoutGrid className="h-4 w-4" />}
-              onClick={() => setShowRevealAllConfirm(true)}
+              onClick={() => setShowRestoreEntities(true)}
               disabled={hiddenEntityIds.length === 0}
               className="rounded-full"
             >
-              {t('settings.dashboard.entityVisibility.revealAll')}
+              {t('settings.dashboard.entityVisibility.restore')}
             </Button>
             <Button
               type="button"
@@ -356,27 +358,11 @@ export function SettingsDashboardSection({ controller }: SettingsDashboardSectio
             })}
           </p>
 
-          <AlertDialog open={showRevealAllConfirm} onOpenChange={setShowRevealAllConfirm}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t('settings.dashboard.confirmReveal.title')}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t('settings.dashboard.confirmReveal.description')}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    showAllEntities();
-                    setShowRevealAllConfirm(false);
-                  }}
-                >
-                  {t('settings.dashboard.confirmReveal.action')}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {showRestoreEntities ? (
+            <Suspense fallback={null}>
+              <RestoreEntitiesDialog onClose={() => setShowRestoreEntities(false)} />
+            </Suspense>
+          ) : null}
 
           <AlertDialog
             open={showRestartOnboardingConfirm}

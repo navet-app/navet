@@ -950,16 +950,16 @@ export const frMessages = {
   'settings.dashboard.keepAwake.status.unsupported':
     'Non pris en charge par ce navigateur ou cet appareil',
   'settings.dashboard.entityVisibility.title': 'Visibilité des entités',
+  'settings.dashboard.entityVisibility.restore': 'Restaurer des entités',
+  'settings.dashboard.entityVisibility.restoreAction': 'Restaurer',
+  'settings.dashboard.entityVisibility.restoreAll': 'Tout restaurer',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Recherchez une entité masquée à restaurer, ou restaurez toutes les entités masquées.',
+  'settings.dashboard.entityVisibility.empty': 'Aucune entité masquée à restaurer.',
   'settings.dashboard.entityVisibility.description':
-    'Navet utilise maintenant un modèle unique de visibilité. Retirez des entités en mode édition, puis rajoutez-les plus tard via Add Entity.',
-  'settings.dashboard.entityVisibility.revealAll': 'Rajouter toutes les entités retirées',
+    'Restaurez les entités masquées individuellement ou toutes à la fois.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Entités masquées : {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Relancer l onboarding',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Cachées actuellement : {count}. Relancez l’onboarding si vous voulez à nouveau choisir entre un démarrage complet ou vide.',
-  'settings.dashboard.confirmReveal.title': 'Rajouter toutes les entités retirées ?',
-  'settings.dashboard.confirmReveal.description':
-    'Cela replacera d’un coup toutes les entités actuellement retirées sur le tableau de bord.',
-  'settings.dashboard.confirmReveal.action': 'Tout rajouter',
   'settings.dashboard.confirmRestart.title': 'Relancer l onboarding ?',
   'settings.dashboard.confirmRestart.description':
     'Cela rouvrira l’assistant de démarrage pour choisir de commencer avec toutes les entités, un tableau vide ou un import de configuration.',

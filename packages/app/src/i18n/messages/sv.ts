@@ -938,16 +938,16 @@ export const svMessages = {
   'settings.dashboard.keepAwake.status.unsupported':
     'Stöds inte av den här webbläsaren eller enheten',
   'settings.dashboard.entityVisibility.title': 'Enhetssynlighet',
+  'settings.dashboard.entityVisibility.restore': 'Återställ entiteter',
+  'settings.dashboard.entityVisibility.restoreAction': 'Återställ',
+  'settings.dashboard.entityVisibility.restoreAll': 'Återställ alla',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Hitta en dold entitet att återställa, eller återställ alla dolda entiteter.',
+  'settings.dashboard.entityVisibility.empty': 'Inga dolda entiteter att återställa.',
   'settings.dashboard.entityVisibility.description':
-    'Navet använder nu en gemensam synlighetsmodell. Ta bort enheter i redigeringsläget och lägg tillbaka dem senare via Add Entity.',
-  'settings.dashboard.entityVisibility.revealAll': 'Lägg tillbaka alla borttagna enheter',
+    'Återställ dolda entiteter en i taget eller alla på en gång.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Dolda entiteter: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Starta om onboarding',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Dolda just nu: {count}. Starta om onboarding om du vill välja mellan full start eller tom dashboard igen.',
-  'settings.dashboard.confirmReveal.title': 'Lägga tillbaka alla borttagna enheter?',
-  'settings.dashboard.confirmReveal.description':
-    'Detta lägger tillbaka alla enheter som för närvarande är borttagna till dashboarden samtidigt.',
-  'settings.dashboard.confirmReveal.action': 'Lägg till alla',
   'settings.dashboard.confirmRestart.title': 'Starta om onboarding?',
   'settings.dashboard.confirmRestart.description':
     'Detta öppnar startguiden igen så att du kan välja att börja med alla enheter, en tom dashboard eller importera en konfigurationsfil.',

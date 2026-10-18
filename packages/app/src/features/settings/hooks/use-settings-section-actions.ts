@@ -40,7 +40,7 @@ export function useSettingsSectionActions({
   const [showLicense, setShowLicense] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showRevealAllConfirm, setShowRevealAllConfirm] = useState(false);
+  const [showRestoreEntities, setShowRestoreEntities] = useState(false);
   const [showRestartOnboardingConfirm, setShowRestartOnboardingConfirm] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -177,8 +177,8 @@ export function useSettingsSectionActions({
     setShowTerms,
     showLogoutConfirm,
     setShowLogoutConfirm,
-    showRevealAllConfirm,
-    setShowRevealAllConfirm,
+    showRestoreEntities,
+    setShowRestoreEntities,
     showRestartOnboardingConfirm,
     setShowRestartOnboardingConfirm,
     importInputRef,

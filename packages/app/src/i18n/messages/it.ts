@@ -957,16 +957,16 @@ export const itMessages = {
   'settings.dashboard.keepAwake.status.unsupported':
     'Non supportato da questo browser o dispositivo',
   'settings.dashboard.entityVisibility.title': 'Visibilità entità',
+  'settings.dashboard.entityVisibility.restore': 'Ripristina entità',
+  'settings.dashboard.entityVisibility.restoreAction': 'Ripristina',
+  'settings.dashboard.entityVisibility.restoreAll': 'Ripristina tutte',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Cerca un’entità nascosta da ripristinare, oppure ripristina tutte le entità nascoste.',
+  'settings.dashboard.entityVisibility.empty': 'Nessuna entità nascosta da ripristinare.',
   'settings.dashboard.entityVisibility.description':
-    'Navet ora usa un solo modello di visibilità. Rimuovi le entità dalla modalità modifica, poi aggiungile di nuovo da Aggiungi entità.',
-  'settings.dashboard.entityVisibility.revealAll': 'Aggiungi tutte le entità rimosse',
+    'Ripristina le entità nascoste singolarmente o tutte insieme.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Entità nascoste: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Riavvia onboarding',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Nascoste ora: {count}. Riavvia l’onboarding se vuoi scegliere di nuovo tra avvio completo o vuoto.',
-  'settings.dashboard.confirmReveal.title': 'Aggiungere di nuovo tutte le entità rimosse?',
-  'settings.dashboard.confirmReveal.description':
-    'Questo rimetterà subito nella dashboard tutte le entità attualmente rimosse.',
-  'settings.dashboard.confirmReveal.action': 'Aggiungi tutte',
   'settings.dashboard.confirmRestart.title': 'Riavviare l’onboarding?',
   'settings.dashboard.confirmRestart.description':
     'Questo riaprirà la procedura iniziale per scegliere se iniziare con tutte le entità, una dashboard vuota o importare un file di configurazione.',

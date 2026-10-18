@@ -937,16 +937,16 @@ export const noMessages = {
   'settings.dashboard.keepAwake.status.unsupported':
     'Støttes ikke på denne nettleseren eller enheten',
   'settings.dashboard.entityVisibility.title': 'Entitetssynlighet',
+  'settings.dashboard.entityVisibility.restore': 'Gjenopprett entiteter',
+  'settings.dashboard.entityVisibility.restoreAction': 'Gjenopprett',
+  'settings.dashboard.entityVisibility.restoreAll': 'Gjenopprett alle',
+  'settings.dashboard.entityVisibility.restoreDescription':
+    'Finn en skjult entitet å gjenopprette, eller gjenopprett alle skjulte entiteter.',
+  'settings.dashboard.entityVisibility.empty': 'Ingen skjulte entiteter å gjenopprette.',
   'settings.dashboard.entityVisibility.description':
-    'Navet bruker nå én synlighetsmodell. Fjern enheter fra redigeringsmodus, og legg dem deretter til senere fra Legg til enhet.',
-  'settings.dashboard.entityVisibility.revealAll': 'Legg til alle fjernede enheter',
+    'Gjenopprett skjulte entiteter enkeltvis eller alle samtidig.',
+  'settings.dashboard.entityVisibility.hiddenSummary': 'Skjulte entiteter: {count}.',
   'settings.dashboard.entityVisibility.restartOnboarding': 'Start onboarding på nytt',
-  'settings.dashboard.entityVisibility.hiddenSummary':
-    'Skjult akkurat nå: {count}. Start onboarding på nytt hvis du vil velge mellom å starte fullt eller tomt igjen.',
-  'settings.dashboard.confirmReveal.title': 'Vil du legge tilbake alle fjernede enheter?',
-  'settings.dashboard.confirmReveal.description':
-    'Dette vil sette alle fjernede enheter tilbake på dashbordet med en gang.',
-  'settings.dashboard.confirmReveal.action': 'Legg til alle',
   'settings.dashboard.confirmRestart.title': 'Vil du starte onboarding på nytt?',
   'settings.dashboard.confirmRestart.description':
     'Dette vil åpne oppstartsveiviseren på nytt slik at du kan velge om du vil begynne med alle enheter, et tomt dashbord eller importere en konfigurasjonsfil.',

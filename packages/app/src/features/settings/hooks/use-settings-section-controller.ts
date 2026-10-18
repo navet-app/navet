@@ -135,10 +135,9 @@ export function useSettingsSectionController() {
       updateSettings: state.updateSettings,
     }))
   );
-  const { hiddenEntityIds, showAllEntities, reopenOnboarding } = useDashboardEntitiesStore(
+  const { hiddenEntityIds, reopenOnboarding } = useDashboardEntitiesStore(
     useShallow((state) => ({
       hiddenEntityIds: state.hiddenEntityIds,
-      showAllEntities: state.showAllEntities,
       reopenOnboarding: state.reopenOnboarding,
     }))
   );
@@ -156,8 +155,8 @@ export function useSettingsSectionController() {
     setShowTerms,
     showLogoutConfirm,
     setShowLogoutConfirm,
-    showRevealAllConfirm,
-    setShowRevealAllConfirm,
+    showRestoreEntities,
+    setShowRestoreEntities,
     showRestartOnboardingConfirm,
     setShowRestartOnboardingConfirm,
     importInputRef,
@@ -270,16 +269,15 @@ export function useSettingsSectionController() {
     setShowLicense,
     setShowLogoutConfirm,
     setShowRestartOnboardingConfirm,
-    setShowRevealAllConfirm,
+    setShowRestoreEntities,
     setShowTerms,
     showHomeSummaryBar,
     choresEnabled,
     setTheme,
-    showAllEntities,
     showLicense,
     showLogoutConfirm,
     showRestartOnboardingConfirm,
-    showRevealAllConfirm,
+    showRestoreEntities,
     showTerms,
     styles,
     theme,
