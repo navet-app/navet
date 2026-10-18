@@ -6,8 +6,9 @@ import {
   resetPreviewRuntime,
 } from '@navet/app/preview/runtime';
 import { renderWithProviders } from '@navet/app/test/render';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ProductGrid } from './demo-app';
 import { DEMO_HIDDEN_ENTITY_IDS, installDemoEntityVisibility } from './demo-entity-visibility';
 
 let restoreVisibility: (() => void) | undefined;
@@ -43,6 +44,42 @@ describe('demo entity recovery', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Restore all' }));
     expect(useDashboardEntitiesStore.getState().hiddenEntityIds).toEqual([]);
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('keeps hidden cards off Home and brings them back when restored in Settings', async () => {
+    installPreviewRuntime(getPreviewRuntimeScenario('demo'));
+    restoreVisibility = installDemoEntityVisibility();
+    renderWithProviders(
+      <>
+        <section aria-label="Demo Home">
+          <ProductGrid addedWidgets={[]} />
+        </section>
+        <RestoreEntitiesDialog onClose={() => {}} />
+      </>
+    );
+    const home = within(screen.getByLabelText('Demo Home'));
+    expect(
+      home.queryByRole('button', { name: 'Weather in Stockholm', hidden: true })
+    ).not.toBeInTheDocument();
+    expect(
+      home.queryByRole('button', { name: 'Guest mode', hidden: true })
+    ).not.toBeInTheDocument();
+    expect(home.queryByText('Living Room Temperature')).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Restore: weather.home' }));
+    expect(
+      await home.findByRole('button', { name: 'Weather in Stockholm', hidden: true })
+    ).toBeInTheDocument();
+    expect(
+      home.queryByRole('button', { name: 'Guest mode', hidden: true })
+    ).not.toBeInTheDocument();
+    expect(home.queryByText('Living Room Temperature')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore all' }));
+    expect(
+      await home.findByRole('button', { name: 'Guest mode', hidden: true })
+    ).toBeInTheDocument();
+    expect(home.getByText('Living Room Temperature')).toBeInTheDocument();
   });
 
   it('restores prior visibility on exit and reseeds on the next demo visit', () => {

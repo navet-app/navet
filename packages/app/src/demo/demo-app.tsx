@@ -24,6 +24,7 @@ import { WidgetCard } from '@navet/app/features/dashboard/components/widget-card
 import { useProgressiveBatching } from '@navet/app/features/dashboard/hooks/use-progressive-batching';
 import { DashboardLayout } from '@navet/app/features/dashboard/shell';
 import type { CustomCard } from '@navet/app/features/dashboard/stores/custom-cards-store';
+import { useDashboardEntitiesStore } from '@navet/app/features/dashboard/stores/dashboard-entities-store';
 import { FanCard } from '@navet/app/features/lighting/components/fan-card';
 import { LightCard } from '@navet/app/features/lighting/components/light-card';
 import { MediaCard } from '@navet/app/features/media/components/media-card';
@@ -1182,6 +1183,10 @@ function DemoWeatherCard({
   size: CardSize;
   deferUntilVisible?: boolean;
 }) {
+  const hidden = useDashboardEntitiesStore((state) =>
+    state.hiddenEntityIds.includes(`home_assistant:${id}`)
+  );
+  if (hidden) return null;
   return (
     <DemoLazyCardSlot
       size={size}
@@ -1242,7 +1247,8 @@ function DemoSummaryRow() {
   return <SummaryBar items={demoSummaryItems} onNavigate={setActiveSection} />;
 }
 
-function ProductGrid({ addedWidgets }: { addedWidgets: CustomCard[] }) {
+export function ProductGrid({ addedWidgets }: { addedWidgets: CustomCard[] }) {
+  const hiddenEntityIds = useDashboardEntitiesStore((state) => state.hiddenEntityIds);
   const reduceRenderingWork = useSettingsStore(
     (state) =>
       state.effectsQuality === 'low' ||
@@ -1414,17 +1420,19 @@ function ProductGrid({ addedWidgets }: { addedWidgets: CustomCard[] }) {
         isEditMode={false}
         deferUntilVisible
       />
-      <DemoSwitchCard
-        id="input_boolean.guest_mode"
-        name="Guest mode"
-        initialState
-        entityType="helper"
-        serviceDomain="input_boolean"
-        serviceAction="toggle"
-        size="small"
-        isEditMode={false}
-        deferUntilVisible
-      />
+      {hiddenEntityIds.includes('home_assistant:input_boolean.guest_mode') ? null : (
+        <DemoSwitchCard
+          id="input_boolean.guest_mode"
+          name="Guest mode"
+          initialState
+          entityType="helper"
+          serviceDomain="input_boolean"
+          serviceAction="toggle"
+          size="small"
+          isEditMode={false}
+          deferUntilVisible
+        />
+      )}
       <DemoSwitchCard
         id="script.goodnight"
         name="Goodnight"
@@ -1446,20 +1454,22 @@ function ProductGrid({ addedWidgets }: { addedWidgets: CustomCard[] }) {
           isEditMode={false}
         />
       </CardSlot>
-      <CardSlot size="small">
-        <SensorCard
-          id="sensor.living_room_temp"
-          name="Living Room Temperature"
-          room="Living Room"
-          value="22.4"
-          unit="C"
-          icon="thermometer"
-          subtitle="Sensor"
-          size="small"
-          onSizeChange={noopCardSizeChange}
-          isEditMode={false}
-        />
-      </CardSlot>
+      {hiddenEntityIds.includes('home_assistant:sensor.living_room_temp') ? null : (
+        <CardSlot size="small">
+          <SensorCard
+            id="sensor.living_room_temp"
+            name="Living Room Temperature"
+            room="Living Room"
+            value="22.4"
+            unit="C"
+            icon="thermometer"
+            subtitle="Sensor"
+            size="small"
+            onSizeChange={noopCardSizeChange}
+            isEditMode={false}
+          />
+        </CardSlot>
+      )}
       <DemoVacuumCard />
       {[...demoHomeWidgets, ...addedWidgets].map((card) => (
         <DemoWidgetCard key={card.id} card={card} />
@@ -1498,6 +1508,13 @@ function DemoWidgetCard({ card }: { card: CustomCard }) {
 }
 
 function ClimateShot() {
+  const hiddenEntityIds = useDashboardEntitiesStore((state) => state.hiddenEntityIds);
+  const sections = demoClimateSections.map((section) => ({
+    ...section,
+    orderedIds: section.orderedIds.filter(
+      (id) => !hiddenEntityIds.includes(`home_assistant:${id}`)
+    ),
+  }));
   const reduceRenderingWork = useSettingsStore(
     (state) =>
       state.effectsQuality === 'low' ||
@@ -1508,7 +1525,7 @@ function ClimateShot() {
   return (
     <ClimateDashboard
       deviceMap={demoClimateDeviceMap}
-      sections={demoClimateSections}
+      sections={sections}
       temperatureUnit="celsius"
       cardSizes={demoClimateCardSizes}
       updateCardSize={noopCardSizeChange}
