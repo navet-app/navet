@@ -11,6 +11,10 @@ Home edit mode exposes sample
 entities and content card templates through Add card. Controls and widget settings update local
 sample state; reloading restores the demo defaults.
 
+**Settings → Dashboard → Maintenance → Entity visibility** starts with three hidden sample
+entities: weather, Guest mode, and living-room temperature. Use **Restore entities** to restore them
+individually or choose **Restore all**. Reload the demo to try again.
+
 ## Local commands
 
 - `pnpm demo:dev`

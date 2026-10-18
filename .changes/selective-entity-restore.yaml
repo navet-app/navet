@@ -3,4 +3,4 @@ audiences:
   - standalone
   - home-assistant
   - hacs
-summary: Restore individual hidden entities or all hidden entities from Entity visibility settings.
+summary: Restore individual hidden entities or all at once, with hidden samples available to try in the demo.

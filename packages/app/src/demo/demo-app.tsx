@@ -74,6 +74,7 @@ import {
 import type { CameraDevice, DeviceWithType, LockDevice, SensorDevice } from '../types/device.types';
 import { DEMO_CARD_TEMPLATE_IDS, demoHomeLibraryCards } from './demo-card-library';
 import { installDemoDeviceAuthority } from './demo-device-authority';
+import { installDemoEntityVisibility } from './demo-entity-visibility';
 import { DemoRoomSummary } from './demo-room-summary';
 import { PHOTO_FRAME_DEMO_IMAGES } from './photo-frame-demo-images';
 
@@ -980,10 +981,12 @@ function useDemoDisplayDefaults() {
     const restoreDeviceAuthority = installDemoDeviceAuthority();
     const previousSession = integrationSessionRuntime.getSession();
     installPreviewRuntime(getPreviewRuntimeScenario('demo'));
+    const restoreEntityVisibility = installDemoEntityVisibility();
     setRuntimeReady(true);
 
     return () => {
       restoreDeviceAuthority();
+      restoreEntityVisibility();
       integrationSessionRuntime.replaceSession(previousSession);
       resetPreviewRuntime();
     };
