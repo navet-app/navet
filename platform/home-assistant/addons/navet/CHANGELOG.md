@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.4
+
+## Improvements and bug fixes
+
+- Room summaries match Home's mobile spacing and appear in demo rooms; chore and climate controls reject stale updates.
+
 ## 0.18.3
 
 ## New features
