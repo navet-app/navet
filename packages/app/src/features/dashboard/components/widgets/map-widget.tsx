@@ -1,5 +1,5 @@
 import { CardEmptyState } from '@navet/app/components/patterns';
-import { BaseCard } from '@navet/app/components/primitives';
+import { BaseCard, Button } from '@navet/app/components/primitives';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { RenderProfiler } from '@navet/app/components/shared/render-profiler';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
@@ -17,9 +17,10 @@ import { integrationSelectors, settingsSelectors } from '@navet/app/stores/selec
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { detectDeviceTier } from '@navet/app/utils/detect-device-tier';
 import { MapPin } from 'lucide-react';
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { resolveDashboardPerformanceProfile } from '../../hooks/use-dashboard-performance-mode';
+import { MapHistoryDialog, type MapHistoryOverlay } from './map-history-dialog';
 import { getCompactHomeAssistantImageUrl } from './map-image-url';
 import { applyCurrentUserAvatar, mapMarkersEqual } from './map-markers';
 import { getMapStyleUrl } from './map-tiles';
@@ -82,7 +83,10 @@ export const MapWidget = memo(function MapWidget({
 }: MapWidgetProps) {
   const theme = useThemeMode();
   const primaryColor = usePrimaryColor();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<MapHistoryOverlay | null>(null);
+  const zoneLabel = useCallback((count: string) => t('widgets.map.zonePeople', { count }), [t]);
   const currentProviderId = useIntegrationStore(integrationSelectors.currentProviderId);
   const currentUser = useIntegrationStore(integrationSelectors.currentUser);
   const { disableAnimations, lowPowerMode, effectsQuality } = useSettingsStore(
@@ -155,13 +159,17 @@ export const MapWidget = memo(function MapWidget({
   const markers = staticMarkers ?? homeAssistantMarkers;
   const stableResolvedMarkersRef = useRef<MapMarker[]>([]);
   const resolvedMarkers = useMemo(() => {
-    const markersWithCurrentUserAvatar = applyCurrentUserAvatar(markers, currentUser);
+    const markersWithCurrentUserAvatar = applyCurrentUserAvatar(
+      markers,
+      currentUser,
+      currentProviderId
+    );
     const nextMarkers = markersWithCurrentUserAvatar.map((marker) => ({
       ...marker,
       entityPicture: marker.entityPicture
         ? (normalizeResourceUrl(
             getCompactHomeAssistantImageUrl(marker.entityPicture),
-            currentProviderId
+            marker.providerId ?? currentProviderId
           ) ?? undefined)
         : undefined,
     }));
@@ -173,6 +181,11 @@ export const MapWidget = memo(function MapWidget({
     stableResolvedMarkersRef.current = nextMarkers;
     return nextMarkers;
   }, [currentProviderId, currentUser, markers]);
+  const activeHistory =
+    history &&
+    resolvedMarkers.some((marker) => marker.id === history.markerId && marker.canShowHistory)
+      ? history
+      : null;
   const shouldRenderLiveMap = resolvedMarkers.length > 0 && isMapVisible && isMapDeferredReady;
 
   const defaultCenter = useMemo<[number, number]>(() => [20, 0], []);
@@ -247,6 +260,8 @@ export const MapWidget = memo(function MapWidget({
                 mapStyleUrl={mapStyleUrl}
                 mapWidgetSurface={mapWidgetSurface}
                 markers={resolvedMarkers}
+                paths={activeHistory?.segments}
+                zoneLabel={zoneLabel}
               />
             </Suspense>
           ) : (
@@ -267,6 +282,31 @@ export const MapWidget = memo(function MapWidget({
             <div
               className={`pointer-events-none absolute inset-0 z-[351] ${baseSurface.lightOverlay}`}
             />
+          ) : null}
+          {resolvedMarkers.some((marker) => marker.canShowHistory) ? (
+            <div className="absolute inset-x-3 top-3 z-[450] flex flex-wrap items-center gap-2">
+              <Button variant="soft" size="small" onClick={() => setHistoryOpen(true)}>
+                {t('widgets.map.history')}
+              </Button>
+              {activeHistory ? (
+                <Button
+                  variant="soft"
+                  size="small"
+                  onClick={() => setHistory(null)}
+                  aria-label={`${t('widgets.map.clearHistory')}: ${activeHistory.name}`}
+                >
+                  {t('widgets.map.clearHistory')}
+                </Button>
+              ) : null}
+              {activeHistory ? (
+                <span className={`text-xs ${baseSurface.textPrimary}`}>
+                  {activeHistory.name} ·{' '}
+                  {t('widgets.map.historyUntil', {
+                    time: new Date(activeHistory.endTime).toLocaleString(locale),
+                  })}
+                </span>
+              ) : null}
+            </div>
           ) : null}
           <div
             className={`pointer-events-auto absolute z-[450] ${mapControlSurface.attributionPositionClassName} ${mapControlSurface.attributionClassName}`}
@@ -290,6 +330,13 @@ export const MapWidget = memo(function MapWidget({
           </div>
         </div>
       </BaseCard>
+      {historyOpen ? (
+        <MapHistoryDialog
+          markers={resolvedMarkers}
+          onClose={() => setHistoryOpen(false)}
+          onApply={setHistory}
+        />
+      ) : null}
     </RenderProfiler>
   );
 });

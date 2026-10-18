@@ -1,4 +1,17 @@
 export const enMessages = {
+  'widgets.map.historyUntil': 'Recorded through {time}',
+  'widgets.map.history': 'Location history',
+  'widgets.map.period': 'Period',
+  'widgets.map.lastHours': 'Last {hours} hours',
+  'widgets.map.samples':
+    'Lines connect recorded locations, not a travelled route. Missing data leaves gaps.',
+  'widgets.map.historyUnavailable': 'Location history is unavailable for this source.',
+  'widgets.map.noHistory':
+    'Not enough recorded locations to draw a path. The source may exclude this entity or no longer retain the data.',
+  'widgets.map.pointCount': '{count} recorded locations',
+  'widgets.map.showHistory': 'Show on map',
+  'widgets.map.clearHistory': 'Clear history',
+  'widgets.map.zonePeople': 'People: {count}',
   'history.title': 'History and activity',
   'history.userAction': 'User action',
   'history.entity': 'Entity',
@@ -2703,10 +2716,10 @@ export const enMessages = {
   'dashboard.addCard.templates.scene.name': 'Scene',
   'dashboard.addCard.templates.scene.description':
     'Create a one-tap scene trigger with scene.turn_on prefilled.',
-  'widgets.map.title': 'Trackers',
+  'widgets.map.title': 'Map',
   'widgets.map.eyebrow': 'Live',
-  'widgets.map.noTrackers': 'No GPS data',
-  'widgets.map.trackerCount': '{count} tracked',
+  'widgets.map.noTrackers': 'No locations available',
+  'widgets.map.trackerCount': 'Locations: {count}',
   'dashboard.addCard.templates.map.name': 'Map',
   'dashboard.addCard.templates.map.description':
     'Live map showing person and device_tracker entities with GPS coordinates.',

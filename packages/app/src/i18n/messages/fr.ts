@@ -1,4 +1,18 @@
 export const frMessages = {
+  'widgets.map.historyUntil': 'Enregistré jusqu’au {time}',
+  'widgets.map.history': 'Historique des positions',
+  'widgets.map.period': 'Période',
+  'widgets.map.lastHours': 'Dernières {hours} heures',
+  'widgets.map.samples':
+    'Les lignes relient les positions enregistrées, sans décrire un trajet. Les données manquantes laissent des intervalles.',
+  'widgets.map.historyUnavailable':
+    'L’historique des positions est indisponible pour cette source.',
+  'widgets.map.noHistory':
+    'Pas assez de positions enregistrées pour tracer un chemin. La source peut exclure cette entité ou avoir supprimé les données.',
+  'widgets.map.pointCount': '{count} positions enregistrées',
+  'widgets.map.showHistory': 'Afficher sur la carte',
+  'widgets.map.clearHistory': 'Effacer l’historique',
+  'widgets.map.zonePeople': 'Personnes : {count}',
   'history.title': 'Historique et activité',
   'history.userAction': 'Action utilisateur',
   'history.entity': 'Entité',
@@ -2746,10 +2760,10 @@ export const frMessages = {
   'dashboard.addCard.templates.scene.name': 'Scène',
   'dashboard.addCard.templates.scene.description':
     'Créez un déclencheur de scène en un geste avec scene.turn_on déjà prérempli.',
-  'widgets.map.title': 'Traqueurs',
+  'widgets.map.title': 'Carte',
   'widgets.map.eyebrow': 'En direct',
-  'widgets.map.noTrackers': 'Aucune donnée GPS',
-  'widgets.map.trackerCount': '{count} suivi(s)',
+  'widgets.map.noTrackers': 'Aucune position disponible',
+  'widgets.map.trackerCount': 'Positions : {count}',
   'dashboard.addCard.templates.map.name': 'Carte',
   'dashboard.addCard.templates.map.description':
     'Carte en direct affichant les entités person et device_tracker avec coordonnées GPS.',

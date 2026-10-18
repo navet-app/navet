@@ -1,4 +1,17 @@
 export const fiMessages = {
+  'widgets.map.historyUntil': 'Tallennettu aikaan {time}',
+  'widgets.map.history': 'Sijaintihistoria',
+  'widgets.map.period': 'Ajanjakso',
+  'widgets.map.lastHours': 'Viimeiset {hours} tuntia',
+  'widgets.map.samples':
+    'Viivat yhdistävät tallennetut sijainnit eivätkä kuvaa kuljettua reittiä. Puuttuvat tiedot jättävät aukkoja.',
+  'widgets.map.historyUnavailable': 'Sijaintihistoria ei ole käytettävissä tästä lähteestä.',
+  'widgets.map.noHistory':
+    'Tallennettuja sijainteja ei ole riittävästi polun piirtämiseen. Lähde voi sulkea entiteetin pois tai poistaa tiedot.',
+  'widgets.map.pointCount': '{count} tallennettua sijaintia',
+  'widgets.map.showHistory': 'Näytä kartalla',
+  'widgets.map.clearHistory': 'Tyhjennä historia',
+  'widgets.map.zonePeople': 'Henkilöt: {count}',
   'history.title': 'Historia ja tapahtumat',
   'history.userAction': 'Käyttäjän toiminto',
   'history.entity': 'Entiteetti',
@@ -2712,10 +2725,10 @@ export const fiMessages = {
   'dashboard.addCard.templates.scene.name': 'Kohtaus',
   'dashboard.addCard.templates.scene.description':
     'Luo yhden kosketuksen kohtauksen liipaisin, jossa scene.turn_on on esitäytetty.',
-  'widgets.map.title': 'Jäljittäjät',
+  'widgets.map.title': 'Kartta',
   'widgets.map.eyebrow': 'Livenä',
-  'widgets.map.noTrackers': 'Ei GPS-tietoja',
-  'widgets.map.trackerCount': '{count} seurattu',
+  'widgets.map.noTrackers': 'Sijainteja ei ole saatavilla',
+  'widgets.map.trackerCount': 'Sijainnit: {count}',
   'dashboard.addCard.templates.map.name': 'Kartta',
   'dashboard.addCard.templates.map.description':
     'Live-kartta, jossa näkyvät henkilö- ja device_tracker-yksiköt GPS-koordinaateilla.',

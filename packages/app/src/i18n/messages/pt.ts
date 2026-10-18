@@ -1,4 +1,18 @@
 export const ptMessages = {
+  'widgets.map.historyUntil': 'Registado até {time}',
+  'widgets.map.history': 'Histórico de localizações',
+  'widgets.map.period': 'Período',
+  'widgets.map.lastHours': 'Últimas {hours} horas',
+  'widgets.map.samples':
+    'As linhas ligam localizações registadas, sem descrever um percurso efetuado. Os dados em falta deixam intervalos.',
+  'widgets.map.historyUnavailable':
+    'O histórico de localizações está indisponível para esta fonte.',
+  'widgets.map.noHistory':
+    'Não há localizações suficientes para desenhar um trajeto. A fonte pode excluir esta entidade ou ter eliminado os dados.',
+  'widgets.map.pointCount': '{count} localizações registadas',
+  'widgets.map.showHistory': 'Mostrar no mapa',
+  'widgets.map.clearHistory': 'Limpar histórico',
+  'widgets.map.zonePeople': 'Pessoas: {count}',
   'history.title': 'Histórico e atividade',
   'history.userAction': 'Ação do usuário',
   'history.entity': 'Entidade',
@@ -2713,10 +2727,10 @@ export const ptMessages = {
   'dashboard.addCard.templates.scene.name': 'Cena',
   'dashboard.addCard.templates.scene.description':
     'Crie um acionador de cena com um toque, com scene.turn_on ja preenchido.',
-  'widgets.map.title': 'Rastreadores',
+  'widgets.map.title': 'Mapa',
   'widgets.map.eyebrow': 'Ao vivo',
-  'widgets.map.noTrackers': 'Sem dados de GPS',
-  'widgets.map.trackerCount': '{count} rastreados',
+  'widgets.map.noTrackers': 'Não há localizações disponíveis',
+  'widgets.map.trackerCount': 'Localizações: {count}',
   'dashboard.addCard.templates.map.name': 'Mapa',
   'dashboard.addCard.templates.map.description':
     'Mapa ao vivo mostrando entidades person e device_tracker com coordenadas GPS.',

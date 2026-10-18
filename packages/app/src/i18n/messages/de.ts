@@ -1,4 +1,17 @@
 export const deMessages = {
+  'widgets.map.historyUntil': 'Aufgezeichnet bis {time}',
+  'widgets.map.history': 'Standortverlauf',
+  'widgets.map.period': 'Zeitraum',
+  'widgets.map.lastHours': 'Letzte {hours} Stunden',
+  'widgets.map.samples':
+    'Linien verbinden aufgezeichnete Standorte und zeigen keine gefahrene Route. Fehlende Daten lassen Lücken.',
+  'widgets.map.historyUnavailable': 'Standortverlauf ist für diese Quelle nicht verfügbar.',
+  'widgets.map.noHistory':
+    'Zu wenige aufgezeichnete Standorte für einen Pfad. Die Quelle kann die Entität ausschließen oder die Daten gelöscht haben.',
+  'widgets.map.pointCount': '{count} aufgezeichnete Standorte',
+  'widgets.map.showHistory': 'Auf Karte anzeigen',
+  'widgets.map.clearHistory': 'Verlauf entfernen',
+  'widgets.map.zonePeople': 'Personen: {count}',
   'history.title': 'Verlauf und Aktivitäten',
   'history.userAction': 'Benutzeraktion',
   'history.entity': 'Entität',
@@ -2745,10 +2758,10 @@ export const deMessages = {
   'dashboard.addCard.templates.scene.name': 'Szene',
   'dashboard.addCard.templates.scene.description':
     'Erstelle einen Szenenauslöser mit einem Tippen, bei dem scene.turn_on bereits vorausgefüllt ist.',
-  'widgets.map.title': 'Tracker',
+  'widgets.map.title': 'Karte',
   'widgets.map.eyebrow': 'Live',
-  'widgets.map.noTrackers': 'Keine GPS-Daten',
-  'widgets.map.trackerCount': '{count} verfolgt',
+  'widgets.map.noTrackers': 'Keine Standorte verfügbar',
+  'widgets.map.trackerCount': 'Standorte: {count}',
   'dashboard.addCard.templates.map.name': 'Karte',
   'dashboard.addCard.templates.map.description':
     'Live-Karte mit Personen- und device_tracker-Entitäten mit GPS-Koordinaten.',
