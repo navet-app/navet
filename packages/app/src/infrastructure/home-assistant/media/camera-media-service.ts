@@ -189,6 +189,13 @@ export class CameraMediaService {
           continue;
         }
 
+        // Resolve only the transport we will play. Fallbacks are attempted by a
+        // new plan after playback fails; starting them here delays a ready stream.
+        if (liveTransports.length > 0) {
+          liveTransports.push(transport);
+          continue;
+        }
+
         if (transport === 'web_rtc') {
           liveTransports.push('web_rtc');
           if (!selectedStreamResource && directStreamResource) {

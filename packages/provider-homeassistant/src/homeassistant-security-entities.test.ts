@@ -155,8 +155,10 @@ describe('homeassistant-security-entities', () => {
     expectSeverity('binary_sensor.problem', 'off', 'problem', 'normal');
     expectSeverity('binary_sensor.battery_low', 'on', 'battery', 'warning');
     expectSeverity('binary_sensor.battery_low', 'off', 'battery', 'normal');
-    expectSeverity('binary_sensor.connectivity', 'on', 'connectivity', 'warning');
-    expectSeverity('binary_sensor.connectivity', 'off', 'connectivity', 'normal');
+    expectSeverity('binary_sensor.connectivity', 'on', 'connectivity', 'normal');
+    expectSeverity('binary_sensor.connectivity', 'off', 'connectivity', 'warning');
+    expectSeverity('binary_sensor.connectivity', 'unavailable', 'connectivity', 'unknown');
+    expectSeverity('binary_sensor.connectivity', 'unknown', 'connectivity', 'unknown');
   });
 
   it('keeps security-scoped connectivity and problem sensors classifiable', () => {

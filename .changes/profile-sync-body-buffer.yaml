@@ -1,0 +1,3 @@
+type: fixed
+audiences: [standalone, home-assistant]
+summary: Dashboard sync can save profiles larger than nginx's default request buffer without repeated reconciliation errors.

@@ -16,3 +16,12 @@ export const binarySensorEntityFixtures = makeEntityFixtures(
   'front_door_motion',
   binarySensorEntityFactory().attributes
 );
+
+export const securityConnectivityEntity = makeHassEntityFixture({
+  entityId: 'binary_sensor.front_door_connectivity',
+  state: 'on',
+  attributes: {
+    friendly_name: 'Front Door Lock Connectivity',
+    device_class: 'connectivity',
+  },
+});

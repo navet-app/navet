@@ -39,6 +39,10 @@ describe('Navet Nisse GitHub App authentication', () => {
     const [url, request] = fetchImpl.mock.calls[0];
     expect(url).toBe('https://api.github.com/app/installations/456/access_tokens');
     expect(request).toMatchObject({ method: 'POST', signal: expect.any(AbortSignal) });
+    expect(JSON.parse(request.body)).toEqual({
+      repositories: ['navet'],
+      permissions: { issues: 'write', pull_requests: 'read', metadata: 'read' },
+    });
     const [header, payload, signature] = request.headers.Authorization.slice('Bearer '.length).split('.');
     expect(
       verify(

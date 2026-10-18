@@ -312,9 +312,10 @@ export function getSecuritySeverity(
     case 'waterLeak':
     case 'tamper':
     case 'problem':
-    case 'connectivity':
     case 'battery':
       return isBinarySensorActiveState(state) ? 'warning' : 'normal';
+    case 'connectivity':
+      return state === 'off' ? 'warning' : 'normal';
     case 'door':
     case 'window':
     case 'garageDoor':

@@ -13,6 +13,42 @@ function createCameraCapabilities(
 }
 
 describe('CameraMediaService', () => {
+  it.each(['web_rtc', 'hls'] as const)(
+    'starts %s even when fallback stream acquisition would stall',
+    async (transport) => {
+      const paths = vi.fn(
+        () => new Promise<Partial<Record<PlatformCameraTransport, string>>>(() => {})
+      );
+      const hls = vi.fn(() =>
+        transport === 'web_rtc'
+          ? new Promise<{ url: string }>(() => {})
+          : Promise.resolve({ url: '/api/hls/camera.front/master.m3u8' })
+      );
+      const service = new CameraMediaService(
+        {
+          resolve: vi.fn(async (request: { rawPath?: string }) => ({
+            kind: 'hls_stream',
+            url: request.rawPath,
+          })),
+        } as never,
+        vi.fn(async () => createCameraCapabilities(['web_rtc', 'hls'])),
+        hls,
+        paths
+      );
+      const model = await service.getPlaybackPlan({
+        entityId: 'camera.front',
+        cameraState: 'streaming',
+        preferredMode: 'live',
+        preferredTransport: transport,
+        isStreamCapable: true,
+        motionDetectionEnabled: true,
+      });
+      expect(model.selectedTransport).toBe(transport);
+      expect(paths).not.toHaveBeenCalled();
+      expect(hls).toHaveBeenCalledTimes(transport === 'hls' ? 1 : 0);
+    }
+  );
+
   it('returns snapshot playback for snapshot mode when a still is available', async () => {
     const resolveMock = vi.fn(async (request: { rawPath?: string; kind: string }) => ({
       id: 'camera.front:snapshot',
@@ -51,7 +87,7 @@ describe('CameraMediaService', () => {
     expect(getCameraStreamMock).not.toHaveBeenCalled();
   });
 
-  it('prefers WebRTC before HLS when both transports are available', async () => {
+  it('starts WebRTC without waiting for HLS and resolves HLS only after WebRTC fails', async () => {
     const resolveMock = vi.fn(async (request: { rawPath?: string }) => ({
       id: 'camera.front:hls',
       kind: 'image',
@@ -83,9 +119,22 @@ describe('CameraMediaService', () => {
       failedTransports: new Set(),
     });
 
-    expect(model.liveTransports).toEqual(['web_rtc', 'hls']);
-    expect(model.fallbackTransports).toEqual(['hls']);
+    expect(model.liveTransports).toEqual(['web_rtc', 'hls', 'mjpeg']);
+    expect(model.fallbackTransports).toEqual(['hls', 'mjpeg']);
     expect(model.selectedTransport).toBe('web_rtc');
+    expect(getCameraStreamMock).not.toHaveBeenCalled();
+
+    const fallback = await service.getPlaybackPlan({
+      entityId: 'camera.front',
+      cameraState: 'streaming',
+      preferredMode: 'live',
+      preferredTransport: 'auto',
+      isStreamCapable: true,
+      motionDetectionEnabled: true,
+      failedTransports: new Set(['web_rtc']),
+    });
+    expect(fallback.selectedTransport).toBe('mse');
+    expect(fallback.selectedStreamResource?.url).toBe('/api/hls/camera.front/master.m3u8');
     expect(getCameraStreamMock).toHaveBeenCalledWith('camera.front', 'hls');
   });
 
@@ -211,8 +260,8 @@ describe('CameraMediaService', () => {
       failedTransports: new Set(),
     });
 
-    expect(model.liveTransports).toEqual(['web_rtc', 'hls']);
-    expect(model.fallbackTransports).toEqual(['hls']);
+    expect(model.liveTransports).toEqual(['web_rtc', 'hls', 'mjpeg']);
+    expect(model.fallbackTransports).toEqual(['hls', 'mjpeg']);
     expect(model.selectedTransport).toBe('web_rtc');
     expect(model.selectedStreamResource).toMatchObject({
       kind: 'webrtc_stream',
@@ -248,7 +297,7 @@ describe('CameraMediaService', () => {
       failedTransports: new Set(),
     });
 
-    expect(model.liveTransports).toEqual(['hls']);
+    expect(model.liveTransports).toEqual(['hls', 'mjpeg']);
     expect(model.selectedTransport).toBe('hls');
   });
 
@@ -310,7 +359,7 @@ describe('CameraMediaService', () => {
       failedTransports: new Set(),
     });
 
-    expect(model.liveTransports).toEqual(['hls']);
+    expect(model.liveTransports).toEqual(['hls', 'mjpeg']);
     expect(model.selectedTransport).toBe('hls');
   });
 
@@ -345,7 +394,7 @@ describe('CameraMediaService', () => {
     });
 
     expect(model.supportedTransports).toEqual(['mse', 'hls', 'mjpeg']);
-    expect(model.liveTransports).toEqual(['hls']);
+    expect(model.liveTransports).toEqual(['hls', 'mjpeg']);
     expect(model.selectedTransport).toBe('hls');
     expect(model.isSnapshotFallback).toBe(false);
     expect(model.shouldStartWithSnapshot).toBe(false);
@@ -498,8 +547,8 @@ describe('CameraMediaService', () => {
       failedTransports: new Set(),
     });
 
-    expect(model.liveTransports).toEqual(['hls']);
-    expect(model.fallbackTransports).toEqual([]);
+    expect(model.liveTransports).toEqual(['hls', 'mjpeg']);
+    expect(model.fallbackTransports).toEqual(['mjpeg']);
     expect(model.selectedTransport).toBe('hls');
     expect(model.selectedStreamResource?.kind).toBe('hls_stream');
   });
@@ -539,7 +588,7 @@ describe('CameraMediaService', () => {
 
     const timedOutPlan = await planPromise;
     expect(timedOutPlan).toMatchObject({
-      liveTransports: ['hls'],
+      liveTransports: ['hls', 'mjpeg'],
       selectedTransport: 'hls',
     });
     expect(timedOutPlan.refreshPolicy.capabilitiesRefreshMs).toBe(1_000);
@@ -581,14 +630,14 @@ describe('CameraMediaService', () => {
     await vi.advanceTimersByTimeAsync(750);
 
     await expect(initialPlanPromise).resolves.toMatchObject({
-      liveTransports: ['hls'],
+      liveTransports: ['hls', 'mjpeg'],
       selectedTransport: 'hls',
       refreshPolicy: {
         capabilitiesRefreshMs: 1_000,
       },
     });
     await expect(service.getPlaybackPlan(request)).resolves.toMatchObject({
-      liveTransports: ['web_rtc', 'hls'],
+      liveTransports: ['web_rtc', 'hls', 'mjpeg'],
       selectedTransport: 'web_rtc',
     });
     expect(getCameraCapabilitiesMock).toHaveBeenCalledTimes(2);
@@ -626,14 +675,14 @@ describe('CameraMediaService', () => {
     };
 
     await expect(service.getPlaybackPlan(request)).resolves.toMatchObject({
-      liveTransports: ['hls'],
+      liveTransports: ['hls', 'mjpeg'],
       selectedTransport: 'hls',
       refreshPolicy: {
         capabilitiesRefreshMs: 1_000,
       },
     });
     await expect(service.getPlaybackPlan(request)).resolves.toMatchObject({
-      liveTransports: ['web_rtc', 'hls'],
+      liveTransports: ['web_rtc', 'hls', 'mjpeg'],
       selectedTransport: 'web_rtc',
     });
     expect(getCameraCapabilitiesMock).toHaveBeenCalledTimes(2);
@@ -673,7 +722,7 @@ describe('CameraMediaService', () => {
       failedTransports: new Set(),
     });
 
-    expect(initialPlan.liveTransports).toEqual(['web_rtc', 'hls']);
+    expect(initialPlan.liveTransports).toEqual(['web_rtc', 'hls', 'mjpeg']);
     expect(initialPlan.refreshPolicy.capabilitiesRefreshMs).toBeUndefined();
 
     const stalledPlanPromise = service.getPlaybackPlan({
@@ -691,7 +740,7 @@ describe('CameraMediaService', () => {
 
     const cachedPlan = await stalledPlanPromise;
     expect(cachedPlan).toMatchObject({
-      liveTransports: ['web_rtc', 'hls'],
+      liveTransports: ['web_rtc', 'hls', 'mjpeg'],
       selectedTransport: 'web_rtc',
     });
     expect(cachedPlan.refreshPolicy.capabilitiesRefreshMs).toBeUndefined();
@@ -736,7 +785,7 @@ describe('CameraMediaService', () => {
     const initialPlanPromise = service.getPlaybackPlan(request);
     await vi.advanceTimersByTimeAsync(750);
     await expect(initialPlanPromise).resolves.toMatchObject({
-      liveTransports: ['hls'],
+      liveTransports: ['hls', 'mjpeg'],
       selectedTransport: 'hls',
     });
 
@@ -744,7 +793,7 @@ describe('CameraMediaService', () => {
     await vi.runAllTicks();
 
     await expect(service.getPlaybackPlan(request)).resolves.toMatchObject({
-      liveTransports: ['web_rtc', 'hls'],
+      liveTransports: ['web_rtc', 'hls', 'mjpeg'],
       selectedTransport: 'web_rtc',
     });
     expect(getCameraCapabilitiesMock).toHaveBeenCalledTimes(1);

@@ -55,6 +55,12 @@ export async function createInstallationToken({ appId, installationId, privateKe
         Authorization: `Bearer ${jwt}`,
         'X-GitHub-Api-Version': '2022-11-28',
       },
+      // An organization installation can cover other integrations. This runner
+      // receives access only to Navet issues and read-only PR monitoring.
+      body: JSON.stringify({
+        repositories: ['navet'],
+        permissions: { issues: 'write', pull_requests: 'read', metadata: 'read' },
+      }),
     },
     fetchImpl
   );

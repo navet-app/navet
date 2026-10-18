@@ -1,0 +1,3 @@
+type: fixed
+audiences: [standalone, home-assistant, hacs, docs]
+summary: Connected security sensors no longer raise alerts; disconnected sensors do, and the Security guide explains alert states.

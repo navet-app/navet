@@ -30,6 +30,27 @@ reports both its charge percentage and a low-battery status, they share one row.
 report battery status show that status instead of a percentage. Grouping by room limits the list
 to batteries in the selected room.
 
+## Understand the alert count
+
+The alert count includes visible security devices that report a warning, a critical condition,
+or an unknown or unavailable state. It clears automatically as the provider reports a healthy
+state; there is no separate dismiss action.
+
+| Device or condition | Raises an alert | Clears the alert |
+| --- | --- | --- |
+| Smoke, carbon monoxide, gas, safety sensor or siren | Hazard detected, unsafe, or siren on | Clear, safe, or siren off |
+| Door, window, opening or security cover | Open or moving | Closed |
+| Lock | Unlocked, open, or jammed | Locked |
+| Alarm panel | Pending, arming, disarming, or triggered | Armed or disarmed |
+| Water leak, tamper or problem | Condition detected | Condition cleared |
+| Security device connectivity | Disconnected | Connected |
+| Any included security device | Unknown or unavailable | Available with a healthy state |
+
+Motion, occupancy, presence and an active camera stream do not raise alerts by themselves.
+Generic network connectivity sensors are not automatically security devices. Hidden devices
+do not contribute to the Home or room alert count. Battery status is shown separately in
+**Battery Overview**, and duplicate camera channels are grouped.
+
 ## Arrange quickview
 
 1. Choose **Customize** while Security is open.

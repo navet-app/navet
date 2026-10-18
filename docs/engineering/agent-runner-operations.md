@@ -95,6 +95,11 @@ The runner receives no production credentials or private HA access.
 
 Configure private `NAVET_NISSE_APP_ID`, `NAVET_NISSE_INSTALLATION_ID`, `NAVET_NISSE_PRIVATE_KEY_PATH`,
 or `NAVET_NISSE_CONFIG_PATH` pointing to JSON with `appId`, `installationId`, `privateKeyPath`.
+After a repository transfer, verify the App's active installation and update both its installation
+ID and repository target. The wrapper requests a token restricted to the `navet` repository,
+Issues write, Pull requests read and Metadata read, even if the App installation has broader
+access for other integrations. Verify the effective token's repository scope before activating
+the local runner; a working App JWT alone does not establish installation access.
 The wrapper permits only issue comments, comment reactions and request-label removal:
 
 ```sh

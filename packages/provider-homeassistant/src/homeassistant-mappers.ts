@@ -889,6 +889,11 @@ function resolveBinarySensorPresentation(
   const isActive = ['on', 'detected', 'open', 'wet', 'problem', 'unsafe'].includes(normalized);
 
   switch (deviceClass) {
+    case 'connectivity':
+      return {
+        value: normalized === 'on' ? 'Connected' : 'Disconnected',
+        status: normalized === 'on' ? 'clear' : 'active',
+      };
     case 'door':
     case 'garage_door':
     case 'opening':
@@ -990,7 +995,6 @@ function formatSecurityStateValue(entity: HassEntity, kind: SecurityEntityKind):
     case 'sound':
     case 'safety':
     case 'problem':
-    case 'connectivity':
     case 'battery':
     case 'tamper':
       return ['on', 'detected', 'problem', 'unsafe', 'wet'].includes(normalized)
@@ -998,6 +1002,8 @@ function formatSecurityStateValue(entity: HassEntity, kind: SecurityEntityKind):
         : normalized === 'off'
           ? 'Clear'
           : formatDomainLabel(normalized);
+    case 'connectivity':
+      return normalized === 'on' ? 'Connected' : 'Disconnected';
     case 'person':
     case 'deviceTracker':
       return normalized === 'home'

@@ -13,6 +13,7 @@ builds the HA panel; `pnpm build:ha-panel` is not a standard local release-prepa
 | --- | --- |
 | App contracts | `pnpm test:tier2` or nearest test |
 | Provider/auth/runtime | `pnpm test:tier1` |
+| Profile HTTP body handling | `node scripts/profile-http-smoke.mjs` (Docker; tests the add-on's Alpine/nginx runtime with synthetic profiles) |
 | Storybook/shared UI | `pnpm check:stories`, relevant `pnpm test:storybook` |
 | Composition registry | `pnpm test:registry`, `pnpm check:ui-kit`, focused recipe browser tests, `pnpm typecheck`, `pnpm storybook:build` |
 | Hosted registry | `pnpm registry:preview <immutable-preview-URL> <full-SHA>` |

@@ -1,0 +1,3 @@
+type: internal
+audiences: []
+summary: Restrict local Navet Nisse installation tokens to the Navet repository and required issue and pull-request permissions.
