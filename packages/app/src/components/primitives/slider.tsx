@@ -46,7 +46,7 @@ export function Slider({
   rangeStyle,
   thumbStyle,
 }: SliderProps) {
-  const isTouchDevice = useMediaQuery('(pointer: coarse)');
+  const isTouchDevice = useMediaQuery('(any-pointer: coarse)');
   const resolvedThumbClassName =
     isTouchDevice && touchThumbClassName ? touchThumbClassName : thumbClassName;
 
