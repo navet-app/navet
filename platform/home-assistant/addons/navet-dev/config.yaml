@@ -19,6 +19,7 @@ homeassistant_api: true
 stage: experimental
 panel_icon: mdi:hub
 panel_title: Navet Dev
+panel_admin: false
 map:
   - addon_config:rw
 options:
