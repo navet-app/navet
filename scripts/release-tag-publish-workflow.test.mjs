@@ -115,7 +115,10 @@ describe('production release tag publisher', () => {
     for (const step of [validate, publish, dispatch]) {
       expect(step.env.RELEASE_TAG).toBe('${{ steps.selection.outputs.release_tag }}');
     }
-    for (const step of [publish, dispatch]) expect(step.if).toBe('${{ !inputs.preview_only }}');
+    // Rewrite: a verified no-op skips every validation/publication step after selection.
+    for (const step of job.steps.slice(job.steps.indexOf(selection) + 1))
+      expect(step.if).toContain("steps.selection.outputs.no_promotion != 'true'");
+    for (const step of [publish, dispatch]) expect(step.if).toContain('!inputs.preview_only');
     expect(validate.run).toContain('"${PREVIEW_ONLY}" == true || "${INSTALLATION_TESTED}" == true');
     expect(evidence.run).toBe('node scripts/release-evidence.mjs verify-source');
     expect(job.steps.indexOf(evidence)).toBeLessThan(job.steps.indexOf(publish));

@@ -113,6 +113,12 @@ there is no candidate. Stable uses the highest eligible beta/RC newer than the l
 version; RC ranks above beta for the same base version. Failed or incomplete publications are
 not eligible. The full source-evidence check still runs before any tag is created.
 
+When automatic stable selection finds no newer eligible beta/RC, it verifies the latest stable
+release's evidence and successful publication run. If verified, the promotion succeeds with a
+“Nothing to promote” summary naming the already-published version; it creates no tag and dispatches
+no publication. If only the tag exists or publication is incomplete, the run fails with recovery
+guidance for **Publish Release**. Explicit source or target overrides still require a valid new promotion.
+
 Candidate numbers, including explicit overrides, must advance past every existing tag for that
 version and channel, including tags from failed attempts. A Dev build's version is used when it
 is newer than the latest stable tag;

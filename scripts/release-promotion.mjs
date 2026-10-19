@@ -45,7 +45,7 @@ const compareCandidate = (a, b) =>
  * Resolve an eligible source and unused target without mutating Git or publishing.
  * Blank overrides select channel defaults; all existing tags reserve their numbers.
  * @param {object} options Channel, optional overrides, known tags, and verified sources.
- * @returns {{source_tag: string, release_tag: string, source_sha: string}} Promotion plan.
+ * @returns {object} Promotion plan, or a no_promotion result requiring stable publication verification.
  * @throws {Error} If no eligible source exists or the requested promotion is invalid.
  */
 export function resolvePromotion({
@@ -85,7 +85,11 @@ export function resolvePromotion({
       channel === 'beta'
         ? devs.at(-1)
         : (candidates.at(-1) ?? (channel === 'rc' ? devs.at(-1) : undefined));
-    if (!source) throw new Error(`No successfully published source is available for ${channel}.`);
+    if (!source) {
+      if (channel === 'stable' && !releaseTag && latestStable)
+        return { no_promotion: true, latest_stable: latestStable.tag };
+      throw new Error(`No successfully published source is available for ${channel}.`);
+    }
   }
   if (channel === 'beta' && source.channel !== 'dev') throw new Error('Beta must promote Dev.');
   if (channel === 'stable' && source.channel === 'dev')
@@ -130,6 +134,20 @@ export function resolvePromotion({
   return { source_tag: source.tag, release_tag: releaseTag, source_sha: source.sha };
 }
 
+/** Confirm publication before reporting that automatic stable promotion has nothing to do. */
+export async function resolveVerifiedPromotion(options, verifyStable) {
+  const plan = resolvePromotion(options);
+  if (!plan.no_promotion) return plan;
+  if (!(await verifyStable(plan.latest_stable)))
+    throw new Error(
+      `${plan.latest_stable} is tagged, but successful publication could not be verified. Use Publish Release to recover it.`,
+    );
+  return {
+    ...plan,
+    message: `${plan.latest_stable} is already published. No newer successfully published beta/RC is available to promote.`,
+  };
+}
+
 /**
  * Collect published prereleases whose commits and publication evidence are eligible.
  * Callbacks verify tag ancestry and channel-specific publication success; API errors
@@ -158,7 +176,7 @@ export async function collectPromotionSources({
   return sources;
 }
 
-/** Verify candidate evidence against the documented package namespace and publication run. */
+/** Verify release evidence against the documented package namespace and publication run. */
 export async function candidatePublicationSucceeded(release, sha, { readEvidence, readRun }) {
   const asset = release.assets?.find((entry) => entry.name === 'navet-release-evidence.json');
   if (!asset || !release.assets.some((entry) => entry.name === 'navet-release-notes.json'))
@@ -194,6 +212,15 @@ async function main() {
   ).flat();
   const sourceTag = (process.env.SOURCE_TAG ?? '').trim();
   const channel = process.env.RELEASE_CHANNEL || 'beta';
+  const verifyPublication = (release, sha) =>
+    candidatePublicationSucceeded(release, sha, {
+      readEvidence: (asset) =>
+        JSON.parse(execFileSync('gh', [
+          'api', '-H', 'Accept: application/octet-stream',
+          `repos/${repo}/releases/assets/${asset.id}`,
+        ], { encoding: 'utf8' })),
+      readRun: (id) => api(`actions/runs/${id}`),
+    });
   if (sourceTag && !parsePromotionTag(sourceTag)) throw new Error('Invalid source tag.');
   const candidates = releases.filter((r) =>
     sourceTag
@@ -228,25 +255,25 @@ async function main() {
         (run) => run.head_branch === tag && run.head_sha === sha && run.conclusion === 'success',
       );
     },
-    candidateSucceeded: (release, sha) =>
-      candidatePublicationSucceeded(release, sha, {
-        readEvidence: (asset) =>
-          JSON.parse(
-            execFileSync('gh', [
-              'api', '-H', 'Accept: application/octet-stream',
-              `repos/${repo}/releases/assets/${asset.id}`,
-            ], { encoding: 'utf8' }),
-          ),
-        readRun: (id) => api(`actions/runs/${id}`),
-      }),
+    candidateSucceeded: verifyPublication,
   });
-  const plan = resolvePromotion({
-    channel,
-    sourceTag,
-    releaseTag: (process.env.RELEASE_TAG ?? '').trim(),
-    tags: git('tag', '--list').split('\n'),
-    sources,
-  });
+  const plan = await resolveVerifiedPromotion(
+    {
+      channel,
+      sourceTag,
+      releaseTag: (process.env.RELEASE_TAG ?? '').trim(),
+      tags: git('tag', '--list').split('\n'),
+      sources,
+    },
+    async (tag) => {
+      const release = releases.find(
+        (entry) => entry.tag_name === tag && !entry.draft && !entry.prerelease,
+      );
+      if (!release) return false;
+      const sha = git('rev-parse', '--verify', `refs/tags/${tag}^{commit}`);
+      return verifyPublication(release, sha);
+    },
+  );
   console.log(JSON.stringify(plan, null, 2));
   if (process.env.GITHUB_OUTPUT)
     appendFileSync(
@@ -258,11 +285,14 @@ async function main() {
   if (process.env.GITHUB_STEP_SUMMARY)
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
-      `## Selected promotion\n\n- Source: \`${plan.source_tag}\`\n- Target: \`${plan.release_tag}\`\n- Commit: \`${plan.source_sha}\`\n\n${process.env.PREVIEW_ONLY === 'true' ? 'Preview only: no tag or release will be published. Pin these tags with the overrides when publishing.' : 'Publication requested. Source evidence is verified before creating the tag.'}\n\n### Eligible sources (up to 20)\n\n${sources
+      plan.no_promotion
+        ? `## Nothing to promote\n\n${plan.message}\n\nNo tag was created and no publication was dispatched.\n`
+        : `## Selected promotion\n\n- Source: \`${plan.source_tag}\`\n- Target: \`${plan.release_tag}\`\n- Commit: \`${plan.source_sha}\`\n\n${process.env.PREVIEW_ONLY === 'true' ? 'Preview only: no tag or release will be published. Pin these tags with the overrides when publishing.' : 'Publication requested. Source evidence is verified before creating the tag.'}\n\n### Eligible sources (up to 20)\n\n${sources
         .slice(0, 20)
         .map((s) => `- \`${s.tag}\``)
         .join('\n')}\n`,
     );
+  if (plan.no_promotion) console.log(`::notice::${plan.message}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

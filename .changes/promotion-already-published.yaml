@@ -1,0 +1,3 @@
+type: internal
+audiences: []
+summary: Report verified stable releases with no newer promotion candidate as a successful no-op.

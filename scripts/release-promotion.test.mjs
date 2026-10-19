@@ -4,6 +4,7 @@ import {
   candidatePublicationSucceeded,
   parsePromotionTag,
   resolvePromotion,
+  resolveVerifiedPromotion,
 } from './release-promotion.mjs';
 
 const dev = 'navet-dev-0.17.1-dev.20260920120000';
@@ -96,9 +97,9 @@ describe('promotion defaults', () => {
         ],
       }),
     ).toEqual({ source_tag: 'v0.17.2-rc.2', release_tag: 'v0.17.2', source_sha: sha });
-    expect(() => plan({ channel: 'stable', sources: [source('v0.17.1-rc.9')] })).toThrow(
-      'No successfully published source',
-    );
+    expect(plan({ channel: 'stable', sources: [source('v0.17.1-rc.9')] })).toEqual({
+      no_promotion: true, latest_stable: 'v0.17.1',
+    });
   });
   it('matches automatic source to an explicit target base', () => {
     expect(
@@ -112,7 +113,7 @@ describe('promotion defaults', () => {
   it.each([
     [{ sources: [] }, 'No successfully published source'],
     [{ sourceTag: olderDev }, 'not a successfully published'],
-    [{ channel: 'stable' }, 'No successfully published source'],
+    [{ channel: 'stable', tags: [] }, 'No successfully published source'],
     [{ channel: 'stable', sourceTag: dev }, 'Stable must promote'],
     [{ sourceTag: 'v0.17.2-beta.1', sources: [source('v0.17.2-beta.1')] }, 'Beta must promote'],
     [{ releaseTag: 'v0.18.0' }, 'match the selected channel'],
@@ -149,6 +150,42 @@ describe('promotion defaults', () => {
     'v1.2.3-rc.1; echo unsafe',
   ])('rejects malformed tag %s', (tag) => {
     expect(parsePromotionTag(tag)).toBeNull();
+  });
+});
+
+describe('automatic stable promotion with nothing newer', () => {
+  // Keep: publication evidence, explicit overrides, and API failures remain safety boundaries.
+  const options = {
+    channel: 'stable', tags: ['v0.18.4', 'v0.18.5'],
+    sources: [source('v0.18.5-beta.1')],
+  };
+  it('reports the latest verified stable as already published', async () => {
+    expect(await resolveVerifiedPromotion(options, async (tag) => tag === 'v0.18.5')).toEqual({
+      no_promotion: true, latest_stable: 'v0.18.5',
+      message: 'v0.18.5 is already published. No newer successfully published beta/RC is available to promote.',
+    });
+  });
+  it('directs an incomplete stable publication to recovery', async () => {
+    await expect(resolveVerifiedPromotion(options, async () => false)).rejects.toThrow(
+      'v0.18.5 is tagged, but successful publication could not be verified. Use Publish Release to recover it.',
+    );
+  });
+  it('propagates verification outages', async () => {
+    await expect(resolveVerifiedPromotion(options, async () => { throw new Error('API unavailable'); }))
+      .rejects.toThrow('API unavailable');
+  });
+  it('keeps explicit unavailable selections as errors', async () => {
+    await expect(resolveVerifiedPromotion({ ...options, releaseTag: 'v0.18.6' }, async () => true))
+      .rejects.toThrow('No successfully published source');
+    await expect(resolveVerifiedPromotion({ ...options, sourceTag: 'v0.18.5-beta.1' }, async () => true))
+      .rejects.toThrow('Target tag already exists');
+  });
+  it('continues to select a newer candidate without checking the old stable publication', async () => {
+    expect(await resolveVerifiedPromotion({
+      ...options, sources: [...options.sources, source('v0.18.6-rc.1')],
+    }, async () => { throw new Error('should not verify old stable'); })).toEqual({
+      source_tag: 'v0.18.6-rc.1', release_tag: 'v0.18.6', source_sha: sha,
+    });
   });
 });
 
@@ -212,6 +249,22 @@ describe('candidate publication verification', () => {
 
   it('accepts the published beta namespace independently of repository ownership', async () => {
     expect(await verify()).toBe(true);
+  });
+  it('verifies stable publication using its own tag, version, channel, and successful run', async () => {
+    const record = evidence();
+    record.tag = 'v0.17.8';
+    record.version = '0.17.8';
+    record.channel = 'stable';
+    record.images = record.images.map((image) => ({
+      ...image, version: record.version, channel: 'stable',
+      tag: image.image.endsWith('/navet') ? record.tag : record.version,
+    }));
+    const stable = { ...release, tag_name: record.tag };
+    const check = (run) => candidatePublicationSucceeded(stable, sha, {
+      readEvidence: () => record, readRun: () => run,
+    });
+    expect(await check({ conclusion: 'success', path: '.github/workflows/release.yml' })).toBe(true);
+    expect(await check({ conclusion: null, path: '.github/workflows/release.yml' })).toBe(false);
   });
   it.each(['other', 'navet-app'])('rejects evidence for an unpublished namespace %s', async (owner) => {
     const record = evidence();

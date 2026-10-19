@@ -67,6 +67,7 @@ jobs:
           node scripts/release-promotion.mjs
 
       - name: Validate promotion
+        if: steps.selection.outputs.no_promotion != 'true'
         id: promotion
         env:
           RELEASE_TAG: ${{ steps.selection.outputs.release_tag }}
@@ -123,9 +124,11 @@ jobs:
 
           echo "source_sha=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - if: steps.selection.outputs.no_promotion != 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Require successful source publication before creating a tag
+        if: steps.selection.outputs.no_promotion != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_TAG: ${{ steps.selection.outputs.source_tag }}
@@ -133,7 +136,7 @@ jobs:
         run: node scripts/release-evidence.mjs verify-source
 
       - name: Create and push promoted release tag
-        if: ${{ !inputs.preview_only }}
+        if: ${{ steps.selection.outputs.no_promotion != 'true' && !inputs.preview_only }}
         env:
           RELEASE_TAG: ${{ steps.selection.outputs.release_tag }}
           SOURCE_SHA: ${{ steps.promotion.outputs.source_sha }}
@@ -147,7 +150,7 @@ jobs:
           git push origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
 
       - name: Dispatch artifact promotion
-        if: ${{ !inputs.preview_only }}
+        if: ${{ steps.selection.outputs.no_promotion != 'true' && !inputs.preview_only }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.selection.outputs.release_tag }}
@@ -156,7 +159,7 @@ jobs:
         run: gh workflow run release.yml --ref main -f release_tag="${RELEASE_TAG}" -f source_tag="${SOURCE_TAG}" -f installation_tested="${INSTALLATION_TESTED}"
 
       - name: Summarize promotion
-        if: ${{ !inputs.preview_only }}
+        if: ${{ steps.selection.outputs.no_promotion != 'true' && !inputs.preview_only }}
         env:
           RELEASE_TAG: ${{ steps.selection.outputs.release_tag }}
           SOURCE_TAG: ${{ steps.selection.outputs.source_tag }}
