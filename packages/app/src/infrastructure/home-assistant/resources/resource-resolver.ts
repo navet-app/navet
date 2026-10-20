@@ -557,7 +557,7 @@ export class HomeAssistantResourceResolver {
     try {
       const signedPath = await this.signPath(signablePath, SIGNED_PATH_EXPIRY_SECONDS);
       if (!signedPath) {
-        return resource;
+        return ingress ? { ...resource, kind: 'unavailable', url: undefined } : resource;
       }
 
       const signedResource = this.resolveSync({ kind: 'absolute_url', url: signedPath }, options);
@@ -571,7 +571,7 @@ export class HomeAssistantResourceResolver {
         },
       };
     } catch {
-      return resource;
+      return ingress ? { ...resource, kind: 'unavailable', url: undefined } : resource;
     }
   }
 }

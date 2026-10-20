@@ -12,7 +12,7 @@ import { getThemeColorValue } from '@navet/app/components/shared/theme/theme-col
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n, useIntegrationStore, usePrimaryColor, useThemeMode } from '@navet/app/hooks';
 import { useDeferredVisibility } from '@navet/app/hooks/use-deferred-visibility';
-import { normalizeResourceUrl } from '@navet/app/services/integration-resource.service';
+import { useResourceUrls } from '@navet/app/hooks/use-resource-url';
 import { integrationSelectors, settingsSelectors } from '@navet/app/stores/selectors';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { detectDeviceTier } from '@navet/app/utils/detect-device-tier';
@@ -153,16 +153,19 @@ export const MapWidget = memo(function MapWidget({
   );
   const homeAssistantMarkers = useProviderMapMarkers(staticMarkers === undefined && isMapVisible);
   const markers = staticMarkers ?? homeAssistantMarkers;
+  const markerPictures = useResourceUrls(
+    applyCurrentUserAvatar(markers, currentUser).map((marker) =>
+      marker.entityPicture ? getCompactHomeAssistantImageUrl(marker.entityPicture) : null
+    ),
+    currentProviderId
+  );
   const stableResolvedMarkersRef = useRef<MapMarker[]>([]);
   const resolvedMarkers = useMemo(() => {
     const markersWithCurrentUserAvatar = applyCurrentUserAvatar(markers, currentUser);
     const nextMarkers = markersWithCurrentUserAvatar.map((marker) => ({
       ...marker,
       entityPicture: marker.entityPicture
-        ? (normalizeResourceUrl(
-            getCompactHomeAssistantImageUrl(marker.entityPicture),
-            currentProviderId
-          ) ?? undefined)
+        ? (markerPictures.get(getCompactHomeAssistantImageUrl(marker.entityPicture)) ?? undefined)
         : undefined,
     }));
 
@@ -172,7 +175,7 @@ export const MapWidget = memo(function MapWidget({
 
     stableResolvedMarkersRef.current = nextMarkers;
     return nextMarkers;
-  }, [currentProviderId, currentUser, markers]);
+  }, [currentUser, markerPictures, markers]);
   const shouldRenderLiveMap = resolvedMarkers.length > 0 && isMapVisible && isMapDeferredReady;
 
   const defaultCenter = useMemo<[number, number]>(() => [20, 0], []);

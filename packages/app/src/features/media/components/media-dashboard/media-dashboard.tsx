@@ -30,12 +30,12 @@ import {
   useTheme,
 } from '@navet/app/hooks';
 import { useBreakpointCols } from '@navet/app/hooks/use-breakpoint-cols';
+import { useResourceUrl } from '@navet/app/hooks/use-resource-url';
 import type {
   PlatformMediaBrowseResult,
   PlatformMediaItem,
 } from '@navet/app/platform/provider-feature-models';
 import { integrationMediaFeatureService } from '@navet/app/services/integration-media-feature.service';
-import { normalizeResourceUrl } from '@navet/app/services/integration-resource.service';
 import type { MediaDevice } from '@navet/app/types/device.types';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import { getProviderNativeId } from '@navet/app/utils/provider-ids';
@@ -557,10 +557,7 @@ export function resolveMusicAssistantThumbnailSourceUrl(thumbnail: string | null
   }
 }
 
-function resolveMediaBrowserThumbnailUrl(
-  item: PlatformMediaItem,
-  providerId?: IntegrationProviderId
-) {
+function resolveMediaBrowserThumbnailUrl(item: PlatformMediaItem) {
   if (!shouldUseProviderMediaThumbnail(item)) {
     return null;
   }
@@ -568,7 +565,7 @@ function resolveMediaBrowserThumbnailUrl(
   return (
     resolveSpotifyImageThumbnailUrl(item.thumbnail) ??
     resolveMusicAssistantThumbnailSourceUrl(item.thumbnail) ??
-    normalizeResourceUrl(item.thumbnail ?? '', providerId)
+    sanitizeImageUrl(item.thumbnail ?? '')
   );
 }
 
@@ -689,7 +686,7 @@ function MediaBrowserTile({
   const isArtist = isArtistMediaItem(item);
   const ItemIcon = isArtist ? UserRound : isDirectory ? Folder : ListMusic;
   const itemInitials = getMediaItemInitials(item);
-  const providerThumbnailUrl = resolveMediaBrowserThumbnailUrl(item, providerId);
+  const providerThumbnailUrl = useResourceUrl(resolveMediaBrowserThumbnailUrl(item), providerId);
   const catalogItem = useMediaCatalogItem(item);
   const { openArtwork, spotifyMetadata } = catalogItem;
   const itemTitle = spotifyMetadata.title ?? item.title ?? item.mediaContentId;
@@ -799,7 +796,7 @@ function MediaBrowserTableRow({
   surface,
   theme,
 }: MediaBrowserTableRowProps) {
-  const providerThumbnailUrl = resolveMediaBrowserThumbnailUrl(item, providerId);
+  const providerThumbnailUrl = useResourceUrl(resolveMediaBrowserThumbnailUrl(item), providerId);
   const catalogItem = useMediaCatalogItem(item);
   const { openArtwork, spotifyMetadata } = catalogItem;
   const itemTitle = spotifyMetadata.title ?? item.title ?? item.mediaContentId;

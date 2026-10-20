@@ -167,12 +167,16 @@ export interface HomeAssistantProviderDependencies {
     getPlaybackPlan: (request: unknown) => Promise<unknown>;
   };
   homeAssistantResourceResolver: {
-    resolve: (request: {
-      kind: 'camera_stream';
-      entityId: string;
-      stream: 'hls' | 'web_rtc';
-      rawPath?: string;
-    }) => ReturnType<HomeAssistantServiceBridge['resolveCameraStreamResource']>;
+    resolve: (
+      request:
+        | {
+            kind: 'camera_stream';
+            entityId: string;
+            stream: 'hls' | 'web_rtc';
+            rawPath?: string;
+          }
+        | { kind: 'absolute_url'; url: string }
+    ) => ReturnType<HomeAssistantServiceBridge['resolveCameraStreamResource']>;
   };
 }
 
@@ -262,6 +266,9 @@ function createHomeAssistantServiceBridgeFromDependencies(
       dependencies.mediaArtworkService.resolveArtwork(entityId, attrs, fallbackPicture),
     resolveProxyUrl: (resourceUrl, hassUrl, options) =>
       dependencies.resolveProxyUrl(resourceUrl, hassUrl, options),
+    resolveResourceUrl: async (url) =>
+      (await dependencies.homeAssistantResourceResolver.resolve({ kind: 'absolute_url', url }))
+        .url ?? null,
     getCameraPlaybackPlan: (request) => dependencies.cameraMediaService.getPlaybackPlan(request),
     resolveCameraStreamResource: (entityId, stream, rawPath) =>
       dependencies.homeAssistantResourceResolver.resolve({

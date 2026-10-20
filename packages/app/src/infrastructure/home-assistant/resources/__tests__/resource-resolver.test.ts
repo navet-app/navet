@@ -254,7 +254,8 @@ describe('HomeAssistantResourceResolver', () => {
       kind: 'absolute_url',
       url: homeAssistantUrlFixtures.relativeCameraSnapshot,
     });
-    expect(resource.url).toBe(homeAssistantUrlFixtures.relativeCameraSnapshot);
+    expect(resource.url).toBeUndefined();
+    expect(resource.kind).toBe('unavailable');
     expect(resource.authStrategy).toBe('panel_bridge');
   });
 

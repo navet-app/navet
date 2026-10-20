@@ -25,10 +25,10 @@ import { useProviderCameraTopology } from '@navet/app/hooks';
 import { useBreakpointCols } from '@navet/app/hooks/use-breakpoint-cols';
 import { usePersistedState } from '@navet/app/hooks/use-persisted-state';
 import { useProviderEntityModel } from '@navet/app/hooks/use-provider-device';
+import { useResourceUrl } from '@navet/app/hooks/use-resource-url';
 import { useTheme } from '@navet/app/hooks/use-theme';
 import { useI18n } from '@navet/app/i18n';
 import { integrationCameraFeatureService } from '@navet/app/services/integration-camera-feature.service';
-import { normalizeResourceUrl } from '@navet/app/services/integration-resource.service';
 import { settingsSelectors } from '@navet/app/stores/selectors';
 import {
   type CameraFitMode,
@@ -113,14 +113,6 @@ function readImageUrl(value: unknown): string | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function resolveHomeAssistantImageUrl(imageUrl: string | undefined) {
-  if (!imageUrl) {
-    return undefined;
-  }
-
-  return normalizeResourceUrl(imageUrl, 'home_assistant') ?? imageUrl;
-}
-
 function SummaryCameraViewer({
   camera,
   isOpen,
@@ -165,11 +157,11 @@ function SummaryCameraViewer({
     readImageUrl(
       typeof providerState?.entityPicture === 'string' ? providerState.entityPicture : undefined
     );
-  const baseSnapshotUrl = normalizeCameraSnapshotUrl(
-    liveEntityPicture ? resolveHomeAssistantImageUrl(liveEntityPicture) : initialSnapshotUrl
-  );
-  const snapshotUrl = appendCameraCacheBuster(baseSnapshotUrl, refreshKey);
-  const hasSnapshot = Boolean(snapshotUrl);
+  const baseSnapshotUrl = normalizeCameraSnapshotUrl(liveEntityPicture ?? initialSnapshotUrl);
+  const snapshotUrl =
+    useResourceUrl(appendCameraCacheBuster(baseSnapshotUrl, refreshKey), 'home_assistant') ??
+    undefined;
+  const hasSnapshot = Boolean(liveEntityPicture ?? initialSnapshotUrl);
   const isStreamCapable =
     liveState.isStreamCapable ||
     providerState?.isStreamCapable === true ||

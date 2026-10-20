@@ -7,12 +7,12 @@ import {
 } from '@navet/app/features/security/hooks/use-camera-playback-plan';
 import { useI18n, useProviderCameraTopology } from '@navet/app/hooks';
 import { useProviderEntityModel } from '@navet/app/hooks/use-provider-device';
+import { useResourceUrl } from '@navet/app/hooks/use-resource-url';
 import type {
   PlatformCameraTransport,
   PlatformEntitySnapshot,
 } from '@navet/app/platform/provider-feature-models';
 import { integrationCameraFeatureService } from '@navet/app/services/integration-camera-feature.service';
-import { normalizeResourceUrl } from '@navet/app/services/integration-resource.service';
 import { settingsSelectors } from '@navet/app/stores/selectors';
 import {
   type CameraStreamPreference,
@@ -73,14 +73,6 @@ function readImageUrl(value: unknown): string | undefined {
 
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : undefined;
-}
-
-function resolveHomeAssistantImageUrl(imageUrl: string | undefined) {
-  if (!imageUrl) {
-    return undefined;
-  }
-
-  return normalizeResourceUrl(imageUrl, 'home_assistant') ?? imageUrl;
 }
 
 const CAMERA_CLOCK_INTERVAL_MS = 30_000;
@@ -235,12 +227,12 @@ export const CameraCardContainer = memo(function CameraCardContainer({
     readImageUrl(
       typeof providerState?.entityPicture === 'string' ? providerState.entityPicture : undefined
     );
-  const baseSnapshotUrl = normalizeCameraSnapshotUrl(
-    liveEntityPicture ? resolveHomeAssistantImageUrl(liveEntityPicture) : initialSnapshotUrl
-  );
+  const baseSnapshotUrl = normalizeCameraSnapshotUrl(liveEntityPicture ?? initialSnapshotUrl);
   const imageSources = liveEntityPicture ? undefined : initialEntityPictureSources;
-  const snapshotUrl = appendCameraCacheBuster(baseSnapshotUrl, refreshKey);
-  const hasSnapshot = Boolean(snapshotUrl);
+  const snapshotUrl =
+    useResourceUrl(appendCameraCacheBuster(baseSnapshotUrl, refreshKey), 'home_assistant') ??
+    undefined;
+  const hasSnapshot = Boolean(liveEntityPicture ?? initialSnapshotUrl);
   const isStreamCapable =
     liveState.isStreamCapable ||
     providerState?.isStreamCapable === true ||

@@ -89,16 +89,16 @@ describe('MapWidget', () => {
     });
     renderWithProviders(<MapWidget markers={MARKERS_WITHOUT_PICTURE} />);
 
-    act(() => {
-      vi.advanceTimersByTime(1_200);
-    });
+    // Keep: await provider resolution as well as the deferred map mount.
     await act(async () => {
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1_200);
     });
 
-    expect(screen.getByTestId('live-map')).toHaveAttribute(
-      'data-marker-picture',
-      'https://images.example.com/vishal.png'
+    await vi.waitFor(() =>
+      expect(screen.getByTestId('live-map')).toHaveAttribute(
+        'data-marker-picture',
+        'https://images.example.com/vishal.png'
+      )
     );
   });
 

@@ -50,6 +50,18 @@ export function normalizeResourceUrl(
   return contract.normalizeResourceUrl?.(resourceUrl) ?? resourceUrl;
 }
 
+/** Resolve display URLs asynchronously so the owning provider can sign protected resources. */
+export async function resolveResourceUrl(
+  resourceUrl: string,
+  providerId?: IntegrationProviderId
+): Promise<string | null> {
+  if (!resourceUrl) return null;
+  const contract = getRegisteredProviderContract(resolveProviderId(resourceUrl, providerId));
+  return contract.resolveResourceUrl
+    ? await contract.resolveResourceUrl(resourceUrl)
+    : normalizeResourceUrl(resourceUrl, providerId);
+}
+
 export async function resolveResource(
   deviceId: string,
   kind: NavetResourceKind,

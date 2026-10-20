@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetRuntimeContextForTests } from '@navet/app/infrastructure/home-assistant/runtime/runtime-detector';
+import { homeAssistantService } from '@navet/app/services/home-assistant.service';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { resolveArtworkMock } = vi.hoisted(() => ({
   resolveArtworkMock: vi.fn(),
@@ -23,6 +25,11 @@ vi.mock(
 );
 
 describe('integration-resource.service', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.__NAVET_CONFIG__ = undefined;
+    resetRuntimeContextForTests();
+  });
   beforeEach(() => {
     resolveArtworkMock.mockReset();
     resolveArtworkMock.mockResolvedValue({
@@ -68,5 +75,32 @@ describe('integration-resource.service', () => {
       id: 'homey:device-1',
       kind: 'unavailable',
     });
+  });
+
+  it.each([
+    '/api/camera_proxy/camera.front',
+    '/api/media_player_proxy/media_player.living_room',
+    '/api/image/serve/photo/512x512',
+  ])('resolves display URLs through the current-user signing bridge: %s', async (url) => {
+    window.__NAVET_CONFIG__ = { runtime: 'ha-ingress' };
+    resetRuntimeContextForTests();
+    const sign = vi
+      .spyOn(homeAssistantService, 'signPath')
+      .mockResolvedValue({ path: `${url}?authSig=current-user` });
+    const { resolveResourceUrl } = await import('../integration-resource.service');
+    await expect(resolveResourceUrl(url, 'home_assistant')).resolves.toBe(
+      `${url}?authSig=current-user`
+    );
+    expect(sign).toHaveBeenCalledWith(url, 30);
+  });
+
+  it('does not expose an unsigned Ingress URL when signing is denied', async () => {
+    window.__NAVET_CONFIG__ = { runtime: 'ha-ingress' };
+    resetRuntimeContextForTests();
+    vi.spyOn(homeAssistantService, 'signPath').mockRejectedValue(new Error('unauthorized'));
+    const { resolveResourceUrl } = await import('../integration-resource.service');
+    await expect(
+      resolveResourceUrl('/api/camera_proxy/camera.front', 'home_assistant')
+    ).resolves.toBeNull();
   });
 });

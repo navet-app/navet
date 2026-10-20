@@ -62,7 +62,7 @@ vi.mock('@navet/app/services/integration-camera-feature.service', () => ({
 }));
 
 vi.mock('@navet/app/services/integration-resource.service', () => ({
-  normalizeResourceUrl: (url: string) => url,
+  resolveResourceUrl: async (url: string) => url,
 }));
 
 vi.mock('../camera-live-viewer', async () => {

@@ -4,6 +4,7 @@ import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/c
 import { getThemeColorValue } from '@navet/app/components/shared/theme/theme-colors';
 import { useAreaRooms, useI18n, useTheme } from '@navet/app/hooks';
 import { useDeferredVisibility } from '@navet/app/hooks/use-deferred-visibility';
+import { useResourceUrl } from '@navet/app/hooks/use-resource-url';
 import { subscribeVisibilityAwareTask } from '@navet/app/utils/visibility-aware-scheduler';
 import { ChevronLeft, ChevronRight, ImageIcon, Settings2, Shuffle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -77,6 +78,10 @@ export function PhotoFrameWidget({
   const photoCount = activePhotoImages.length;
   const safeIndex = Math.min(currentIndex, Math.max(0, photoCount - 1));
   const currentPhotoImage = activePhotoImages[safeIndex];
+  const currentPhotoUrl = useResourceUrl(
+    currentPhotoImage?.src,
+    resolvedSourceMode === 'home-assistant' ? 'home_assistant' : undefined
+  );
   const showShuffleControl = photoCount > 1 && !isCompact;
   const photoFrameConfig = useMemo(
     () =>
@@ -204,7 +209,7 @@ export function PhotoFrameWidget({
                 />
               ))}
               <img
-                src={currentPhotoImage?.src}
+                src={currentPhotoUrl ?? undefined}
                 alt=""
                 loading="lazy"
                 decoding="async"

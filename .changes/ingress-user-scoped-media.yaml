@@ -1,4 +1,4 @@
 type: security
 audiences:
   - home-assistant
-summary: Allow non-admin sidebar access while loading Ingress media through the signed-in Home Assistant user's session instead of a privileged add-on proxy.
+summary: Allow non-admin sidebar access while loading Ingress media through the signed-in user's session instead of the privileged add-on proxy.

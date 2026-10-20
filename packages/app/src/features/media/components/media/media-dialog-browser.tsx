@@ -1,11 +1,12 @@
 import { Input } from '@navet/app/components/primitives';
 import { useI18n, useServiceActionHandler } from '@navet/app/hooks';
+import { useResourceUrls } from '@navet/app/hooks/use-resource-url';
 import type {
   PlatformMediaBrowseResult,
   PlatformMediaItem,
 } from '@navet/app/platform/provider-feature-models';
 import { integrationMediaFeatureService } from '@navet/app/services/integration-media-feature.service';
-import { normalizeResourceUrl } from '@navet/app/services/integration-resource.service';
+import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
 import { sanitizeImageUrl } from '@navet/app/utils/url-security';
 import { ArrowLeft, Folder, ListMusic, Play, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -42,9 +43,8 @@ function resolveBrowserThumbnail(thumbnail: string | null | undefined) {
   if (spotifyImageMatch?.[1]) {
     return sanitizeImageUrl(`https://i.scdn.co/image/${spotifyImageMatch[1]}`);
   }
-  const normalizedUrl = normalizeResourceUrl(thumbnail);
   const baseUrl = typeof window === 'undefined' ? undefined : window.location.origin;
-  return sanitizeImageUrl(normalizedUrl, baseUrl, { allowDataImage: true });
+  return sanitizeImageUrl(thumbnail, baseUrl, { allowDataImage: true });
 }
 
 function isSpotifyBrowseItem(item: PlatformMediaItem) {
@@ -141,6 +141,11 @@ export function MediaDialogBrowser({
   const items = (browseResult?.children ?? []).filter(
     (item) => item.mediaContentId || item.canExpand
   );
+  const resolvedThumbnails = useResourceUrls(
+    items.map((item) => resolveBrowserThumbnail(item.thumbnail)),
+    parseProviderScopedId(entityId)?.providerId
+  );
+
   const itemSignature = useMemo(
     () => items.map((item) => `${item.mediaContentType}:${item.mediaContentId}`).join('|'),
     [items]
@@ -230,7 +235,7 @@ export function MediaDialogBrowser({
             const resolvedMetadata = metadataByItemKey[itemKey];
             const providerThumbnailUrl = failedThumbnails.has(itemKey)
               ? null
-              : resolveBrowserThumbnail(item.thumbnail);
+              : (resolvedThumbnails.get(resolveBrowserThumbnail(item.thumbnail) ?? '') ?? null);
             const thumbnailUrl =
               isSpotify || !shouldShowArtwork
                 ? null

@@ -3,7 +3,7 @@ import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-
 import { readNavetPersonState } from '@navet/app/core/navet-device-state';
 import { useNotificationBadgeCount } from '@navet/app/features/notifications/components/notifications/use-notification-badge-count';
 import { useI18n, useIntegrationStore, useProviderResource, useTheme } from '@navet/app/hooks';
-import { normalizeResourceUrl } from '@navet/app/services/integration-resource.service';
+import { useResourceUrl } from '@navet/app/hooks/use-resource-url';
 import { integrationSelectors, settingsSelectors } from '@navet/app/stores/selectors';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import type { PersonDevice } from '@navet/app/types/device.types';
@@ -141,6 +141,7 @@ export function useHeaderController() {
     requestKey: avatarRequestKey,
   });
 
+  const customAvatarUrl = useResourceUrl(user?.avatarUrl, currentProviderId);
   const avatarUrl = useMemo(() => {
     if (avatarResource?.kind === 'image' && avatarResource.url) {
       return avatarResource.url;
@@ -150,8 +151,8 @@ export function useHeaderController() {
       return null;
     }
 
-    return normalizeResourceUrl(user.avatarUrl, currentProviderId) ?? user.avatarUrl;
-  }, [avatarResource, currentProviderId, user?.avatarUrl]);
+    return customAvatarUrl;
+  }, [avatarResource, customAvatarUrl, user?.avatarUrl]);
 
   return {
     activeColorValue: getThemeColorValue(primaryColor),

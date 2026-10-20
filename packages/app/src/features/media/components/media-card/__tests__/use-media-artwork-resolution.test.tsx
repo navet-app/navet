@@ -107,9 +107,8 @@ describe('useMediaArtworkResolution', () => {
       })
     );
 
-    expect(result.current.albumArt).toBe(
-      '/__navet_ha_proxy__/api/media_player_proxy/media_player.living_room?token=stale-token&cache=artwork-hash'
-    );
+    // Rewrite: wait for asynchronous provider resolution before exposing a display URL.
+    expect(result.current.albumArt).toBeNull();
   });
 
   it('uses websocket thumbnail data before panel-mode media proxy fallback artwork', async () => {

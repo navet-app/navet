@@ -2,7 +2,7 @@ import { integrationStore } from '@navet/app/stores/integration-store';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { renderHookWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
-import { act } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { useProviderResourceMock } = vi.hoisted(() => ({
@@ -315,7 +315,8 @@ describe('useHeaderController', () => {
     expect(result.current.headerCustomText).toBe('');
   });
 
-  it('normalizes direct Home Assistant avatar URLs for the current provider', () => {
+  // Keep: authenticated avatar URLs still route through the current provider.
+  it('resolves direct Home Assistant avatar URLs for the current provider', async () => {
     integrationStore.setState({
       ...integrationStore.getState(),
       currentProviderId: 'home_assistant',
@@ -329,7 +330,9 @@ describe('useHeaderController', () => {
 
     const { result } = renderHookWithProviders(() => useHeaderController());
 
-    expect(result.current.avatarUrl).toBe('/__navet_ha_proxy__/api/image/serve/jane/512x512');
+    await waitFor(() =>
+      expect(result.current.avatarUrl).toBe('/__navet_ha_proxy__/api/image/serve/jane/512x512')
+    );
     expect(useProviderResourceMock).toHaveBeenCalledWith(
       expect.objectContaining({
         deviceId: '',

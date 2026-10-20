@@ -32,11 +32,16 @@ type NavetProviderContract = {
     request: NavetResourceResolveRequest
   ) => Promise<ResolvedPlatformResource> | ResolvedPlatformResource;
   normalizeResourceUrl?: (resourceUrl: string) => string | null;
+  resolveResourceUrl?: (resourceUrl: string) => Promise<string | null>;
 };
 ```
 
 `createSnapshotBackedProviderAdapter` in `@navet/core` currently turns contract state into a
 `SmartHomeProviderAdapter` with `connect/disconnect/listEntities/getEntity/execute/subscribeToEvents`.
+
+Image consumers use `resolveResourceUrl` when provider authentication may require asynchronous
+work, such as signing a path through the current user's connection. `normalizeResourceUrl` only
+rewrites a path; it does not establish that a protected resource can be displayed.
 
 ## What The Small Contract Carries
 

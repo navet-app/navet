@@ -1,6 +1,5 @@
 import { integrationMediaFeatureService } from '@navet/app/services/integration-media-feature.service';
-import { normalizeResourceUrl } from '@navet/app/services/integration-resource.service';
-import { sanitizeImageUrl } from '@navet/app/utils/url-security';
+import { isSafeRelativePath, sanitizeImageUrl } from '@navet/app/utils/url-security';
 import { useEffect, useState } from 'react';
 import type { PhotoFrameImage } from './photo-frame-image';
 import { type PhotoFrameSourceMode, resolvePhotoFrameSourceMode } from './photo-frame-types';
@@ -57,7 +56,9 @@ async function resolveMediaSourceImageUrl(mediaContentId: string) {
     return null;
   }
 
-  return normalizeResourceUrl(resolved.url, 'home_assistant') ?? resolved.url;
+  // Sign the active photo at display time; signing a whole album here would
+  // expire later slides before they become visible.
+  return isSafeRelativePath(resolved.url) ? resolved.url : sanitizeImageUrl(resolved.url);
 }
 
 async function resolveMediaSourceImageUrls(mediaContentIds: string[]) {
