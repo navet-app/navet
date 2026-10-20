@@ -21,7 +21,7 @@ function harness() {
         listReviews: vi.fn(async () => [{ user: codex, commit_id: head, state: 'COMMENTED', submitted_at: '2026-10-20T12:00:00Z' }]),
       },
       issues: { listComments: vi.fn(async () => []) },
-      actions: { listWorkflowRuns: vi.fn(async () => []), createWorkflowDispatch: vi.fn() },
+      actions: { listWorkflowRuns: vi.fn(async () => [{ id: 123, head_sha: head, event: 'pull_request', status: 'completed', conclusion: 'failure', run_attempt: 1 }]), reRunWorkflow: vi.fn() },
     },
   };
   const context = { repo: { owner: 'navet-app', repo: 'navet' }, eventName: 'workflow_dispatch', sha: head,
@@ -114,49 +114,67 @@ describe('review eligibility', () => {
   });
 });
 
-describe('reviewed CI dispatch', () => {
-  it('pins the PR number and reviewed SHA when starting the same-repository branch', async () => {
-    const h = harness();
-    await dispatchReviewedCi(h);
-    expect(h.github.rest.actions.createWorkflowDispatch).toHaveBeenCalledExactlyOnceWith({
-      owner: h.owner, repo: h.repo, workflow_id: 'ci.yml', ref: 'feature/example',
-      inputs: { pull_request_number: '310', head_sha: head },
-    });
+// Rewrite: resume an existing PR event instead of executing PR code under workflow_dispatch.
+describe('reviewed CI resumption', () => {
+  it('reruns only the current head PR workflow, including forks', async () => {
+    for (const repository of ['navet-app/navet', 'contributor/navet']) {
+      const h = harness();
+      h.pr.head.repo.full_name = repository;
+      await dispatchReviewedCi(h);
+      expect(h.github.rest.actions.reRunWorkflow).toHaveBeenCalledExactlyOnceWith({
+        owner: h.owner, repo: h.repo, run_id: 123,
+      });
+      expect(h.github.rest.actions.listWorkflowRuns).toHaveBeenCalledWith(expect.objectContaining({
+        head_sha: head, event: 'pull_request',
+      }));
+    }
   });
 
-  it('does not dispatch until review is complete, or on repeated summary updates', async () => {
+  it('waits for review and propagates API failures without rerunning tests', async () => {
     const h = harness();
     h.github.rest.pulls.listReviews.mockResolvedValueOnce([]);
     await dispatchReviewedCi(h);
-    expect(h.github.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
-    h.github.rest.actions.listWorkflowRuns.mockResolvedValue([{ head_sha: head, event: 'workflow_dispatch', status: 'completed', conclusion: 'failure' }]);
-    await dispatchReviewedCi(h);
-    expect(h.github.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
-  });
-
-  it('leaves fork CI to review events rather than dispatching default-branch code', async () => {
-    const h = harness();
-    h.pr.head.repo.full_name = 'contributor/navet';
-    await dispatchReviewedCi(h);
-    expect(h.github.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
-    h.context.eventName = 'pull_request_review';
-    h.context.payload.pull_request = h.pr;
-    await expect(authorizeCi(h)).resolves.toBeUndefined();
-  });
-
-  it('propagates API failures without starting CI', async () => {
-    const h = harness();
+    expect(h.github.rest.actions.reRunWorkflow).not.toHaveBeenCalled();
     h.github.graphql.mockRejectedValue(new Error('API unavailable'));
     await expect(dispatchReviewedCi(h)).rejects.toThrow('API unavailable');
-    expect(h.github.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+    expect(h.github.rest.actions.reRunWorkflow).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [],
+    [{ id: 123, head_sha: base, event: 'pull_request', status: 'completed', conclusion: 'failure' }],
+    [{ id: 123, head_sha: head, event: 'workflow_dispatch', status: 'completed', conclusion: 'failure' }],
+    [{ id: 123, head_sha: head, event: 'pull_request', status: 'in_progress' }],
+    [{ id: 123, head_sha: head, event: 'pull_request', status: 'completed', conclusion: 'success' }],
+  ])('does not restart missing, unrelated, active or successful CI: %j', async (...runs) => {
+    const h = harness();
+    h.github.rest.actions.listWorkflowRuns.mockResolvedValue(runs);
+    await dispatchReviewedCi(h);
+    expect(h.github.rest.actions.reRunWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates automatic summary edits while allowing explicit manual retries', async () => {
+    const h = harness();
+    h.github.rest.actions.listWorkflowRuns.mockResolvedValue([
+      { id: 123, head_sha: head, event: 'pull_request', status: 'completed', conclusion: 'failure', run_attempt: 2 },
+    ]);
+    h.context.eventName = 'issue_comment';
+    await dispatchReviewedCi(h);
+    expect(h.github.rest.actions.reRunWorkflow).not.toHaveBeenCalled();
+    h.context.eventName = 'workflow_dispatch';
+    delete h.context.payload.issue;
+    await dispatchReviewedCi(h);
+    expect(h.github.rest.actions.reRunWorkflow).toHaveBeenCalledExactlyOnceWith({
+      owner: h.owner, repo: h.repo, run_id: 123,
+    });
   });
 });
 
 it('keeps expensive lanes behind review and fails the required gate if review is skipped', () => {
   const workflow = parse(readFileSync('.github/workflows/ci.yml', 'utf8'));
-  expect(workflow.on.pull_request).toBeUndefined();
-  expect(workflow.on.pull_request_review.types).toContain('submitted');
-  expect(workflow.on.workflow_dispatch).toBeDefined();
+  expect(workflow.on.pull_request.branches).toEqual(['main']);
+  expect(workflow.on.workflow_dispatch).toBeUndefined();
+  expect(workflow.on.pull_request_target).toBeUndefined();
   expect(workflow.permissions).toEqual({ contents: 'read', checks: 'read', 'pull-requests': 'read' });
   expect(workflow.jobs.impact.needs).toBe('review');
   for (const job of Object.values(workflow.jobs).filter((job) => !['Review eligibility', 'Product review gate'].includes(job.name))) {
@@ -169,7 +187,13 @@ it('keeps expensive lanes behind review and fails the required gate if review is
   const previews = gate.steps.find((step) => step.name === 'Require successful previews for affected sites');
   expect(previews.if).toBeUndefined();
   for (const [name, job] of Object.entries(workflow.jobs)) {
-    if (name === 'review') continue;
+    if (['review', 'product-review-gate'].includes(name)) {
+      const checkout = job.steps.find((step) => step.uses === 'actions/checkout@v5');
+      expect(checkout.with.ref).toBe('2246837e02a5e3cea7b8671d532eaa4efdbca92c');
+      expect(checkout.with['persist-credentials']).toBe(false);
+      expect(job.steps.filter((step) => step.uses === 'actions/checkout@v5')).toHaveLength(1);
+      continue;
+    }
     if (job.uses) {
       expect(job.with.checkout_ref).toContain('outputs.checkout_sha');
     } else {

@@ -151,18 +151,22 @@ describe('Codex completion review', () => {
     }
   });
 
-  // Rewrite: completion recording now also needs Actions dispatch permission.
+  // Rewrite: completion recording now also needs Actions rerun permission.
   it('runs trusted code with narrow permissions and serializes each PR', () => {
     const workflow = parse(readFileSync('.github/workflows/codex-review-completion.yml', 'utf8'));
-    expect(workflow.on).toEqual({ issue_comment: { types: ['created', 'edited'] } });
+    expect(workflow.on.issue_comment).toEqual({ types: ['created', 'edited'] });
+    expect(workflow.on.workflow_dispatch.inputs.pull_request_number.required).toBe(true);
     expect(workflow.permissions).toEqual({ contents: 'read', 'pull-requests': 'write', actions: 'write' });
     expect(workflow.concurrency).toEqual({
-      group: 'codex-review-completion-${{ github.repository }}-${{ github.event.issue.number }}',
+      group: 'codex-review-completion-${{ github.repository }}-${{ github.event.issue.number || inputs.pull_request_number }}',
       'cancel-in-progress': false,
     });
     const checkout = workflow.jobs.record.steps.find((step) => step.uses === 'actions/checkout@v5');
     expect(checkout.with).toEqual({ 'persist-credentials': false });
     expect(workflow.jobs.record.if).toContain('199175422');
     expect(workflow.jobs.record.steps.at(-1).with.script).toContain('recordCodexReviewCompletion');
+    const manualCheckout = workflow.jobs.resume.steps.find((step) => step.uses === 'actions/checkout@v5');
+    expect(manualCheckout.with).toEqual({ ref: '${{ github.event.repository.default_branch }}', 'persist-credentials': false });
+    expect(workflow.jobs.resume.permissions).toEqual({ contents: 'read', 'pull-requests': 'read', actions: 'write' });
   });
 });

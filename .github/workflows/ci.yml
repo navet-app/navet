@@ -1,18 +1,9 @@
 name: CI
 
 on:
-  pull_request_review:
-    types: [submitted, dismissed]
-  workflow_dispatch:
-    inputs:
-      pull_request_number:
-        description: PR number (select its branch above)
-        required: true
-        type: string
-      head_sha:
-        description: Reviewed commit SHA (automation pins this; manual runs use the selected branch)
-        required: false
-        type: string
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 permissions:
   contents: read
@@ -20,7 +11,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || inputs.pull_request_number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -37,6 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          # Immutable controller, independent of the PR being authorized.
+          ref: 2246837e02a5e3cea7b8671d532eaa4efdbca92c
           persist-credentials: false
       - id: review
         uses: actions/github-script@v8
@@ -328,8 +321,9 @@ jobs:
         run: test "$REVIEW_RESULT" = success
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.review.outputs.checkout_sha }}
+          ref: 2246837e02a5e3cea7b8671d532eaa4efdbca92c
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -342,6 +336,10 @@ jobs:
           script: |
             const { authorizeCi } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/reviewed-ci.mjs`);
             await authorizeCi({ github, context, core, expectedCheckout: process.env.REVIEWED_MERGE_SHA });
+      - name: Fetch reviewed history for preview checks
+        env:
+          HEAD_SHA: ${{ needs.review.outputs.head_sha }}
+        run: git fetch --no-tags origin "$HEAD_SHA"
       - name: Require every deterministic gate
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}

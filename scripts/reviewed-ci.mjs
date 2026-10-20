@@ -58,9 +58,10 @@ export async function reviewedPullRequest({ github, owner, repo, number, expecte
   return latest;
 }
 
-/** Dispatch only same-repository branches; fork PRs use their submitted-review event. */
+/** Resume the existing PR-scoped run without executing PR code in a dispatch context. */
 export async function dispatchReviewedCi({ github, context, core }) {
-  const number = context.payload.issue?.number ?? context.payload.pull_request?.number;
+  const number = context.payload.issue?.number ?? context.payload.pull_request?.number ??
+    Number(context.payload.inputs?.pull_request_number);
   const { owner, repo } = context.repo;
   let pr;
   try {
@@ -71,22 +72,20 @@ export async function dispatchReviewedCi({ github, context, core }) {
     core.notice(error.message);
     return;
   }
-  if (pr.head.repo?.full_name !== `${owner}/${repo}`) {
-    core.notice('Fork PR: submit a review after resolving findings to start CI.');
-    return;
-  }
   const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
-    owner, repo, workflow_id: 'ci.yml', head_sha: pr.head.sha, per_page: 100,
+    owner, repo, workflow_id: 'ci.yml', head_sha: pr.head.sha, event: 'pull_request', per_page: 100,
   });
-  if (runs.some((run) => run.head_sha === pr.head.sha &&
-    (run.event === 'workflow_dispatch' || run.status !== 'completed' || run.conclusion === 'success'))) {
-    core.notice('CI is already dispatched for this commit; use its rerun control to retry.');
+  const run = runs.filter((entry) => entry.head_sha === pr.head.sha && entry.event === 'pull_request')
+    .sort((left, right) => right.id - left.id)[0];
+  if (!run || run.status !== 'completed' || run.conclusion === 'success') {
+    core.notice('PR CI is not yet waiting, is already running, or has passed.');
     return;
   }
-  await github.rest.actions.createWorkflowDispatch({
-    owner, repo, workflow_id: 'ci.yml', ref: pr.head.ref,
-    inputs: { pull_request_number: String(number), head_sha: pr.head.sha },
-  });
+  if (run.run_attempt > 1 && context.eventName !== 'workflow_dispatch') {
+    core.notice('CI was already resumed; use the manual resume or rerun control to retry.');
+    return;
+  }
+  await github.rest.actions.reRunWorkflow({ owner, repo, run_id: run.id });
 }
 
 /** Both automatic and manual CI runs recheck current reviews before running tests. */
