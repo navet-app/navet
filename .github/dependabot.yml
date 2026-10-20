@@ -3,6 +3,9 @@ updates:
   - package-ecosystem: npm
     directories:
       - /
+      # Include workspace manifests in the same group as the root lockfile.
+      - /apps/*
+      - /packages/*
       - /testing/provider-lab/homey-fixture-app
     schedule:
       interval: weekly
