@@ -1,27 +1,58 @@
 name: CI
 
 on:
-  pull_request:
-    branches:
-      - main
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
+  pull_request_review:
+    types: [submitted, dismissed]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: PR number (select its branch above)
+        required: true
+        type: string
+      head_sha:
+        description: Reviewed commit SHA (automation pins this; manual runs use the selected branch)
+        required: false
+        type: string
 
 permissions:
   contents: read
   checks: read
+  pull-requests: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || inputs.pull_request_number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  review:
+    name: Review eligibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      base_sha: ${{ steps.review.outputs.base_sha }}
+      head_sha: ${{ steps.review.outputs.head_sha }}
+      checkout_sha: ${{ steps.review.outputs.checkout_sha }}
+      number: ${{ steps.review.outputs.number }}
+      author: ${{ steps.review.outputs.author }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - id: review
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { authorizeCi } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/reviewed-ci.mjs`);
+            await authorizeCi({ github, context, core });
+
   impact:
+    needs: review
     runs-on: ubuntu-latest
     outputs:
+      base_sha: ${{ needs.review.outputs.base_sha }}
+      head_sha: ${{ needs.review.outputs.head_sha }}
+      checkout_sha: ${{ needs.review.outputs.checkout_sha }}
+      author: ${{ needs.review.outputs.author }}
       runtime: ${{ steps.impact.outputs.runtime }}
       website: ${{ steps.impact.outputs.website }}
       docs: ${{ steps.impact.outputs.docs }}
@@ -30,6 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ needs.review.outputs.checkout_sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
@@ -37,13 +69,9 @@ jobs:
           package-manager-cache: false
       - id: impact
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          if [[ -z "$BASE_SHA" || "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
-            export BASE_SHA="$(git rev-parse HEAD^)"
-          fi
-          node scripts/pipeline-impact.mjs
+          BASE_SHA: ${{ needs.review.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.review.outputs.head_sha }}
+        run: node scripts/pipeline-impact.mjs
 
   quality:
     needs: impact
@@ -53,6 +81,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          ref: ${{ needs.impact.outputs.checkout_sha }}
           fetch-depth: 0
 
       - name: Setup pnpm
@@ -73,10 +102,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Validate release fragment
-        if: github.event_name == 'pull_request'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          NAVET_PR_AUTHOR_JSON: ${{ needs.impact.outputs.author }}
+          BASE_SHA: ${{ needs.impact.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.impact.outputs.head_sha }}
         run: node scripts/check-release-fragments.mjs --base "${BASE_SHA}" --head "${HEAD_SHA}"
 
       - name: Run checks
@@ -145,6 +174,8 @@ jobs:
     needs: impact
     if: needs.impact.outputs.runtime == 'true'
     uses: ./.github/workflows/provider-platform-validation.yml
+    with:
+      checkout_ref: ${{ needs.impact.outputs.checkout_sha }}
 
   tier-2-blocking-app-contracts:
     needs: impact
@@ -154,6 +185,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.impact.outputs.checkout_sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -180,6 +213,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.impact.outputs.checkout_sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -203,6 +238,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.impact.outputs.checkout_sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -231,6 +268,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.impact.outputs.checkout_sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -273,6 +312,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     needs:
+      - review
       - impact
       - quality
       - tier-1-release-critical
@@ -282,22 +322,34 @@ jobs:
       - responsive-review
 
     steps:
+      - name: Require successful review eligibility
+        env:
+          REVIEW_RESULT: ${{ needs.review.result }}
+        run: test "$REVIEW_RESULT" = success
       - uses: actions/checkout@v5
         with:
+          ref: ${{ needs.review.outputs.checkout_sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           package-manager-cache: false
+      - name: Recheck current review eligibility
+        uses: actions/github-script@v8
+        env:
+          REVIEWED_MERGE_SHA: ${{ needs.review.outputs.checkout_sha }}
+        with:
+          script: |
+            const { authorizeCi } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/reviewed-ci.mjs`);
+            await authorizeCi({ github, context, core, expectedCheckout: process.env.REVIEWED_MERGE_SHA });
       - name: Require every deterministic gate
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: node scripts/pipeline-gate.mjs
 
       - name: Require successful previews for affected sites
-        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ needs.impact.outputs.head_sha }}
           IMPACT_JSON: ${{ toJSON(needs.impact.outputs) }}
         run: node scripts/pages-gate.mjs

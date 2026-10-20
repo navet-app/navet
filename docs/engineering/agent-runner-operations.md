@@ -131,11 +131,25 @@ Keep one general reviewer; findings are advisory, CI and maintainer acceptance a
 `Record Codex Review Completion` listens for created or edited summary comments from the
 verified Codex bot. When Code Review completes for an open, non-draft PR's current head, it
 submits a formal `COMMENT` review as `github-actions[bot]`, linking the summary even when
-there are no findings. Runs serialize per PR and skip commits already recorded by this workflow
-or a submitted Codex review. It uses the default-branch script and `pull-requests: write` from
-`GITHUB_TOKEN`. Nisse permissions stay read-only for PRs. Summary format changes fail closed.
-The workflow starts receiving events after merging to the default branch; completion records
-are advisory and grant no approval.
+there are no findings. Completion records are advisory and grant no approval. Runs serialize
+per PR and skip duplicate completion records. The workflow uses trusted default-branch code,
+`pull-requests: write` to record completion, and `actions: write` to dispatch CI; it never executes
+PR code. Nisse permissions stay read-only for PRs. Summary format changes fail closed.
+
+CI starts after Codex finishes reviewing the exact current head and all review threads are
+resolved, including outdated threads. Active requests for changes also block it. The completion
+workflow dispatches CI for same-repository branches, deduplicating runs for the same commit.
+Submitted or dismissed PR reviews also trigger the eligibility check, including for forks.
+Every CI run verifies eligibility before tests/builds and again at the Product review gate.
+New commits require fresh review; manual runs cannot bypass these checks. CodeQL and Cloudflare
+previews remain independent so they can supply findings and rendered evidence during review.
+
+GitHub Actions has no review-thread-resolution event. After resolving the last thread without a
+new push or review update, run **CI** manually for a same-repository PR: select its branch and
+enter its PR number (leave the optional SHA blank). For a fork, submit a review after resolving
+findings. Use the failed run's rerun control for test retries. The completion dispatcher becomes
+active after these workflow changes merge to the default branch; during initial rollout, a
+submitted review or a manual CI run provides the same gated entrypoint.
 
 ### Merge protection and previews
 

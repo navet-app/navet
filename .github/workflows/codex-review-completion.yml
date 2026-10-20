@@ -11,6 +11,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
+  actions: write
 
 jobs:
   record:
@@ -32,3 +33,5 @@ jobs:
           script: |
             const { recordCodexReviewCompletion } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/codex-review-completion.mjs`);
             await recordCodexReviewCompletion({ github, context, core });
+            const { dispatchReviewedCi } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/reviewed-ci.mjs`);
+            await dispatchReviewedCi({ github, context, core });

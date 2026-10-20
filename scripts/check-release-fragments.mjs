@@ -17,9 +17,12 @@ try {
   if (!head) throw new Error('Missing --head Git ref.');
 
   const files = listAddedReleaseFragmentFiles(base, head);
-  const event = process.env.GITHUB_EVENT_PATH
+  let event = process.env.GITHUB_EVENT_PATH
     ? JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
     : null;
+  if (!event?.pull_request && process.env.NAVET_PR_AUTHOR_JSON) {
+    event = { pull_request: { user: JSON.parse(process.env.NAVET_PR_AUTHOR_JSON) } };
+  }
   if (files.length === 0 && isDependabotPullRequest(base, head, event)) {
     console.log('Validated dependency-only Dependabot update; no user-facing release note is required.');
     process.exit(0);

@@ -151,10 +151,11 @@ describe('Codex completion review', () => {
     }
   });
 
+  // Rewrite: completion recording now also needs Actions dispatch permission.
   it('runs trusted code with narrow permissions and serializes each PR', () => {
     const workflow = parse(readFileSync('.github/workflows/codex-review-completion.yml', 'utf8'));
     expect(workflow.on).toEqual({ issue_comment: { types: ['created', 'edited'] } });
-    expect(workflow.permissions).toEqual({ contents: 'read', 'pull-requests': 'write' });
+    expect(workflow.permissions).toEqual({ contents: 'read', 'pull-requests': 'write', actions: 'write' });
     expect(workflow.concurrency).toEqual({
       group: 'codex-review-completion-${{ github.repository }}-${{ github.event.issue.number }}',
       'cancel-in-progress': false,
