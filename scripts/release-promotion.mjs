@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, realpathSync, statSync } from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validateEvidence } from './release-evidence.mjs';
@@ -11,13 +11,23 @@ const devPattern = new RegExp(`^navet-dev-${versionPattern}-dev\\.(\\d{14})$`);
 /** Append only to existing runner command files, never an arbitrary environment path. */
 export function appendActionsFile(filePath, content, runnerTemp = process.env.RUNNER_TEMP) {
   if (!runnerTemp) throw new Error('Actions output requires RUNNER_TEMP.');
-  const commandRoot = realpathSync(path.join(runnerTemp, '_runner_file_commands'));
-  const destination = realpathSync(path.resolve(filePath));
-  if (!destination.startsWith(`${commandRoot}${path.sep}`) ||
-      !statSync(destination).isFile()) {
+  const commandRoot = fs.realpathSync(path.join(runnerTemp, '_runner_file_commands'));
+  const destination = fs.realpathSync(path.resolve(filePath));
+  if (!destination.startsWith(`${commandRoot}${path.sep}`)) {
     throw new Error('Actions output must be a runner command file.');
   }
-  appendFileSync(destination, content);
+  // Reject a symlink swapped in after resolution. Nonblocking open also avoids
+  // hanging on a substituted FIFO; inspect and write the same open file.
+  const descriptor = fs.openSync(destination,
+    fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  try {
+    if (!fs.fstatSync(descriptor).isFile()) {
+      throw new Error('Actions output must be a runner command file.');
+    }
+    fs.appendFileSync(descriptor, content);
+  } finally {
+    fs.closeSync(descriptor);
+  }
 }
 
 /**
