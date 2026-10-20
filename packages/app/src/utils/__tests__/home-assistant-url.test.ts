@@ -32,14 +32,15 @@ describe('home-assistant-url', () => {
     );
   });
 
-  it('proxies Home Assistant media paths under the ingress base path', () => {
+  // Rewrite: Ingress media resolves on the host HA origin, without the add-on proxy.
+  it('resolves Home Assistant media paths on the host origin in Ingress', () => {
     const base = document.createElement('base');
     base.href = `${window.location.origin}/api/hassio_ingress/addon-slug/`;
     document.head.append(base);
     resetRuntimeContextForTests();
 
     expect(resolveHomeAssistantProxyUrl(homeAssistantUrlFixtures.relativeMediaArtwork)).toBe(
-      `/api/hassio_ingress/addon-slug/__navet_ha_proxy__${homeAssistantUrlFixtures.relativeMediaArtwork}`
+      homeAssistantUrlFixtures.relativeMediaArtwork
     );
   });
 
@@ -71,7 +72,7 @@ describe('home-assistant-url', () => {
     );
   });
 
-  it('still proxies absolute Home Assistant-style media URLs when ingress is hosted on a different origin', () => {
+  it('resolves internal Home Assistant media URLs on the Ingress host origin', () => {
     const base = document.createElement('base');
     base.href = `${window.location.origin}/api/hassio_ingress/addon-slug/`;
     document.head.append(base);
@@ -82,9 +83,7 @@ describe('home-assistant-url', () => {
       resolveHomeAssistantProxyUrl(
         'http://homeassistant:8123/api/media_player_proxy/media_player.living_room'
       )
-    ).toBe(
-      `/api/hassio_ingress/addon-slug/__navet_ha_proxy__${homeAssistantUrlFixtures.relativeMediaArtwork}`
-    );
+    ).toBe(homeAssistantUrlFixtures.relativeMediaArtwork);
   });
 
   it('keeps matching absolute Home Assistant media URLs direct when proxy generation is disabled', () => {

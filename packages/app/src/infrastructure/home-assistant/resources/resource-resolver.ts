@@ -200,6 +200,38 @@ export class HomeAssistantResourceResolver {
         };
       }
 
+      // Ingress shares Home Assistant's browser origin. Resolve HA resources on
+      // that origin and sign them through the current user's parent connection;
+      // the add-on must never substitute its Supervisor credential.
+      if (runtime.kind === 'ha_ingress') {
+        try {
+          const url = new URL(resourceUrl, runtime.appOrigin);
+          const haOrigin = haBaseUrl ? new URL(haBaseUrl).origin : runtime.appOrigin;
+          // HA can advertise internal media origins while Ingress is accessed
+          // through an external URL. Preserve that resource-path compatibility,
+          // while leaving ambiguous external CDN /image/ URLs untouched.
+          const haResourcePath =
+            isHomeAssistantRelativeUrl(url.pathname) && !url.pathname.startsWith('/image/');
+          if (url.origin === runtime.appOrigin || url.origin === haOrigin || haResourcePath) {
+            const proxyPath = getEmbeddedProxyPath(url.pathname);
+            const path = proxyPath ? stripProxyPath(proxyPath) : url.pathname;
+            if (isHomeAssistantRelativeUrl(path)) {
+              const nativePath = `${path}${url.search}`;
+              return {
+                id: resourceUrl,
+                kind: 'image',
+                url: toUrlWithCacheBust(nativePath, options.cacheBustKey),
+                cacheKey,
+                authStrategy: hasSignedAuthQuery(nativePath) ? 'none' : 'panel_bridge',
+                metadata: { source: 'ha_ingress_user_resource' },
+              };
+            }
+          }
+        } catch {
+          // Let the existing URL validation and unavailable fallback handle it.
+        }
+      }
+
       if (resourceUrl.startsWith(HOME_ASSISTANT_PROXY_PATH)) {
         const resolvedUrl =
           runtime.kind === 'ha_panel'
@@ -495,13 +527,15 @@ export class HomeAssistantResourceResolver {
     const resource = this.resolveSync(ref, options);
     const runtime = getRuntimeContext();
     const session = this.getSession();
-    const haBaseUrl = session?.haBaseUrl ?? runtime.haBaseUrl;
+    const ingress = runtime.kind === 'ha_ingress';
+    const haBaseUrl =
+      session?.haBaseUrl ?? runtime.haBaseUrl ?? (ingress ? runtime.appOrigin : null);
 
     if (
-      (runtime.kind !== 'standalone' && runtime.kind !== 'dev') ||
-      session?.authMode !== 'oauth' ||
+      (!ingress && runtime.kind !== 'standalone' && runtime.kind !== 'dev') ||
+      (!ingress && session?.authMode !== 'oauth') ||
       !this.signPath ||
-      resource.authStrategy !== 'same_origin' ||
+      resource.authStrategy !== (ingress ? 'panel_bridge' : 'same_origin') ||
       !resource.url ||
       !haBaseUrl
     ) {
@@ -516,7 +550,7 @@ export class HomeAssistantResourceResolver {
     // Media artwork already flows through Navet's same-origin proxy in standalone OAuth mode.
     // Re-signing media_player_proxy paths adds authSig noise without improving access, and some
     // Home Assistant-backed players fail when the extra signed query is appended.
-    if (shouldSkipSignedPathForProxyResource(signablePath)) {
+    if (!ingress && shouldSkipSignedPathForProxyResource(signablePath)) {
       return resource;
     }
 

@@ -1054,6 +1054,35 @@ function startHomeAssistantAddonContainer({
 }
 
 const addonIngressPath = '/api/hassio_ingress/navet-runtime-check';
+function assertHomeAssistantAddonProxyDenied(probeContainerName) {
+  // Keep the real listener covered: same-origin mutations and read-only requests
+  // must both fail before they can acquire the add-on's Supervisor credential.
+  const result = spawnSync('docker', ['exec', probeContainerName, 'node', '-e', `
+    async function run() {
+      const base = 'http://navet-addon-check:8099';
+      for (const [method, path] of [
+        ['GET', '/__navet_ha_proxy__/api/states'],
+        ['HEAD', '/__navet_ha_proxy__/api/config'],
+        ['POST', '/__navet_ha_proxy__/api/services/homeassistant/restart'],
+        ['GET', '/__navet_ha_proxy__/api/websocket'],
+        ['GET', '/__navet_ha_proxy__/api/image/serve/test/512x512.png'],
+      ]) {
+        const response = await fetch(base + path, {
+          method,
+          headers: { Origin: base, 'Sec-Fetch-Site': 'same-origin' },
+          signal: AbortSignal.timeout(2000),
+        });
+        if (response.status !== 403) throw new Error(method + ' ' + path + ': ' + response.status);
+        await response.arrayBuffer();
+      }
+    }
+    run().catch(error => { console.error(error); process.exit(1); });
+  `], { encoding: 'utf8' });
+  if (result.error || result.status !== 0) {
+    throw new Error(`Ingress Home Assistant proxy boundary failed: ${result.error?.message || result.stderr}`);
+  }
+}
+
 const addonDirectProbeSource = `
   async function run() {
     const baseUrl = 'http://navet-addon-check:8080';
@@ -2300,6 +2329,7 @@ try {
   );
   assertBuiltStandaloneMetadata(addonContainerName, expectedBuildVersion);
   assertHomeAssistantAddonDirectListener(addonProbeContainerName, addonContainerName);
+  assertHomeAssistantAddonProxyDenied(addonProbeContainerName);
   const addonCookie = assertHomeAssistantAddonIngressCookie(
     firstAddonProfile.cookie
   );

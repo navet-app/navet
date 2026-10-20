@@ -8,7 +8,6 @@ NGINX_CONF="/etc/nginx/http.d/default.conf"
 DIRECT_NGINX_CONF="/etc/nginx/http.d/direct.conf"
 
 ALLOW_INSECURE_PROVIDER_TLS="$(bashio::config 'allow_insecure_provider_tls')"
-RESOLVED_HASS_PROXY_BASE="http://supervisor/core"
 
 remove_obsolete_options() {
   local saved_options
@@ -117,11 +116,6 @@ printf '%s\n' \
 
 cp /etc/navet-nginx/ha-proxy.template.js /etc/nginx/njs/ha-proxy.js
 
-PROXY_AUTH_DIRECTIVE='    proxy_set_header Authorization "";'
-if [[ -n "${SUPERVISOR_TOKEN:-}" ]]; then
-  PROXY_AUTH_DIRECTIVE='    proxy_set_header Authorization "Bearer '"${SUPERVISOR_TOKEN}"'";'
-fi
-
 cat > "${NGINX_CONF}" <<EOF
 server {
   listen 8099;
@@ -144,39 +138,10 @@ server {
     js_periodic navet_chore_store.runPeriodic interval=60s;
   }
 
-  location /__navet_ha_proxy__/ {
-    if (\$navet_provider_proxy_request_allowed = "") {
-      return 403;
-    }
-    if (\$uri ~ "\.\.") {
-      return 400;
-    }
-    proxy_pass ${RESOLVED_HASS_PROXY_BASE}/;
-    proxy_http_version 1.1;
-    proxy_set_header Host \$proxy_host;
-    proxy_set_header Forwarded "";
-    proxy_set_header X-Forwarded-For "";
-    proxy_set_header X-Forwarded-Host "";
-    proxy_set_header X-Forwarded-Proto "";
-    proxy_set_header X-Real-IP "";
-    proxy_set_header Cookie "";
-    proxy_set_header X-Navet-Installation-Key "";
-    proxy_set_header Upgrade \$http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_ignore_headers X-Accel-Redirect X-Accel-Expires X-Accel-Buffering X-Accel-Charset X-Accel-Limit-Rate Set-Cookie;
-    proxy_hide_header Set-Cookie;
-    proxy_hide_header Location;
-    proxy_hide_header WWW-Authenticate;
-    proxy_hide_header X-Accel-Redirect;
-    proxy_hide_header Access-Control-Allow-Origin;
-    proxy_hide_header Access-Control-Allow-Credentials;
-    proxy_hide_header Access-Control-Allow-Headers;
-    proxy_hide_header Access-Control-Allow-Methods;
-    proxy_hide_header Access-Control-Expose-Headers;
-    proxy_hide_header Access-Control-Max-Age;
-    proxy_read_timeout 3600s;
-    proxy_send_timeout 3600s;
-${PROXY_AUTH_DIRECTIVE}
+  # Ingress resources use paths signed by the current user's parent HA connection.
+  # Never expose a Supervisor-authenticated Home Assistant proxy to the browser.
+  location ^~ /__navet_ha_proxy__ {
+    return 403;
   }
 
   location /__navet_homey_proxy__/ {

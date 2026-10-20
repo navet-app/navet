@@ -2,7 +2,7 @@ import { resetRuntimeContextForTests } from '@navet/app/infrastructure/home-assi
 import { oauthSessionFixture } from '@navet/app/test/fixtures/home-assistant/auth/oauth';
 import { signedPathFixture } from '@navet/app/test/fixtures/home-assistant/auth/signed-path';
 import { homeAssistantUrlFixtures } from '@navet/app/test/fixtures/home-assistant/resources/urls';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeAssistantResourceResolver } from '../resource-resolver';
 
 describe('HomeAssistantResourceResolver', () => {
@@ -149,7 +149,8 @@ describe('HomeAssistantResourceResolver', () => {
     expect(resource.authStrategy).toBe('same_origin');
   });
 
-  it('rewrites absolute Home Assistant URLs through ingress-aware proxy paths', () => {
+  // Rewrite: Ingress uses the current HA user's resources, never the add-on token.
+  it('resolves absolute Home Assistant URLs on the host origin in Ingress', () => {
     const base = document.createElement('base');
     base.href = `${window.location.origin}${homeAssistantUrlFixtures.ingressBasePath}/`;
     document.head.append(base);
@@ -162,13 +163,12 @@ describe('HomeAssistantResourceResolver', () => {
       url: homeAssistantUrlFixtures.absoluteHaMediaArtwork,
     });
 
-    expect(resource.url).toBe(
-      `${homeAssistantUrlFixtures.ingressBasePath}/__navet_ha_proxy__/api/media_player_proxy/media_player.living_room`
-    );
-    expect(resource.authStrategy).toBe('same_origin');
+    expect(resource.url).toBe(homeAssistantUrlFixtures.relativeMediaArtwork);
+    expect(resource.authStrategy).toBe('panel_bridge');
   });
 
-  it('does not double-proxy ingress-prefixed Home Assistant camera snapshots', () => {
+  // Rewrite: persisted Ingress proxy URLs must migrate to native HA paths.
+  it('strips stale ingress-prefixed proxy paths from Home Assistant camera snapshots', () => {
     const base = document.createElement('base');
     base.href = `${window.location.origin}${homeAssistantUrlFixtures.ingressBasePath}/`;
     document.head.append(base);
@@ -184,8 +184,78 @@ describe('HomeAssistantResourceResolver', () => {
       rawPath: ingressSnapshotUrl,
     });
 
-    expect(resource.url).toBe(ingressSnapshotUrl);
-    expect(resource.authStrategy).toBe('same_origin');
+    expect(resource.url).toBe(homeAssistantUrlFixtures.relativeCameraSnapshot);
+    expect(resource.authStrategy).toBe('panel_bridge');
+  });
+
+  it.each([
+    homeAssistantUrlFixtures.relativeMediaArtwork,
+    homeAssistantUrlFixtures.relativeCameraSnapshot,
+    homeAssistantUrlFixtures.relativeImageServe,
+    homeAssistantUrlFixtures.relativeHlsStream,
+    homeAssistantUrlFixtures.absoluteHaMediaArtwork,
+    'http://homeassistant:8123/api/media_player_proxy/media_player.living_room',
+    `${homeAssistantUrlFixtures.ingressBasePath}${homeAssistantUrlFixtures.staleProxyCameraSnapshot}`,
+  ])('signs Ingress resources through the current user connection: %s', async (url) => {
+    window.__NAVET_CONFIG__ = { runtime: 'ha-ingress', hassUrl: oauthSessionFixture.haBaseUrl };
+    resetRuntimeContextForTests();
+    const signPath = vi.fn(async (path: string) => `${path}?authSig=current-user-signature`);
+    const resolver = new HomeAssistantResourceResolver(() => null, signPath);
+
+    const resource = await resolver.resolve({ kind: 'absolute_url', url });
+
+    expect(signPath).toHaveBeenCalledOnce();
+    const path = signPath.mock.calls[0]?.[0];
+    expect(path).toMatch(/^\/api\/(media_player_proxy|camera_proxy|image\/serve|hls)\//);
+    expect(resource.url).toBe(`${path}?authSig=current-user-signature`);
+    expect(resource.authStrategy).toBe('none');
+    expect(signPath).toHaveBeenCalledWith(path, 30);
+  });
+
+  it('preserves signed Ingress resource queries without signing them again', async () => {
+    window.__NAVET_CONFIG__ = { runtime: 'ha-ingress' };
+    resetRuntimeContextForTests();
+    const signPath = vi.fn();
+    const resolver = new HomeAssistantResourceResolver(() => null, signPath);
+
+    const resource = await resolver.resolve({
+      kind: 'absolute_url',
+      url: `${window.location.origin}${homeAssistantUrlFixtures.signedImageServe}`,
+    });
+
+    expect(resource.url).toBe(homeAssistantUrlFixtures.signedImageServe);
+    expect(resource.authStrategy).toBe('none');
+    expect(signPath).not.toHaveBeenCalled();
+  });
+
+  it('keeps external Ingress artwork outside Home Assistant signing', async () => {
+    window.__NAVET_CONFIG__ = { runtime: 'ha-ingress' };
+    resetRuntimeContextForTests();
+    const signPath = vi.fn();
+    const resolver = new HomeAssistantResourceResolver(() => null, signPath);
+    const resource = await resolver.resolve({
+      kind: 'absolute_url',
+      url: homeAssistantUrlFixtures.crossOriginExternalImage,
+    });
+    expect(resource.url).toBe(homeAssistantUrlFixtures.crossOriginExternalImage);
+    expect(signPath).not.toHaveBeenCalled();
+  });
+
+  it('never falls back to the add-on proxy when the current user cannot sign a resource', async () => {
+    window.__NAVET_CONFIG__ = { runtime: 'ha-ingress' };
+    resetRuntimeContextForTests();
+    const resolver = new HomeAssistantResourceResolver(
+      () => null,
+      async () => {
+        throw new Error('unauthorized');
+      }
+    );
+    const resource = await resolver.resolve({
+      kind: 'absolute_url',
+      url: homeAssistantUrlFixtures.relativeCameraSnapshot,
+    });
+    expect(resource.url).toBe(homeAssistantUrlFixtures.relativeCameraSnapshot);
+    expect(resource.authStrategy).toBe('panel_bridge');
   });
 
   it('strips stale proxy paths in panel mode and keeps same-origin HA access', () => {
