@@ -191,7 +191,8 @@ describe('MediaDialog', () => {
 
     expect(await screen.findByText('Daily Mix')).toBeInTheDocument();
     expect(screen.queryByTestId('spotify-browse-icon')).not.toBeInTheDocument();
-    expect(screen.getByTestId('media-browse-artwork')).toHaveAttribute(
+    // Keep: provider display resolution completes after the browse result arrives.
+    expect(await screen.findByTestId('media-browse-artwork')).toHaveAttribute(
       'src',
       'https://i.scdn.co/image/ab67616d00001e02dailyMixArtwork'
     );

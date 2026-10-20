@@ -1,4 +1,3 @@
-import { resolveResourceUrl } from '@navet/app/services/integration-resource.service';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import { useEffect, useState } from 'react';
 
@@ -15,27 +14,17 @@ export function useResourceUrls(
   useEffect(() => {
     let cancelled = false;
     setResolved(null);
-    const sources = JSON.parse(urlsKey) as string[];
-    void Promise.all(
-      sources.map(async (url) => {
-        try {
-          return [url, await resolveResourceUrl(url, providerId)] as const;
-        } catch {
-          return [url, null] as const;
-        }
-      })
-    ).then((entries) => {
-      if (!cancelled) {
-        setResolved({
-          key,
-          urls: new Map(
-            entries.filter((entry): entry is readonly [string, string] => entry[1] !== null)
-          ),
-        });
-      }
+    if (urlsKey === '[]') return;
+    let stop: (() => void) | undefined;
+    void import('@navet/app/services/resource-url-observer').then(({ observeResourceUrls }) => {
+      if (cancelled) return;
+      stop = observeResourceUrls(JSON.parse(urlsKey) as string[], providerId, (urls) => {
+        if (!cancelled) setResolved({ key, urls });
+      });
     });
     return () => {
       cancelled = true;
+      stop?.();
     };
   }, [key, providerId, urlsKey]);
 

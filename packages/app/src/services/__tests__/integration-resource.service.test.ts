@@ -103,4 +103,17 @@ describe('integration-resource.service', () => {
       resolveResourceUrl('/api/camera_proxy/camera.front', 'home_assistant')
     ).resolves.toBeNull();
   });
+
+  it('preserves the signed resource expiry across the provider boundary', async () => {
+    window.__NAVET_CONFIG__ = { runtime: 'ha-ingress' };
+    resetRuntimeContextForTests();
+    vi.spyOn(homeAssistantService, 'signPath').mockResolvedValue({
+      path: '/api/image?authSig=current-user',
+    });
+    const { resolveDisplayResource } = await import('../integration-resource.service');
+    const start = Date.now();
+    const resource = await resolveDisplayResource('/api/image', 'home_assistant');
+    expect(resource.expiresAt).toBeGreaterThanOrEqual(start + 30_000);
+    expect(resource.expiresAt).toBeLessThanOrEqual(Date.now() + 30_000);
+  });
 });

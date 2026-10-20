@@ -4,7 +4,13 @@ import { useResourceUrl, useResourceUrls } from './use-resource-url';
 
 const { resolveUrl } = vi.hoisted(() => ({ resolveUrl: vi.fn() }));
 vi.mock('@navet/app/services/integration-resource.service', () => ({
-  resolveResourceUrl: resolveUrl,
+  resolveDisplayResource: async (...args: unknown[]) => ({
+    id: 'image',
+    kind: 'image',
+    cacheKey: 'image',
+    authStrategy: 'none',
+    url: await resolveUrl(...args),
+  }),
 }));
 
 describe('provider display URLs', () => {
@@ -21,7 +27,13 @@ describe('provider display URLs', () => {
       initialProps: { url: '/api/camera_proxy/camera.front' },
     });
     expect(result.current).toBeNull();
+    await waitFor(() =>
+      expect(resolveUrl).toHaveBeenCalledWith('/api/camera_proxy/camera.front', 'home_assistant')
+    );
     rerender({ url: '/api/camera_proxy/camera.back' });
+    await waitFor(() =>
+      expect(resolveUrl).toHaveBeenCalledWith('/api/camera_proxy/camera.back', 'home_assistant')
+    );
     await act(async () =>
       pending.get('/api/camera_proxy/camera.front')?.('/api/camera_proxy/camera.front?authSig=old')
     );

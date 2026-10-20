@@ -15,8 +15,8 @@ import {
   type HomeAssistantPanelHass,
   isHomeAssistantConnected,
   resolveHomeAssistantArtwork,
+  resolveHomeAssistantDisplayResource,
   resolveHomeAssistantProxyUrl,
-  resolveHomeAssistantResourceUrl,
   subscribeHomeAssistantStore,
 } from './homeassistant-service-bridge';
 
@@ -105,7 +105,7 @@ export function createHomeAssistantProviderContract(): NavetProviderContract {
     subscribeState: subscribeHomeAssistantStore,
     resolveResource: resolveHomeAssistantResource,
     normalizeResourceUrl: (resourceUrl) => resolveHomeAssistantProxyUrl(resourceUrl) ?? resourceUrl,
-    resolveResourceUrl: resolveHomeAssistantResourceUrl,
+    resolveDisplayResource: resolveHomeAssistantDisplayResource,
   };
 }
 

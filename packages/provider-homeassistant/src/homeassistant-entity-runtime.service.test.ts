@@ -101,6 +101,13 @@ describe('homeAssistantEntityRuntimeService', () => {
         authStrategy: 'none' as const,
       })),
       resolveProxyUrl: vi.fn((resourceUrl: string) => resourceUrl),
+      resolveDisplayResource: vi.fn(async (url: string) => ({
+        id: url,
+        kind: 'image' as const,
+        cacheKey: url,
+        authStrategy: 'none' as const,
+        url,
+      })),
       getCameraPlaybackPlan: vi.fn(async () => ({ mode: 'snapshot' })),
       resolveCameraStreamResource: vi.fn(async (entityId: string) => ({
         id: entityId,

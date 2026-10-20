@@ -32,16 +32,19 @@ type NavetProviderContract = {
     request: NavetResourceResolveRequest
   ) => Promise<ResolvedPlatformResource> | ResolvedPlatformResource;
   normalizeResourceUrl?: (resourceUrl: string) => string | null;
-  resolveResourceUrl?: (resourceUrl: string) => Promise<string | null>;
+  resolveDisplayResource?: (resourceUrl: string) => Promise<ResolvedPlatformResource>;
 };
 ```
 
 `createSnapshotBackedProviderAdapter` in `@navet/core` currently turns contract state into a
 `SmartHomeProviderAdapter` with `connect/disconnect/listEntities/getEntity/execute/subscribeToEvents`.
 
-Image consumers use `resolveResourceUrl` when provider authentication may require asynchronous
+Image consumers use `resolveDisplayResource` when provider authentication may require asynchronous
 work, such as signing a path through the current user's connection. `normalizeResourceUrl` only
 rewrites a path; it does not establish that a protected resource can be displayed.
+Providers retain `expiresAt` on signed resources. Display consumers renew them before expiry,
+discard expired URLs when a suspended page resumes, and retry resolution when the provider's
+connection state changes.
 
 ## What The Small Contract Carries
 

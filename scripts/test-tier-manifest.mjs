@@ -80,6 +80,7 @@ export const TEST_TIERS = {
       'packages/app/src/features/dashboard/clients/dashboard-client-identity.test.ts',
       'packages/app/src/infrastructure/home-assistant/resources/__tests__/resource-resolver.test.ts',
       'packages/app/src/hooks/use-resource-url.test.tsx',
+      'packages/app/src/services/__tests__/resource-url-observer.test.ts',
       'packages/app/src/services/__tests__/dashboard-profile-store-conformance.test.ts',
       'packages/app/src/services/__tests__/chore-store.test.ts',
       'packages/app/src/services/__tests__/chore-workspace.service.test.ts',

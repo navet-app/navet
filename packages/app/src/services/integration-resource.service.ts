@@ -50,16 +50,24 @@ export function normalizeResourceUrl(
   return contract.normalizeResourceUrl?.(resourceUrl) ?? resourceUrl;
 }
 
-/** Resolve display URLs asynchronously so the owning provider can sign protected resources. */
-export async function resolveResourceUrl(
+/** Preserve provider-owned authentication and expiry for display resources. */
+export async function resolveDisplayResource(
   resourceUrl: string,
   providerId?: IntegrationProviderId
-): Promise<string | null> {
-  if (!resourceUrl) return null;
+): Promise<ResolvedPlatformResource> {
   const contract = getRegisteredProviderContract(resolveProviderId(resourceUrl, providerId));
-  return contract.resolveResourceUrl
-    ? await contract.resolveResourceUrl(resourceUrl)
-    : normalizeResourceUrl(resourceUrl, providerId);
+  if (contract.resolveDisplayResource) return await contract.resolveDisplayResource(resourceUrl);
+  return {
+    id: resourceUrl,
+    kind: 'image',
+    url: normalizeResourceUrl(resourceUrl, providerId) ?? undefined,
+    cacheKey: resourceUrl,
+    authStrategy: 'none',
+  };
+}
+
+export async function resolveResourceUrl(resourceUrl: string, providerId?: IntegrationProviderId) {
+  return (await resolveDisplayResource(resourceUrl, providerId)).url ?? null;
 }
 
 export async function resolveResource(

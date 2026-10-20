@@ -62,7 +62,13 @@ vi.mock('@navet/app/services/integration-camera-feature.service', () => ({
 }));
 
 vi.mock('@navet/app/services/integration-resource.service', () => ({
-  resolveResourceUrl: async (url: string) => url,
+  resolveDisplayResource: async (url: string) => ({
+    id: url,
+    kind: 'image',
+    cacheKey: url,
+    authStrategy: 'none',
+    url,
+  }),
 }));
 
 vi.mock('../camera-live-viewer', async () => {
