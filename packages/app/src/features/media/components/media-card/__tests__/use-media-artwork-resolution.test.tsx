@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { fetchMediaThumbnailDataUrlMock, signPathMock } = vi.hoisted(() => ({
   fetchMediaThumbnailDataUrlMock: vi.fn(),
@@ -49,6 +49,15 @@ function expectFetchUrl(fetchMock: ReturnType<typeof vi.spyOn>, expectedUrl: str
 }
 
 describe('useMediaArtworkResolution', () => {
+  // Keep: exercise real provider resolution. Load the lazy modules before the
+  // assertion clock starts so a cold CI transform cannot consume waitFor's budget.
+  beforeAll(async () => {
+    await Promise.all([
+      import('@navet/app/services/integration-resource.service'),
+      import('@navet/app/services/resource-url-observer'),
+    ]);
+  });
+
   beforeEach(() => {
     document.querySelector('base')?.remove();
     window.history.replaceState(null, '', '/');

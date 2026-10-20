@@ -760,9 +760,8 @@ export async function generateAiDrafts({
   });
 
   if (!response.ok) {
-    const message = await response.text();
     throw new Error(
-      `Generation request failed with HTTP ${response.status}: ${message.slice(0, 300)}`
+      `Generation request failed with HTTP ${response.status}`
     );
   }
 

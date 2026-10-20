@@ -1,0 +1,3 @@
+type: internal
+audiences: []
+summary: Updated Vite and hardened release and content automation while stabilizing Dev validation.

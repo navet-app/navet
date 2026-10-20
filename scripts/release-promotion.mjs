@@ -1,11 +1,24 @@
 import { execFileSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, realpathSync, statSync } from 'node:fs';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validateEvidence } from './release-evidence.mjs';
 
 const versionPattern = '(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)';
 const releasePattern = new RegExp(`^v${versionPattern}(?:-(beta|rc)\\.([1-9]\\d*))?$`);
 const devPattern = new RegExp(`^navet-dev-${versionPattern}-dev\\.(\\d{14})$`);
+
+/** Append only to existing runner command files, never an arbitrary environment path. */
+export function appendActionsFile(filePath, content, runnerTemp = process.env.RUNNER_TEMP) {
+  if (!runnerTemp) throw new Error('Actions output requires RUNNER_TEMP.');
+  const commandRoot = realpathSync(path.join(runnerTemp, '_runner_file_commands'));
+  const destination = realpathSync(path.resolve(filePath));
+  if (!destination.startsWith(`${commandRoot}${path.sep}`) ||
+      !statSync(destination).isFile()) {
+    throw new Error('Actions output must be a runner command file.');
+  }
+  appendFileSync(destination, content);
+}
 
 /**
  * Parse a supported Dev, beta, RC, or stable tag into sortable version fields.
@@ -276,14 +289,14 @@ async function main() {
   );
   console.log(JSON.stringify(plan, null, 2));
   if (process.env.GITHUB_OUTPUT)
-    appendFileSync(
+    appendActionsFile(
       process.env.GITHUB_OUTPUT,
       Object.entries(plan)
         .map(([k, v]) => `${k}=${v}\n`)
         .join(''),
     );
   if (process.env.GITHUB_STEP_SUMMARY)
-    appendFileSync(
+    appendActionsFile(
       process.env.GITHUB_STEP_SUMMARY,
       plan.no_promotion
         ? `## Nothing to promote\n\n${plan.message}\n\nNo tag was created and no publication was dispatched.\n`

@@ -25,6 +25,29 @@ import {
 const temporaryDirectories = [];
 const fixedNow = new Date('2026-09-01T12:00:00.000Z');
 
+it('keeps remote error bodies out of saved fallback artifacts', async () => {
+  const cacheRoot = path.join(repoRoot, '.cache', 'content-workflow-tests');
+  fs.mkdirSync(cacheRoot, { recursive: true });
+  const root = fs.mkdtempSync(path.join(cacheRoot, 'navet-error-body-'));
+  temporaryDirectories.push(root);
+  const briefPath = path.join(root, 'brief.yml');
+  const output = path.join(root, 'output');
+  writeYaml(briefPath, makeBrief());
+  const result = await generateContentPack({
+    briefPath, outputPath: output, now: fixedNow,
+    env: { OPENAI_API_KEY: 'synthetic-test-key' },
+    fetchImpl: async () => ({ ok: false, status: 503,
+      text: async () => 'UNTRUSTED_REMOTE_ERROR_BODY',
+    }),
+  });
+  expect(result.pack.generator.mode).toBe('fallback');
+  expect(result.pack.generator.reason).toBe('Generation request failed with HTTP 503');
+  for (const file of ['pack.json', 'README.md', 'review.md']) {
+    expect(fs.readFileSync(path.join(output, file), 'utf8'))
+      .not.toContain('UNTRUSTED_REMOTE_ERROR_BODY');
+  }
+});
+
 // Keep: attacker-controlled option names cannot alter prototypes, and generated
 // channel IDs cannot select files outside the caller's output directory.
 it('treats prototype names as ordinary CLI keys', () => {

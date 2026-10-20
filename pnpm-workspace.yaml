@@ -10,7 +10,7 @@ allowBuilds:
   sharp: true
 
 overrides:
-  vite: 8.3.2
+  vite: 8.3.3
   baseline-browser-mapping@<2.11.0: 2.11.27
   brace-expansion@>=2.0.0 <2.1.7: 2.1.7
   brace-expansion@>=4.0.0 <5.0.12: 5.0.12

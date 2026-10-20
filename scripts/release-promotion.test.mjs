@@ -1,11 +1,44 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
+  appendActionsFile,
   collectPromotionSources,
   candidatePublicationSucceeded,
   parsePromotionTag,
   resolvePromotion,
   resolveVerifiedPromotion,
 } from './release-promotion.mjs';
+
+// Keep the existing promotion contracts; add coverage for the runner-file boundary.
+it('appends runner outputs but rejects traversal, sibling paths and symlink escapes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'navet-actions-output-'));
+  try {
+    const commands = path.join(root, '_runner_file_commands');
+    fs.mkdirSync(commands);
+    const output = path.join(commands, 'step_summary_test');
+    const outside = path.join(root, 'outside');
+    fs.writeFileSync(output, 'before\n');
+    fs.writeFileSync(outside, 'unchanged');
+    const link = path.join(commands, 'link');
+    fs.symlinkSync(outside, link);
+    const sibling = path.join(root, '_runner_file_commands-other');
+    fs.mkdirSync(sibling);
+    fs.writeFileSync(path.join(sibling, 'output'), 'unchanged');
+    appendActionsFile(output, 'after\n', root);
+    expect(fs.readFileSync(output, 'utf8')).toBe('before\nafter\n');
+    for (const destination of [outside, path.join(commands, '..', 'outside'), link,
+      path.join(sibling, 'output'), commands]) {
+      expect(() => appendActionsFile(destination, 'bad', root)).toThrow('runner command file');
+    }
+    expect(fs.readFileSync(outside, 'utf8')).toBe('unchanged');
+    expect(fs.readFileSync(path.join(sibling, 'output'), 'utf8')).toBe('unchanged');
+    expect(() => appendActionsFile(output, 'bad', '')).toThrow('RUNNER_TEMP');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 const dev = 'navet-dev-0.17.1-dev.20260920120000';
 const olderDev = 'navet-dev-0.17.1-dev.20260919120000';
