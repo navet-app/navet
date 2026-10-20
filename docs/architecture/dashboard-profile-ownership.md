@@ -53,8 +53,9 @@ collection: named Home dashboards, their order, the workspace default, and assig
 registered dashboard-client IDs to dashboard IDs. Each dashboard owns its Home card membership,
 room-navigation scope, layout, sections, card sizes, custom-card instances, zone assignments, and
 companion-panel camera/weather selections and security-status visibility. Companion selections
-stay the same between rooms and can differ between Home dashboards. The panel’s collapsed state
-is a device preference; opening or collapsing it never writes the shared dashboard profile.
+stay the same between rooms and can differ between Home dashboards. The panel’s enabled and
+collapsed states are device preferences; enabling, disabling, opening or collapsing it never writes
+the shared dashboard profile.
 Theme, room organization, weather presentation defaults, and shared custom actions that pass export
 security filtering remain workspace-wide. Camera transport and presentation preferences remain
 device-owned because panel capabilities differ.

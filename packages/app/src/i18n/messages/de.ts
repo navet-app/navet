@@ -900,6 +900,9 @@ export const deMessages = {
   'settings.dashboard.chores.title': 'Hausarbeiten',
   'settings.dashboard.chores.description':
     'Zeige Aufgaben im Haushalt, in der Startübersicht und in Raum-Dashboards. Beim Deaktivieren bleiben deine Aufgabendaten erhalten.',
+  'settings.dashboard.companion.title': 'Begleitpanel',
+  'settings.dashboard.companion.description':
+    'Zeige die Zuhause-Übersicht neben der Navigation auf diesem Gerät, wenn im Querformat genug Platz ist.',
   'settings.dashboard.kioskMode.title': 'Kioskmodus',
   'settings.dashboard.kioskMode.description':
     'Blendet Kopfzeile und Navigation aus, damit das Dashboard eine Wandanzeige ausfüllen kann.',

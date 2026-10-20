@@ -891,6 +891,9 @@ export const noMessages = {
   'settings.dashboard.chores.title': 'Husarbeid',
   'settings.dashboard.chores.description':
     'Vis oppgaver i Husholdning, Hjem-sammendrag og romoversikter. Når funksjonen slås av, beholdes oppgavedataene.',
+  'settings.dashboard.companion.title': 'Sidepanel',
+  'settings.dashboard.companion.description':
+    'Vis boligoversikten ved siden av navigasjonen på denne enheten når skjermen har nok plass i liggende format.',
   'settings.dashboard.kioskMode.title': 'Kioskmodus',
   'settings.dashboard.kioskMode.description':
     'Skjul overskriften og navigasjonskromen slik at dashbordet kan fylle en veggskjerm.',

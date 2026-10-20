@@ -890,6 +890,9 @@ export const daMessages = {
   'settings.dashboard.chores.title': 'Huslige pligter',
   'settings.dashboard.chores.description':
     'Vis pligter i Husstanden, i oversigten på Hjem og på rumdashboards. Når funktionen slås fra, bevares dine pligtdata.',
+  'settings.dashboard.companion.title': 'Sidepanel',
+  'settings.dashboard.companion.description':
+    'Vis hjemoversigten ved siden af navigationen på denne enhed, når skærmen har plads nok i liggende format.',
   'settings.dashboard.kioskMode.title': 'Kiosktilstand',
   'settings.dashboard.kioskMode.description':
     'Skjul headeren og navigationskrom, så instrumentbrættet kan fylde en vægskærm.',

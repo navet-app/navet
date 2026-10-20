@@ -48,6 +48,25 @@ describe('dashboard chrome layout', () => {
     expect(result.current.sidebarWidth).toBe(340);
   });
 
+  it('restores the original chrome when disabled and remembers the collapsed state when re-enabled', () => {
+    setMediaQueryMatch('(min-width: 768px)', true);
+    setMediaQueryMatch(spaciousLandscape, true);
+    useSettingsStore.getState().updateSettings({ companionCollapsed: true });
+    const { result } = renderHook(useDashboardChromeLayout);
+    act(() => useSettingsStore.getState().updateSettings({ companionEnabled: false }));
+    expect(result.current).toMatchObject({
+      companionAvailable: false,
+      sidebarWidth: 64,
+      expanded: false,
+    });
+    act(() => useSettingsStore.getState().updateSettings({ companionEnabled: true }));
+    expect(result.current).toMatchObject({
+      companionAvailable: true,
+      sidebarWidth: 64,
+      expanded: false,
+    });
+  });
+
   it('leaves phone chrome untouched regardless of the collapse setting', () => {
     const { result } = renderHook(useDashboardChromeLayout);
     expect(result.current).toMatchObject({

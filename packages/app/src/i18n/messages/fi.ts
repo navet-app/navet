@@ -893,6 +893,9 @@ export const fiMessages = {
   'settings.dashboard.chores.title': 'Kotityöt',
   'settings.dashboard.chores.description':
     'Näytä kotityöt Kotitalous-näkymässä, Kodin yhteenvedoissa ja huonenäkymissä. Poistaminen käytöstä säilyttää kotityötiedot.',
+  'settings.dashboard.companion.title': 'Sivupaneeli',
+  'settings.dashboard.companion.description':
+    'Näytä kodin yleiskatsaus navigoinnin vieressä tällä laitteella, kun vaaka-asennossa on riittävästi tilaa.',
   'settings.dashboard.kioskMode.title': 'Kioskitila',
   'settings.dashboard.kioskMode.description':
     'Piilota otsikko ja navigointikromi, jotta kojelauta voi täyttää seinänäytön.',

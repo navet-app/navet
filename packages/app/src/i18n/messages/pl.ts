@@ -895,6 +895,9 @@ export const plMessages = {
   'settings.dashboard.chores.title': 'Obowiązki domowe',
   'settings.dashboard.chores.description':
     'Pokazuj obowiązki w sekcji Domownicy, podsumowaniach ekranu głównego i widokach pomieszczeń. Wyłączenie zachowuje dane.',
+  'settings.dashboard.companion.title': 'Panel pomocniczy',
+  'settings.dashboard.companion.description':
+    'Pokazuj przegląd domu obok nawigacji na tym urządzeniu, gdy w orientacji poziomej jest wystarczająco dużo miejsca.',
   'settings.dashboard.kioskMode.title': 'Tryb kiosku',
   'settings.dashboard.kioskMode.description':
     'Ukryj nagłówek i nawigację, aby panel wypełniał cały ekran ścienny.',

@@ -11,11 +11,12 @@ export function useDashboardChromeLayout() {
   const spaciousLandscape = useMediaQuery(
     '(min-width: 1100px) and (min-height: 600px) and (orientation: landscape)'
   );
+  const enabled = useSettingsStore((state) => state.companionEnabled);
   const collapsed = useSettingsStore((state) => state.companionCollapsed);
   const kiosk = useSettingsStore((state) => state.kioskMode);
   const customAction = useNavigationStore((state) => state.activeCustomSidebarActionId);
   const visible = desktop && (!kiosk || customAction !== null);
-  const companionAvailable = spaciousLandscape && !kiosk;
+  const companionAvailable = enabled && spaciousLandscape && !kiosk;
   const expanded = visible && companionAvailable && !collapsed;
   return {
     companionAvailable,

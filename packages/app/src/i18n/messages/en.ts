@@ -317,6 +317,9 @@ export const enMessages = {
   'settings.dashboard.chores.title': 'Household chores',
   'settings.dashboard.chores.description':
     'Show chores in Household, Home summaries, and room dashboards. Turning this off keeps your chore data.',
+  'settings.dashboard.companion.title': 'Companion panel',
+  'settings.dashboard.companion.description':
+    'Show the home overview beside navigation on this device when the screen has enough landscape space.',
   'settings.dashboard.kioskMode.title': 'Kiosk mode',
   'settings.dashboard.kioskMode.description':
     'Hide the header and navigation chrome so the dashboard can fill a wall display.',

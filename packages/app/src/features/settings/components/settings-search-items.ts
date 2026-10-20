@@ -123,6 +123,12 @@ const SETTINGS: SearchSettingDefinition[] = [
     descriptionKey: 'dashboard.multiple.manager.description',
   },
   {
+    id: 'dashboard-companion',
+    sectionId: 'dashboard',
+    labelKey: 'settings.dashboard.companion.title',
+    descriptionKey: 'settings.dashboard.companion.description',
+  },
+  {
     id: 'dashboard-profile-mode',
     sectionId: 'dashboard',
     labelKey: 'settings.dashboard.profileMode.title',

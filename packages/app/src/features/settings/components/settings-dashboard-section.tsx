@@ -46,6 +46,7 @@ export function SettingsDashboardSection({ controller }: SettingsDashboardSectio
     hiddenEntityIds,
     importInputRef,
     keepDeviceAwake,
+    companionEnabled,
     kioskMode,
     kioskSwipeRooms,
     dashboardProfileMode,
@@ -78,6 +79,20 @@ export function SettingsDashboardSection({ controller }: SettingsDashboardSectio
           styles={styles}
         >
           <DashboardManager styles={styles} />
+        </SettingsItem>
+
+        <SettingsItem
+          title={t('settings.dashboard.companion.title')}
+          description={t('settings.dashboard.companion.description')}
+          styles={styles}
+        >
+          <OnOffPillToggle
+            value={companionEnabled}
+            onChange={(checked) =>
+              controller.updateScopedSettings({ companionEnabled: checked }, ['companionEnabled'])
+            }
+            ariaLabel={t('settings.dashboard.companion.title')}
+          />
         </SettingsItem>
 
         <SettingsItem

@@ -895,6 +895,9 @@ export const ptMessages = {
   'settings.dashboard.chores.title': 'Tarefas domésticas',
   'settings.dashboard.chores.description':
     'Mostre tarefas em Família, nos resumos de Início e nos painéis dos cômodos. Desativar mantém os dados das tarefas.',
+  'settings.dashboard.companion.title': 'Painel complementar',
+  'settings.dashboard.companion.description':
+    'Mostra a visão geral da casa ao lado da navegação neste dispositivo quando houver espaço suficiente na horizontal.',
   'settings.dashboard.kioskMode.title': 'Modo quiosque',
   'settings.dashboard.kioskMode.description':
     'Oculta o cabeçalho e a navegação para o dashboard preencher uma tela de parede.',

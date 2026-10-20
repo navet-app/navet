@@ -891,6 +891,9 @@ export const svMessages = {
   'settings.dashboard.chores.title': 'Hushållssysslor',
   'settings.dashboard.chores.description':
     'Visa sysslor i Hushåll, i sammanfattningar på Hem och på rumsdashboards. När funktionen stängs av sparas syssledata.',
+  'settings.dashboard.companion.title': 'Kompanjonpanel',
+  'settings.dashboard.companion.description':
+    'Visa hemöversikten bredvid navigeringen på den här enheten när skärmen har tillräckligt med utrymme i liggande läge.',
   'settings.dashboard.kioskMode.title': 'Kioskläge',
   'settings.dashboard.kioskMode.description':
     'Dölj sidhuvudet och navigationen så att dashboarden kan fylla en väggskärm.',

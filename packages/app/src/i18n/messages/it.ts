@@ -909,6 +909,9 @@ export const itMessages = {
   'settings.dashboard.chores.title': 'Faccende domestiche',
   'settings.dashboard.chores.description':
     'Mostra le faccende in Famiglia, nei riepiloghi Home e nelle dashboard delle stanze. La disattivazione conserva i dati.',
+  'settings.dashboard.companion.title': 'Pannello complementare',
+  'settings.dashboard.companion.description':
+    'Mostra la panoramica della casa accanto alla navigazione su questo dispositivo quando lo schermo ha spazio sufficiente in orizzontale.',
   'settings.dashboard.kioskMode.title': 'Modalità chiosco',
   'settings.dashboard.kioskMode.description':
     'Nasconde intestazione e navigazione per far riempire alla dashboard uno schermo a parete.',

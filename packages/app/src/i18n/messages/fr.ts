@@ -902,6 +902,9 @@ export const frMessages = {
   'settings.dashboard.chores.title': 'Tâches ménagères',
   'settings.dashboard.chores.description':
     'Affiche les tâches dans Foyer, les résumés d’Accueil et les tableaux de bord des pièces. La désactivation conserve vos données.',
+  'settings.dashboard.companion.title': 'Panneau compagnon',
+  'settings.dashboard.companion.description':
+    'Afficher la vue d’ensemble de la maison à côté de la navigation sur cet appareil quand l’écran offre assez de place en mode paysage.',
   'settings.dashboard.kioskMode.title': 'Mode kiosque',
   'settings.dashboard.kioskMode.description':
     'Masque l’en-tête et la navigation pour que le tableau de bord remplisse un écran mural.',

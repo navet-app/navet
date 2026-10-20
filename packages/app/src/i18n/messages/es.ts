@@ -896,6 +896,9 @@ export const esMessages = {
   'settings.dashboard.chores.title': 'Tareas del hogar',
   'settings.dashboard.chores.description':
     'Muestra las tareas en Hogar, en los resúmenes de Inicio y en los paneles de las habitaciones. Al desactivarlas, se conservan los datos.',
+  'settings.dashboard.companion.title': 'Panel complementario',
+  'settings.dashboard.companion.description':
+    'Muestra el resumen del hogar junto a la navegación en este dispositivo cuando haya suficiente espacio en horizontal.',
   'settings.dashboard.kioskMode.title': 'Modo kiosco',
   'settings.dashboard.kioskMode.description':
     'Oculta el encabezado y la navegación para que el panel llene una pantalla de pared.',

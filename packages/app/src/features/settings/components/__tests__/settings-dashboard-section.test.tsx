@@ -49,6 +49,22 @@ describe('SettingsDashboardSection', () => {
     expect(screen.getByRole('heading', { name: 'Maintenance' })).toBeInTheDocument();
   });
 
+  it('turns the companion off and on without changing the saved collapse preference', () => {
+    useSettingsStore.getState().updateSettings({ companionCollapsed: true });
+    renderWithProviders(<TestSection />);
+    const group = screen.getByRole('group', { name: 'Companion panel' });
+    expect(within(group).getByRole('button', { name: 'On' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    fireEvent.click(within(group).getByRole('button', { name: 'Off' }));
+    expect(useSettingsStore.getState().companionEnabled).toBe(false);
+    expect(useSettingsStore.getState().companionCollapsed).toBe(true);
+    fireEvent.click(within(group).getByRole('button', { name: 'On' }));
+    expect(useSettingsStore.getState().companionEnabled).toBe(true);
+    expect(useSettingsStore.getState().companionCollapsed).toBe(true);
+  });
+
   it('updates the keep-awake setting from dashboard settings', () => {
     renderWithProviders(<TestSection />);
 

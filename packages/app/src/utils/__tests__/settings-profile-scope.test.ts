@@ -33,6 +33,22 @@ describe('settings profile scope', () => {
     });
   });
 
+  it('round-trips companion enablement only through device preferences', () => {
+    const settings = { ...defaultSettings, companionEnabled: false };
+    const device = projectSettingsPreferenceLayer(settings, 'device');
+    expect(device.settings.companionEnabled).toBe(false);
+    expect(projectSettingsPreferenceLayer(settings, 'shared').settings).not.toHaveProperty(
+      'companionEnabled'
+    );
+    expect(projectSettingsPreferenceLayer(settings, 'account').settings).not.toHaveProperty(
+      'companionEnabled'
+    );
+    expect(migrateSettingsPreferenceLayer(device, 'device').settings.companionEnabled).toBe(false);
+    useSettingsStore.getState().updateSettings({ companionEnabled: true });
+    applySettingsPreferenceLayerToStore(device, 'device');
+    expect(useSettingsStore.getState().companionEnabled).toBe(false);
+  });
+
   it('keeps companion collapse local to the device preference layer', () => {
     const settings = { ...defaultSettings, companionCollapsed: true };
     expect(projectSettingsPreferenceLayer(settings, 'device').settings.companionCollapsed).toBe(

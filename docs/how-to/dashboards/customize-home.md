@@ -31,6 +31,10 @@ choices, and section controls. **Add Card**, **Undo**, **Redo**, and **Done** re
 
 ## Customize the companion panel
 
+Use **Settings → Dashboard → Companion panel** to turn the panel on or off for this device.
+Turning it off restores the existing header and navigation without changing your saved panel
+content or collapse preference.
+
 The panel beside the desktop navigation rail keeps the clock, weather, a camera snapshot and
 security status visible while you switch rooms. Use **Collapse companion panel** to give that space
 back to the dashboard, and **Expand companion panel** to restore it. This control is separate from

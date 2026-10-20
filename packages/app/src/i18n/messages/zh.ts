@@ -813,6 +813,9 @@ export const zhMessages = {
   'settings.dashboard.chores.title': '家务功能',
   'settings.dashboard.chores.description':
     '在家庭、首页摘要和房间仪表板中显示家务。关闭后仍会保留家务数据。',
+  'settings.dashboard.companion.title': '伴随面板',
+  'settings.dashboard.companion.description':
+    '当屏幕横向空间充足时，在此设备的导航旁显示家庭概览。',
   'settings.dashboard.kioskMode.title': '信息亭模式',
   'settings.dashboard.kioskMode.description': '隐藏页眉和导航，让仪表板填满墙面显示屏。',
   'settings.dashboard.kioskMode.recoveryHint':

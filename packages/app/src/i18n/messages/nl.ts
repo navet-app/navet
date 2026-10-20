@@ -896,6 +896,9 @@ export const nlMessages = {
   'settings.dashboard.chores.title': 'Huishoudelijke klusjes',
   'settings.dashboard.chores.description':
     'Toon klusjes in Huishouden, de Home-samenvattingen en kamerdashboards. Uitschakelen bewaart je klusjesgegevens.',
+  'settings.dashboard.companion.title': 'Companionpaneel',
+  'settings.dashboard.companion.description':
+    'Toon het woningoverzicht naast de navigatie op dit apparaat als er in liggende stand genoeg ruimte is.',
   'settings.dashboard.kioskMode.title': 'Kioskmodus',
   'settings.dashboard.kioskMode.description':
     'Verberg de koptekst en het navigatiechroom zodat het dashboard een wanddisplay kan vullen.',
