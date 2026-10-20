@@ -131,32 +131,11 @@ Keep one general reviewer; findings are advisory, CI and maintainer acceptance a
 `Record Codex Review Completion` listens for created or edited summary comments from the
 verified Codex bot. When Code Review completes for an open, non-draft PR's current head, it
 submits a formal `COMMENT` review as `github-actions[bot]`, linking the summary even when
-there are no findings. Completion records are advisory and grant no approval. Runs serialize
-per PR and skip duplicate completion records. The workflow uses trusted default-branch code,
-`pull-requests: write` to record completion, and `actions: write` to resume CI; it never executes
-PR code. Nisse permissions stay read-only for PRs. Summary format changes fail closed.
-
-A lightweight review-eligibility job runs on PR pushes. Builds and tests wait until Codex has
-reviewed the exact current head, every review thread is resolved (including outdated threads),
-and no reviewer requests changes. Waiting leaves the required gate blocked. The trusted
-completion workflow resumes that head's existing PR workflow once; later summary edits do not
-retry failed tests. Both same-repository and fork PRs retain the original PR event and cache
-scope. No PR code runs in the manually dispatched controller.
-
-Eligibility before tests and at the final Product review gate runs from an immutable controller
-revision, independently of PR files. Update that pin only through a reviewed workflow change.
-The final gate checks out only controller code and fetches PR history as data for preview checks.
-Builds and tests use one pinned merge commit against main; a changed merge invalidates completion.
-New commits require fresh review. CodeQL and Cloudflare previews remain independent so they can
-supply findings and rendered evidence during review.
-
-GitHub Actions has no review-thread-resolution event. After resolving the last thread without a
-new push or summary update, run **Record Codex Review Completion** on `main` and enter the PR
-number. This metadata-only entrypoint rechecks eligibility and reruns the existing PR workflow;
-it cannot dispatch PR code into the default-branch cache scope. The original CI run's rerun control
-also rechecks review eligibility. Automatic resumption and the manual controller become active
-after their workflow changes merge to main. During initial rollout, rerun this PR's current CI
-from GitHub only after current-head review and resolution of findings.
+there are no findings. Runs serialize per PR and skip commits already recorded by this workflow
+or a submitted Codex review. It uses the default-branch script and `pull-requests: write` from
+`GITHUB_TOKEN`. Nisse permissions stay read-only for PRs. Summary format changes fail closed.
+The workflow starts receiving events after merging to the default branch; completion records
+are advisory and grant no approval.
 
 ### Merge protection and previews
 

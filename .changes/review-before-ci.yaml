@@ -1,3 +1,0 @@
-type: internal
-audiences: []
-summary: Wait for current-head code review and resolved findings before running PR validation.

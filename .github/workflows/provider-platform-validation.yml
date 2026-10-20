@@ -3,10 +3,6 @@ name: Release Safety Checks
 on:
   workflow_call:
     inputs:
-      checkout_ref:
-        description: Exact merge commit to validate for reviewed PR CI
-        type: string
-        default: ""
       runtime:
         description: Build local runtime fixtures (published images are tested separately during Dev publication)
         type: boolean
@@ -20,8 +16,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.checkout_ref || github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -64,8 +58,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.checkout_ref || github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6

@@ -15,7 +15,7 @@ approved public delivery and review. Root `AGENTS.md` owns authority and task ro
 
 ```text
 feedback/request -> triage -> scoped implementation -> non-draft PR
-  -> independent current-head code review + resolved findings -> CI + required preview checks
+  -> applicable CI + Cloudflare previews -> independent current-head review
   -> maintainer acceptance and merge -> runtime changes publish Navet Dev
   -> release preparation -> beta + actual-image verification
   -> maintainer installation test + exact-tag stable dispatch
@@ -28,7 +28,7 @@ feedback/request -> triage -> scoped implementation -> non-draft PR
 | Role | Inputs and permitted work | Deliverable |
 | --- | --- | --- |
 | Delivery | Authorized request/history, routed guide, relevant principles/contracts, current code/tests/stories; edit selected scope and create branch/PR | Acceptance criteria, reproduction or research, changes, validation, documentation-impact decision and issue-linked PR |
-| Independent reviewer | Non-draft current PR, criteria, diff, contracts and available local tests/previews; read/comment only | Concrete ranked findings or explicit no remaining blockers; no silent patches or product-taste approval |
+| Independent reviewer | Non-draft current PR after CI starts, criteria, diff, contracts, tests and previews; read/comment only | Concrete ranked findings or explicit no remaining blockers; no silent patches or product-taste approval |
 | Steward | Monthly scheduled issue or maintainer dispatch; merged changes and affected guidance; issues/docs PRs only | Verified drift report and focused corrections; escalate principles, provider status and release authority; no runtime edits |
 | Release coordinator | Explicit preparation issue/dispatch; full stable-to-head range, surfaces, CI/artifacts/previews/screenshots | Version/changelog PRs, artifact plan and drafts; SemVer, incomplete evidence and publication decisions go to maintainer |
 
@@ -42,9 +42,8 @@ change principles to fit code, merge your own work or claim success with failing
 
 Use one PR for related implementation, contracts, tests and docs; update it for follow-up repairs.
 The delivery agent owns rebasing, conflicts and integration validation. Run applicable deterministic
-checks, open a non-draft PR, complete code review of its current head and repair valid issues
-until none remain actionable before starting CI. Every new head requires fresh review. As soon
-as a fix is pushed and verified on the current PR head,
+checks, open a non-draft PR, verify review findings against its current head and repair valid issues
+until none remain actionable. As soon as a fix is pushed and verified on the current PR head,
 the delivery agent marks its review thread resolved without waiting for maintainer action.
 An outdated comment alone does not establish a fix. Keep threads open while the finding remains
 unaddressed or needs a maintainer decision. The maintainer owns product decisions and merging.

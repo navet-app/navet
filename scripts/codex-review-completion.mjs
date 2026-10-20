@@ -2,11 +2,11 @@ const CODEX = 'chatgpt-codex-connector[bot]';
 const CODEX_ID = 199175422;
 const SUMMARY = '<!-- codex-pull-request-review-summary -->';
 
-export function isCodex(user) {
+function isCodex(user) {
   return user?.login === CODEX && user.id === CODEX_ID && user.type === 'Bot';
 }
 
-export function completedHead(body, repository, number) {
+function completedHead(body, repository, number) {
   if (typeof body !== 'string' || !body.startsWith(SUMMARY)) return null;
   const metadata = body.match(/<!-- codex-security-review:v1 (\{[^\n]*\}) -->/);
   if (!metadata) return null;
