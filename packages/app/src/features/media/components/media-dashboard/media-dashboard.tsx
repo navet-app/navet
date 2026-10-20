@@ -39,7 +39,7 @@ import { integrationMediaFeatureService } from '@navet/app/services/integration-
 import type { MediaDevice } from '@navet/app/types/device.types';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import { getProviderNativeId } from '@navet/app/utils/provider-ids';
-import { sanitizeImageUrl } from '@navet/app/utils/url-security';
+import { isSafeRelativePath, sanitizeImageUrl } from '@navet/app/utils/url-security';
 import type { LucideIcon } from 'lucide-react';
 import {
   ArrowLeft,
@@ -557,7 +557,7 @@ export function resolveMusicAssistantThumbnailSourceUrl(thumbnail: string | null
   }
 }
 
-function resolveMediaBrowserThumbnailUrl(item: PlatformMediaItem) {
+export function resolveMediaBrowserThumbnailUrl(item: PlatformMediaItem) {
   if (!shouldUseProviderMediaThumbnail(item)) {
     return null;
   }
@@ -565,7 +565,9 @@ function resolveMediaBrowserThumbnailUrl(item: PlatformMediaItem) {
   return (
     resolveSpotifyImageThumbnailUrl(item.thumbnail) ??
     resolveMusicAssistantThumbnailSourceUrl(item.thumbnail) ??
-    sanitizeImageUrl(item.thumbnail ?? '')
+    (isSafeRelativePath(item.thumbnail?.trim() ?? '')
+      ? item.thumbnail?.trim()
+      : sanitizeImageUrl(item.thumbnail ?? ''))
   );
 }
 

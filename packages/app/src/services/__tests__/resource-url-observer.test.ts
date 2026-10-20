@@ -48,6 +48,64 @@ describe('display resource lifetime', () => {
     expect(changes).toHaveBeenLastCalledWith(new Map([['/api/image', '/api/image?authSig=ready']]));
   });
 
+  it.each(['rejection', 'unavailable'])(
+    'recovers from a transient %s without a connection change',
+    async (failure) => {
+      connected(true);
+      if (failure === 'rejection')
+        resolveDisplayResource.mockRejectedValueOnce(new Error('Temporary failure'));
+      else resolveDisplayResource.mockResolvedValueOnce(image());
+      resolveDisplayResource.mockResolvedValue(image('/api/image?authSig=recovered', 31_000));
+      const changes = vi.fn();
+      stop = observeResourceUrls(['/api/image'], 'home_assistant', changes);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(changes).toHaveBeenLastCalledWith(new Map());
+      expect(resolveDisplayResource).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(changes).toHaveBeenLastCalledWith(
+        new Map([['/api/image', '/api/image?authSig=recovered']])
+      );
+      expect(resolveDisplayResource).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it('backs off persistent failures and cancels retries on cleanup', async () => {
+    resolveDisplayResource.mockResolvedValue(image());
+    stop = observeResourceUrls(['/api/image'], 'home_assistant', vi.fn());
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(resolveDisplayResource).toHaveBeenCalledTimes(6);
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(resolveDisplayResource).toHaveBeenCalledTimes(6);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(resolveDisplayResource).toHaveBeenCalledTimes(7);
+    stop();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(resolveDisplayResource).toHaveBeenCalledTimes(7);
+  });
+
+  it('recovers from a failed renewal without refetching public images', async () => {
+    let signature = 0;
+    resolveDisplayResource.mockImplementation(async (source: string) => {
+      if (source === '/public.png') return image(source);
+      if (++signature === 2) throw new Error('Temporary failure');
+      return image(`/api/image?authSig=${signature}`, Date.now() + 30_000);
+    });
+    const changes = vi.fn();
+    stop = observeResourceUrls(['/api/image', '/public.png'], 'home_assistant', changes);
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect(changes).toHaveBeenLastCalledWith(new Map([['/public.png', '/public.png']]));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(changes).toHaveBeenLastCalledWith(
+      new Map([
+        ['/public.png', '/public.png'],
+        ['/api/image', '/api/image?authSig=3'],
+      ])
+    );
+    expect(
+      resolveDisplayResource.mock.calls.filter(([source]) => source === '/public.png')
+    ).toHaveLength(1);
+  });
+
   it('renews signed URLs before expiry while leaving public images alone', async () => {
     let signature = 0;
     resolveDisplayResource.mockImplementation(async (source: string) =>

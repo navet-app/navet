@@ -13,7 +13,45 @@ import type { MediaDevice } from '@navet/app/types/device.types';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MediaDashboard, resolveMusicAssistantThumbnailSourceUrl } from '../media-dashboard';
+import {
+  MediaDashboard,
+  resolveMediaBrowserThumbnailUrl,
+  resolveMusicAssistantThumbnailSourceUrl,
+} from '../media-dashboard';
+
+describe('media browser thumbnails', () => {
+  it.each([
+    '/api/image',
+    '/api/media_player_proxy/media_player.kitchen?token=user',
+    'https://cdn.example.test/cover.jpg',
+  ])('preserves %s for provider resolution', (thumbnail) => {
+    expect(
+      resolveMediaBrowserThumbnailUrl({
+        title: 'Album',
+        mediaContentId: 'album:1',
+        mediaContentType: 'album',
+        thumbnail,
+      })
+    ).toBe(thumbnail);
+  });
+
+  it.each([
+    'javascript:alert(1)',
+    '//untrusted.test/image',
+    '/%2Fexternal.test/image',
+    '/api/../private',
+    '/api/\\private',
+  ])('rejects unsafe thumbnail %s', (thumbnail) => {
+    expect(
+      resolveMediaBrowserThumbnailUrl({
+        title: 'Album',
+        mediaContentId: 'album:1',
+        mediaContentType: 'album',
+        thumbnail,
+      })
+    ).toBeNull();
+  });
+});
 
 describe('resolveMusicAssistantThumbnailSourceUrl', () => {
   it('uses the public source image embedded in a Music Assistant imageproxy URL', () => {

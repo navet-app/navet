@@ -4,6 +4,8 @@ import type { IntegrationProviderId } from '@navet/app/types/provider';
 import { resolveDisplayResource } from './integration-resource.service';
 
 const RENEW_BEFORE_EXPIRY_MS = 5000;
+const RETRY_BASE_MS = 1000;
+const RETRY_MAX_MS = 30_000;
 
 export function observeResourceUrls(
   sources: readonly string[],
@@ -11,6 +13,7 @@ export function observeResourceUrls(
   onChange: (urls: Map<string, string>) => void
 ) {
   const resources = new Map<string, ResolvedPlatformResource>();
+  const failures = new Map<string, { attempts: number; retryAt: number }>();
   let stopped = false;
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -27,6 +30,8 @@ export function observeResourceUrls(
 
   function renew() {
     const due = sources.filter((source) => {
+      const failure = failures.get(source);
+      if (failure) return failure.retryAt <= Date.now();
       const expiry = resources.get(source)?.expiresAt;
       return expiry !== undefined && expiry <= Date.now() + RENEW_BEFORE_EXPIRY_MS;
     });
@@ -48,18 +53,28 @@ export function observeResourceUrls(
     );
     if (stopped || requestGeneration !== generation) return;
     for (const [source, resource] of entries) {
-      if (resource?.url) resources.set(source, resource);
-      else resources.delete(source);
+      if (resource?.url) {
+        resources.set(source, resource);
+        failures.delete(source);
+      } else {
+        resources.delete(source);
+        const attempts = (failures.get(source)?.attempts ?? 0) + 1;
+        failures.set(source, {
+          attempts,
+          retryAt:
+            Date.now() + Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.min(attempts - 1, 5)),
+        });
+      }
     }
     publish();
-    const expiries = [...resources.values()].flatMap((resource) =>
-      resource.expiresAt !== undefined ? [resource.expiresAt] : []
-    );
-    if (expiries.length) {
-      timer = setTimeout(
-        renew,
-        Math.max(1000, Math.min(...expiries) - Date.now() - RENEW_BEFORE_EXPIRY_MS)
-      );
+    const deadlines = sources.flatMap((source) => {
+      const failure = failures.get(source);
+      if (failure) return [failure.retryAt];
+      const expiry = resources.get(source)?.expiresAt;
+      return expiry === undefined ? [] : [expiry - RENEW_BEFORE_EXPIRY_MS];
+    });
+    if (deadlines.length) {
+      timer = setTimeout(renew, Math.max(1000, Math.min(...deadlines) - Date.now()));
     }
   }
 
@@ -75,6 +90,7 @@ export function observeResourceUrls(
     if (nextConnection !== lastConnection) {
       lastConnection = nextConnection;
       resources.clear();
+      failures.clear();
       publish();
       void resolve(sources);
     }
