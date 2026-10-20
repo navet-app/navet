@@ -22,6 +22,7 @@ import {
   createDashboardDefinition,
   createLegacyDashboardCollection,
   type DashboardActivationSource,
+  type DashboardCompanionSettings,
   type DashboardCreateInput,
   type DashboardId,
   deleteDashboardFromCollection,
@@ -30,6 +31,7 @@ import {
   normalizeHomeDashboardLayout,
   resolveDashboard,
   sanitizeDashboardCollection,
+  sanitizeDashboardCompanion,
   sanitizeDashboardName,
 } from './dashboard-collection';
 
@@ -46,6 +48,8 @@ interface DashboardCollectionState {
   activeDashboardId: DashboardId;
   activeSource: DashboardActivationSource;
   pendingAssignedDashboardId: DashboardId | null;
+  companionCustomizationOpen: boolean;
+  setCompanionCustomizationOpen: (open: boolean) => void;
   layoutHistory: LayoutHistory;
   replaceCollection: (collection: NavetDashboardCollection) => void;
   resetCollection: () => void;
@@ -64,6 +68,7 @@ interface DashboardCollectionState {
   setDefaultDashboard: (dashboardId: DashboardId) => void;
   assignDashboard: (clientId: string, dashboardId: DashboardId) => void;
   clearDashboardAssignment: (clientId: string) => void;
+  updateCompanion: (dashboardId: DashboardId, settings: DashboardCompanionSettings) => void;
   updateActiveHomeLayout: (
     updater:
       | HomeDashboardLayoutState
@@ -193,6 +198,8 @@ export const useDashboardCollectionStore = create<DashboardCollectionState>()(
       activeDashboardId: initialResolved.dashboardId,
       activeSource: initialResolved.source,
       pendingAssignedDashboardId: null,
+      companionCustomizationOpen: false,
+      setCompanionCustomizationOpen: (open) => set({ companionCustomizationOpen: open }),
       layoutHistory: { future: [], past: [] },
       replaceCollection: (nextCollection) =>
         set((state) => {
@@ -423,6 +430,13 @@ export const useDashboardCollectionStore = create<DashboardCollectionState>()(
               : {}),
           };
         }),
+      updateCompanion: (dashboardId, settings) =>
+        set((state) => ({
+          collection: updateDefinition(state, dashboardId, (definition) => ({
+            ...definition,
+            companion: sanitizeDashboardCompanion(settings),
+          })),
+        })),
       updateActiveHomeLayout: (updater) =>
         set((state) => {
           const definition = state.collection.dashboardsById[state.activeDashboardId];

@@ -55,6 +55,32 @@ describe('dashboard collection store', () => {
     installCollection(clientId);
   });
 
+  it('keeps companion selections with their dashboard across activation, duplication and profile reload', () => {
+    const settings = {
+      cameraEntityId: 'home_assistant:camera.front',
+      weatherEntityId: null,
+      showSecurity: false,
+    };
+    useDashboardCollectionStore.getState().updateCompanion('home', settings);
+    useDashboardCollectionStore.getState().activateDashboard('upstairs');
+    expect(
+      useDashboardCollectionStore.getState().collection.dashboardsById.upstairs.companion
+    ).toEqual({ showSecurity: true });
+    useDashboardCollectionStore.getState().activateDashboard('home');
+    expect(useDashboardCollectionStore.getState().collection.dashboardsById.home.companion).toEqual(
+      settings
+    );
+    const copiedId = useDashboardCollectionStore.getState().duplicateDashboard('home', 'Evening');
+    if (!copiedId) throw new Error('Expected dashboard duplication');
+    const serialized = JSON.parse(
+      JSON.stringify(useDashboardCollectionStore.getState().collection)
+    );
+    useDashboardCollectionStore.getState().replaceCollection(serialized);
+    expect(
+      useDashboardCollectionStore.getState().collection.dashboardsById[copiedId].companion
+    ).toEqual(settings);
+  });
+
   it('keeps previewing separate from the device assignment until explicitly selected', () => {
     const store = useDashboardCollectionStore.getState();
 

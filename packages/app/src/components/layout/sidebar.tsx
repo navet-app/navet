@@ -36,6 +36,7 @@ import {
   ChevronDown,
   Compass,
   DoorOpen,
+  LayoutPanelLeft,
   LogOut,
   type LucideIcon,
   MessageCircle,
@@ -46,7 +47,17 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { lazy, memo, type RefObject, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  lazy,
+  memo,
+  type ReactNode,
+  type RefObject,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { HeaderAssistAction } from './header-assist-action';
@@ -64,6 +75,10 @@ const CustomExtensionsDialog = lazy(async () => {
 });
 
 interface SidebarProps {
+  companion?: ReactNode;
+  companionControlsId?: string;
+  companionExpanded?: boolean;
+  onToggleCompanion?: () => void;
   activeColorValue?: string;
   handleClearSearch?: () => void;
   handleSearchChange?: (value: string) => void;
@@ -82,6 +97,10 @@ interface SidebarProps {
 }
 
 export const Sidebar = memo(function Sidebar({
+  companion,
+  companionControlsId = 'dashboard-companion-panel',
+  companionExpanded = false,
+  onToggleCompanion,
   activeColorValue,
   handleClearSearch = () => {},
   handleSearchChange = () => {},
@@ -294,10 +313,10 @@ export const Sidebar = memo(function Sidebar({
       <div
         data-testid="desktop-sidebar"
         data-density={useCompactDesktopRail ? 'compact' : 'comfortable'}
-        className={`fixed left-0 top-0 hidden h-full w-16 ${surface.shellPanel} border-r md:flex z-50`}
+        className={`fixed left-0 top-0 hidden h-full w-[var(--dashboard-sidebar-width,64px)] ${surface.shellPanel} border-r md:flex z-50`}
       >
         <div
-          className={`flex w-full flex-col items-center justify-between px-0 ${
+          className={`flex w-16 shrink-0 flex-col items-center justify-between px-0 ${
             useCompactDesktopRail ? 'py-3' : 'py-5'
           }`}
         >
@@ -407,6 +426,24 @@ export const Sidebar = memo(function Sidebar({
             ) : null}
           </div>
           <div className="flex flex-col gap-4">
+            {onToggleCompanion ? (
+              <InteractivePill
+                onClick={onToggleCompanion}
+                aria-label={t(
+                  companionExpanded ? 'sidebar.companion.collapse' : 'sidebar.companion.expand'
+                )}
+                title={t(
+                  companionExpanded ? 'sidebar.companion.collapse' : 'sidebar.companion.expand'
+                )}
+                aria-expanded={companionExpanded}
+                aria-controls={companionControlsId}
+                active={companionExpanded}
+                variant="ghost"
+                className={`flex h-10 w-10 items-center justify-center rounded-[22px] gap-0 px-0 py-0 md:gap-0 md:px-0 transition-colors ${companionExpanded ? '' : inactiveColor}`}
+              >
+                <LayoutPanelLeft className="h-5 w-5" />
+              </InteractivePill>
+            ) : null}
             {homeAssistantShell.canToggleKiosk ? (
               <InteractivePill
                 onClick={() => {
@@ -422,6 +459,16 @@ export const Sidebar = memo(function Sidebar({
               </InteractivePill>
             ) : null}
           </div>
+        </div>
+        <div
+          id="dashboard-companion-panel"
+          className={
+            companion
+              ? `hidden h-full min-h-0 w-[276px] shrink-0 border-l min-[1100px]:block ${surface.border}`
+              : 'hidden'
+          }
+        >
+          {companion}
         </div>
       </div>
 
@@ -627,7 +674,22 @@ export const Sidebar = memo(function Sidebar({
         activeSection={activeSection}
         choresEnabled={choresEnabled}
         hasCustomActiveDestination={activeCustomSidebarActionId !== null}
-        customItems={customMenuItems}
+        customItems={
+          onToggleCompanion
+            ? [
+                {
+                  id: 'companion-panel',
+                  icon: LayoutPanelLeft,
+                  label: t('sidebar.companion.title'),
+                  onClick: () => {
+                    setIsOrbitOpen(false);
+                    onToggleCompanion();
+                  },
+                },
+                ...customMenuItems,
+              ]
+            : customMenuItems
+        }
         homeAssistantAction={
           homeAssistantShell.canNavigateHome
             ? {

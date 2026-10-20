@@ -1,3 +1,4 @@
+import { useDashboardSidebarWidth } from '@navet/app/components/layout/use-dashboard-sidebar-width';
 import { Button, IconButton, InteractivePill } from '@navet/app/components/primitives';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import {
@@ -112,6 +113,7 @@ export function HomeEditCommandBar({
   onToggleEditMode,
   onUndo,
 }: HomeEditCommandBarProps) {
+  const sidebarWidth = useDashboardSidebarWidth();
   const { t } = useI18n();
   const { theme, accentColor } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
@@ -150,8 +152,9 @@ export function HomeEditCommandBar({
   return (
     <>
       <div
-        className={`pointer-events-none fixed inset-x-0 top-0 z-40 border-b px-3 pb-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] shadow-2xl md:pl-20 md:pr-4 ${surface.border} ${commandBarSurface}`}
+        className={`pointer-events-none fixed inset-x-0 top-0 z-40 border-b px-3 pb-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] shadow-2xl md:px-4 ${surface.border} ${commandBarSurface}`}
         style={{
+          left: sidebarWidth,
           boxShadow: `0 18px 60px -44px ${accentColor}`,
         }}
       >

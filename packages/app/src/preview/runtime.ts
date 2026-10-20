@@ -1,4 +1,6 @@
 import previewMediaArtwork from '@assets/reference/media/artworks-original.avif';
+import previewCameraImageAvif from '@assets/reference/media/camera-sample.avif';
+import previewCameraImage from '@assets/reference/media/camera-sample.webp';
 import { mapNavetEntitiesToDeviceCollection } from '@navet/app/core/navet-device-collections';
 import { setProviderPackageRegistrationOverride } from '@navet/app/provider-package-registry';
 import { resetProviderRuntimeRegistrationCache } from '@navet/app/provider-runtime-registry';
@@ -738,10 +740,10 @@ function createPreviewScenario(): PreviewRuntimeScenario {
       'idle',
       {
         value: 'idle',
-        entityPicture: '/assets/reference/media/camera-sample.webp',
+        entityPicture: previewCameraImage,
         entityPictureSources: [
-          { srcSet: '/assets/reference/media/camera-sample.avif', type: 'image/avif' },
-          { srcSet: '/assets/reference/media/camera-sample.webp', type: 'image/webp' },
+          { srcSet: previewCameraImageAvif, type: 'image/avif' },
+          { srcSet: previewCameraImage, type: 'image/webp' },
         ],
         supportedFeatures: 0,
         isStreamCapable: false,

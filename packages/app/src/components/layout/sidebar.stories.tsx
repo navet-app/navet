@@ -1,9 +1,12 @@
 import { Sidebar } from '@navet/app/components/layout/sidebar';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import { DashboardLayout } from '@navet/app/features/dashboard/shell';
 import { useTheme } from '@navet/app/hooks';
+import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { expect, userEvent, within } from 'storybook/test';
 
 function SidebarStory() {
   const { theme } = useTheme();
@@ -80,3 +83,55 @@ export const Docs: Story = {
     docsOnly: true,
   },
 };
+
+// Same-family references: app-shell-navigation-sidebar--default and app-shell-header-topbar--default.
+// Selected B composition: unchanged icon rail beside an independently scrolling home overview.
+// Phone uses the existing dock; tablet opens the companion as a sheet; desktop reflows content.
+function UnifiedSidebarStory({ collapsed = false }: { collapsed?: boolean }) {
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    const previous = useSettingsStore.getState().companionCollapsed;
+    useSettingsStore.getState().updateSettings({ companionCollapsed: collapsed });
+    return () => useSettingsStore.getState().updateSettings({ companionCollapsed: previous });
+  }, [collapsed]);
+  return (
+    <DashboardLayout
+      mobileEditActions={{
+        isEditMode: editing,
+        onToggleEditMode: () => setEditing((value) => !value),
+      }}
+    >
+      <h1 className="text-xl font-medium">Living room</h1>
+      <p>The home overview stays with the selected dashboard while navigating rooms.</p>
+      <div className="grid grid-cols-2 gap-4">
+        {[
+          'Kitchen island · 72%',
+          'Main floor · 21°C',
+          'Living room speaker · Morning mix',
+          'Front door · Locked',
+        ].map((label) => (
+          <div key={label} className="rounded-2xl border border-current/10 p-6">
+            {label}
+          </div>
+        ))}
+      </div>
+    </DashboardLayout>
+  );
+}
+
+export const ExpandedCompanion: Story = {
+  render: () => <UnifiedSidebarStory />,
+  parameters: { viewport: { value: 'desktop' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const collapse = await canvas.findByRole('button', { name: 'Collapse companion panel' });
+    await userEvent.click(collapse);
+    const expand = await canvas.findByRole('button', { name: 'Expand companion panel' });
+    await expect(expand).toHaveAttribute('aria-expanded', 'false');
+    await expect(canvas.queryByRole('region', { name: 'Home overview' })).not.toBeInTheDocument();
+    await userEvent.click(expand);
+    await expect(await canvas.findByRole('region', { name: 'Home overview' })).toBeVisible();
+  },
+};
+
+export const CollapsedCompanion: Story = { render: () => <UnifiedSidebarStory collapsed /> };

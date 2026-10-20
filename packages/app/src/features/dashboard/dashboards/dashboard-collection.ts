@@ -1,6 +1,7 @@
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { HOME_WIDGET_ROOM, isAllRooms } from '@navet/app/constants/rooms';
 import { ensureCanonicalEntityId } from '@navet/app/utils/provider-entity-id';
+import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
 import { normalizeRoomName } from '@navet/app/utils/room-name';
 import type { CustomCard } from '../stores/custom-cards-store';
 import type {
@@ -18,12 +19,37 @@ const MAX_DASHBOARD_ROOM_COUNT = 200;
 
 export type DashboardId = string;
 
+export interface DashboardCompanionSettings {
+  /** Undefined selects the first source; null hides the item. */
+  cameraEntityId?: string | null;
+  weatherEntityId?: string | null;
+  showSecurity: boolean;
+}
+
+export const DEFAULT_DASHBOARD_COMPANION: DashboardCompanionSettings = { showSecurity: true };
+
+export function sanitizeDashboardCompanion(value: unknown): DashboardCompanionSettings {
+  const input = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const selection = (key: string) => {
+    if (input[key] === null) return null;
+    if (typeof input[key] !== 'string' || input[key].length > 256) return undefined;
+    const id = ensureCanonicalEntityId(input[key].trim());
+    return parseProviderScopedId(id) ? id : undefined;
+  };
+  return {
+    cameraEntityId: selection('cameraEntityId'),
+    weatherEntityId: selection('weatherEntityId'),
+    showSecurity: typeof input.showSecurity === 'boolean' ? input.showSecurity : true,
+  };
+}
+
 export interface NavetDashboardDefinition {
   id: DashboardId;
   name: string;
   icon: string;
   createdAt: string;
   updatedAt: string;
+  companion?: DashboardCompanionSettings;
   homeRoomNames: string[] | null;
   homeLayout: HomeDashboardLayoutState;
   homeCardSizes: Record<string, CardSize>;
@@ -342,6 +368,10 @@ export function createDashboardDefinition(input: DashboardCreateInput): NavetDas
     icon: input.icon ?? 'layout-dashboard',
     createdAt: now,
     updatedAt: now,
+    companion:
+      source.kind === 'copy'
+        ? sanitizeDashboardCompanion(source.dashboard.companion)
+        : { ...DEFAULT_DASHBOARD_COMPANION },
     homeRoomNames,
     homeLayout,
     homeCardSizes,
@@ -427,6 +457,7 @@ export function sanitizeDashboardCollection(
               : 'layout-dashboard',
           createdAt,
           updatedAt,
+          companion: sanitizeDashboardCompanion(rawDefinition.companion),
           homeRoomNames: sanitizeDashboardRoomNames(rawDefinition.homeRoomNames),
           homeLayout,
           homeCardSizes: sanitizeCardSizes(rawDefinition.homeCardSizes, allowedIds),

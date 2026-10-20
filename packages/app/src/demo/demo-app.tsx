@@ -961,6 +961,7 @@ function useDemoDisplayDefaults() {
     useThemeStore.getState().setWallpaper(null);
     useSettingsStore.getState().updateSettings({
       ...defaultSettings,
+      companionCollapsed: useSettingsStore.getState().companionCollapsed,
       username: 'Navet',
       language: 'en',
       temperatureUnit: 'celsius',

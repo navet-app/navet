@@ -2317,6 +2317,25 @@ export const esMessages = {
   'security.dashboard.noPrimaryTitle': 'No hay transmisiones de seguridad en vivo',
   'security.dashboard.noPrimaryDescription':
     'Navet encontró entidades de cámaras, pero ninguna parece cámaras de seguridad en vivo todavía.',
+  'sidebar.navigation': 'Navegación de la aplicación',
+  'sidebar.companion.expand': 'Mostrar panel complementario',
+  'sidebar.companion.collapse': 'Ocultar panel complementario',
+  'sidebar.companion.title': 'Resumen del hogar',
+  'sidebar.companion.configure': 'Personalizar barra lateral',
+  'sidebar.companion.description':
+    'Elige qué mostrar junto a este panel en todas las habitaciones.',
+  'sidebar.companion.camera': 'Cámara',
+  'sidebar.companion.weather': 'Tiempo',
+  'sidebar.companion.security': 'Mostrar estado de seguridad',
+  'sidebar.companion.automatic': 'Automático',
+  'sidebar.companion.hidden': 'Oculto',
+  'sidebar.companion.snapshot': 'Imagen fija',
+  'sidebar.companion.openCamera': 'Abrir imagen de {name}',
+  'sidebar.companion.unavailable': '{name} no está disponible',
+  'sidebar.companion.noSources':
+    'Conecta una fuente meteorológica o una cámara para ver el resumen del hogar.',
+  'sidebar.companion.empty':
+    'Elige el tiempo, una cámara o el estado de seguridad para esta barra lateral.',
   'sidebar.home': 'Inicio',
   'sidebar.energy': 'Energía',
   'sidebar.climate': 'Clima',

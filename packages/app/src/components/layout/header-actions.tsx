@@ -24,11 +24,15 @@ export function HeaderDesktopActions({
   isNotificationOpen,
   mobileNotificationButtonRef,
   renderPanel = true,
+  userMenuSide,
+  userMenuVariant,
   setIsNotificationOpen,
   textSecondary,
   unreadCount,
 }: HeaderActionsProps & {
   renderPanel?: boolean;
+  userMenuSide?: 'top' | 'bottom';
+  userMenuVariant?: 'desktop' | 'mobile';
 }) {
   return (
     <>
@@ -43,7 +47,7 @@ export function HeaderDesktopActions({
         textSecondary={textSecondary}
         unreadCount={unreadCount}
       />
-      <UserDropdown avatarUrl={avatarUrl} />
+      <UserDropdown avatarUrl={avatarUrl} menuSide={userMenuSide} variant={userMenuVariant} />
     </>
   );
 }

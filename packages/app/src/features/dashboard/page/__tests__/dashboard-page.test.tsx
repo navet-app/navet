@@ -5,8 +5,9 @@ import type {
 import { useErrorStore } from '@navet/app/stores';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
-import { screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useDashboardCollectionStore } from '../../dashboards/dashboard-collection-store';
 
 const { getControllerMock, getProfileSyncMock, toastWarningMock } = vi.hoisted(() => ({
   getControllerMock: vi.fn(),
@@ -165,6 +166,21 @@ describe('DashboardPage loading recovery', () => {
     expect(dashboard).toHaveAttribute('aria-hidden', 'true');
     expect(dashboard).not.toHaveStyle({ visibility: 'hidden' });
     expect(dashboard).not.toHaveStyle({ contentVisibility: 'hidden' });
+  });
+
+  it('defers a remote dashboard assignment while the companion editor is open', () => {
+    const state = useDashboardCollectionStore.getState();
+    state.createDashboard({ id: 'evening', name: 'Evening' });
+    state.activateDashboard('home');
+    useDashboardCollectionStore.setState({
+      pendingAssignedDashboardId: 'evening',
+      companionCustomizationOpen: true,
+    });
+    getControllerMock.mockReturnValue(createController({ homeLayoutHydrated: true }));
+    renderWithProviders(<DashboardPage />);
+    expect(useDashboardCollectionStore.getState().activeDashboardId).toBe('home');
+    act(() => useDashboardCollectionStore.getState().setCompanionCustomizationOpen(false));
+    expect(useDashboardCollectionStore.getState().activeDashboardId).toBe('evening');
   });
 
   it('does not let a stale dashboard link override an active non-home section', () => {

@@ -573,4 +573,32 @@ describe('Sidebar mobile navigation', () => {
 
     expect(locationAssign).toHaveBeenCalledWith('/');
   });
+  it('keeps companion collapse independent from the existing Home Assistant control', () => {
+    setMediaQueryMatch('(max-width: 767px)', false);
+    const originalParent = window.parent;
+    const originalPanel = window.__NAVET_PANEL__;
+    const setKioskEnabled = vi.fn(async () => true);
+    setParentHomeAssistantShell({ setKioskEnabled });
+    const toggleCompanion = vi.fn();
+    const { unmount } = renderWithProviders(
+      <Sidebar
+        companionExpanded
+        onToggleCompanion={toggleCompanion}
+        companion={<p>Home overview</p>}
+      />
+    );
+    const companionToggle = screen.getByRole('button', { name: 'Collapse companion panel' });
+    const homeAssistantToggle = screen.getByRole('button', { name: 'Toggle Home Assistant kiosk' });
+    expect(companionToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(companionToggle.querySelector('svg')?.innerHTML).not.toBe(
+      homeAssistantToggle.querySelector('svg')?.innerHTML
+    );
+    fireEvent.click(companionToggle);
+    expect(toggleCompanion).toHaveBeenCalledOnce();
+    expect(setKioskEnabled).not.toHaveBeenCalled();
+    unmount();
+    Object.defineProperty(window, 'parent', { configurable: true, value: originalParent });
+    window.__NAVET_PANEL__ = originalPanel;
+    resetRuntimeContextForTests();
+  });
 });

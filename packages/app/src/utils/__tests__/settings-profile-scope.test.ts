@@ -33,6 +33,25 @@ describe('settings profile scope', () => {
     });
   });
 
+  it('keeps companion collapse local to the device preference layer', () => {
+    const settings = { ...defaultSettings, companionCollapsed: true };
+    expect(projectSettingsPreferenceLayer(settings, 'device').settings.companionCollapsed).toBe(
+      true
+    );
+    expect(projectSettingsPreferenceLayer(settings, 'shared').settings).not.toHaveProperty(
+      'companionCollapsed'
+    );
+    expect(projectSettingsPreferenceLayer(settings, 'account').settings).not.toHaveProperty(
+      'companionCollapsed'
+    );
+    expect(
+      migrateSettingsPreferenceLayer(
+        { schemaVersion: 1, settings: { companionCollapsed: true } },
+        'device'
+      ).settings.companionCollapsed
+    ).toBe(true);
+  });
+
   it('projects shared, account, and device documents without credentials', () => {
     const settings = {
       ...defaultSettings,

@@ -58,6 +58,7 @@ export interface UserSettings {
   temperatureUnit: 'celsius' | 'fahrenheit';
   defaultView: 'all' | string;
   compactMode: boolean;
+  companionCollapsed: boolean;
   kioskMode: boolean;
   kioskSwipeRooms: boolean;
   dashboardProfileMode: DashboardProfileMode;
@@ -120,6 +121,7 @@ export const defaultSettings: UserSettings = {
   temperatureUnit: 'fahrenheit',
   defaultView: 'all',
   compactMode: false,
+  companionCollapsed: false,
   kioskMode: false,
   kioskSwipeRooms: false,
   dashboardProfileMode: 'standard',

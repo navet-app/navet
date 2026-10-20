@@ -32,6 +32,9 @@ export function DashboardPage() {
   const pendingAssignedDashboardId = useDashboardCollectionStore(
     (state) => state.pendingAssignedDashboardId
   );
+  const companionCustomizationOpen = useDashboardCollectionStore(
+    (state) => state.companionCustomizationOpen
+  );
   const applyPendingAssignment = useDashboardCollectionStore(
     (state) => state.applyPendingAssignment
   );
@@ -100,6 +103,7 @@ export function DashboardPage() {
       pendingAssignedDashboardId &&
       page.activeSection === 'home' &&
       !page.isEditMode &&
+      !companionCustomizationOpen &&
       !page.showAddCardDialog &&
       !page.showAddEntityDialog
     ) {
@@ -107,6 +111,7 @@ export function DashboardPage() {
     }
   }, [
     applyPendingAssignment,
+    companionCustomizationOpen,
     page.activeSection,
     page.isEditMode,
     page.showAddCardDialog,

@@ -37,11 +37,13 @@ const ProviderHistoryDialog = lazy(async () => {
 interface UserDropdownProps {
   avatarUrl?: string | null;
   variant?: 'desktop' | 'mobile';
+  menuSide?: 'top' | 'bottom';
 }
 
 export const UserDropdown = memo(function UserDropdown({
   avatarUrl,
   variant = 'desktop',
+  menuSide = 'bottom',
 }: UserDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -210,7 +212,7 @@ export const UserDropdown = memo(function UserDropdown({
 
       {isOpen && !isMobile ? (
         <div
-          className={`absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden ${dropdownPanelClassName}`}
+          className={`absolute z-50 w-72 overflow-hidden ${menuSide === 'top' ? 'bottom-full left-0 mb-2' : 'top-full right-0 mt-2'} ${dropdownPanelClassName}`}
         >
           {content}
         </div>

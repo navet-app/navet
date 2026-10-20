@@ -1,4 +1,7 @@
-import { useSyncExternalStore } from 'react';
+import { createContext, useContext, useSyncExternalStore } from 'react';
+
+export const DashboardSidebarWidthContext = createContext(0);
+
 import { settingsSelectors } from '../stores/selectors';
 import { useSettingsStore } from '../stores/settings-store';
 
@@ -10,7 +13,7 @@ const FOUR_XL_BREAKPOINT = 2500;
 type BaseBreakpointCols = 2 | 4 | 6 | 8 | 12;
 
 const breakpointListeners = new Set<() => void>();
-let baseBreakpointColsSnapshot: BaseBreakpointCols = 2;
+let baseBreakpointColsSnapshot = 0;
 let viewportFrameId: number | null = null;
 let subscribedVisualViewport: VisualViewport | null = null;
 
@@ -22,12 +25,12 @@ function resolveBaseBreakpointCols(logicalViewportWidth: number): BaseBreakpoint
   return 2;
 }
 
-function readBaseBreakpointCols(): BaseBreakpointCols {
+function readBaseBreakpointCols(): number {
   if (typeof window === 'undefined') {
     return 2;
   }
 
-  return resolveBaseBreakpointCols(Math.max(window.innerWidth, window.visualViewport?.width ?? 0));
+  return Math.max(window.innerWidth, window.visualViewport?.width ?? 0);
 }
 
 function syncBaseBreakpointCols() {
@@ -86,8 +89,8 @@ function getBaseBreakpointColsSnapshot() {
   return baseBreakpointColsSnapshot;
 }
 
-function getServerBreakpointColsSnapshot(): BaseBreakpointCols {
-  return 2;
+function getServerBreakpointColsSnapshot(): number {
+  return 0;
 }
 
 /**
@@ -106,10 +109,15 @@ function getServerBreakpointColsSnapshot(): BaseBreakpointCols {
  * non-mobile breakpoint.
  */
 export function useBreakpointCols(): number {
-  const baseBreakpointCols = useSyncExternalStore(
+  const viewportWidth = useSyncExternalStore(
     subscribeToBreakpointCols,
     getBaseBreakpointColsSnapshot,
     getServerBreakpointColsSnapshot
+  );
+  const sidebarWidth = useContext(DashboardSidebarWidthContext);
+  // Existing breakpoints budgeted for a 64px rail. Reflow when the new shell takes more width.
+  const baseBreakpointCols = resolveBaseBreakpointCols(
+    viewportWidth - Math.max(0, sidebarWidth - 64)
   );
   const dashboardSpaceMode = useSettingsStore(settingsSelectors.dashboardSpaceMode);
   const isMoreSpace = dashboardSpaceMode === 'more_space';

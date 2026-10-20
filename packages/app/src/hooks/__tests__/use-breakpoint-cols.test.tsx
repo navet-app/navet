@@ -1,9 +1,10 @@
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { emitVisualViewportResize, setVisualViewportSize } from '@navet/app/test/browser-mocks';
 import { renderHookWithProviders } from '@navet/app/test/render';
-import { act } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useBreakpointCols } from '../use-breakpoint-cols';
+import { DashboardSidebarWidthContext, useBreakpointCols } from '../use-breakpoint-cols';
 
 describe('useBreakpointCols', () => {
   beforeEach(() => {
@@ -129,5 +130,26 @@ describe('useBreakpointCols', () => {
     expect(
       visualViewportListenerSpy.mock.calls.filter(([eventName]) => eventName === 'resize')
     ).toHaveLength(1);
+  });
+});
+
+describe('dashboard width after companion collapse', () => {
+  it('reflows when the panel consumes width and restores density when collapsed', () => {
+    useSettingsStore.getState().resetSettings();
+    setVisualViewportSize(1440, 900);
+    let inset = 340;
+    const { result, rerender } = renderHook(() => useBreakpointCols(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <DashboardSidebarWidthContext.Provider value={inset}>
+          {children}
+        </DashboardSidebarWidthContext.Provider>
+      ),
+    });
+    expect(result.current).toBe(4);
+    inset = 64;
+    rerender();
+    expect(result.current).toBe(6);
+    act(() => useSettingsStore.getState().updateSettings({ dashboardSpaceMode: 'more_space' }));
+    expect(result.current).toBe(8);
   });
 });

@@ -6,6 +6,7 @@ import {
   resolveDashboard,
   resolveDashboardNavigationRooms,
   sanitizeDashboardCollection,
+  sanitizeDashboardCompanion,
 } from './dashboard-collection';
 
 describe('dashboard collection contract', () => {
@@ -165,5 +166,54 @@ describe('dashboard collection contract', () => {
     expect(next.order).toEqual(['home']);
     expect(next.dashboardIdByClientId).toEqual({ sonoff: 'home', phone: 'home' });
     expect(next.dashboardsById.upstairs).toBeUndefined();
+  });
+});
+
+// Companion configuration is additive to schema 1 and contains entity IDs, never resource URLs.
+describe('dashboard companion configuration', () => {
+  it('defaults old dashboards without replacing their Home layout', () => {
+    const legacy = createLegacyDashboardCollection({ homeLayout: { cardIds: ['light.kitchen'] } });
+    delete legacy.dashboardsById.home.companion;
+    const restored = sanitizeDashboardCollection(legacy, legacy).dashboardsById.home;
+    expect(restored.companion).toEqual({ showSecurity: true });
+    expect(restored.homeLayout.cardIds).toEqual(['home_assistant:light.kitchen']);
+  });
+  it('preserves explicit hidden selections and rejects malformed settings', () => {
+    expect(
+      sanitizeDashboardCompanion({
+        cameraEntityId: null,
+        weatherEntityId: 'homey:weather.outside',
+        showSecurity: false,
+      })
+    ).toEqual({
+      cameraEntityId: null,
+      weatherEntityId: 'homey:weather.outside',
+      showSecurity: false,
+    });
+    expect(
+      sanitizeDashboardCompanion({ cameraEntityId: [], weatherEntityId: 42, showSecurity: 'yes' })
+    ).toEqual({ showSecurity: true });
+  });
+  it('accepts entity references without allowing a snapshot URL into shared selections', () => {
+    expect(
+      sanitizeDashboardCompanion({
+        cameraEntityId: 'https://user:secret@example.com/snapshot',
+        weatherEntityId: null,
+      })
+    ).toEqual({ weatherEntityId: null, showSecurity: true });
+  });
+  it('copies selections independently when duplicating a dashboard', () => {
+    const source = createDashboardDefinition({ id: 'home', name: 'Home' });
+    source.companion = {
+      cameraEntityId: 'home_assistant:camera.front',
+      weatherEntityId: null,
+      showSecurity: true,
+    };
+    const copy = createDashboardDefinition({
+      name: 'Evening',
+      source: { kind: 'copy', dashboard: source },
+    });
+    expect(copy.companion).toEqual(source.companion);
+    expect(copy.companion).not.toBe(source.companion);
   });
 });

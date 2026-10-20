@@ -2329,6 +2329,25 @@ export const frMessages = {
   'security.dashboard.noPrimaryTitle': 'Pas de flux de sécurité en direct',
   'security.dashboard.noPrimaryDescription':
     'Navet a trouvé des entités de caméra, mais aucune ne ressemble encore à des caméras de sécurité en direct.',
+  'sidebar.navigation': 'Navigation de l’application',
+  'sidebar.companion.expand': 'Afficher le panneau',
+  'sidebar.companion.collapse': 'Masquer le panneau',
+  'sidebar.companion.title': 'Aperçu de la maison',
+  'sidebar.companion.configure': 'Personnaliser la barre latérale',
+  'sidebar.companion.description':
+    'Choisissez les informations affichées à côté de ce tableau de bord dans chaque pièce.',
+  'sidebar.companion.camera': 'Caméra',
+  'sidebar.companion.weather': 'Météo',
+  'sidebar.companion.security': 'Afficher l’état de sécurité',
+  'sidebar.companion.automatic': 'Automatique',
+  'sidebar.companion.hidden': 'Masqué',
+  'sidebar.companion.snapshot': 'Image fixe',
+  'sidebar.companion.openCamera': 'Ouvrir l’image de {name}',
+  'sidebar.companion.unavailable': '{name} est indisponible',
+  'sidebar.companion.noSources':
+    'Connectez une source météo ou une caméra pour afficher l’aperçu de la maison.',
+  'sidebar.companion.empty':
+    'Choisissez la météo, une caméra ou l’état de sécurité pour cette barre latérale.',
   'sidebar.home': 'Accueil',
   'sidebar.energy': 'Énergie',
   'sidebar.climate': 'Climat',

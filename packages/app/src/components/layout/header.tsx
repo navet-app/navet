@@ -20,6 +20,7 @@ import { UserDropdown } from './user-dropdown';
 
 interface HeaderProps {
   controller?: HeaderController;
+  renderNotifications?: boolean;
   mobileEditActions?: MobileHeaderEditActions;
   mobileRoomNavigation?: MobileRoomNavigation;
 }
@@ -27,6 +28,7 @@ interface HeaderProps {
 function HeaderView({
   controller,
   mobileEditActions,
+  renderNotifications = true,
 }: Omit<HeaderProps, 'controller'> & { controller: HeaderController }) {
   const { theme } = useTheme();
   const kioskMode = useSettingsStore(settingsSelectors.kioskMode);
@@ -317,7 +319,7 @@ function HeaderView({
               hoverBg={hoverBg}
               isNotificationOpen={isNotificationOpen}
               mobileNotificationButtonRef={mobileNotificationButtonRef}
-              renderPanel
+              renderPanel={renderNotifications && !isMobileViewport}
               setIsNotificationOpen={setIsNotificationOpen}
               textSecondary={textSecondary}
               unreadCount={unreadCount}
@@ -326,7 +328,7 @@ function HeaderView({
         </div>
       </div>
 
-      {isMobileViewport && isNotificationOpen ? (
+      {renderNotifications && isMobileViewport && isNotificationOpen ? (
         <NotificationPanel
           isOpen={isNotificationOpen}
           onClose={closeNotifications}
@@ -343,15 +345,12 @@ function HeaderView({
   );
 }
 
-function HeaderWithController({ mobileEditActions }: Omit<HeaderProps, 'controller'>) {
+function HeaderWithController(props: Omit<HeaderProps, 'controller'>) {
   const controller = useHeaderController();
-  return <HeaderView controller={controller} mobileEditActions={mobileEditActions} />;
+  return <HeaderView controller={controller} {...props} />;
 }
 
-export const Header = memo(function Header({ controller, mobileEditActions }: HeaderProps) {
-  if (controller) {
-    return <HeaderView controller={controller} mobileEditActions={mobileEditActions} />;
-  }
-
-  return <HeaderWithController mobileEditActions={mobileEditActions} />;
+export const Header = memo(function Header({ controller, ...props }: HeaderProps) {
+  if (controller) return <HeaderView controller={controller} {...props} />;
+  return <HeaderWithController {...props} />;
 });

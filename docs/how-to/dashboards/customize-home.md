@@ -23,11 +23,28 @@ provider; the dashboard workflow itself is provider-neutral.
 ## Enter edit mode
 
 1. Open the Home dashboard you want to change.
-2. Choose **Customize** or **Edit dashboard**.
+2. Choose **Customize** in the companion panel on desktop, or **Customize** / **Edit dashboard** on smaller screens.
 3. Confirm that the editing command bar appears.
 
 On screens 1100px wide or narrower, choose **More actions** for room management, presets, layout
 choices, and section controls. **Add Card**, **Undo**, **Redo**, and **Done** remain on the bar.
+
+## Customize the companion panel
+
+The panel beside the desktop navigation rail keeps the clock, weather, a camera snapshot and
+security status visible while you switch rooms. Use **Collapse companion panel** to give that space
+back to the dashboard, and **Expand companion panel** to restore it. This control is separate from
+the Home Assistant kiosk control. The collapsed state is saved for this device.
+
+Choose **Customize sidebar** beside **Home overview** to select a camera and weather source, hide
+either item, or show security status. These choices belong to the active Home dashboard and stay
+the same in every room. Other Home dashboards can use different selections. **Automatic** uses the
+first source of that kind from your selected providers. If a selected source is unavailable, the
+panel shows that state rather than replacing it with another source.
+
+On a tablet, the companion button opens the overview as a sheet. On a phone, open **More → Home
+overview**. Search, notifications and your account controls use the same data and actions as the
+rest of Navet.
 
 ## Arrange cards
 
