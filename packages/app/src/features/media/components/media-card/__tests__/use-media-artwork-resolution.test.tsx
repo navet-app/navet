@@ -19,6 +19,7 @@ vi.mock('@navet/app/services/home-assistant.service', () => ({
 
 import { useMediaArtworkResolution } from '@navet/app/features/media/components/media-card/use-media-artwork-resolution';
 import * as mediaArtworkHookModule from '@navet/app/features/media/hooks/use-media-artwork';
+import * as resourceUrlHookModule from '@navet/app/hooks/use-resource-url';
 import { mediaArtworkService } from '@navet/app/infrastructure/home-assistant/home-assistant-shared-infrastructure';
 import { resetRuntimeContextForTests } from '@navet/app/infrastructure/home-assistant/runtime/runtime-detector';
 
@@ -219,6 +220,37 @@ describe('useMediaArtworkResolution', () => {
     });
   });
 
+  it('uses renewed display artwork instead of retaining an expiring primary result', () => {
+    vi.spyOn(mediaArtworkHookModule, 'useMediaArtwork').mockReturnValue({
+      id: 'media_player.kitchen',
+      kind: 'image',
+      cacheKey: 'artwork',
+      authStrategy: 'none',
+      url: '/api/image?authSig=old',
+      expiresAt: Date.now() + 30_000,
+    });
+    const displayUrl = vi
+      .spyOn(resourceUrlHookModule, 'useResourceUrl')
+      .mockReturnValue('/api/image?authSig=first');
+    const { result, rerender } = renderHook(() =>
+      useMediaArtworkResolution({
+        entityId: 'media_player.kitchen',
+        providerId: 'home_assistant',
+        liveEntityPicture: '/api/image',
+      })
+    );
+    expect(result.current.albumArt).toBe('/api/image?authSig=first');
+    act(() => result.current.handleArtworkError('/api/image?authSig=first'));
+    expect(result.current.albumArt).toBeNull();
+    displayUrl.mockReturnValue('/api/image?authSig=renewed');
+    rerender();
+    expect(result.current.albumArt).toBe('/api/image?authSig=renewed');
+    expect(result.current.artworkResource).toBeNull();
+    displayUrl.mockReturnValue(null);
+    rerender();
+    expect(result.current.albumArt).toBeNull();
+  });
+
   it('preserves direct fallback artwork when resource resolution is unavailable', async () => {
     vi.spyOn(mediaArtworkHookModule, 'useMediaArtwork').mockReturnValue({
       id: 'media_player.storybook',
@@ -326,6 +358,7 @@ describe('useMediaArtworkResolution', () => {
 
     await waitFor(() => {
       expect(result.current.albumArt).toBe('blob:http://navet.local/addon-album-art');
+      expect(result.current.artworkResource?.expiresAt).toBeUndefined();
     });
     expectFetchUrl(
       fetchMock,

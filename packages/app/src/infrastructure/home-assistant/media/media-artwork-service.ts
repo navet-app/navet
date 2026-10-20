@@ -822,6 +822,7 @@ export class MediaArtworkService {
       return {
         ...resolved,
         url: objectUrl,
+        expiresAt: undefined,
         authStrategy: 'none',
         cacheKey: fingerprint,
         metadata: {

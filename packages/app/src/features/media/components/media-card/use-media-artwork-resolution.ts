@@ -43,7 +43,9 @@ export function useMediaArtworkResolution({
   });
   const directArtwork = useResourceUrl(liveEntityPicture, providerId);
   const fallbackArtwork =
-    artworkResource?.kind === 'image' ? (artworkResource.url ?? directArtwork) : directArtwork;
+    artworkResource?.kind === 'image' && artworkResource.expiresAt === undefined
+      ? (artworkResource.url ?? directArtwork)
+      : directArtwork;
 
   useEffect(() => {
     if (!fallbackArtwork) {
