@@ -42,9 +42,10 @@ the same in every room. Other Home dashboards can use different selections. **Au
 first source of that kind from your selected providers. If a selected source is unavailable, the
 panel shows that state rather than replacing it with another source.
 
-On a tablet, the companion button opens the overview as a sheet. On a phone, open **More → Home
-overview**. Search, notifications and your account controls use the same data and actions as the
-rest of Navet.
+The companion panel is available on landscape screens at least 1100 pixels wide and 600 pixels
+tall. All other screen sizes retain the existing header and navigation, including portrait
+screens and phones. Resizing or rotating the screen preserves your companion collapse preference.
+Search, notifications and your account controls use the same data and actions as the rest of Navet.
 
 ## Arrange cards
 

@@ -674,22 +674,7 @@ export const Sidebar = memo(function Sidebar({
         activeSection={activeSection}
         choresEnabled={choresEnabled}
         hasCustomActiveDestination={activeCustomSidebarActionId !== null}
-        customItems={
-          onToggleCompanion
-            ? [
-                {
-                  id: 'companion-panel',
-                  icon: LayoutPanelLeft,
-                  label: t('sidebar.companion.title'),
-                  onClick: () => {
-                    setIsOrbitOpen(false);
-                    onToggleCompanion();
-                  },
-                },
-                ...customMenuItems,
-              ]
-            : customMenuItems
-        }
+        customItems={customMenuItems}
         homeAssistantAction={
           homeAssistantShell.canNavigateHome
             ? {

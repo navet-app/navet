@@ -2,9 +2,8 @@ import { CompanionPanel } from '@navet/app/components/layout/companion-panel';
 import { Header } from '@navet/app/components/layout/header';
 import { getSectionNavigationItems } from '@navet/app/components/layout/section-navigation';
 import { Sidebar } from '@navet/app/components/layout/sidebar';
-import { useDashboardSidebarWidth } from '@navet/app/components/layout/use-dashboard-sidebar-width';
+import { useDashboardChromeLayout } from '@navet/app/components/layout/use-dashboard-sidebar-width';
 import { useHeaderController } from '@navet/app/components/layout/use-header-controller';
-import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
 import { useEffectiveEffectsQuality } from '@navet/app/components/shared/theme/effective-effects-quality';
 import { getThemeColorValue } from '@navet/app/components/shared/theme/theme-colors';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
@@ -288,20 +287,11 @@ function DashboardChrome({
   const headerController = useHeaderController();
   const activeSection = useNavigationStore((state) => state.activeSection);
   const choresEnabled = useSettingsStore((state) => state.choresEnabled);
-  const sidebarWidth = useDashboardSidebarWidth();
-  const companionTheme = useThemeMode();
-  const desktop = useMediaQuery('(min-width: 768px)');
-  const wide = useMediaQuery('(min-width: 1100px)');
+  const { sidebarWidth, expanded, companionAvailable } = useDashboardChromeLayout();
   const collapsed = useSettingsStore((state) => state.companionCollapsed);
   const updateSettings = useSettingsStore((state) => state.updateSettings);
-  const [companionSheetOpen, setCompanionSheetOpen] = useState(false);
-  const expanded = !kioskMode && wide && !collapsed;
   const companion = (
-    <CompanionPanel
-      controller={headerController}
-      editActions={mobileEditActions}
-      onCustomize={() => setCompanionSheetOpen(false)}
-    />
+    <CompanionPanel controller={headerController} editActions={mobileEditActions} />
   );
 
   return (
@@ -312,14 +302,13 @@ function DashboardChrome({
       {showNavetSidebar ? (
         <Sidebar
           companion={expanded ? companion : undefined}
-          companionControlsId={wide ? 'dashboard-companion-panel' : 'dashboard-companion-sheet'}
-          companionExpanded={expanded || (!wide && companionSheetOpen)}
+          companionControlsId="dashboard-companion-panel"
+          companionExpanded={expanded}
           onToggleCompanion={
-            kioskMode
+            kioskMode || !companionAvailable
               ? undefined
               : () => {
-                  if (wide) updateSettings({ companionCollapsed: !collapsed });
-                  else setCompanionSheetOpen(true);
+                  updateSettings({ companionCollapsed: !collapsed });
                 }
           }
           activeColorValue={headerController.activeColorValue}
@@ -349,7 +338,7 @@ function DashboardChrome({
         style={{ marginLeft: sidebarWidth }}
         className={`safe-area-pt-5 min-w-0 flex flex-col overflow-x-clip ${contentSpacingClassName}`}
       >
-        {showNavetHeader && !desktop ? (
+        {showNavetHeader && !companionAvailable ? (
           <Header
             controller={headerController}
             renderNotifications={false}
@@ -357,7 +346,7 @@ function DashboardChrome({
             mobileRoomNavigation={mobileRoomNavigation}
           />
         ) : null}
-        {showNavetHeader && desktop ? (
+        {showNavetHeader && companionAvailable ? (
           <h1 className="sr-only">
             {
               getSectionNavigationItems(headerController.t, choresEnabled).find(
@@ -380,19 +369,6 @@ function DashboardChrome({
             headerController.mobileNotificationButtonRef,
           ]}
         />
-      ) : null}
-      {!wide && companionSheetOpen && !kioskMode ? (
-        <BaseCardDialog
-          isOpen
-          onOpenChange={setCompanionSheetOpen}
-          variant="sheet"
-          theme={companionTheme}
-          title={headerController.t('sidebar.companion.title')}
-        >
-          <div id="dashboard-companion-sheet" className="h-[min(720px,80dvh)] min-h-0">
-            {companion}
-          </div>
-        </BaseCardDialog>
       ) : null}
     </div>
   );

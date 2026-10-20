@@ -86,7 +86,7 @@ export const Docs: Story = {
 
 // Same-family references: app-shell-navigation-sidebar--default and app-shell-header-topbar--default.
 // Selected B composition: unchanged icon rail beside an independently scrolling home overview.
-// Phone uses the existing dock; tablet opens the companion as a sheet; desktop reflows content.
+// Spacious landscape screens add the companion; other sizes retain the original header and navigation.
 function UnifiedSidebarStory({ collapsed = false }: { collapsed?: boolean }) {
   const [editing, setEditing] = useState(false);
   useEffect(() => {
