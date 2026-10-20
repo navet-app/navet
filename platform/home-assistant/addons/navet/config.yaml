@@ -18,7 +18,8 @@ ports_description:
 homeassistant_api: true
 panel_icon: mdi:hub
 panel_title: Navet
-panel_admin: false
+# Ingress proxies Home Assistant requests with the add-on's privileged token.
+panel_admin: true
 map:
   - addon_config:rw
 options:

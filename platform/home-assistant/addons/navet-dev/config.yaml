@@ -19,7 +19,8 @@ homeassistant_api: true
 stage: experimental
 panel_icon: mdi:hub
 panel_title: Navet Dev
-panel_admin: false
+# Ingress proxies Home Assistant requests with the add-on's privileged token.
+panel_admin: true
 map:
   - addon_config:rw
 options:
