@@ -1,21 +1,16 @@
 # Companion panel scope and contextual editing
 
-Research date: 2026-10-22. UX recommendation; the editing flow below is a proposal,
-not a description of verified implementation.
+Research date: 2026-10-22. Design rationale for dashboard panels with optional room
+overrides. The implemented ownership and editing rules are defined in the
+[dashboard profile contract](../architecture/dashboard-profile-ownership.md#shared-profile).
+Household usability and rendered maintainer acceptance remain pending.
 
 ## Scope model
 
-Keep one common companion panel per saved dashboard, with optional room-specific
-panels. Home uses that dashboard's common panel. Rooms use it by default; Energy,
-Security and other feature sections also use it initially. A separately saved
-dashboard owns its own common panel. Avoid another inheritance layer between
-dashboards until repeated maintenance becomes an observed problem.
-
-**Editing follows the panel currently displayed, wherever the user is.** Opening
-Customize in Kitchen while viewing the dashboard panel edits that shared panel
-normally. Navigation location determines which panel is shown; it does not
-restrict where shared content can be edited. Selecting a different panel and
-editing the visible panel are separate operations.
+Rooms share their Home dashboard's common panel unless the user explicitly
+chooses a room override. Selecting a panel and editing the visible panel are
+separate operations. This keeps shared editing accessible from the room where
+content is used while making room-only content an explicit choice.
 
 ## Evidence from primary sources
 
@@ -51,34 +46,15 @@ editing the visible panel are separate operations.
 These sources establish patterns and tradeoffs. They contain no comparative
 household study demonstrating the best companion-panel design for Navet.
 
-## Recommended interaction
+## Interaction tradeoffs
 
-These are Navet design inferences, to validate with users:
-
-1. Enter Customize from any room. Keep existing inline content controls
-   available for the visible panel. Shared edits update Home and every room
-   using that dashboard panel; room-panel edits affect that room only.
-2. In edit mode, show one compact scope control: **Dashboard panel** or
-   **Kitchen panel**, with the room's actual name. For shared content, a short
-   hint says **Changes apply wherever this dashboard panel is used.** Keep
-   scope available during editing; avoid repeated confirmation for routine edits.
-3. Opening that control reveals panel assignment. In a room using the common
-   panel, offer **Create room panel**. Copy the visible common panel as an
-   independent starting point and continue editing there. Identify the copy as
-   room-only; subsequent common-panel edits do not update it.
-4. If a room panel already exists, offer **Use dashboard panel** or **Use room
-   panel**. Switching changes assignment and retains the inactive room panel.
-   Deleting that saved room panel is a separate explicit action, with
-   confirmation explaining the loss. An intentionally empty custom panel stays
-   empty rather than falling back to shared content.
-
-This keeps familiar editing immediate, but shared-edit scope must remain clear.
+The current scope control identifies the dashboard panel or the named room panel
+and exposes assignment separately from inline editing. Shared-edit scope must remain clear.
 Hiding assignment too deeply risks discovery; a permanent full selector and
 explanation add clutter. Retaining inactive room panels makes switching
-reversible but requires distinguishing selection from deletion. This proposal
-needs separate assignment state: existing behavior currently deletes a room
-configuration when returning to the dashboard panel. Compatibility must preserve
-existing configurations; a general library of named panels is unnecessary here.
+reversible but requires distinguishing selection from deletion. Separate assignment
+state now retains saved room configurations when switching panels. A general library
+of named panels remains outside this scope.
 
 ## Validation
 
