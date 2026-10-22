@@ -18,7 +18,13 @@ interface LightCardTableRowProps {
   IconComponent?: LucideIcon | null;
   iconText?: string | null;
   iconButtonProps: HeaderIconButtonProps;
-  cardInteraction: LightCardController['cardInteraction'];
+  cardInteraction?: Pick<LightCardController['cardInteraction'], 'settingsButtonProps'>;
+  compact?: boolean;
+  disabled?: boolean;
+  toggleDisabled?: boolean;
+  secondaryText?: string;
+  showToggle?: boolean;
+  stateLabel?: string;
   onBrightnessChange: (value: number) => void;
   onBrightnessCommit: (value: number) => void;
   isEditMode: boolean;
@@ -37,10 +43,17 @@ export const LightCardTableRow = memo(function LightCardTableRow({
   onBrightnessChange,
   onBrightnessCommit,
   isEditMode,
+  compact = false,
+  disabled = false,
+  toggleDisabled = false,
+  secondaryText,
+  showToggle = true,
+  stateLabel,
 }: LightCardTableRowProps) {
   const { t } = useI18n();
   const { theme, accentColor, primaryColor } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
+  const controlsDisabled = isEditMode || disabled;
   const ToggleIcon = IconComponent ?? Lightbulb;
   const iconPill = getEntityIconPillStyles({
     isActive: isOn,
@@ -56,62 +69,91 @@ export const LightCardTableRow = memo(function LightCardTableRow({
   return (
     <div
       className={cn(
-        'flex min-h-12 w-full min-w-0 items-center gap-3 py-1 text-left transition-colors motion-reduce:transition-none',
-        !isEditMode && 'cursor-pointer rounded-xl',
-        !isEditMode && surface.hoverBg
+        'flex w-full min-w-0 items-center py-1 text-left transition-colors motion-reduce:transition-none',
+        compact ? '@container/light-row min-h-10 gap-2' : 'min-h-12 gap-3',
+        !isEditMode && !compact && 'cursor-pointer rounded-xl',
+        !isEditMode && !compact && surface.hoverBg
       )}
       data-light-table-row
     >
-      <button
-        type="button"
-        aria-label={iconButtonProps['aria-label']}
-        aria-pressed={isOn}
-        disabled={isEditMode}
-        onClick={iconButtonProps.onClick}
-        onPointerDown={iconButtonProps.onPointerDown}
-        className={cn(
-          '-ml-[5px] flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-75',
-          getThemeFocusRingClassName(theme)
-        )}
-      >
-        <span
-          className={cn(iconPill.badgeClassName, 'navet-card-header-control-dense')}
-          style={iconPill.badgeStyle}
-          data-light-row-icon-pill
-        >
-          {iconText ? (
-            <span
-              className={cn('text-xs font-semibold', iconPill.iconClassName)}
-              style={iconPill.iconStyle}
-            >
-              {iconText}
-            </span>
-          ) : (
-            <ToggleIcon
-              className={iconPill.iconClassName}
-              style={iconPill.iconStyle}
-              aria-hidden="true"
-            />
+      {showToggle ? (
+        <button
+          type="button"
+          aria-label={iconButtonProps['aria-label']}
+          aria-pressed={isOn}
+          disabled={controlsDisabled || toggleDisabled}
+          onClick={iconButtonProps.onClick}
+          onPointerDown={iconButtonProps.onPointerDown}
+          className={cn(
+            '-ml-[5px] flex shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-75',
+            compact ? 'h-9 w-9' : 'h-11 w-11',
+            getThemeFocusRingClassName(theme)
           )}
-        </span>
-      </button>
+        >
+          <span
+            className={cn(iconPill.badgeClassName, 'navet-card-header-control-dense')}
+            style={iconPill.badgeStyle}
+            data-light-row-icon-pill
+          >
+            {iconText ? (
+              <span
+                className={cn('text-xs font-semibold', iconPill.iconClassName)}
+                style={iconPill.iconStyle}
+              >
+                {iconText}
+              </span>
+            ) : (
+              <ToggleIcon
+                className={iconPill.iconClassName}
+                style={iconPill.iconStyle}
+                aria-hidden="true"
+              />
+            )}
+          </span>
+        </button>
+      ) : null}
 
-      <button
-        {...cardInteraction.settingsButtonProps}
-        aria-haspopup="dialog"
-        disabled={isEditMode}
-        className={cn(
-          `-ml-[3px] min-h-9 min-w-0 flex-1 truncate rounded-lg text-left text-sm font-medium ${
+      {cardInteraction ? (
+        <button
+          {...cardInteraction.settingsButtonProps}
+          aria-haspopup="dialog"
+          disabled={controlsDisabled}
+          className={cn(
+            `min-h-9 min-w-0 flex-1 ${compact ? 'break-words' : 'truncate'} rounded-lg text-left text-sm font-medium ${
+              isOn ? surface.textPrimary : surface.textSecondary
+            }`,
+            showToggle && '-ml-[3px]',
+            getThemeFocusRingClassName(theme)
+          )}
+        >
+          {secondaryText ? (
+            <>
+              <span className="block">{name}</span>
+              <span className={cn('block text-xs font-normal', surface.textMuted)}>
+                {secondaryText}
+              </span>
+            </>
+          ) : (
+            name
+          )}
+        </button>
+      ) : (
+        <span
+          className={cn(
+            '-ml-[3px] min-w-0 flex-1 break-words text-sm font-medium',
             isOn ? surface.textPrimary : surface.textSecondary
-          }`,
-          getThemeFocusRingClassName(theme)
-        )}
-      >
-        {name}
-      </button>
+          )}
+        >
+          {name}
+        </span>
+      )}
 
       {isOn && supportsBrightness ? (
-        <div className="w-20 min-w-16 sm:w-24">
+        <div
+          className={
+            compact ? 'hidden w-14 shrink-0 @min-[14rem]/light-row:block' : 'w-20 min-w-16 sm:w-24'
+          }
+        >
           <BrightnessSlider
             value={brightness}
             onChange={onBrightnessChange}
@@ -121,15 +163,28 @@ export const LightCardTableRow = memo(function LightCardTableRow({
             showLabel={false}
             activeColor={activeColor}
             inverseSurface={false}
-            disabled={isEditMode}
+            disabled={controlsDisabled}
             ariaLabel={`${t('lighting.brightness')}: ${name}`}
           />
         </div>
       ) : null}
 
-      <span className={`w-8 shrink-0 text-right text-xs tabular-nums ${surface.textSecondary}`}>
-        {isOn && supportsBrightness ? `${brightness}%` : isOn ? t('common.on') : t('common.off')}
-      </span>
+      {stateLabel !== '' ? (
+        <span
+          className={cn(
+            compact ? 'max-w-[45%] shrink-0' : 'w-8 shrink-0',
+            'text-right text-xs tabular-nums',
+            surface.textSecondary
+          )}
+        >
+          {stateLabel ??
+            (isOn && supportsBrightness
+              ? `${Math.round(brightness)}%`
+              : isOn
+                ? t('common.on')
+                : t('common.off'))}
+        </span>
+      ) : null}
     </div>
   );
 });

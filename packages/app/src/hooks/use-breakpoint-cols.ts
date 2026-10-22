@@ -1,4 +1,4 @@
-import { createContext, useContext, useSyncExternalStore } from 'react';
+import { createContext, useSyncExternalStore } from 'react';
 
 export const DashboardSidebarWidthContext = createContext(0);
 
@@ -114,11 +114,10 @@ export function useBreakpointCols(): number {
     getBaseBreakpointColsSnapshot,
     getServerBreakpointColsSnapshot
   );
-  const sidebarWidth = useContext(DashboardSidebarWidthContext);
-  // Existing breakpoints budgeted for a 64px rail. Reflow when the new shell takes more width.
-  const baseBreakpointCols = resolveBaseBreakpointCols(
-    viewportWidth - Math.max(0, sidebarWidth - 64)
-  );
+  // Grid fitting already scales both axes to the available content width. Reapplying
+  // viewport breakpoints after subtracting the companion drops columns too early,
+  // leaving fewer 1fr tracks to stretch across the dashboard.
+  const baseBreakpointCols = resolveBaseBreakpointCols(viewportWidth);
   const dashboardSpaceMode = useSettingsStore(settingsSelectors.dashboardSpaceMode);
   const isMoreSpace = dashboardSpaceMode === 'more_space';
 

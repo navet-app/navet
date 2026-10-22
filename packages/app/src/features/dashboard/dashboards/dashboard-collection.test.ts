@@ -3,6 +3,7 @@ import {
   createDashboardDefinition,
   createLegacyDashboardCollection,
   deleteDashboardFromCollection,
+  getCompanionCards,
   resolveDashboard,
   resolveDashboardNavigationRooms,
   sanitizeDashboardCollection,
@@ -215,5 +216,50 @@ describe('dashboard companion configuration', () => {
     });
     expect(copy.companion).toEqual(source.companion);
     expect(copy.companion).not.toBe(source.companion);
+  });
+});
+
+describe('ordered companion cards', () => {
+  it('retains legacy automatic, hidden and explicit source choices until edited', () => {
+    expect(
+      getCompanionCards({
+        cameraEntityId: null,
+        weatherEntityId: 'homey:weather.outside',
+        showSecurity: false,
+      })
+    ).toEqual([
+      { id: 'greeting', type: 'greeting' },
+      { id: 'clock', type: 'clock' },
+      { id: 'weather', type: 'weather', entityId: 'homey:weather.outside' },
+    ]);
+    expect(getCompanionCards({ showSecurity: true, cards: [] })).toEqual([]);
+  });
+
+  it('preserves calendar sources and household chores through sanitization', () => {
+    const cards = [
+      { id: 'agenda', type: 'calendar', entityId: 'home_assistant:calendar.home' },
+      { id: 'chores', type: 'chores' },
+    ];
+    const sanitized = sanitizeDashboardCompanion({ cards, showSecurity: false });
+    expect(sanitized.cards).toEqual(cards);
+    expect(
+      getCompanionCards(sanitizeDashboardCompanion(JSON.parse(JSON.stringify(sanitized))))
+    ).toEqual(cards);
+  });
+
+  it('rejects malformed identities, duplicate cards and URL sources while bounding note content', () => {
+    const settings = sanitizeDashboardCompanion({
+      cards: [
+        { id: 'one', type: 'note', text: 'a'.repeat(5000) },
+        { id: 'one', type: 'clock' },
+        { id: 'two', type: 'entity', entityId: 'https://user:secret@example.com' },
+        { id: 'three', type: 'entity', entityId: 'homey:light.kitchen', size: 'large' },
+        { id: 'four', type: 'iframe' },
+      ],
+    });
+    expect(settings.cards).toEqual([
+      { id: 'one', type: 'note', text: 'a'.repeat(4000) },
+      { id: 'three', type: 'entity', entityId: 'homey:light.kitchen' },
+    ]);
   });
 });

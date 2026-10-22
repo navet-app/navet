@@ -11,7 +11,7 @@ do.
 
 ## Choose a card behavior
 
-Open **Settings → Interaction**, then choose:
+Open **Settings → Display & controls**, then choose:
 
 - **Tap toggles** for a fast common action on supported cards.
 - **Tap opens controls** when you prefer to inspect the control dialog first.
@@ -39,7 +39,7 @@ device-setting groups used for kiosk mode, visual quality, and layout.
 
 ## Limit browser zoom on this device
 
-In **Settings → Interaction → Browser zoom**, choose **Allow zoom** to keep the browser's normal
+In **Settings → Display & controls → Browser zoom**, choose **Allow zoom** to keep the browser's normal
 zoom controls. If a text field causes unwanted zoom when you focus it, choose **Limit zoom** for
 this device. The browser may limit automatic zoom, but some browsers ignore the setting.
 

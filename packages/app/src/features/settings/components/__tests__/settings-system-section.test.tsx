@@ -6,22 +6,9 @@ import { getSettingsSectionStyles } from '@navet/app/features/settings/hooks/set
 import type { SettingsSectionController } from '@navet/app/features/settings/hooks/use-settings-section-controller';
 import { resetRuntimeContextForTests } from '@navet/app/infrastructure/home-assistant/runtime/runtime-detector';
 import { renderWithProviders } from '@navet/app/test/render';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsSystemSection } from '../settings-system-section';
-
-const dashboardProfileServiceMocks = vi.hoisted(() => ({
-  copyDashboardDisplaySettings: vi.fn(),
-}));
-
-vi.mock('@navet/app/services/dashboard-profile.service', async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import('@navet/app/services/dashboard-profile.service')>();
-  return {
-    ...original,
-    ...dashboardProfileServiceMocks,
-  };
-});
 
 function createController(): SettingsSectionController {
   return {
@@ -608,80 +595,26 @@ describe('SettingsSystemSection', () => {
 
     expect(screen.queryByText('Connected displays')).not.toBeInTheDocument();
     expect(screen.getByText('Authorized devices')).toBeInTheDocument();
-    expect(screen.getByText('Device settings')).toBeInTheDocument();
+    expect(screen.queryByText('Device settings')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Access' })).toHaveTextContent('Authorized devices');
   });
 
-  it('copies display settings once or creates an automatic linked profile', async () => {
-    const currentClient = useDashboardProfileRuntimeStore.getState().client;
-    expect(currentClient).not.toBeNull();
-    if (!currentClient) return;
-    const kitchenPanel = {
-      id: 'kitchen_panel',
-      name: 'Kitchen panel',
-      kind: 'wall_panel' as const,
-      userName: 'Vishal',
-      firstSeenAt: '2026-07-24T08:00:00.000Z',
-      lastSeenAt: '2026-07-25T09:00:00.000Z',
-      lastRevision: 5,
-    };
-    useDashboardProfileRuntimeStore.getState().setClients([
-      {
-        id: currentClient.id,
-        name: currentClient.name,
-        kind: currentClient.kind,
-        firstSeenAt: '2026-07-25T08:00:00.000Z',
-        lastSeenAt: '2026-07-25T08:00:00.000Z',
-        lastRevision: 5,
-      },
-      kitchenPanel,
-    ]);
-    useDeviceDisplayProfileRuntimeStore
-      .getState()
-      .replacePolicy(emptyDeviceDisplayProfilePolicy(), 0);
-    dashboardProfileServiceMocks.copyDashboardDisplaySettings.mockResolvedValue({
-      updatedClientIds: [kitchenPanel.id],
-      skippedClientIds: [],
-    });
-
+  it('groups config backup and reset under recovery and keeps logout in session', () => {
     renderWithProviders(<SettingsSystemSection controller={controller} />);
-
-    expect(screen.getByText('Not shared — changes affect only this device')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Copy settings once' }));
-    expect(screen.getByRole('button', { name: 'Copy settings' })).toBeDisabled();
-    expect(screen.getByText(/Signed in as Vishal/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Kitchen panel/ })).toHaveAttribute(
-      'aria-pressed',
-      'false'
-    );
-    fireEvent.click(screen.getByRole('button', { name: /Kitchen panel/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Copy settings' }));
-    await waitFor(() =>
-      expect(dashboardProfileServiceMocks.copyDashboardDisplaySettings).toHaveBeenCalledWith(
-        expect.objectContaining({ kioskMode: false, effectsQualityUserOverride: false }),
-        [kitchenPanel.id],
-        expect.objectContaining({ id: currentClient.id })
-      )
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Keep settings synced' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Group name' }), {
-      target: { value: 'Personal devices' },
+    const recovery = screen.getByRole('region', { name: 'Backup and recovery' });
+    expect(within(recovery).getByText('Local config backup')).toBeInTheDocument();
+    expect(within(recovery).getByText('Local data')).toBeInTheDocument();
+    fireEvent.click(within(recovery).getByRole('button', { name: 'Export config' }));
+    expect(controller.handleExportDashboardConfig).toHaveBeenCalledOnce();
+    const fileInput = recovery.querySelector('input[type="file"]');
+    expect(fileInput).toBeInstanceOf(HTMLInputElement);
+    if (!(fileInput instanceof HTMLInputElement)) return;
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['layout: {}'], 'navet.yaml', { type: 'text/yaml' })] },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-
-    expect(
-      Object.values(useDeviceDisplayProfileRuntimeStore.getState().policy.profilesById)
-    ).toEqual([
-      expect.objectContaining({
-        name: 'Personal devices',
-        settings: expect.objectContaining({
-          kioskMode: false,
-          effectsQualityUserOverride: false,
-        }),
-      }),
-    ]);
-    expect(
-      useDeviceDisplayProfileRuntimeStore.getState().policy.profileIdByClientId[currentClient.id]
-    ).toBeTruthy();
+    expect(controller.handleImportDashboardConfig).toHaveBeenCalledOnce();
+    const session = screen.getByRole('region', { name: 'Session' });
+    fireEvent.click(within(session).getByRole('button', { name: 'Logout' }));
+    expect(controller.handleLogout).toHaveBeenCalledOnce();
   });
 });

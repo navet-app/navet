@@ -9,10 +9,8 @@ import { LoadingSpinner } from '@navet/app/components/primitives/loading-spinner
 import { SkipLink } from '@navet/app/components/primitives/skip-link';
 import {
   type CardSize,
-  getCardGridAutoRowsStyle,
   getCardSpanClass,
   getDashboardCardFootprint,
-  getDashboardGridColumnCount,
 } from '@navet/app/components/shared/card-size-selector';
 import { ALL_ROOMS_ID, isAllRooms } from '@navet/app/constants/rooms';
 import { ClimateCard } from '@navet/app/features/climate/components/climate-card';
@@ -21,6 +19,7 @@ import type { ClimateDashboardSection } from '@navet/app/features/climate/types/
 import type { CardTemplate } from '@navet/app/features/dashboard/components/add-entity-dialog/types';
 import { HomeEditCommandBar } from '@navet/app/features/dashboard/components/home-edit-command-bar';
 import { WidgetCard } from '@navet/app/features/dashboard/components/widget-card';
+import { useFitDashboardGrid } from '@navet/app/features/dashboard/hooks/use-fit-dashboard-grid';
 import { useProgressiveBatching } from '@navet/app/features/dashboard/hooks/use-progressive-batching';
 import { DashboardLayout } from '@navet/app/features/dashboard/shell';
 import type { CustomCard } from '@navet/app/features/dashboard/stores/custom-cards-store';
@@ -61,7 +60,6 @@ import { Fan, Lightbulb, ShieldCheck, Speaker, Zap } from 'lucide-react';
 import {
   Children,
   type ComponentProps,
-  type CSSProperties,
   lazy,
   type ReactNode,
   type Ref,
@@ -961,6 +959,7 @@ function useDemoDisplayDefaults() {
     useThemeStore.getState().setWallpaper(null);
     useSettingsStore.getState().updateSettings({
       ...defaultSettings,
+      screensaverEnabled: useSettingsStore.getState().screensaverEnabled,
       companionEnabled: useSettingsStore.getState().companionEnabled,
       companionCollapsed: useSettingsStore.getState().companionCollapsed,
       username: 'Navet',
@@ -1227,18 +1226,19 @@ function getRoomEntitySlug(room: string) {
 
 function DashboardGrid({ children }: { children: ReactNode }) {
   const breakpointCols = useBreakpointCols();
-
+  const { outerRef, innerRef, outerContainerStyle, innerContainerStyle, isAutoScaled, gridStyle } =
+    useFitDashboardGrid(breakpointCols);
   return (
-    <div
-      className="grid w-full grid-flow-row-dense gap-3 md:gap-3 lg:gap-4"
-      style={
-        {
-          ...getCardGridAutoRowsStyle(breakpointCols),
-          gridTemplateColumns: `repeat(${getDashboardGridColumnCount(breakpointCols)}, minmax(0, 1fr))`,
-        } as CSSProperties
-      }
-    >
-      {children}
+    <div ref={outerRef} className="relative w-full" style={outerContainerStyle}>
+      <div
+        ref={innerRef}
+        className={`w-full${isAutoScaled ? ' absolute left-0 top-0 origin-top-left' : ''}`}
+        style={innerContainerStyle}
+      >
+        <div className="grid w-full grid-flow-row-dense gap-3 md:gap-3 lg:gap-4" style={gridStyle}>
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1972,6 +1972,11 @@ function sanitizeDemoSection(value: unknown): DemoSection {
   return 'home';
 }
 
+const DemoChoreWorkspace = lazy(async () => {
+  const module = await import('./demo-chore-workspace');
+  return { default: module.DemoChoreWorkspace };
+});
+
 function DemoContent() {
   const { t } = useI18n();
   const runtimeReady = useDemoDisplayDefaults();
@@ -2145,7 +2150,11 @@ export default function DemoApp() {
   return (
     <I18nProvider>
       <AuthProvider>
-        <DemoContent />
+        <Suspense fallback={null}>
+          <DemoChoreWorkspace>
+            <DemoContent />
+          </DemoChoreWorkspace>
+        </Suspense>
       </AuthProvider>
     </I18nProvider>
   );

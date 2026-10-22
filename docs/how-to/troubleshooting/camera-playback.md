@@ -13,7 +13,7 @@ your smart-home provider, then review its playback settings in Navet.
 
 1. Confirm that the camera is available in the provider.
 2. Verify that its snapshot updates.
-3. Open **Settings → Interaction** and review camera live-stream behavior.
+3. Open the camera settings dialog and review its playback preferences.
 4. Reload the camera once.
 
 ## Review camera settings

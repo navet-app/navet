@@ -587,9 +587,10 @@ describe('Sidebar mobile navigation', () => {
         companion={<p>Home overview</p>}
       />
     );
-    const companionToggle = screen.getByRole('button', { name: 'Collapse companion panel' });
+    const companionToggle = screen.getByRole('button', { name: 'Hide side panel' });
     const homeAssistantToggle = screen.getByRole('button', { name: 'Toggle Home Assistant kiosk' });
     expect(companionToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(companionToggle).not.toHaveAttribute('aria-pressed');
     expect(companionToggle.querySelector('svg')?.innerHTML).not.toBe(
       homeAssistantToggle.querySelector('svg')?.innerHTML
     );

@@ -1,5 +1,7 @@
+import { RoomNav } from '@navet/app/components/layout/room-nav';
 import { Sidebar } from '@navet/app/components/layout/sidebar';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import { useDashboardCollectionStore } from '@navet/app/features/dashboard/dashboards/dashboard-collection-store';
 import { DashboardLayout } from '@navet/app/features/dashboard/shell';
 import { useTheme } from '@navet/app/hooks';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
@@ -85,14 +87,21 @@ export const Docs: Story = {
 };
 
 // Same-family references: app-shell-navigation-sidebar--default and app-shell-header-topbar--default.
-// Selected B composition: unchanged icon rail beside an independently scrolling home overview.
+// Companion editing extends this composition; header actions use app-shell-header-header-actions--desktop.
+// Device content reuses cards-entity-light--small and the existing small card family.
 // Spacious landscape screens add the companion; other sizes retain the original header and navigation.
 function UnifiedSidebarStory({ collapsed = false }: { collapsed?: boolean }) {
   const [editing, setEditing] = useState(false);
   useEffect(() => {
     const previous = useSettingsStore.getState().companionCollapsed;
+    const collection = useDashboardCollectionStore.getState();
+    const dashboardId = collection.activeDashboardId;
+    const companion = collection.collection.dashboardsById[dashboardId]?.companion;
     useSettingsStore.getState().updateSettings({ companionCollapsed: collapsed });
-    return () => useSettingsStore.getState().updateSettings({ companionCollapsed: previous });
+    return () => {
+      useSettingsStore.getState().updateSettings({ companionCollapsed: previous });
+      if (companion) useDashboardCollectionStore.getState().updateCompanion(dashboardId, companion);
+    };
   }, [collapsed]);
   return (
     <DashboardLayout
@@ -101,8 +110,16 @@ function UnifiedSidebarStory({ collapsed = false }: { collapsed?: boolean }) {
         onToggleEditMode: () => setEditing((value) => !value),
       }}
     >
-      <h1 className="text-xl font-medium">Living room</h1>
-      <p>The home overview stays with the selected dashboard while navigating rooms.</p>
+      <RoomNav
+        rooms={['Living Room', 'Kitchen']}
+        activeRoom="All"
+        onRoomChange={() => {}}
+        isEditMode={editing}
+        onToggleEditMode={() => setEditing((value) => !value)}
+        showCustomizeButton={false}
+      />
+      <h2 className="text-xl font-medium">Living room</h2>
+      <p>The side panel stays with the selected dashboard while navigating rooms.</p>
       <div className="grid grid-cols-2 gap-4">
         {[
           'Kitchen island · 72%',
@@ -124,14 +141,28 @@ export const ExpandedCompanion: Story = {
   parameters: { viewport: { value: 'desktop' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const collapse = await canvas.findByRole('button', { name: 'Collapse companion panel' });
+    const collapse = await canvas.findByRole('button', { name: 'Hide side panel' });
     await userEvent.click(collapse);
-    const expand = await canvas.findByRole('button', { name: 'Expand companion panel' });
+    const expand = await canvas.findByRole('button', { name: 'Show side panel' });
     await expect(expand).toHaveAttribute('aria-expanded', 'false');
-    await expect(canvas.queryByRole('region', { name: 'Home overview' })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole('region', { name: 'Side panel' })).not.toBeInTheDocument();
     await userEvent.click(expand);
-    await expect(await canvas.findByRole('region', { name: 'Home overview' })).toBeVisible();
+    await expect(await canvas.findByRole('region', { name: 'Side panel' })).toBeVisible();
   },
 };
 
 export const CollapsedCompanion: Story = { render: () => <UnifiedSidebarStory collapsed /> };
+
+export const CompanionEditor: Story = {
+  render: () => <UnifiedSidebarStory />,
+  parameters: { viewport: { value: 'desktop' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Customize' }));
+    await expect(canvas.getByRole('button', { name: 'Add item' })).toBeVisible();
+    await expect(
+      canvas.getByRole('button', { name: 'More actions: Clock and date' })
+    ).toBeVisible();
+    await expect(canvas.getByRole('button', { name: 'Customize' })).toBeVisible();
+  },
+};

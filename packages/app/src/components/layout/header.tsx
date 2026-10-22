@@ -3,17 +3,14 @@ import { NotificationPanel } from '@navet/app/features/notifications';
 import { useMediaQuery, useTheme } from '@navet/app/hooks';
 import { useSettingsStore } from '@navet/app/stores';
 import { settingsSelectors } from '@navet/app/stores/selectors';
-import { Bell, CalendarDays, Check, Clock3, Edit3, Menu, Search } from 'lucide-react';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { HeaderDesktopActions } from './header-actions';
-import { HeaderAssistAction } from './header-assist-action';
-import { HeaderSearchInput } from './header-search-input';
+import { Bell, CalendarDays, Check, Clock3, Edit3, Menu } from 'lucide-react';
+import { memo, useMemo } from 'react';
+import { HeaderDashboardActions } from './header-dashboard-actions';
 import { resolveHeaderTitle } from './header-title';
 import type { MobileHeaderEditActions } from './mobile-header-actions';
 import { MobileHeaderCommandSheet } from './mobile-header-command-sheet';
 import { getMobileHeaderActionAvailability } from './mobile-layout-helpers';
 import type { MobileRoomNavigation } from './mobile-room-dropdown';
-import { SectionCustomizeButton } from './section-customize-button';
 import { type HeaderController, useHeaderController } from './use-header-controller';
 import { useHeaderDateTime } from './use-header-datetime';
 import { UserDropdown } from './user-dropdown';
@@ -33,11 +30,6 @@ function HeaderView({
   const { theme } = useTheme();
   const kioskMode = useSettingsStore(settingsSelectors.kioskMode);
   const isMobileViewport = useMediaQuery('(max-width: 767px)');
-  const [isDesktopSearchOpen, setIsDesktopSearchOpen] = useState(false);
-  const desktopSearchContainerRef = useRef<HTMLDivElement | null>(null);
-  const desktopSearchLauncherRef = useRef<HTMLButtonElement | null>(null);
-  const restoreDesktopSearchFocusRef = useRef(false);
-  const desktopSearchInputRef = useRef<HTMLInputElement | null>(null);
   const mobileAvailability = useMemo(
     () => getMobileHeaderActionAvailability(mobileEditActions),
     [mobileEditActions]
@@ -52,23 +44,15 @@ function HeaderView({
     desktopNotificationButtonRef,
     dividerColor,
     firstName,
-    handleClearSearch,
-    handleSearchChange,
     headerCustomText,
     headerTitleMode,
     hoverBg,
-    inputBg,
     isMobileUtilityOpen,
     isNotificationOpen,
-    isSearchActive,
-    isSearchFocused,
     mobileNotificationButtonRef,
     openMobileUtility,
     openNotifications,
-    searchQuery,
     setIsMobileUtilityOpen,
-    setIsNotificationOpen,
-    setIsSearchFocused,
     t,
     textPrimary,
     textSecondary,
@@ -101,41 +85,6 @@ function HeaderView({
       : theme === 'black'
         ? 'border-white/10 bg-white/[0.035] text-white/88 hover:bg-white/[0.065]'
         : 'border-white/10 bg-white/[0.055] text-white/88 backdrop-blur-xl hover:bg-white/[0.085]';
-  const openDesktopSearch = () => {
-    setIsDesktopSearchOpen(true);
-    window.setTimeout(() => desktopSearchInputRef.current?.focus(), 0);
-  };
-
-  const closeDesktopSearch = () => {
-    handleClearSearch();
-    restoreDesktopSearchFocusRef.current = true;
-    setIsDesktopSearchOpen(false);
-  };
-
-  useEffect(() => {
-    if (!isDesktopSearchOpen && restoreDesktopSearchFocusRef.current) {
-      restoreDesktopSearchFocusRef.current = false;
-      desktopSearchLauncherRef.current?.focus();
-    }
-  }, [isDesktopSearchOpen]);
-
-  useEffect(() => {
-    if (!isDesktopSearchOpen) {
-      return undefined;
-    }
-
-    const handleDocumentClick = (event: MouseEvent) => {
-      if (desktopSearchContainerRef.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      handleClearSearch();
-      setIsDesktopSearchOpen(false);
-    };
-
-    document.addEventListener('click', handleDocumentClick);
-    return () => document.removeEventListener('click', handleDocumentClick);
-  }, [handleClearSearch, isDesktopSearchOpen]);
 
   return (
     <>
@@ -257,74 +206,10 @@ function HeaderView({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
-            {mobileEditActions && !kioskMode ? (
-              <SectionCustomizeButton
-                isEditMode={mobileEditActions.isEditMode}
-                onToggle={mobileEditActions.onToggleEditMode}
-              />
-            ) : null}
-
-            <div ref={desktopSearchContainerRef} className="flex items-center">
-              {isDesktopSearchOpen ? (
-                <div className="relative flex-1 md:flex-none">
-                  <HeaderSearchInput
-                    activeColorValue={activeColorValue}
-                    hoverBg={hoverBg}
-                    inputBg={inputBg}
-                    inputRef={desktopSearchInputRef}
-                    isSearchActive={isSearchActive}
-                    isSearchFocused={isSearchFocused}
-                    onBlur={() => setIsSearchFocused(false)}
-                    onChange={handleSearchChange}
-                    onClear={closeDesktopSearch}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        closeDesktopSearch();
-                      }
-                    }}
-                    onFocus={() => setIsSearchFocused(true)}
-                    placeholder={t('header.searchPlaceholder')}
-                    query={searchQuery}
-                    textPrimary={textPrimary}
-                    textSecondary={textSecondary}
-                    widthClassName="w-full md:w-64"
-                  />
-                </div>
-              ) : (
-                <button
-                  ref={desktopSearchLauncherRef}
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openDesktopSearch();
-                  }}
-                  className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[22px] ${hoverBg} transition-colors`}
-                  aria-label={t('header.searchPlaceholder')}
-                  aria-expanded={false}
-                >
-                  <Search className={`h-5 w-5 ${textSecondary}`} />
-                </button>
-              )}
-            </div>
-
-            <HeaderAssistAction hoverBg={hoverBg} textSecondary={textSecondary} />
-
-            <HeaderDesktopActions
-              activeColorValue={activeColorValue}
-              avatarUrl={avatarUrl}
-              desktopNotificationButtonRef={desktopNotificationButtonRef}
-              hoverBg={hoverBg}
-              isNotificationOpen={isNotificationOpen}
-              mobileNotificationButtonRef={mobileNotificationButtonRef}
-              renderPanel={renderNotifications && !isMobileViewport}
-              setIsNotificationOpen={setIsNotificationOpen}
-              textSecondary={textSecondary}
-              unreadCount={unreadCount}
-            />
-          </div>
+          <HeaderDashboardActions
+            controller={controller}
+            editActions={kioskMode ? undefined : mobileEditActions}
+          />
         </div>
       </div>
 

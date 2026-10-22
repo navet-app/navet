@@ -1,5 +1,7 @@
 import { CompanionPanel } from '@navet/app/components/layout/companion-panel';
 import { Header } from '@navet/app/components/layout/header';
+import { HeaderDashboardActions } from '@navet/app/components/layout/header-dashboard-actions';
+import { RoomNavActionsContext } from '@navet/app/components/layout/room-nav-actions-context';
 import { getSectionNavigationItems } from '@navet/app/components/layout/section-navigation';
 import { Sidebar } from '@navet/app/components/layout/sidebar';
 import { useDashboardChromeLayout } from '@navet/app/components/layout/use-dashboard-sidebar-width';
@@ -17,7 +19,9 @@ import { detectDeviceTier } from '@navet/app/utils/detect-device-tier';
 import { getLowestEffectsQuality } from '@navet/app/utils/effects-quality';
 import { type CSSProperties, lazy, memo, Suspense, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { useDashboardCollectionStore } from '../dashboards/dashboard-collection-store';
 import { resolveDashboardPerformanceProfile } from '../hooks/use-dashboard-performance-mode';
+import { ScreensaverGate } from '../screensaver/screensaver-gate';
 import type { DashboardLayoutProps } from './types';
 import { useKioskRoomSwipeNavigation } from './use-kiosk-room-swipe-navigation';
 
@@ -286,13 +290,21 @@ function DashboardChrome({
 }) {
   const headerController = useHeaderController();
   const activeSection = useNavigationStore((state) => state.activeSection);
+  const customAction = useNavigationStore((state) => state.activeCustomSidebarActionId);
   const choresEnabled = useSettingsStore((state) => state.choresEnabled);
+  const storeEditing = useEditModeStore((state) => state.isEditMode);
+  const panelEditing = useDashboardCollectionStore((state) => state.companionCustomizationOpen);
   const { sidebarWidth, expanded, companionAvailable } = useDashboardChromeLayout();
   const collapsed = useSettingsStore((state) => state.companionCollapsed);
   const updateSettings = useSettingsStore((state) => state.updateSettings);
   const companion = (
-    <CompanionPanel controller={headerController} editActions={mobileEditActions} />
+    <CompanionPanel
+      controller={headerController}
+      editing={mobileEditActions?.isEditMode ?? storeEditing}
+    />
   );
+  const actionsBesideRooms =
+    showNavetHeader && expanded && activeSection === 'home' && customAction === null;
 
   return (
     <div
@@ -338,7 +350,7 @@ function DashboardChrome({
         style={{ marginLeft: sidebarWidth }}
         className={`safe-area-pt-5 min-w-0 flex flex-col overflow-x-clip ${contentSpacingClassName}`}
       >
-        {showNavetHeader && !companionAvailable ? (
+        {showNavetHeader && !actionsBesideRooms ? (
           <Header
             controller={headerController}
             renderNotifications={false}
@@ -346,7 +358,7 @@ function DashboardChrome({
             mobileRoomNavigation={mobileRoomNavigation}
           />
         ) : null}
-        {showNavetHeader && companionAvailable ? (
+        {actionsBesideRooms ? (
           <h1 className="sr-only">
             {
               getSectionNavigationItems(headerController.t, choresEnabled).find(
@@ -357,9 +369,21 @@ function DashboardChrome({
         ) : null}
         <span id="dashboard-main-content" tabIndex={-1} className="sr-only" />
         <DashboardSidebarWidthContext.Provider value={sidebarWidth}>
-          {children}
+          <RoomNavActionsContext.Provider
+            value={
+              actionsBesideRooms ? (
+                <HeaderDashboardActions
+                  controller={headerController}
+                  editActions={mobileEditActions}
+                />
+              ) : null
+            }
+          >
+            {children}
+          </RoomNavActionsContext.Provider>
         </DashboardSidebarWidthContext.Provider>
       </div>
+      <ScreensaverGate editing={Boolean(mobileEditActions?.isEditMode || panelEditing)} />
       {headerController.isNotificationOpen ? (
         <NotificationPanel
           isOpen

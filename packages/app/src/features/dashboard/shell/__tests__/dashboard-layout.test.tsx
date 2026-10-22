@@ -7,6 +7,9 @@ import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useDashboardCollectionStore } from '../../dashboards/dashboard-collection-store';
+import { useScreensaverStore } from '../../screensaver/screensaver-store';
+import { SCREENSAVER_IDLE_MS } from '../../screensaver/use-screensaver';
 import { DashboardLayout } from '../index';
 
 vi.mock('@navet/app/utils/detect-device-tier', () => ({
@@ -68,6 +71,25 @@ describe('DashboardLayout', () => {
     expect(screen.queryByRole('link', { name: /view setup steps/i })).not.toBeInTheDocument();
     expect(screen.getByTestId('header')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+  });
+
+  it('blocks idle screensaver activation for the independent panel editor', () => {
+    vi.useFakeTimers();
+    try {
+      useSettingsStore.getState().updateSettings({ screensaverEnabled: true });
+      useDashboardCollectionStore.getState().setCompanionCustomizationOpen(true);
+      const view = renderWithProviders(
+        <DashboardLayout>
+          <main>Dashboard content</main>
+        </DashboardLayout>
+      );
+      act(() => vi.advanceTimersByTime(SCREENSAVER_IDLE_MS + 1));
+      expect(useScreensaverStore.getState().active).toBe(false);
+      view.unmount();
+    } finally {
+      useDashboardCollectionStore.getState().setCompanionCustomizationOpen(false);
+      vi.useRealTimers();
+    }
   });
 
   it('renders the dashboard layout outside Home Assistant add-on mode', () => {

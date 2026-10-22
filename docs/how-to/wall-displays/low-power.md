@@ -38,7 +38,7 @@ effects.
 
 Visual quality stays on the current device by default, so a wall panel can remain on **Low** while
 a phone or desktop uses richer rendering. If several low-power panels should match, open
-**Settings → System → Device settings** and create a sync group.
+**Settings → Display & controls → Device settings** and create a sync group.
 
 ## Additional checks
 

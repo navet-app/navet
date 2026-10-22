@@ -13,10 +13,13 @@ import {
 } from '@navet/app/components/shared/theme/card-state-surface-tokens';
 import { getCustomCardTintSurface } from '@navet/app/components/shared/theme/custom-card-tint-surface';
 import { TinyCardWatermark } from '@navet/app/components/shared/tiny-card-watermark';
+import { LightCardTableRow } from '@navet/app/features/lighting/components/light-card/light-card-table-row';
 import { memo } from 'react';
 import type { SwitchCardProps } from './switch-card.types';
 import { SwitchSettingsDialog } from './switch-settings-dialog';
 import { useSwitchCardController } from './use-switch-card-controller';
+
+const ignoreRowBrightness = () => {};
 
 const CARD_VISUAL_TRANSITION_CLASS =
   'transition-[background-color,border-color,box-shadow,color,opacity,transform,filter] duration-500';
@@ -104,6 +107,27 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
         onTintColorChange={controller.setTintColor}
       />
     ) : null;
+  if (props.companion)
+    return (
+      <>
+        <LightCardTableRow
+          compact
+          name={controller.displayName}
+          isOn={controller.isOn}
+          brightness={0}
+          supportsBrightness={false}
+          IconComponent={controller.HeaderIconComponent}
+          isEditMode={Boolean(props.isEditMode)}
+          disabled={props.companion.disabled || controller.toggleDisabled}
+          stateLabel={props.companion.value}
+          cardInteraction={controller.cardInteraction}
+          iconButtonProps={controller.cardInteraction.iconButtonProps}
+          onBrightnessChange={ignoreRowBrightness}
+          onBrightnessCommit={ignoreRowBrightness}
+        />
+        {controlsDialog}
+      </>
+    );
   if (isTiny) {
     return (
       <>

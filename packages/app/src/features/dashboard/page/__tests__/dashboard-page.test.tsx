@@ -8,6 +8,7 @@ import { resetAppStores } from '@navet/app/test/store-reset';
 import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDashboardCollectionStore } from '../../dashboards/dashboard-collection-store';
+import { useScreensaverStore } from '../../screensaver/screensaver-store';
 
 const { getControllerMock, getProfileSyncMock, toastWarningMock } = vi.hoisted(() => ({
   getControllerMock: vi.fn(),
@@ -166,6 +167,19 @@ describe('DashboardPage loading recovery', () => {
     expect(dashboard).toHaveAttribute('aria-hidden', 'true');
     expect(dashboard).not.toHaveStyle({ visibility: 'hidden' });
     expect(dashboard).not.toHaveStyle({ contentVisibility: 'hidden' });
+  });
+
+  it('defers a remote dashboard assignment while screensaver mode is active', () => {
+    const state = useDashboardCollectionStore.getState();
+    state.createDashboard({ id: 'evening', name: 'Evening' });
+    state.activateDashboard('home');
+    useScreensaverStore.getState().start();
+    useDashboardCollectionStore.setState({ pendingAssignedDashboardId: 'evening' });
+    getControllerMock.mockReturnValue(createController({ homeLayoutHydrated: true }));
+    renderWithProviders(<DashboardPage />);
+    expect(useDashboardCollectionStore.getState().activeDashboardId).toBe('home');
+    act(() => useScreensaverStore.getState().stop());
+    expect(useDashboardCollectionStore.getState().activeDashboardId).toBe('evening');
   });
 
   it('defers a remote dashboard assignment while the companion editor is open', () => {

@@ -45,5 +45,5 @@ See [Set up kiosk and Wall Display mode](/guide/wall-displays/kiosk-mode/).
 
 ## If controls feel too dense
 
-Open **Settings → Dashboard** and change **Space usage** to **Default**. More-space mode fits more
+Open **Settings → Appearance** and change **Space usage** to **Default**. More-space mode fits more
 content but can produce smaller touch targets.

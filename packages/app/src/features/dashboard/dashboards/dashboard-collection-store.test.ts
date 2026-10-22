@@ -1,6 +1,7 @@
 import { getDashboardClientIdentity } from '@navet/app/features/dashboard/clients/dashboard-client-identity';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  type CompanionCard,
   createDashboardDefinition,
   createLegacyDashboardCollection,
   type DashboardActivationSource,
@@ -60,6 +61,10 @@ describe('dashboard collection store', () => {
       cameraEntityId: 'home_assistant:camera.front',
       weatherEntityId: null,
       showSecurity: false,
+      cards: [
+        { id: 'note', type: 'note', text: 'Evening routine' },
+        { id: 'lamp', type: 'entity', entityId: 'homey:light.kitchen' },
+      ] as CompanionCard[],
     };
     useDashboardCollectionStore.getState().updateCompanion('home', settings);
     useDashboardCollectionStore.getState().activateDashboard('upstairs');
@@ -72,6 +77,11 @@ describe('dashboard collection store', () => {
     );
     const copiedId = useDashboardCollectionStore.getState().duplicateDashboard('home', 'Evening');
     if (!copiedId) throw new Error('Expected dashboard duplication');
+    expect(
+      useDashboardCollectionStore.getState().collection.dashboardsById[copiedId].companion?.cards
+    ).not.toBe(
+      useDashboardCollectionStore.getState().collection.dashboardsById.home.companion?.cards
+    );
     const serialized = JSON.parse(
       JSON.stringify(useDashboardCollectionStore.getState().collection)
     );

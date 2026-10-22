@@ -21,7 +21,7 @@ describe('SettingsAppearanceSection', () => {
 
     expect(screen.getByRole('heading', { name: 'Theme and background' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Layout' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Effects and performance' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Effects' })).toBeInTheDocument();
   });
 
   it('switches dashboard space mode between default and more space', () => {

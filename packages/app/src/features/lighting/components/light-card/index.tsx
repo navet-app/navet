@@ -1,5 +1,6 @@
 import { BaseCard } from '@navet/app/components/primitives';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
+import type { CompanionRowPresentation } from '@navet/app/components/shared/companion-row-presentation';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
 import { useTheme } from '@navet/app/hooks';
 import { useSettingsStore } from '@navet/app/stores';
@@ -32,6 +33,7 @@ interface LightCardProps {
   isEditMode: boolean;
   cardTapAction?: 'toggle' | 'controls';
   presentation?: 'card' | 'table-row';
+  companion?: CompanionRowPresentation;
   onRemoveCard?: () => void;
   removeCardLabel?: string;
 }
@@ -53,6 +55,7 @@ export const LightCard = memo(function LightCard({
   isEditMode,
   cardTapAction,
   presentation = 'card',
+  companion,
   onRemoveCard,
   removeCardLabel,
 }: LightCardProps) {
@@ -210,7 +213,7 @@ export const LightCard = memo(function LightCard({
   return (
     <>
       <div ref={cardRef} className="relative h-full w-full overflow-visible">
-        {presentation === 'card' && controller.isOn && showAmbientLightBleed && (
+        {!companion && presentation === 'card' && controller.isOn && showAmbientLightBleed && (
           <div
             data-ambient-light-bleed="true"
             aria-hidden="true"
@@ -223,12 +226,15 @@ export const LightCard = memo(function LightCard({
           />
         )}
 
-        {presentation === 'table-row' ? (
+        {companion || presentation === 'table-row' ? (
           <LightCardTableRow
             name={name}
             isOn={controller.isOn}
             brightness={controller.brightness}
-            supportsBrightness={controller.supportsBrightness}
+            compact={Boolean(companion)}
+            disabled={companion?.disabled}
+            stateLabel={companion?.value}
+            supportsBrightness={!companion && controller.supportsBrightness}
             activeColor={surfaceTokens.contentAccentColor}
             IconComponent={controller.IconComponent}
             iconText={controller.iconText}

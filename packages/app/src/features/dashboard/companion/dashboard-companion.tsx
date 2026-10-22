@@ -1,6 +1,7 @@
+import { arrayMove } from '@dnd-kit/sortable';
+import { useHeaderDateTime } from '@navet/app/components/layout/use-header-datetime';
 import { Button } from '@navet/app/components/primitives/button';
 import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
-import { Select } from '@navet/app/components/primitives/select';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { readNavetAlarmEntity, readNavetCameraState } from '@navet/app/core/navet-device-state';
 import { getAlarmStateLabel } from '@navet/app/features/security/utils/alarm-state-label';
@@ -10,181 +11,281 @@ import {
 } from '@navet/app/features/weather/components/weather-card/weather-icon';
 import { useI18n, useIntegrationStore, useProviderResource, useTheme } from '@navet/app/hooks';
 import { useResourceUrl } from '@navet/app/hooks/use-resource-url';
-import { useNavigationStore, useSettingsStore } from '@navet/app/stores';
+import { useEditModeStore, useNavigationStore, useSettingsStore } from '@navet/app/stores';
+import { integrationSelectors } from '@navet/app/stores/selectors';
 import { formatTemperatureFromSourceUnit } from '@navet/app/utils/temperature';
 import type { NavetEntity } from '@navet/core/types';
-import { ArrowUpRight, CameraOff, Lock, Shield, SlidersHorizontal } from 'lucide-react';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { ArrowUpRight, CameraOff, Lock, Plus, Shield } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
-  type DashboardCompanionSettings,
+  type CompanionCard,
   DEFAULT_DASHBOARD_COMPANION,
+  getCompanionCards,
 } from '../dashboards/dashboard-collection';
 import { useDashboardCollectionStore } from '../dashboards/dashboard-collection-store';
+import {
+  CompanionAddCardDialog,
+  CompanionCardEditor,
+  CompanionEditorList,
+  useCompanionCardLabel,
+} from './companion-editor';
+import { CompanionEntityRow } from './companion-entity-row';
 
-// Uses normalized entities across selected providers. Room changes never change the selection.
-export function DashboardCompanion() {
+const CompanionCalendar = lazy(async () => {
+  const module = await import('./companion-calendar');
+  return { default: module.CompanionCalendar };
+});
+const CompanionChores = lazy(async () => {
+  const module = await import('./companion-chores');
+  return { default: module.CompanionChores };
+});
+const CompanionCameraFeed = lazy(async () => {
+  const module = await import('./companion-camera-feed');
+  return { default: module.CompanionCameraFeed };
+});
+
+// Content is dashboard-owned; panel tools appear only during dashboard customization.
+export function DashboardCompanion({ editing: controlledEditing }: { editing?: boolean } = {}) {
+  const storeEditing = useEditModeStore((state) => state.isEditMode);
+  const editing = controlledEditing ?? storeEditing;
   const { t } = useI18n();
   const { theme } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
-  const configuring = useDashboardCollectionStore((state) => state.companionCustomizationOpen);
   const setConfiguring = useDashboardCollectionStore(
     (state) => state.setCompanionCustomizationOpen
   );
-  useEffect(() => () => setConfiguring(false), [setConfiguring]);
-  const formId = useId();
   const dashboard = useDashboardCollectionStore(
     (state) => state.collection.dashboardsById[state.activeDashboardId]
   );
-  const settings = dashboard?.companion ?? DEFAULT_DASHBOARD_COMPANION;
   const updateCompanion = useDashboardCollectionStore((state) => state.updateCompanion);
+  const [adding, setAdding] = useState(false);
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  useEffect(() => {
+    setConfiguring(adding || editingCardId !== null);
+  }, [adding, editingCardId, setConfiguring]);
+  useEffect(() => {
+    if (!editing) {
+      setAdding(false);
+      setEditingCardId(null);
+    }
+  }, [editing]);
+  const cardLabel = useCompanionCardLabel();
+  const settings = dashboard?.companion ?? DEFAULT_DASHBOARD_COMPANION;
+  const cards = useMemo(() => getCompanionCards(settings), [settings]);
   const entities = useIntegrationStore(
     useShallow((state) =>
       state.selectedProviderIds.flatMap((id) =>
-        Object.values(state.providerEntitiesByProviderId[id] ?? {}).filter(
-          (entity) =>
-            entity.type === 'weather' ||
-            entity.type === 'camera' ||
-            entity.type === 'lock' ||
-            Boolean(entity.attributes.alarmState)
-        )
+        Object.values(state.providerEntitiesByProviderId[id] ?? {})
       )
     )
   );
-  const weatherSources = useMemo(
-    () => entities.filter((entity) => entity.type === 'weather'),
-    [entities]
+  useEffect(
+    () => () => {
+      setConfiguring(false);
+      setAdding(false);
+      setEditingCardId(null);
+    },
+    [dashboard?.id, setConfiguring]
   );
-  const cameras = useMemo(() => entities.filter((entity) => entity.type === 'camera'), [entities]);
-  const resolveSelection = (sources: NavetEntity[], id: string | null | undefined) =>
-    id === null
-      ? undefined
-      : id === undefined
-        ? sources[0]
-        : sources.find((entity) => entity.canonicalId === id);
-  const camera = resolveSelection(cameras, settings.cameraEntityId);
-  const weather = resolveSelection(weatherSources, settings.weatherEntityId);
-  const security = settings.showSecurity
-    ? entities.filter((entity) => entity.type === 'lock' || Boolean(entity.attributes.alarmState))
-    : [];
-  const hasConfiguredMissingSource = Boolean(
-    (settings.cameraEntityId && !camera) || (settings.weatherEntityId && !weather)
-  );
-
-  const update = (changes: Partial<DashboardCompanionSettings>) => {
-    if (dashboard) updateCompanion(dashboard.id, { ...settings, ...changes });
+  const update = (next: CompanionCard[]) => {
+    if (!dashboard) return;
+    // Keep the existing source-selection contract available to other dashboard surfaces.
+    const weather = next.find(
+      (card) =>
+        card.type === 'weather' ||
+        (card.type === 'entity' &&
+          entities.find((entity) => entity.canonicalId === card.entityId)?.type === 'weather')
+    );
+    const camera = next.find(
+      (card) =>
+        card.type === 'camera' ||
+        (card.type === 'entity' &&
+          entities.find((entity) => entity.canonicalId === card.entityId)?.type === 'camera')
+    );
+    updateCompanion(dashboard.id, {
+      ...settings,
+      cards: next,
+      weatherEntityId: weather ? weather.entityId : null,
+      cameraEntityId: camera ? camera.entityId : null,
+      showSecurity: next.some(
+        (card) =>
+          card.type === 'security' ||
+          (card.type === 'entity' &&
+            Boolean(
+              entities.find((entity) => entity.canonicalId === card.entityId)?.attributes.alarmState
+            ))
+      ),
+    });
   };
-
+  const label = (card: CompanionCard) =>
+    entities.find((entity) => entity.canonicalId === card.entityId)?.name ?? cardLabel(card.type);
+  const content = (card: CompanionCard) => {
+    if (card.type === 'clock') return <CompanionClock />;
+    if (card.type === 'greeting') return <CompanionGreeting text={card.text} />;
+    if (card.type === 'note')
+      return <p className="whitespace-pre-wrap break-words text-sm">{card.text}</p>;
+    if (card.type === 'chores')
+      return (
+        <Suspense fallback={null}>
+          <CompanionChores editing={editing} />
+        </Suspense>
+      );
+    if (card.type === 'security') {
+      const security = entities.filter(
+        (entity) => entity.type === 'lock' || Boolean(entity.attributes.alarmState)
+      );
+      return security.length ? (
+        <div className="space-y-2">
+          {security.map((entity) => (
+            <CompanionSecurityRow key={entity.canonicalId} entity={entity} />
+          ))}
+        </div>
+      ) : (
+        <p className={`text-sm ${surface.textMuted}`}>
+          {t('sidebar.companion.unavailable', { name: cardLabel('security') })}
+        </p>
+      );
+    }
+    const entity = card.entityId
+      ? entities.find(
+          (entity) =>
+            entity.canonicalId === card.entityId &&
+            (card.type === 'entity' || entity.type === card.type)
+        )
+      : entities.find((entity) => entity.type === card.type);
+    if (!entity)
+      return (
+        <p className={`text-sm ${surface.textMuted}`}>
+          {t('sidebar.companion.unavailable', { name: label(card) })}
+        </p>
+      );
+    if (card.type === 'camera' || entity.type === 'camera') {
+      if (readNavetCameraState(entity)?.isStreamCapable)
+        return (
+          <Suspense fallback={<CompanionCamera entity={entity} />}>
+            <CompanionCameraFeed key={entity.canonicalId} entity={entity} editing={editing} />
+          </Suspense>
+        );
+      return <CompanionCamera key={entity.canonicalId} entity={entity} />;
+    }
+    if (card.type === 'calendar' || entity.type === 'calendar')
+      return (
+        <Suspense fallback={null}>
+          <CompanionCalendar key={entity.canonicalId} entity={entity} editing={editing} />
+        </Suspense>
+      );
+    if (card.type === 'weather' || entity.type === 'weather')
+      return <CompanionWeather entity={entity} />;
+    if (entity.type === 'lock' || entity.attributes.alarmState)
+      return <CompanionSecurityRow entity={entity} />;
+    return <CompanionEntityRow key={entity.canonicalId} entity={entity} editing={editing} />;
+  };
+  const items = cards.map((card, index) =>
+    editing ? (
+      <CompanionCardEditor
+        key={card.id}
+        open={editingCardId === card.id}
+        onOpenChange={(open) => setEditingCardId(open ? card.id : null)}
+        card={card}
+        label={label(card)}
+        index={index}
+        count={cards.length}
+        entities={entities}
+        onChange={(next) => update(cards.map((item) => (item.id === card.id ? next : item)))}
+        onMove={(to) => update(arrayMove(cards, index, to))}
+        onRemove={() => update(cards.filter((item) => item.id !== card.id))}
+      >
+        {content(card)}
+      </CompanionCardEditor>
+    ) : (
+      <div
+        key={card.id}
+        className={
+          index > 0 && !(card.type === 'clock' && cards[index - 1]?.type === 'greeting')
+            ? card.type === 'entity' && cards[index - 1]?.type === 'entity'
+              ? 'mt-1'
+              : 'mt-4'
+            : undefined
+        }
+      >
+        {content(card)}
+      </div>
+    )
+  );
   return (
-    <>
-      <section aria-label={t('sidebar.companion.title')} className="space-y-5">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className={`text-sm font-medium ${surface.textSecondary}`}>
-            {t('sidebar.companion.title')}
-          </h2>
+    <section
+      aria-label={t('sidebar.companion.title')}
+      className={editing ? 'space-y-5' : undefined}
+    >
+      <div className={editing ? 'flex items-center justify-between gap-2' : 'sr-only'}>
+        <h2 className={`text-sm font-medium ${surface.textSecondary}`}>
+          {t('sidebar.companion.title')}
+        </h2>
+        {editing ? (
           <Button
             variant="ghost"
             size="compact"
-            iconOnly
-            label={t('sidebar.companion.configure')}
-            onClick={() => setConfiguring(true)}
+            disabled={cards.length >= 64}
+            leading={<Plus className="h-4 w-4" />}
+            onClick={() => setAdding(true)}
           >
-            <SlidersHorizontal className="h-4 w-4" />
+            {t('sidebar.companion.addCard')}
           </Button>
-        </div>
-        {camera ? (
-          <CompanionCamera key={camera.canonicalId} entity={camera} />
-        ) : settings.cameraEntityId ? (
-          <p className={`text-sm ${surface.textMuted}`}>
-            {t('sidebar.companion.unavailable', { name: t('sidebar.companion.camera') })}
-          </p>
         ) : null}
-        {weather ? (
-          <CompanionWeather entity={weather} />
-        ) : settings.weatherEntityId ? (
-          <p className={`text-sm ${surface.textMuted}`}>
-            {t('sidebar.companion.unavailable', { name: t('sidebar.companion.weather') })}
-          </p>
-        ) : null}
-        {security.length ? (
-          <div className={`space-y-2 border-t pt-4 ${surface.border}`}>
-            {security.map((entity) => (
-              <CompanionSecurityRow key={entity.canonicalId} entity={entity} />
-            ))}
-          </div>
-        ) : null}
-        {!camera && !weather && !security.length && !hasConfiguredMissingSource ? (
-          <p className={`text-sm ${surface.textMuted}`}>
-            {entities.length ? t('sidebar.companion.empty') : t('sidebar.companion.noSources')}
-          </p>
-        ) : null}
-      </section>
-      <BaseCardDialog
-        variant="modal"
-        isOpen={configuring}
-        onOpenChange={setConfiguring}
-        title={t('sidebar.companion.configure')}
-        description={t('sidebar.companion.description')}
-        theme={theme}
-      >
-        <div className="space-y-5 p-5">
-          <p className={`text-sm font-medium ${surface.textPrimary}`}>{dashboard?.name}</p>
-          {(
-            [
-              { key: 'cameraEntityId', label: t('sidebar.companion.camera'), sources: cameras },
-              {
-                key: 'weatherEntityId',
-                label: t('sidebar.companion.weather'),
-                sources: weatherSources,
-              },
-            ] as const
-          ).map(({ key, label, sources }) => (
-            <div key={key} className="space-y-2 text-sm">
-              <label htmlFor={`${formId}-${key}`} className="block">
-                {label}
-              </label>
-              <Select
-                id={`${formId}-${key}`}
-                value={settings[key] ?? (settings[key] === null ? 'hidden' : 'automatic')}
-                onChange={(event) =>
-                  update({
-                    [key]:
-                      event.target.value === 'automatic'
-                        ? undefined
-                        : event.target.value === 'hidden'
-                          ? null
-                          : event.target.value,
-                  })
-                }
-              >
-                <option value="automatic">{t('sidebar.companion.automatic')}</option>
-                <option value="hidden">{t('sidebar.companion.hidden')}</option>
-                {settings[key] &&
-                !sources.some((source) => source.canonicalId === settings[key]) ? (
-                  <option value={settings[key] ?? ''}>{t('common.unavailable')}</option>
-                ) : null}
-                {sources.map((source) => (
-                  <option key={source.canonicalId} value={source.canonicalId}>
-                    {source.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ))}
-          <label className="flex min-h-10 items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={settings.showSecurity}
-              onChange={(event) => update({ showSecurity: event.target.checked })}
-            />
-            {t('sidebar.companion.security')}
-          </label>
-          <Button variant="secondary" onClick={() => setConfiguring(false)}>
-            {t('common.done')}
-          </Button>
-        </div>
-      </BaseCardDialog>
-    </>
+      </div>
+      {editing ? (
+        <CompanionEditorList cards={cards} onChange={update}>
+          <div className="space-y-5">{items}</div>
+        </CompanionEditorList>
+      ) : (
+        <div>{items}</div>
+      )}
+      {!cards.length ? (
+        <p className={`text-sm ${surface.textMuted}`}>{t('sidebar.companion.empty')}</p>
+      ) : null}
+      {editing && cards.length >= 64 ? (
+        <p className={`text-sm ${surface.textMuted}`}>{t('sidebar.companion.limit')}</p>
+      ) : null}
+      {adding && editing ? (
+        <CompanionAddCardDialog
+          entities={entities}
+          onAdd={(card) => {
+            update([...cards, card]);
+            if (card.type === 'note' || card.type === 'greeting') setEditingCardId(card.id);
+          }}
+          onClose={() => setAdding(false)}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function CompanionClock() {
+  const { formattedDate, formattedTime } = useHeaderDateTime();
+  const { theme } = useTheme();
+  const surface = getThemeSurfaceTokens(theme);
+  return (
+    <div>
+      <p className="text-3xl font-medium tracking-tight tabular-nums">{formattedTime}</p>
+      <p className={`mt-1 text-xs ${surface.textMuted}`}>{formattedDate}</p>
+    </div>
+  );
+}
+
+function CompanionGreeting({ text }: { text?: string }) {
+  const { t } = useI18n();
+  const { greetingKey } = useHeaderDateTime();
+  const user = useIntegrationStore(integrationSelectors.currentUser);
+  const titleMode = useSettingsStore((state) => state.headerTitleMode);
+  const customText = useSettingsStore((state) => state.headerCustomText);
+  return (
+    <p className="break-words text-sm">
+      {text?.trim() ||
+        (titleMode === 'custom_text' && customText.trim()
+          ? customText
+          : t(greetingKey, { name: user?.name?.trim().split(/\s+/)[0] || t('header.guestName') }))}
+    </p>
   );
 }
 
@@ -204,19 +305,19 @@ function CompanionWeather({ entity }: { entity: NavetEntity }) {
       ? entity.attributes.condition
       : String(entity.primaryState ?? '');
   return (
-    <div className="flex items-start gap-3">
-      <WeatherIcon condition={condition} className="mt-1 h-9 w-9 shrink-0" />
-      <div className="min-w-0">
-        <p className={`truncate text-xs ${surface.textMuted}`}>{entity.name}</p>
+    <div className="min-w-0">
+      <p className={`truncate text-xs ${surface.textMuted}`}>{entity.name}</p>
+      <div className="flex items-center justify-between gap-3">
         <p className="text-2xl font-medium tabular-nums">
           {available && typeof value === 'number' && Number.isFinite(value)
             ? formatTemperatureFromSourceUnit(value, sourceUnit, unit)
             : '—'}
         </p>
-        <p className={`text-sm ${surface.textSecondary}`}>
-          {available ? formatWeatherConditionLabel(condition) : t('common.unavailable')}
-        </p>
+        <WeatherIcon condition={condition} className="h-9 w-9 shrink-0" />
       </div>
+      <p className={`text-sm ${surface.textSecondary}`}>
+        {available ? formatWeatherConditionLabel(condition) : t('common.unavailable')}
+      </p>
     </div>
   );
 }
@@ -275,7 +376,6 @@ function CompanionCamera({ entity }: { entity: NavetEntity }) {
           fallback
         )}
       </button>
-      <p className={`text-xs ${surface.textMuted}`}>{t('sidebar.companion.snapshot')}</p>
       <BaseCardDialog
         variant="modal"
         isOpen={open}

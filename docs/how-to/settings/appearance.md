@@ -43,6 +43,6 @@ modes disable expensive ambience automatically.
 ## Apply to the right screens
 
 Visual quality and layout stay independent on each device by default. To reuse them elsewhere,
-open **Settings → System → Device settings**, then either copy the current
+open **Settings → Display & controls → Device settings**, then either copy the current
 settings once or create a sync group. See
 [Keep dashboards synchronized across devices](/guide/dashboards/sync-across-devices/).

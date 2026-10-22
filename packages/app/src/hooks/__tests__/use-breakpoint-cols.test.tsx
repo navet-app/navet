@@ -133,8 +133,8 @@ describe('useBreakpointCols', () => {
   });
 });
 
-describe('dashboard width after companion collapse', () => {
-  it('reflows when the panel consumes width and restores density when collapsed', () => {
+describe('dashboard density with a companion panel', () => {
+  it('preserves viewport density when the companion opens or collapses', () => {
     useSettingsStore.getState().resetSettings();
     setVisualViewportSize(1440, 900);
     let inset = 340;
@@ -145,7 +145,7 @@ describe('dashboard width after companion collapse', () => {
         </DashboardSidebarWidthContext.Provider>
       ),
     });
-    expect(result.current).toBe(4);
+    expect(result.current).toBe(6);
     inset = 64;
     rerender();
     expect(result.current).toBe(6);

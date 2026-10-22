@@ -19,7 +19,28 @@ const MAX_DASHBOARD_ROOM_COUNT = 200;
 
 export type DashboardId = string;
 
+export type CompanionCardType =
+  | 'clock'
+  | 'greeting'
+  | 'camera'
+  | 'weather'
+  | 'security'
+  | 'calendar'
+  | 'chores'
+  | 'entity'
+  | 'note';
+export interface CompanionCard {
+  id: string;
+  type: CompanionCardType;
+  /** Undefined uses an automatic source for camera/weather. */
+  entityId?: string;
+  text?: string;
+  size?: 'small' | 'medium-vertical';
+}
+
 export interface DashboardCompanionSettings {
+  /** Ordered panel content. Absent on older dashboards; [] is intentionally empty. */
+  cards?: CompanionCard[];
   /** Undefined selects the first source; null hides the item. */
   cameraEntityId?: string | null;
   weatherEntityId?: string | null;
@@ -36,11 +57,86 @@ export function sanitizeDashboardCompanion(value: unknown): DashboardCompanionSe
     const id = ensureCanonicalEntityId(input[key].trim());
     return parseProviderScopedId(id) ? id : undefined;
   };
+  const seen = new Set<string>();
+  const types = new Set([
+    'clock',
+    'greeting',
+    'camera',
+    'weather',
+    'security',
+    'calendar',
+    'chores',
+    'entity',
+    'note',
+  ]);
+  const cards = Array.isArray(input.cards)
+    ? input.cards.slice(0, 64).flatMap((raw): CompanionCard[] => {
+        if (!raw || typeof raw !== 'object') return [];
+        const card = raw as Record<string, unknown>;
+        if (
+          typeof card.id !== 'string' ||
+          !/^[a-zA-Z0-9_-]{1,80}$/.test(card.id) ||
+          seen.has(card.id) ||
+          !types.has(String(card.type))
+        )
+          return [];
+        const entityId =
+          typeof card.entityId === 'string' && card.entityId.length <= 256
+            ? ensureCanonicalEntityId(card.entityId.trim())
+            : undefined;
+        if (
+          (card.type === 'entity' || card.entityId !== undefined) &&
+          (!entityId || !parseProviderScopedId(entityId))
+        )
+          return [];
+        seen.add(card.id);
+        return [
+          {
+            id: card.id,
+            type: card.type as CompanionCardType,
+            ...(entityId && parseProviderScopedId(entityId) ? { entityId } : {}),
+            ...(typeof card.text === 'string' ? { text: card.text.slice(0, 4000) } : {}),
+            ...(card.size === 'small' || card.size === 'medium-vertical'
+              ? { size: card.size }
+              : {}),
+          },
+        ];
+      })
+    : undefined;
   return {
+    ...(cards ? { cards } : {}),
     cameraEntityId: selection('cameraEntityId'),
     weatherEntityId: selection('weatherEntityId'),
     showSecurity: typeof input.showSecurity === 'boolean' ? input.showSecurity : true,
   };
+}
+
+/** Preserve legacy source choices until the panel is first edited. */
+export function getCompanionCards(settings: DashboardCompanionSettings): CompanionCard[] {
+  if (settings.cards) return settings.cards;
+  return [
+    { id: 'greeting', type: 'greeting' },
+    { id: 'clock', type: 'clock' },
+    ...(settings.cameraEntityId !== null
+      ? [
+          {
+            id: 'camera',
+            type: 'camera' as const,
+            ...(settings.cameraEntityId ? { entityId: settings.cameraEntityId } : {}),
+          },
+        ]
+      : []),
+    ...(settings.weatherEntityId !== null
+      ? [
+          {
+            id: 'weather',
+            type: 'weather' as const,
+            ...(settings.weatherEntityId ? { entityId: settings.weatherEntityId } : {}),
+          },
+        ]
+      : []),
+    ...(settings.showSecurity ? [{ id: 'security', type: 'security' as const }] : []),
+  ];
 }
 
 export interface NavetDashboardDefinition {

@@ -46,6 +46,7 @@ import {
   type RoomNavigationGroup,
   resolveRoomNavigationGroups,
 } from './room-nav.utils';
+import { useRoomNavActions } from './room-nav-actions-context';
 import { RoomOrderDialog } from './room-order-dialog';
 
 const ROOM_NAV_GAP_PX = 8;
@@ -324,6 +325,7 @@ export const RoomNav = memo(function RoomNav({
   suppressEditActions = false,
   showCustomizeButton = true,
 }: RoomNavProps) {
+  const appActions = useRoomNavActions();
   const { t } = useI18n();
   const { theme, accentColor } = useTheme();
   const manageableRoomsByProviderId = useIntegrationStore(
@@ -799,7 +801,7 @@ export const RoomNav = memo(function RoomNav({
               />
             ) : null}
 
-            {showEditActions && showCustomizeButton ? (
+            {showEditActions && showCustomizeButton && !appActions ? (
               <InteractivePill
                 onClick={onToggleEditMode}
                 active={isEditMode}
@@ -836,6 +838,7 @@ export const RoomNav = memo(function RoomNav({
                 )}
               </InteractivePill>
             ) : null}
+            {appActions}
           </div>
         </div>
       </div>

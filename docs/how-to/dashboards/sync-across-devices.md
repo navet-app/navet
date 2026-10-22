@@ -53,7 +53,7 @@ Use this when another screen should start with the same kiosk, visual-quality, a
 but remain independent afterward.
 
 1. Configure the source screen the way you want.
-2. Open **Settings → System → Device settings**.
+2. Open **Settings → Display & controls → Device settings**.
 3. Choose **Copy settings once**.
 4. Select the destination screens and choose **Copy settings**.
 
@@ -64,7 +64,7 @@ Later changes on either screen do not affect the other.
 Use a sync group for wall panels that should continue to share kiosk mode, visual quality, and
 layout.
 
-1. Under **Device settings**, choose **Keep devices in sync**.
+1. Under **Device settings**, choose **Keep settings synced**.
 2. Enter a recognizable group name such as **Wall displays**.
 3. Select the devices that should share those settings.
 4. Save the group.

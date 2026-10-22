@@ -1,5 +1,6 @@
 import { useI18n, useMediaQuery, usePersistedState } from '@navet/app/hooks';
-import { Hand, Info, Languages, LayoutGrid, Palette, Server } from 'lucide-react';
+import { isHomeAssistantPanelMode, supportsDeviceAuthorization } from '@navet/app/runtime/app-mode';
+import { Info, Languages, LayoutGrid, Monitor, Palette, Server } from 'lucide-react';
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useSettingsSectionController } from '../hooks/use-settings-section-controller';
 import {
@@ -42,8 +43,8 @@ export function SettingsSection({
       [
         { id: 'appearance', label: t('settings.nav.appearance'), icon: Palette },
         { id: 'localization', label: t('settings.nav.localization'), icon: Languages },
-        { id: 'interaction', label: t('settings.nav.interaction'), icon: Hand },
         { id: 'dashboard', label: t('settings.nav.dashboard'), icon: LayoutGrid },
+        { id: 'interaction', label: t('settings.nav.interaction'), icon: Monitor },
         { id: 'system', label: t('settings.nav.system'), icon: Server },
         { id: 'project', label: t('settings.project.sectionTitle'), icon: Info },
       ].filter(({ id }) => !hiddenTabSet.has(id)),
@@ -96,14 +97,19 @@ export function SettingsSection({
     });
 
     return [
-      createGroup('personal', ['appearance', 'localization', 'interaction']),
-      createGroup('dashboard', ['dashboard'], t('settings.nav.dashboard')),
+      createGroup('personal', ['appearance', 'localization']),
+      createGroup('dashboard', ['dashboard', 'interaction'], t('settings.nav.dashboard')),
       createGroup('navet', ['system', 'project'], 'Navet'),
     ].filter((group) => group.items.length > 0);
   }, [navItems, t]);
   const searchItems = useMemo(
-    () => createSettingsSearchItems(t).filter((item) => !hiddenTabSet.has(item.sectionId)),
-    [hiddenTabSet, t]
+    () =>
+      createSettingsSearchItems(t, {
+        authorizedDevices: supportsDeviceAuthorization(),
+        browserZoom: !isHomeAssistantPanelMode(),
+        kioskSwipeRooms: controller.kioskMode,
+      }).filter((item) => !hiddenTabSet.has(item.sectionId)),
+    [hiddenTabSet, t, controller.kioskMode]
   );
 
   const selectTab = (value: string) => {

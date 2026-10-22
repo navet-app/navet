@@ -1,15 +1,18 @@
-import { useEffect } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 import { useChoreWorkspaceStore } from './chore-workspace-store';
 
 const VISIBLE_REFRESH_INTERVAL_MS = 30_000;
 
+export const ChoreWorkspaceSyncContext = createContext(true);
+
 export function useChoreWorkspaceSync(enabled = true) {
+  const syncAllowed = useContext(ChoreWorkspaceSyncContext);
   const load = useChoreWorkspaceStore((state) => state.load);
 
   const subscribeWorkspace = useChoreWorkspaceStore((state) => state.subscribeWorkspace);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !syncAllowed) return;
     void load();
     const unsubscribe = subscribeWorkspace();
     let lastRefreshDay = new Date().toDateString();
@@ -27,5 +30,5 @@ export function useChoreWorkspaceSync(enabled = true) {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [enabled, load, subscribeWorkspace]);
+  }, [enabled, syncAllowed, load, subscribeWorkspace]);
 }

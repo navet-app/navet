@@ -16,6 +16,7 @@ import type {
   PlatformTaskRuntimeSnapshot,
 } from '@navet/core/provider-feature-models';
 import type {
+  ProviderCalendarFeatureService,
   ProviderClimateFeatureService,
   ProviderHistoryFeatureService,
   ProviderLightFeatureService,
@@ -1298,6 +1299,38 @@ async function executePreviewCommand(entity: NavetEntity, command: NavetCommand)
   );
 }
 
+const previewCalendarFeatureService: ProviderCalendarFeatureService = {
+  getCapabilities: (entityId) => ({
+    canCreate: false,
+    available:
+      getActiveScenario()?.entities.some(
+        (entity) =>
+          entity.type === 'calendar' &&
+          (entity.externalId === entityId || entity.canonicalId === entityId) &&
+          entity.availability === 'available'
+      ) ?? false,
+  }),
+  getEvents: async (entityId) => {
+    const entity = getActiveScenario()?.entities.find(
+      (entity) =>
+        entity.type === 'calendar' &&
+        (entity.externalId === entityId || entity.canonicalId === entityId)
+    );
+    const events = entity?.attributes.events;
+    if (entity?.availability !== 'available' || !Array.isArray(events)) return [];
+    return events.flatMap((event) => {
+      if (!event || typeof event !== 'object') return [];
+      return [
+        {
+          ...event,
+          start: event.startDateTime ?? event.start,
+          end: event.endDateTime ?? event.end,
+        },
+      ];
+    });
+  },
+};
+
 const previewLightFeatureService: ProviderLightFeatureService = {
   updateLight: async (entityId, options) => {
     updatePreviewEntity(entityId, (entity) => ({
@@ -1533,7 +1566,17 @@ const previewMediaFeatureService: ProviderMediaFeatureService = {
   selectMediaPlayerSoundMode: async () => undefined,
   seekMediaPlayer: async () => undefined,
   clearMediaPlayerPlaylist: async () => undefined,
-  updateMediaPlayerPower: async () => undefined,
+  updateMediaPlayerPower: async (entityId, state) => {
+    updatePreviewEntity(entityId, (entity) => ({
+      ...entity,
+      primaryState: state === 'on' ? 'idle' : 'off',
+      attributes: {
+        ...entity.attributes,
+        value: state === 'on' ? 'idle' : 'off',
+        isPoweredOn: state === 'on',
+      },
+    }));
+  },
   sendRemoteCommand: async () => undefined,
   browseMediaSource: async (mediaContentId) => getPreviewMediaBrowseResult(mediaContentId),
   resolveMediaSource: async (mediaContentId) => ({ url: mediaContentId }),
@@ -1770,6 +1813,7 @@ const previewProviderPackageRegistration: ProviderPackageRegistration = {
     },
     lightFeatureService: previewLightFeatureService,
     climateFeatureService: previewClimateFeatureService,
+    calendarFeatureService: previewCalendarFeatureService,
     mediaFeatureService: previewMediaFeatureService,
     securityFeatureService: previewSecurityFeatureService,
     historyFeatureService: previewHistoryFeatureService,

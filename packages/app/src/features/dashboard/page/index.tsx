@@ -18,9 +18,11 @@ import { DashboardSectionRouter } from '../components/dashboard-section-router';
 import { useDashboardCollectionStore } from '../dashboards/dashboard-collection-store';
 import { useDashboardController } from '../hooks/use-dashboard-controller';
 import { useDashboardProfileSync } from '../hooks/use-dashboard-profile-sync';
+import { useScreensaverStore } from '../screensaver/screensaver-store';
 
 export function DashboardPage() {
   const { t } = useI18n();
+  const screensaverActive = useScreensaverStore((state) => state.active);
   const appError = useErrorStore(appErrorSelectors.error);
   const setAppError = useErrorStore(appErrorSelectors.setError);
   const clearAppError = useErrorStore(appErrorSelectors.clearError);
@@ -104,6 +106,7 @@ export function DashboardPage() {
       page.activeSection === 'home' &&
       !page.isEditMode &&
       !companionCustomizationOpen &&
+      !screensaverActive &&
       !page.showAddCardDialog &&
       !page.showAddEntityDialog
     ) {
@@ -117,6 +120,7 @@ export function DashboardPage() {
     page.showAddCardDialog,
     page.showAddEntityDialog,
     pendingAssignedDashboardId,
+    screensaverActive,
   ]);
 
   if (!isDashboardReady) {

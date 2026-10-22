@@ -14,7 +14,8 @@ function LocalizationStory() {
 }
 
 const meta = {
-  title: 'Pages/Settings/Localization',
+  id: 'pages-settings-localization',
+  title: 'Pages/Settings/Language & units',
   component: LocalizationStory,
   tags: ['autodocs'],
   parameters: {
@@ -22,7 +23,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Localization settings tab — language, time format (12h/24h), and temperature unit.',
+          'Language and units settings tab — language, time format (12h/24h), and temperature unit.',
       },
     },
   },

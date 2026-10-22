@@ -1,4 +1,5 @@
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import type { CompanionRowPresentation } from '@navet/app/components/shared/companion-row-presentation';
 import type { DeviceMetric } from '@navet/app/types/device.types';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import type { ReactNode } from 'react';
@@ -25,4 +26,5 @@ export interface SwitchCardProps {
   energy?: number;
   metrics?: DeviceMetric[];
   isEditMode?: boolean;
+  companion?: CompanionRowPresentation;
 }

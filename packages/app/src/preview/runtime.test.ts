@@ -156,6 +156,38 @@ describe('preview runtime', () => {
     );
   });
 
+  it('exposes supported preview capabilities for compact device controls', () => {
+    const entities = getPreviewRuntimeScenario('demo').entities;
+    expect(
+      entities.find((entity) => entity.externalId === 'light.kitchen_island')?.capabilities
+    ).toEqual(expect.arrayContaining(['toggle', 'brightness']));
+    expect(
+      entities.find((entity) => entity.externalId === 'climate.main_floor')?.capabilities
+    ).toContain('temperature_setpoint');
+    const media = entities.find(
+      (entity) => entity.externalId === 'media_player.living_room_speaker'
+    );
+    expect(media?.capabilities).toContain('media_playback');
+    expect(media?.attributes.mediaCapabilities).toMatchObject({
+      canPlay: true,
+      canPause: true,
+      canNextTrack: true,
+    });
+  });
+
+  it('serves upcoming demo calendar events through the same feature service as the panel', async () => {
+    installPreviewRuntime(getPreviewRuntimeScenario('demo'));
+    const calendar = getProviderRuntimeRegistration('home_assistant').calendarFeatureService;
+    expect(calendar?.getCapabilities?.('calendar.home')).toEqual({
+      canCreate: false,
+      available: true,
+    });
+    const events = await calendar?.getEvents('calendar.home');
+    expect(events?.[0]).toMatchObject({ title: 'School pickup' });
+    expect(Date.parse(String(events?.[0].start))).toBeGreaterThan(Date.now());
+    expect(await calendar?.getEvents('calendar.removed')).toEqual([]);
+  });
+
   it('retains a demo temperature adjustment in the provider snapshot', async () => {
     installPreviewRuntime(getPreviewRuntimeScenario('demo'));
     const climate = getProviderRuntimeRegistration('home_assistant').climateFeatureService;

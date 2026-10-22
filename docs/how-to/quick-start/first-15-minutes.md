@@ -38,7 +38,7 @@ For **all entities** or **blank**, complete setup:
 
 The startup appearance step offers manual themes and built-in wallpapers. After setup,
 **Settings → Appearance** also provides **Auto** appearance, wallpaper upload/replacement, and
-wallpaper removal. Change language and formats later under **Settings → Localization**.
+wallpaper removal. Change language and formats later under **Settings → Language & units**.
 
 If you are trying the public demo, it opens a prepared dashboard instead of this startup wizard.
 Use a connected installation for the complete setup and editing steps in this guide.

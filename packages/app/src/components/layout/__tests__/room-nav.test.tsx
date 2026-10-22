@@ -1,4 +1,5 @@
 import { RoomNav } from '@navet/app/components/layout/room-nav';
+import { RoomNavActionsContext } from '@navet/app/components/layout/room-nav-actions-context';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
@@ -8,6 +9,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
 
 describe('RoomNav', () => {
+  it('hosts shared app actions beside rooms without duplicating Customize', () => {
+    renderWithProviders(
+      <RoomNavActionsContext.Provider value={<button type="button">Customize</button>}>
+        <RoomNav
+          rooms={['Kitchen']}
+          activeRoom="All"
+          onRoomChange={() => {}}
+          isEditMode={false}
+          onToggleEditMode={() => {}}
+        />
+      </RoomNavActionsContext.Provider>
+    );
+    expect(screen.getAllByRole('button', { name: 'Customize' })).toHaveLength(1);
+  });
+
   beforeEach(async () => {
     await resetAppStores();
   });

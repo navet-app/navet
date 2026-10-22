@@ -11,7 +11,7 @@ configuration.
 
 ## Export a backup
 
-1. Open **Settings → Dashboard**.
+1. Open **Settings → System**.
 2. Find **Local config backup**.
 3. Choose **Export config**.
 4. Store the downloaded file somewhere you control.

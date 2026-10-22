@@ -14,8 +14,8 @@ entity from the provider.
 1. Open **Settings → Dashboard**.
 2. Find **Entity visibility**.
 3. Review the hidden-entity summary.
-4. Choose **Add all removed entities**.
-5. Confirm **Add all**.
+4. Choose **Restore entities**.
+5. Restore an individual entity or choose **Restore all**.
 
 Navet restores eligible automatically generated cards. You can hide individual cards again in Home
 edit mode.
@@ -23,7 +23,7 @@ edit mode.
 ## Restart onboarding
 
 1. Open **Settings → Dashboard**.
-2. Under **Maintenance → Entity visibility**, choose **Restart onboarding**.
+2. Under **Setup**, choose **Restart onboarding**.
 3. Read the confirmation, then choose **Restart**.
 4. Navet returns to Home and reopens the startup wizard when provider entities are loaded.
 

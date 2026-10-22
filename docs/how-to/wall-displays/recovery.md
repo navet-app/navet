@@ -15,7 +15,7 @@ not load.
 2. Choose **Kiosk behavior**.
 3. Choose **Exit kiosk mode**.
 
-You can also open **Settings → Dashboard**, then choose **Standard** under **Display preset** or
+You can also open **Settings → Display & controls**, then choose **Standard** under **Display preset** or
 turn off **Kiosk mode**.
 
 If Home Assistant's outer chrome is also hidden, change or remove the optional shell module
@@ -23,7 +23,7 @@ configuration from Home Assistant.
 
 ## Check keep-awake
 
-Open **Settings → Dashboard → Keep device awake** and read the status:
+Open **Settings → Display & controls → Keep device awake** and read the status:
 
 - **Active via browser wake lock** needs no action.
 - **Active via silent audio fallback** is working through the fallback.

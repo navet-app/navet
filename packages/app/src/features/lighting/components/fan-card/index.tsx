@@ -8,6 +8,7 @@ import { getCardActionControlSizes } from '@navet/app/components/shared/card-act
 import { CardControlNumberBadge } from '@navet/app/components/shared/card-control-number-badge';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
+import type { CompanionRowPresentation } from '@navet/app/components/shared/companion-row-presentation';
 import { BrightnessSlider } from '@navet/app/components/shared/device-editor';
 import { getBrightnessPresetSelectedStyle } from '@navet/app/components/shared/device-editor/brightness-preset-styles';
 import { selectRelatedHelpers } from '@navet/app/components/shared/device-editor/entity-helper-controls';
@@ -16,6 +17,7 @@ import { useEntityCardInteractionController } from '@navet/app/components/shared
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
 import { getCardStateSurfaceTokens } from '@navet/app/components/shared/theme/card-state-surface-tokens';
 import { getRoundControlStyles } from '@navet/app/components/shared/theme/round-control-styles';
+import { LightCardTableRow } from '@navet/app/features/lighting/components/light-card/light-card-table-row';
 import {
   useI18n,
   useIntegrationStore,
@@ -47,7 +49,10 @@ interface FanCardProps {
   size: CardSize;
   onSizeChange: (id: string, size: CardSize) => void;
   isEditMode: boolean;
+  companion?: CompanionRowPresentation;
 }
+
+const ignoreRowBrightness = () => {};
 
 type FanSpeed = 'low' | 'medium' | 'high';
 
@@ -127,6 +132,7 @@ export const FanCard = memo(function FanCard({
   size,
   onSizeChange: _onSizeChange,
   isEditMode,
+  companion,
 }: FanCardProps) {
   const { t } = useI18n();
   const { theme, colors, accentColor } = useTheme();
@@ -197,6 +203,7 @@ export const FanCard = memo(function FanCard({
       ).length > 0
   );
   const showsSettingsButton =
+    Boolean(companion) ||
     supportsFanSpeed ||
     hasAdvancedFanControls ||
     siblingEntities.length > 0 ||
@@ -365,296 +372,318 @@ export const FanCard = memo(function FanCard({
 
   return (
     <>
-      <BaseCard
-        size={resolvedSize}
-        {...cardInteraction.cardProps}
-        interactive={!isEditMode}
-        isActive={isOn && theme !== 'black'}
-        activeColor={surfaceTokens.glowColor}
-        className={`relative z-10 ${CARD_VISUAL_TRANSITION_CLASS} ${!isEditMode ? 'cursor-pointer' : ''}`}
-        frameClassName={`${cardShell.rootFrameClassName} ${surfaceTokens.cardClassName}`}
-        style={surfaceTokens.cardStyle}
-        disableDefaultSheen
-        overlay={
-          <>
-            {surfaceTokens.activeGlowClassName ? (
-              <div
-                className={surfaceTokens.activeGlowClassName}
-                style={surfaceTokens.activeGlowStyle}
-              />
-            ) : null}
-            {surfaceTokens.innerOverlayClassName ? (
-              <div
-                className={surfaceTokens.innerOverlayClassName}
-                style={surfaceTokens.innerOverlayStyle}
-              />
-            ) : null}
-            {surfaceTokens.shineOverlayClassName ? (
-              <div className={surfaceTokens.shineOverlayClassName} />
-            ) : null}
-          </>
-        }
-        contentClassName="h-full"
-      >
-        <div className="relative h-full flex flex-col">
-          <EntityCardHeader
-            title={name}
-            subtitle={t('climate.mode.fan')}
-            layout="eyebrow-first"
-            size={isSmall ? resolvedSize : 'medium'}
-            compact={isExtraSmall}
-            tone={isOn ? 'primary' : 'neutral'}
-            accentColor={surfaceTokens.contentAccentColor}
-            titleClassName={stateSurface.primaryTextClassName}
-            subtitleClassName={stateSurface.mutedTextClassName}
-            titleStyle={useInverseForeground ? { color: '#ffffff' } : undefined}
-            subtitleStyle={useInverseForeground ? { color: 'rgba(255,255,255,0.76)' } : undefined}
-            leading={
-              <EntityCardHeaderIcon
-                IconComponent={FanIcon}
-                isActive={isOn}
-                size={isExtraSmall ? 'tiny' : isSmall ? resolvedSize : 'medium'}
-                tone={isOn ? 'primary' : 'neutral'}
-                baseColor={surfaceTokens.contentAccentColor}
-                themeOverride={effectiveTheme}
-                inverseSurface={useInverseForeground}
-                ariaLabel={cardInteraction.iconButtonProps['aria-label']}
-                onClick={cardInteraction.iconButtonProps.onClick}
-              />
-            }
-          />
+      {companion ? (
+        <LightCardTableRow
+          compact
+          name={name}
+          isOn={isOn}
+          brightness={0}
+          supportsBrightness={false}
+          IconComponent={HeaderIconComponent}
+          isEditMode={isEditMode}
+          disabled={companion.disabled}
+          stateLabel={companion.value}
+          cardInteraction={cardInteraction}
+          iconButtonProps={cardInteraction.iconButtonProps}
+          onBrightnessChange={ignoreRowBrightness}
+          onBrightnessCommit={ignoreRowBrightness}
+        />
+      ) : (
+        <BaseCard
+          size={resolvedSize}
+          {...cardInteraction.cardProps}
+          interactive={!isEditMode}
+          isActive={isOn && theme !== 'black'}
+          activeColor={surfaceTokens.glowColor}
+          className={`relative z-10 ${CARD_VISUAL_TRANSITION_CLASS} ${!isEditMode ? 'cursor-pointer' : ''}`}
+          frameClassName={`${cardShell.rootFrameClassName} ${surfaceTokens.cardClassName}`}
+          style={surfaceTokens.cardStyle}
+          disableDefaultSheen
+          overlay={
+            <>
+              {surfaceTokens.activeGlowClassName ? (
+                <div
+                  className={surfaceTokens.activeGlowClassName}
+                  style={surfaceTokens.activeGlowStyle}
+                />
+              ) : null}
+              {surfaceTokens.innerOverlayClassName ? (
+                <div
+                  className={surfaceTokens.innerOverlayClassName}
+                  style={surfaceTokens.innerOverlayStyle}
+                />
+              ) : null}
+              {surfaceTokens.shineOverlayClassName ? (
+                <div className={surfaceTokens.shineOverlayClassName} />
+              ) : null}
+            </>
+          }
+          contentClassName="h-full"
+        >
+          <div className="relative h-full flex flex-col">
+            <EntityCardHeader
+              title={name}
+              subtitle={t('climate.mode.fan')}
+              layout="eyebrow-first"
+              size={isSmall ? resolvedSize : 'medium'}
+              compact={isExtraSmall}
+              tone={isOn ? 'primary' : 'neutral'}
+              accentColor={surfaceTokens.contentAccentColor}
+              titleClassName={stateSurface.primaryTextClassName}
+              subtitleClassName={stateSurface.mutedTextClassName}
+              titleStyle={useInverseForeground ? { color: '#ffffff' } : undefined}
+              subtitleStyle={useInverseForeground ? { color: 'rgba(255,255,255,0.76)' } : undefined}
+              leading={
+                <EntityCardHeaderIcon
+                  IconComponent={FanIcon}
+                  isActive={isOn}
+                  size={isExtraSmall ? 'tiny' : isSmall ? resolvedSize : 'medium'}
+                  tone={isOn ? 'primary' : 'neutral'}
+                  baseColor={surfaceTokens.contentAccentColor}
+                  themeOverride={effectiveTheme}
+                  inverseSurface={useInverseForeground}
+                  ariaLabel={cardInteraction.iconButtonProps['aria-label']}
+                  onClick={cardInteraction.iconButtonProps.onClick}
+                />
+              }
+            />
 
-          <div className={`flex-1 flex flex-col justify-end ${isExtraSmall ? 'gap-2' : 'gap-4'}`}>
-            {supportsFanSpeed ? (
-              isExtraSmall ? (
-                <div className="flex min-h-5 items-center gap-1.5">
-                  <div className="min-w-0 flex-1">
+            <div className={`flex-1 flex flex-col justify-end ${isExtraSmall ? 'gap-2' : 'gap-4'}`}>
+              {supportsFanSpeed ? (
+                isExtraSmall ? (
+                  <div className="flex min-h-5 items-center gap-1.5">
+                    <div className="min-w-0 flex-1">
+                      <BrightnessSlider
+                        value={displayedPercentage}
+                        onChange={previewSpeed}
+                        onCommit={updateSpeed}
+                        isOn={isOn}
+                        min={0}
+                        size="extra-small"
+                        showLabel={false}
+                        activeColor={surfaceTokens.contentAccentColor}
+                        labelKey="lighting.fanSpeed"
+                      />
+                    </div>
+
+                    {showsSettingsButton ? (
+                      <CardSettingsActionButton
+                        {...cardInteraction.settingsButtonProps}
+                        theme={effectiveTheme}
+                        size="extra-small"
+                        tone={isOn ? 'default' : 'muted'}
+                        variant="soft"
+                      />
+                    ) : null}
+                  </div>
+                ) : (
+                  <>
                     <BrightnessSlider
                       value={displayedPercentage}
                       onChange={previewSpeed}
                       onCommit={updateSpeed}
                       isOn={isOn}
                       min={0}
-                      size="extra-small"
-                      showLabel={false}
+                      size={sliderSize}
+                      showLabel
                       activeColor={surfaceTokens.contentAccentColor}
                       labelKey="lighting.fanSpeed"
                     />
-                  </div>
-
-                  {showsSettingsButton ? (
-                    <CardSettingsActionButton
-                      {...cardInteraction.settingsButtonProps}
+                    <CardActionRow
                       theme={effectiveTheme}
-                      size="extra-small"
-                      tone={isOn ? 'default' : 'muted'}
-                      variant="soft"
-                    />
-                  ) : null}
-                </div>
-              ) : (
-                <>
-                  <BrightnessSlider
-                    value={displayedPercentage}
-                    onChange={previewSpeed}
-                    onCommit={updateSpeed}
-                    isOn={isOn}
-                    min={0}
-                    size={sliderSize}
-                    showLabel
-                    activeColor={surfaceTokens.contentAccentColor}
-                    labelKey="lighting.fanSpeed"
-                  />
-                  <CardActionRow
-                    theme={effectiveTheme}
-                    size={isSmall ? 'small' : 'medium'}
-                    leftContent={
-                      hasActionRowButtons ? (
-                        <CardActionRowGroup>
-                          {fanDirection !== undefined ? (
-                            <button
-                              type="button"
-                              aria-label={t('lighting.fanDirection', { direction: directionLabel })}
-                              aria-pressed={isOn && directionIsReverse}
-                              disabled={!isOn}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void setFanDirection(directionIsReverse ? 'forward' : 'reverse');
-                              }}
-                              style={
-                                isOn && directionIsReverse
-                                  ? getBrightnessPresetSelectedStyle(
-                                      effectiveTheme,
-                                      activeSpeedColor,
-                                      isOn
-                                    )
-                                  : undefined
-                              }
-                              className={`${actionSize.button} relative flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 ${
-                                !isOn
-                                  ? directionIsReverse
-                                    ? disabledSelectedClasses
-                                    : roundControl.softDisabledButton
-                                  : directionIsReverse
-                                    ? roundControl.selectedText
-                                    : `${roundControl.softButton} cursor-pointer hover:scale-105 active:scale-95`
-                              }`}
-                            >
-                              {directionIsReverse ? (
-                                <RotateCcw className={actionSize.icon} aria-hidden="true" />
-                              ) : (
-                                <RotateCw className={actionSize.icon} aria-hidden="true" />
-                              )}
-                            </button>
-                          ) : null}
-                          {fanOscillating !== undefined ? (
-                            <button
-                              type="button"
-                              aria-label={t('lighting.fanOscillation', {
-                                state: t(fanOscillating ? 'common.on' : 'common.off'),
-                              })}
-                              aria-pressed={isOn && fanOscillating}
-                              disabled={!isOn}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void setFanOscillation(!fanOscillating);
-                              }}
-                              style={
-                                isOn && fanOscillating
-                                  ? getBrightnessPresetSelectedStyle(
-                                      effectiveTheme,
-                                      activeSpeedColor,
-                                      isOn
-                                    )
-                                  : undefined
-                              }
-                              className={`${actionSize.button} relative flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 ${
-                                !isOn
-                                  ? fanOscillating
-                                    ? disabledSelectedClasses
-                                    : roundControl.softDisabledButton
-                                  : fanOscillating
-                                    ? roundControl.selectedText
-                                    : `${roundControl.softButton} cursor-pointer hover:scale-105 active:scale-95`
-                              }`}
-                            >
-                              <Wind className={actionSize.icon} aria-hidden="true" />
-                            </button>
-                          ) : null}
-                          {showFanPresets
-                            ? FAN_SPEED_ACTIONS.map(({ speed, labelKey }) => {
-                                const active = activeSpeed === speed;
+                      size={isSmall ? 'small' : 'medium'}
+                      leftContent={
+                        hasActionRowButtons ? (
+                          <CardActionRowGroup>
+                            {fanDirection !== undefined ? (
+                              <button
+                                type="button"
+                                aria-label={t('lighting.fanDirection', {
+                                  direction: directionLabel,
+                                })}
+                                aria-pressed={isOn && directionIsReverse}
+                                disabled={!isOn}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void setFanDirection(directionIsReverse ? 'forward' : 'reverse');
+                                }}
+                                style={
+                                  isOn && directionIsReverse
+                                    ? getBrightnessPresetSelectedStyle(
+                                        effectiveTheme,
+                                        activeSpeedColor,
+                                        isOn
+                                      )
+                                    : undefined
+                                }
+                                className={`${actionSize.button} relative flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 ${
+                                  !isOn
+                                    ? directionIsReverse
+                                      ? disabledSelectedClasses
+                                      : roundControl.softDisabledButton
+                                    : directionIsReverse
+                                      ? roundControl.selectedText
+                                      : `${roundControl.softButton} cursor-pointer hover:scale-105 active:scale-95`
+                                }`}
+                              >
+                                {directionIsReverse ? (
+                                  <RotateCcw className={actionSize.icon} aria-hidden="true" />
+                                ) : (
+                                  <RotateCw className={actionSize.icon} aria-hidden="true" />
+                                )}
+                              </button>
+                            ) : null}
+                            {fanOscillating !== undefined ? (
+                              <button
+                                type="button"
+                                aria-label={t('lighting.fanOscillation', {
+                                  state: t(fanOscillating ? 'common.on' : 'common.off'),
+                                })}
+                                aria-pressed={isOn && fanOscillating}
+                                disabled={!isOn}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void setFanOscillation(!fanOscillating);
+                                }}
+                                style={
+                                  isOn && fanOscillating
+                                    ? getBrightnessPresetSelectedStyle(
+                                        effectiveTheme,
+                                        activeSpeedColor,
+                                        isOn
+                                      )
+                                    : undefined
+                                }
+                                className={`${actionSize.button} relative flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 ${
+                                  !isOn
+                                    ? fanOscillating
+                                      ? disabledSelectedClasses
+                                      : roundControl.softDisabledButton
+                                    : fanOscillating
+                                      ? roundControl.selectedText
+                                      : `${roundControl.softButton} cursor-pointer hover:scale-105 active:scale-95`
+                                }`}
+                              >
+                                <Wind className={actionSize.icon} aria-hidden="true" />
+                              </button>
+                            ) : null}
+                            {showFanPresets
+                              ? FAN_SPEED_ACTIONS.map(({ speed, labelKey }) => {
+                                  const active = activeSpeed === speed;
 
-                                return (
-                                  <button
-                                    key={speed}
-                                    type="button"
-                                    aria-label={t('lighting.fanPreset', { preset: t(labelKey) })}
-                                    aria-pressed={active}
-                                    disabled={!isOn}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      updateSpeedPreset(speed);
-                                    }}
-                                    style={
-                                      active
-                                        ? getBrightnessPresetSelectedStyle(
-                                            effectiveTheme,
-                                            activeSpeedColor,
-                                            isOn
-                                          )
-                                        : undefined
+                                  return (
+                                    <button
+                                      key={speed}
+                                      type="button"
+                                      aria-label={t('lighting.fanPreset', { preset: t(labelKey) })}
+                                      aria-pressed={active}
+                                      disabled={!isOn}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        updateSpeedPreset(speed);
+                                      }}
+                                      style={
+                                        active
+                                          ? getBrightnessPresetSelectedStyle(
+                                              effectiveTheme,
+                                              activeSpeedColor,
+                                              isOn
+                                            )
+                                          : undefined
+                                      }
+                                      className={`${actionSize.button} relative flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 ${
+                                        !isOn
+                                          ? active
+                                            ? disabledSelectedClasses
+                                            : roundControl.softDisabledButton
+                                          : active
+                                            ? roundControl.selectedText
+                                            : `${roundControl.softButton} cursor-pointer hover:scale-105 active:scale-95`
+                                      }`}
+                                    >
+                                      <FanSpeedPresetContent speed={speed} isSmall={isSmall} />
+                                    </button>
+                                  );
+                                })
+                              : null}
+                            {showSpeedCycle ? (
+                              <button
+                                type="button"
+                                disabled={!isOn}
+                                aria-label={`${t('lighting.fanSpeed')}: ${
+                                  activeSpeed
+                                    ? t(`lighting.fanSpeed.${activeSpeed}`)
+                                    : t('common.off')
+                                }`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  const currentIndex = FAN_SPEED_ACTIONS.findIndex(
+                                    (preset) => preset.speed === activeSpeed
+                                  );
+                                  const next =
+                                    FAN_SPEED_ACTIONS[
+                                      (currentIndex + 1) % FAN_SPEED_ACTIONS.length
+                                    ];
+                                  updateSpeedPreset(next.speed);
+                                }}
+                                className={`${actionSize.button} relative flex shrink-0 items-center justify-center rounded-full transition-colors ${
+                                  isOn ? roundControl.softButton : roundControl.softDisabledButton
+                                }`}
+                              >
+                                <Fan className={actionSize.icon} aria-hidden="true" />
+                                {activeSpeed ? (
+                                  <CardControlNumberBadge
+                                    value={
+                                      FAN_SPEED_ACTIONS.findIndex(
+                                        (preset) => preset.speed === activeSpeed
+                                      ) + 1
                                     }
-                                    className={`${actionSize.button} relative flex shrink-0 items-center justify-center rounded-full transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300 ${
-                                      !isOn
-                                        ? active
-                                          ? disabledSelectedClasses
-                                          : roundControl.softDisabledButton
-                                        : active
-                                          ? roundControl.selectedText
-                                          : `${roundControl.softButton} cursor-pointer hover:scale-105 active:scale-95`
-                                    }`}
-                                  >
-                                    <FanSpeedPresetContent speed={speed} isSmall={isSmall} />
-                                  </button>
-                                );
-                              })
-                            : null}
-                          {showSpeedCycle ? (
-                            <button
-                              type="button"
-                              disabled={!isOn}
-                              aria-label={`${t('lighting.fanSpeed')}: ${
-                                activeSpeed
-                                  ? t(`lighting.fanSpeed.${activeSpeed}`)
-                                  : t('common.off')
-                              }`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                const currentIndex = FAN_SPEED_ACTIONS.findIndex(
-                                  (preset) => preset.speed === activeSpeed
-                                );
-                                const next =
-                                  FAN_SPEED_ACTIONS[(currentIndex + 1) % FAN_SPEED_ACTIONS.length];
-                                updateSpeedPreset(next.speed);
-                              }}
-                              className={`${actionSize.button} relative flex shrink-0 items-center justify-center rounded-full transition-colors ${
-                                isOn ? roundControl.softButton : roundControl.softDisabledButton
-                              }`}
-                            >
-                              <Fan className={actionSize.icon} aria-hidden="true" />
-                              {activeSpeed ? (
-                                <CardControlNumberBadge
-                                  value={
-                                    FAN_SPEED_ACTIONS.findIndex(
-                                      (preset) => preset.speed === activeSpeed
-                                    ) + 1
-                                  }
-                                />
-                              ) : null}
-                            </button>
-                          ) : null}
-                        </CardActionRowGroup>
-                      ) : undefined
-                    }
-                    rightContent={
-                      showsSettingsButton ? (
-                        <div className="relative z-[3]">
-                          <CardSettingsActionButton
-                            {...cardInteraction.settingsButtonProps}
-                            theme={effectiveTheme}
-                            size={isSmall ? 'small' : 'medium'}
-                            tone={isOn ? 'default' : 'muted'}
-                            variant="soft"
-                          />
-                        </div>
-                      ) : undefined
-                    }
-                  />
-                </>
-              )
-            ) : showsSettingsButton ? (
-              <CardActionRow
-                theme={effectiveTheme}
-                size={isSmall ? 'small' : 'medium'}
-                rightContent={
-                  showsSettingsButton ? (
-                    <div className="relative z-[3]">
-                      <CardSettingsActionButton
-                        {...cardInteraction.settingsButtonProps}
-                        theme={effectiveTheme}
-                        size={isSmall ? 'small' : 'medium'}
-                        tone={isOn ? 'default' : 'muted'}
-                        variant="soft"
-                      />
-                    </div>
-                  ) : undefined
-                }
-              />
-            ) : null}
+                                  />
+                                ) : null}
+                              </button>
+                            ) : null}
+                          </CardActionRowGroup>
+                        ) : undefined
+                      }
+                      rightContent={
+                        showsSettingsButton ? (
+                          <div className="relative z-[3]">
+                            <CardSettingsActionButton
+                              {...cardInteraction.settingsButtonProps}
+                              theme={effectiveTheme}
+                              size={isSmall ? 'small' : 'medium'}
+                              tone={isOn ? 'default' : 'muted'}
+                              variant="soft"
+                            />
+                          </div>
+                        ) : undefined
+                      }
+                    />
+                  </>
+                )
+              ) : showsSettingsButton ? (
+                <CardActionRow
+                  theme={effectiveTheme}
+                  size={isSmall ? 'small' : 'medium'}
+                  rightContent={
+                    showsSettingsButton ? (
+                      <div className="relative z-[3]">
+                        <CardSettingsActionButton
+                          {...cardInteraction.settingsButtonProps}
+                          theme={effectiveTheme}
+                          size={isSmall ? 'small' : 'medium'}
+                          tone={isOn ? 'default' : 'muted'}
+                          variant="soft"
+                        />
+                      </div>
+                    ) : undefined
+                  }
+                />
+              ) : null}
+            </div>
           </div>
-        </div>
-      </BaseCard>
+        </BaseCard>
+      )}
 
       {showsSettingsButton ? (
         <FanSettingsDialog

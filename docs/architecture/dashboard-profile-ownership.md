@@ -52,10 +52,14 @@ The installation has one revisioned shared profile. It contains the household-fa
 collection: named Home dashboards, their order, the workspace default, and assignments from
 registered dashboard-client IDs to dashboard IDs. Each dashboard owns its Home card membership,
 room-navigation scope, layout, sections, card sizes, custom-card instances, zone assignments, and
-companion-panel camera/weather selections and security-status visibility. Companion selections
-stay the same between rooms and can differ between Home dashboards. The panel’s enabled and
-collapsed states are device preferences; enabling, disabling, opening or collapsing it never writes
-the shared dashboard profile.
+ordered companion-panel items, their device references and note content. Saved card sizes remain
+readable for compatibility; panel presentation uses compact data rows. Legacy camera/weather
+selections and security visibility remain readable and follow panel edits for other consuming
+surfaces. Panel content stays the same between rooms and can differ between Home dashboards. Its
+compact editing controls appear only during dashboard customization; item configuration uses
+focused dialogs. The panel’s enabled and collapsed states are device preferences; enabling, disabling, opening or collapsing it never writes
+the shared dashboard profile. Screensaver enablement is also a device preference; its active
+state and idle timer are runtime-only.
 Theme, room organization, weather presentation defaults, and shared custom actions that pass export
 security filtering remain workspace-wide. Camera transport and presentation preferences remain
 device-owned because panel capabilities differ.

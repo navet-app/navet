@@ -58,6 +58,7 @@ export interface UserSettings {
   temperatureUnit: 'celsius' | 'fahrenheit';
   defaultView: 'all' | string;
   compactMode: boolean;
+  screensaverEnabled: boolean;
   companionEnabled: boolean;
   companionCollapsed: boolean;
   kioskMode: boolean;
@@ -122,6 +123,7 @@ export const defaultSettings: UserSettings = {
   temperatureUnit: 'fahrenheit',
   defaultView: 'all',
   compactMode: false,
+  screensaverEnabled: false,
   companionEnabled: true,
   companionCollapsed: false,
   kioskMode: false,

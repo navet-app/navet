@@ -11,7 +11,7 @@ instead of requiring each option to be changed separately.
 
 ## Apply the preset
 
-1. Open **Settings → Dashboard** on the display.
+1. Open **Settings → Display & controls** on the display.
 2. Under **Display preset**, choose **Wall display**.
 
 The preset enables:
@@ -23,7 +23,7 @@ The preset enables:
 - The Home summary bar.
 
 The preset applies to the current device. To reuse the same display behavior elsewhere, use
-**Settings → System → Device settings** to copy it once or link a group of
+**Settings → Display & controls → Device settings** to copy it once or link a group of
 screens.
 
 ## Use Navet in kiosk mode
@@ -55,7 +55,7 @@ the [Home Assistant installation guide](/install/home-assistant/).
 1. Open **Kiosk control** from the bottom-right **More** button.
 2. Choose **Exit kiosk mode**.
 
-You can also open **Settings → Dashboard** and choose the **Standard** display preset.
+You can also open **Settings → Display & controls** and choose the **Standard** display preset.
 
 Keep this recovery path available before mounting a tablet where browser controls are difficult to
 reach.

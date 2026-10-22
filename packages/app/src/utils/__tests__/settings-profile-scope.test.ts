@@ -33,6 +33,20 @@ describe('settings profile scope', () => {
     });
   });
 
+  it('round-trips screensaver opt-in only through device preferences', () => {
+    const settings = { ...defaultSettings, screensaverEnabled: true };
+    const device = projectSettingsPreferenceLayer(settings, 'device');
+    expect(device.settings.screensaverEnabled).toBe(true);
+    expect(projectSettingsPreferenceLayer(settings, 'shared').settings).not.toHaveProperty(
+      'screensaverEnabled'
+    );
+    expect(projectSettingsPreferenceLayer(settings, 'account').settings).not.toHaveProperty(
+      'screensaverEnabled'
+    );
+    applySettingsPreferenceLayerToStore(device, 'device');
+    expect(useSettingsStore.getState().screensaverEnabled).toBe(true);
+  });
+
   it('round-trips companion enablement only through device preferences', () => {
     const settings = { ...defaultSettings, companionEnabled: false };
     const device = projectSettingsPreferenceLayer(settings, 'device');

@@ -102,7 +102,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Dashboard settings grouped by task: dashboard setup, Home content, wall display behavior, and maintenance.',
+          'Dashboard settings grouped by task: dashboard management, shared content, hidden entities, and setup.',
       },
     },
   },

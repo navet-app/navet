@@ -1,48 +1,51 @@
+import { EMPTY_NAVET_MEDIA_CAPABILITIES } from '@navet/app/core/navet-device-state';
 import type { NavetEntity } from '@navet/core/types';
 import { addDemoRoomEntities } from './demo-room-entities';
 
 /** Sample capabilities belong to the public demo, not every isolated story. */
 export function enrichDemoEntities(entities: NavetEntity[]): NavetEntity[] {
-  const enriched = addDemoRoomEntities(entities).map((entity): NavetEntity => {
-    if (entity.externalId === 'fan.bedroom_ceiling') {
-      return {
-        ...entity,
-        capabilities: ['toggle', 'fan_speed'],
-        attributes: {
-          ...entity.attributes,
-          percentage_step: 33,
-          direction: 'forward',
-          oscillating: true,
-        },
-      };
-    }
-    if (entity.externalId === 'climate.main_floor') {
-      return {
-        ...entity,
-        capabilities: [
-          ...entity.capabilities,
-          'climate_preset',
-          'climate_fan_mode',
-          'climate_swing_mode',
-          'climate_swing_horizontal_mode',
-          'climate_target_humidity',
-        ],
-        attributes: {
-          ...entity.attributes,
-          climateControls: {
-            writable: true,
-            preset: { value: 'Comfort', options: ['Comfort', 'Away', 'Sleep'] },
-            fanMode: { value: 'Auto', options: ['Auto', 'Low', 'High'] },
-            swingMode: { value: 'Off', options: ['Off', 'Vertical'] },
-            swingHorizontalMode: { value: 'Off', options: ['Off', 'Horizontal'] },
-            targetHumidity: { value: 45, min: 30, max: 70, step: 1 },
-            currentHumidity: 42,
+  const enriched = addDemoRoomEntities(entities)
+    .map(withDemoControlCapabilities)
+    .map((entity): NavetEntity => {
+      if (entity.externalId === 'fan.bedroom_ceiling') {
+        return {
+          ...entity,
+          capabilities: ['toggle', 'fan_speed'],
+          attributes: {
+            ...entity.attributes,
+            percentage_step: 33,
+            direction: 'forward',
+            oscillating: true,
           },
-        },
-      };
-    }
-    return entity;
-  });
+        };
+      }
+      if (entity.externalId === 'climate.main_floor') {
+        return {
+          ...entity,
+          capabilities: [
+            ...entity.capabilities,
+            'climate_preset',
+            'climate_fan_mode',
+            'climate_swing_mode',
+            'climate_swing_horizontal_mode',
+            'climate_target_humidity',
+          ],
+          attributes: {
+            ...entity.attributes,
+            climateControls: {
+              writable: true,
+              preset: { value: 'Comfort', options: ['Comfort', 'Away', 'Sleep'] },
+              fanMode: { value: 'Auto', options: ['Auto', 'Low', 'High'] },
+              swingMode: { value: 'Off', options: ['Off', 'Vertical'] },
+              swingHorizontalMode: { value: 'Off', options: ['Off', 'Horizontal'] },
+              targetHumidity: { value: 45, min: 30, max: 70, step: 1 },
+              currentHumidity: 42,
+            },
+          },
+        };
+      }
+      return entity;
+    });
   const parent = enriched.find((entity) => entity.externalId === 'light.kitchen_island');
   if (!parent) return enriched;
   const helper = (
@@ -91,4 +94,82 @@ export function enrichDemoEntities(entities: NavetEntity[]): NavetEntity[] {
       'unavailable'
     ),
   ];
+}
+
+/** Match the simulated demo actions without inferring capabilities in product UI. */
+function withDemoControlCapabilities(entity: NavetEntity): NavetEntity {
+  if (entity.type === 'calendar' && Array.isArray(entity.attributes.events))
+    return {
+      ...entity,
+      attributes: {
+        ...entity.attributes,
+        events: entity.attributes.events.flatMap((event, index) => {
+          if (!event || typeof event !== 'object') return [];
+          const start = new Date();
+          start.setDate(start.getDate() + 1 + index);
+          start.setHours(15, 0, 0, 0);
+          const end = new Date(start.getTime() + 30 * 60_000);
+          return [
+            {
+              ...event,
+              startDateTime: start.toISOString(),
+              endDateTime: end.toISOString(),
+              sortKey: start.toISOString(),
+            },
+          ];
+        }),
+      },
+    };
+
+  if (entity.type === 'light')
+    return {
+      ...entity,
+      capabilities: [
+        ...new Set<NavetEntity['capabilities'][number]>([
+          ...entity.capabilities,
+          'toggle',
+          ...(typeof entity.attributes.brightnessPct === 'number' ? ['brightness' as const] : []),
+        ]),
+      ],
+    };
+  if (entity.type === 'hvac')
+    return {
+      ...entity,
+      capabilities: [
+        ...new Set<NavetEntity['capabilities'][number]>([
+          ...entity.capabilities,
+          'temperature_setpoint',
+        ]),
+      ],
+    };
+  if (entity.type === 'switch')
+    return {
+      ...entity,
+      capabilities: [
+        ...new Set<NavetEntity['capabilities'][number]>([...entity.capabilities, 'toggle']),
+      ],
+    };
+  if (entity.type === 'media_player')
+    return {
+      ...entity,
+      capabilities: [
+        ...new Set<NavetEntity['capabilities'][number]>([...entity.capabilities, 'media_playback']),
+      ],
+      attributes: {
+        ...entity.attributes,
+        mediaCapabilities: entity.attributes.mediaCapabilities ?? {
+          ...EMPTY_NAVET_MEDIA_CAPABILITIES,
+          canPlay: true,
+          canTurnOn: true,
+          canTurnOff: true,
+          canPause: true,
+          canNextTrack: true,
+          canPreviousTrack: true,
+          canSetVolume: true,
+          canMuteVolume: true,
+          canGroup: entity.attributes.supportsGrouping === true,
+        },
+      },
+    };
+  return entity;
 }

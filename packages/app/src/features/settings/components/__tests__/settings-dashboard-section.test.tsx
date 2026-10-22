@@ -11,18 +11,8 @@ import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import { fireEvent, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { SettingsDashboardSection } from '../settings-dashboard-section';
-
-const { activateFallbackMock, useKeepDeviceAwakeSnapshotMock } = vi.hoisted(() => ({
-  activateFallbackMock: vi.fn(),
-  useKeepDeviceAwakeSnapshotMock: vi.fn(),
-}));
-
-vi.mock('@navet/app/hooks/use-keep-device-awake', () => ({
-  activateKeepDeviceAwakeFallback: activateFallbackMock,
-  useKeepDeviceAwakeSnapshot: useKeepDeviceAwakeSnapshotMock,
-}));
 
 function TestSection() {
   const controller = useSettingsSectionController();
@@ -32,46 +22,15 @@ function TestSection() {
 describe('SettingsDashboardSection', () => {
   beforeEach(async () => {
     await resetAppStores();
-    activateFallbackMock.mockReset();
-    useKeepDeviceAwakeSnapshotMock.mockReturnValue({
-      enabled: false,
-      mode: 'disabled',
-      canActivateFallback: false,
-    });
   });
 
   it('groups dashboard controls by task', () => {
     renderWithProviders(<TestSection />);
 
-    expect(screen.getByRole('heading', { name: 'Dashboard setup' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Home content' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Wall display' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Maintenance' })).toBeInTheDocument();
-  });
-
-  it('turns the companion off and on without changing the saved collapse preference', () => {
-    useSettingsStore.getState().updateSettings({ companionCollapsed: true });
-    renderWithProviders(<TestSection />);
-    const group = screen.getByRole('group', { name: 'Companion panel' });
-    expect(within(group).getByRole('button', { name: 'On' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    );
-    fireEvent.click(within(group).getByRole('button', { name: 'Off' }));
-    expect(useSettingsStore.getState().companionEnabled).toBe(false);
-    expect(useSettingsStore.getState().companionCollapsed).toBe(true);
-    fireEvent.click(within(group).getByRole('button', { name: 'On' }));
-    expect(useSettingsStore.getState().companionEnabled).toBe(true);
-    expect(useSettingsStore.getState().companionCollapsed).toBe(true);
-  });
-
-  it('updates the keep-awake setting from dashboard settings', () => {
-    renderWithProviders(<TestSection />);
-
-    const keepAwakeGroup = screen.getByRole('group', { name: 'Keep device awake' });
-    fireEvent.click(within(keepAwakeGroup).getByRole('button', { name: 'On' }));
-
-    expect(useSettingsStore.getState().keepDeviceAwake).toBe(true);
+    expect(screen.getByRole('heading', { name: 'Manage dashboards' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Content' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Setup' })).toBeInTheDocument();
   });
 
   it('disables chores without changing its default-on behavior', () => {
@@ -85,66 +44,20 @@ describe('SettingsDashboardSection', () => {
     expect(useSettingsStore.getState().choresEnabled).toBe(false);
   });
 
-  it('renders the pending keep-awake fallback action when needed', () => {
-    useKeepDeviceAwakeSnapshotMock.mockReturnValue({
-      enabled: true,
-      mode: 'pending-activation',
-      canActivateFallback: true,
-    });
-    useSettingsStore.getState().updateSettings({ keepDeviceAwake: true });
-
+  it('keeps device presentation controls outside dashboard content', () => {
     renderWithProviders(<TestSection />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tap to activate fallback audio' }));
-
-    expect(activateFallbackMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('switches header title mode and shows the custom text input only for custom mode', () => {
-    renderWithProviders(<TestSection />);
-
-    expect(screen.queryByPlaceholderText('Welcome home')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Custom text' }));
-
-    const input = screen.getByPlaceholderText('Welcome home');
-    expect(input).toBeInTheDocument();
-    expect(useSettingsStore.getState().headerTitleMode).toBe('custom_text');
-
-    fireEvent.change(input, { target: { value: 'Dinner soon' } });
-
-    expect(useSettingsStore.getState().headerCustomText).toBe('Dinner soon');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Date & Time' }));
-
-    expect(useSettingsStore.getState().headerTitleMode).toBe('clock');
-    expect(screen.queryByPlaceholderText('Welcome home')).not.toBeInTheDocument();
-  });
-
-  it('applies dashboard profile presets through scoped settings', () => {
-    renderWithProviders(<TestSection />);
-
-    const profileGroup = screen.getByRole('group', { name: 'Display preset' });
-    expect(within(profileGroup).queryByRole('button', { name: 'Bedside' })).not.toBeInTheDocument();
-    fireEvent.click(within(profileGroup).getByRole('button', { name: 'Wall display' }));
-
-    expect(useSettingsStore.getState()).toEqual(
-      expect.objectContaining({
-        dashboardProfileMode: 'wall_display',
-        dashboardSpaceMode: 'more_space',
-        headerTitleMode: 'clock',
-        keepDeviceAwake: true,
-        kioskMode: true,
-        showHomeSummaryBar: true,
-      })
-    );
-    expect(screen.getByText(/Enables kiosk mode/)).toBeInTheDocument();
-  });
-
-  it('does not render space usage controls in dashboard settings', () => {
-    renderWithProviders(<TestSection />);
-
-    expect(screen.queryByText('Space usage')).not.toBeInTheDocument();
+    for (const name of [
+      'Space usage',
+      'Display preset',
+      'Header title',
+      'Companion panel',
+      'Screensaver',
+      'Keep device awake',
+      'Local config backup',
+    ]) {
+      expect(screen.queryByRole('heading', { name })).not.toBeInTheDocument();
+    }
   });
 
   it('assigns another registered display without changing this device', async () => {
@@ -208,5 +121,18 @@ describe('SettingsDashboardSection', () => {
     expect(assignments[currentClientId]).toBeUndefined();
     expect(homeDashboard).toHaveTextContent('Used by 1 display');
     expect(upstairsDashboard).toHaveTextContent('Used by 1 display');
+  });
+  it('keeps restarting setup separate from restoring hidden entities', () => {
+    renderWithProviders(<TestSection />);
+    const visibility = screen.getByRole('region', { name: 'Visibility' });
+    expect(
+      within(visibility).getByRole('button', { name: 'Restore entities' })
+    ).toBeInTheDocument();
+    expect(
+      within(visibility).queryByRole('button', { name: 'Restart onboarding' })
+    ).not.toBeInTheDocument();
+    const setup = screen.getByRole('region', { name: 'Setup' });
+    fireEvent.click(within(setup).getByRole('button', { name: 'Restart onboarding' }));
+    expect(screen.getByRole('alertdialog', { name: 'Restart onboarding?' })).toBeInTheDocument();
   });
 });

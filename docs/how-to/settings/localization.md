@@ -10,7 +10,7 @@ Choose the language and display formats you want to use in Navet.
 
 ## Change the language
 
-1. Open **Settings → Localization**.
+1. Open **Settings → Language & units**.
 2. Choose **Language**.
 3. Select an available translation.
 

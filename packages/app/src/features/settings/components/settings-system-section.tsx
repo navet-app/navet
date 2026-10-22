@@ -43,7 +43,7 @@ import {
 import { useState } from 'react';
 import type { SettingsSectionController } from '../hooks/use-settings-section-controller';
 import { SettingsAuthorizedDevices } from './settings-authorized-devices';
-import { SettingsDeviceSettings } from './settings-device-settings';
+import { SettingsBackupItem } from './settings-backup-item';
 import { SettingsItem, SettingsSectionGroup, SettingsSectionShell } from './settings-section-shell';
 
 interface SettingsSystemSectionProps {
@@ -406,15 +406,6 @@ export function SettingsSystemSection({ controller }: SettingsSystemSectionProps
         title={t('settings.system.group.smartHome')}
         styles={styles}
       >
-        {supportsDeviceAuthorization() && (
-          <SettingsItem
-            title={t('settings.system.authorizedDevices.title')}
-            description={t('settings.system.authorizedDevices.description')}
-            styles={styles}
-          >
-            <SettingsAuthorizedDevices styles={styles} />
-          </SettingsItem>
-        )}
         <SettingsItem
           title={t('settings.system.providers.title')}
           description={t('settings.system.providers.description')}
@@ -467,6 +458,22 @@ export function SettingsSystemSection({ controller }: SettingsSystemSectionProps
           </div>
         </SettingsItem>
       </SettingsSectionGroup>
+
+      {supportsDeviceAuthorization() ? (
+        <SettingsSectionGroup
+          id="system-access"
+          title={t('settings.system.group.access')}
+          styles={styles}
+        >
+          <SettingsItem
+            title={t('settings.system.authorizedDevices.title')}
+            description={t('settings.system.authorizedDevices.description')}
+            styles={styles}
+          >
+            <SettingsAuthorizedDevices styles={styles} />
+          </SettingsItem>
+        </SettingsSectionGroup>
+      ) : null}
 
       {connectDialogProvider ? (
         <ModalSurface
@@ -694,24 +701,11 @@ export function SettingsSystemSection({ controller }: SettingsSystemSectionProps
       </AlertDialog>
 
       <SettingsSectionGroup
-        id="system-devices-sync"
-        title={t('settings.system.group.devicesSync')}
+        id="system-backup-recovery"
+        title={t('settings.system.group.backupRecovery')}
         styles={styles}
       >
-        <SettingsItem
-          title={t('settings.system.clients.displaySync.title')}
-          description={t('settings.system.clients.displaySync.description')}
-          styles={styles}
-        >
-          <SettingsDeviceSettings styles={styles} />
-        </SettingsItem>
-      </SettingsSectionGroup>
-
-      <SettingsSectionGroup
-        id="system-device-data-session"
-        title={t('settings.system.group.deviceDataSession')}
-        styles={styles}
-      >
+        <SettingsBackupItem controller={controller} />
         <SettingsItem
           title={t('settings.project.localData.title')}
           description={t('settings.project.localData.description')}
@@ -726,7 +720,13 @@ export function SettingsSystemSection({ controller }: SettingsSystemSectionProps
             <span>{t('settings.project.localData.reset')}</span>
           </button>
         </SettingsItem>
+      </SettingsSectionGroup>
 
+      <SettingsSectionGroup
+        id="system-session"
+        title={t('settings.system.group.session')}
+        styles={styles}
+      >
         <SettingsItem
           title={t('settings.project.logout')}
           description={t('settings.system.logout.description')}

@@ -34,9 +34,10 @@ import { roomNamesMatch } from '@navet/app/utils/room-name';
 import {
   Check,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   Compass,
   DoorOpen,
-  LayoutPanelLeft,
   LogOut,
   type LucideIcon,
   MessageCircle,
@@ -427,22 +428,24 @@ export const Sidebar = memo(function Sidebar({
           </div>
           <div className="flex flex-col gap-4">
             {onToggleCompanion ? (
-              <InteractivePill
+              <Button
+                variant="ghost"
+                size="default"
+                iconOnly
                 onClick={onToggleCompanion}
-                aria-label={t(
-                  companionExpanded ? 'sidebar.companion.collapse' : 'sidebar.companion.expand'
-                )}
-                title={t(
+                label={t(
                   companionExpanded ? 'sidebar.companion.collapse' : 'sidebar.companion.expand'
                 )}
                 aria-expanded={companionExpanded}
                 aria-controls={companionControlsId}
-                active={companionExpanded}
-                variant="ghost"
-                className={`flex h-10 w-10 items-center justify-center rounded-[22px] gap-0 px-0 py-0 md:gap-0 md:px-0 transition-colors ${companionExpanded ? '' : inactiveColor}`}
+                className={inactiveColor}
               >
-                <LayoutPanelLeft className="h-5 w-5" />
-              </InteractivePill>
+                {companionExpanded ? (
+                  <ChevronsLeft className="h-5 w-5" />
+                ) : (
+                  <ChevronsRight className="h-5 w-5" />
+                )}
+              </Button>
             ) : null}
             {homeAssistantShell.canToggleKiosk ? (
               <InteractivePill
