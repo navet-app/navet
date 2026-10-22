@@ -12,6 +12,7 @@ import {
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { getDeviceTypeIcon } from '@navet/app/constants/device-type-icons';
 import { readNavetAlarmEntity, readNavetCameraState } from '@navet/app/core/navet-device-state';
+import { appendCameraCacheBuster } from '@navet/app/features/security/components/camera-card/camera-view-mode';
 import { getAlarmStateLabel } from '@navet/app/features/security/utils/alarm-state-label';
 import {
   formatWeatherConditionLabel,
@@ -376,7 +377,13 @@ function DashboardCompanionContent({
       continue;
     if (card.entityId || type === 'camera' || type === 'weather') {
       const id = sourceId(card);
-      if (id && groupedSourceIds.has(id)) continue;
+      if (id && groupedSourceIds.has(id)) {
+        // Retain every saved source in the editor's serialized group, even when
+        // automatic selection currently resolves to an explicit source.
+        if (editing)
+          groups.find((items) => items.some((item) => sourceId(item) === id))?.push(card);
+        continue;
+      }
       if (id) groupedSourceIds.add(id);
     }
     const group =
@@ -387,6 +394,14 @@ function DashboardCompanionContent({
     else groups.push([card]);
   }
   const items = groups.map((group, index) => {
+    const renderedSourceIds = new Set<string>();
+    const visibleGroup = group.filter((item) => {
+      const id = sourceId(item);
+      if (!id) return true;
+      if (renderedSourceIds.has(id)) return false;
+      renderedSourceIds.add(id);
+      return true;
+    });
     const card = group[0];
     if (card.type === 'chores' && !choresEnabled) return null;
     const previous = groups[index - 1]?.[0];
@@ -434,7 +449,7 @@ function DashboardCompanionContent({
         }
       >
         <div className="space-y-4">
-          {group.map((item) => (
+          {visibleGroup.map((item) => (
             <div key={item.id} data-companion-card-id={item.id}>
               {content(item)}
             </div>
@@ -456,7 +471,7 @@ function DashboardCompanionContent({
         }
       >
         <div className="space-y-4">
-          {group.map((item) => (
+          {visibleGroup.map((item) => (
             <div key={item.id} data-companion-card-id={item.id}>
               {content(item)}
             </div>
@@ -651,6 +666,7 @@ function CompanionCamera({ entity, editing = false }: { entity: NavetEntity; edi
   });
   const [open, setOpen] = useState(false);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const resolvedUrl = pictureUrl ?? (resource?.kind === 'image' ? resource.url : undefined);
   useEffect(() => {
     if (!failedUrl) return;
@@ -658,10 +674,22 @@ function CompanionCamera({ entity, editing = false }: { entity: NavetEntity; edi
       setFailedUrl(null);
       return;
     }
-    // Retry stable snapshot URLs after transient errors; suspend retries in hidden tabs.
-    return subscribeVisibilityAwareTask(() => setFailedUrl(null), 30000);
   }, [available, failedUrl, resolvedUrl]);
-  const src = available && resolvedUrl !== failedUrl ? resolvedUrl : undefined;
+  useEffect(() => {
+    if (!available || !resolvedUrl) return;
+    // Refresh successful snapshots and retry failures through the shared scheduler.
+    // Hidden tabs suspend work and returning to the page requests a fresh frame.
+    return subscribeVisibilityAwareTask(() => {
+      setRefreshKey(Date.now());
+      setFailedUrl(null);
+    }, 30000);
+  }, [available, resolvedUrl]);
+  const src =
+    available && resolvedUrl !== failedUrl
+      ? refreshKey
+        ? appendCameraCacheBuster(resolvedUrl, refreshKey)
+        : resolvedUrl
+      : undefined;
   const fallback = (
     <div
       role="status"
@@ -688,7 +716,7 @@ function CompanionCamera({ entity, editing = false }: { entity: NavetEntity; edi
           <img
             src={src}
             alt={entity.name}
-            onError={() => setFailedUrl(src)}
+            onError={() => setFailedUrl(resolvedUrl ?? null)}
             className="aspect-video w-full rounded-xl object-cover"
           />
         ) : (
@@ -707,7 +735,7 @@ function CompanionCamera({ entity, editing = false }: { entity: NavetEntity; edi
             <img
               src={src}
               alt={entity.name}
-              onError={() => setFailedUrl(src)}
+              onError={() => setFailedUrl(resolvedUrl ?? null)}
               className="w-full rounded-xl"
             />
           ) : (

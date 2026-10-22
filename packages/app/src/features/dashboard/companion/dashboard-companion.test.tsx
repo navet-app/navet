@@ -217,6 +217,40 @@ describe('dashboard companion connected state', () => {
     }
   );
 
+  it.each(['camera', 'weather'] as const)(
+    'preserves colliding automatic and explicit %s sources when reordering',
+    async (type) => {
+      const source = getPreviewRuntimeScenario('demo').entities.find(
+        (entity) => entity.type === type
+      );
+      if (!source) throw new Error(`Missing preview ${type}`);
+      const cards = [
+        { id: 'automatic', type },
+        { id: 'note', type: 'note' as const, text: 'Keep this note' },
+        { id: 'explicit', type, entityId: source.canonicalId },
+      ];
+      const store = useDashboardCollectionStore.getState();
+      store.updateCompanion(store.activeDashboardId, { showSecurity: false, cards });
+      renderWithProviders(<DashboardCompanion editing />);
+      const title = type === 'camera' ? 'Camera' : 'Weather';
+      fireEvent.pointerDown(screen.getByRole('button', { name: `More actions: ${title}` }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      fireEvent.click(await screen.findByRole('menuitem', { name: `Move ${title} down` }));
+      expect(
+        useDashboardCollectionStore.getState().collection.dashboardsById[store.activeDashboardId]
+          .companion?.cards
+      ).toEqual([cards[1], cards[0], cards[2]]);
+      fireEvent.click(screen.getByRole('button', { name: `Edit ${title}` }));
+      expect(
+        within(await screen.findByRole('dialog', { name: `Edit ${title}` }))
+          .getAllByRole('combobox', { name: 'Device' })
+          .map((field) => (field as HTMLSelectElement).value)
+      ).toEqual(['', source.canonicalId]);
+    }
+  );
+
   it.each([false, true])(
     'renders individually selected locks only once alongside the security summary (editing=%s)',
     (editing) => {
@@ -855,6 +889,67 @@ describe('dashboard companion connected state', () => {
     expect(screen.getByRole('button', { name: 'Open Front Door snapshot' })).toBeDisabled();
   });
 
+  it.each([
+    '/api/camera_proxy/camera.front?token=example',
+    '/api/hassio_ingress/example/api/camera_proxy/camera.front?token=example',
+    '/api/providers/camera/snapshot?path=front&token=example',
+    'https://camera.example/snapshot?signature=example&expires=123',
+  ])('refreshes successful snapshots while visible and preserves the resource URL %s', (url) => {
+    const scenario = getPreviewRuntimeScenario('demo');
+    installPreviewRuntime(
+      withPreviewEntities(
+        scenario,
+        scenario.entities.map((entity) =>
+          entity.type === 'camera'
+            ? {
+                ...entity,
+                resources: {
+                  camera_snapshot: {
+                    kind: 'camera_snapshot',
+                    path: url,
+                    providerId: entity.providerId,
+                    entityId: entity.canonicalId,
+                  },
+                },
+              }
+            : entity
+        )
+      )
+    );
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const { unmount } = renderWithProviders(<DashboardCompanion />);
+    const image = screen.getByRole('img', { name: 'Front Door' });
+    const initialSrc = image.getAttribute('src');
+    expect(initialSrc).toBe(url);
+    fireEvent.load(image);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Front Door snapshot' }));
+    act(() => vi.advanceTimersByTime(30000));
+    const refreshedSrc = image.getAttribute('src');
+    expect(refreshedSrc).not.toBe(initialSrc);
+    const refreshedUrl = new URL(refreshedSrc ?? '', window.location.origin);
+    for (const [key, value] of new URL(url, window.location.origin).searchParams) {
+      expect(refreshedUrl.searchParams.get(key)).toBe(value);
+    }
+    expect(refreshedUrl.searchParams.has('_t')).toBe(true);
+    expect(new URL(refreshedSrc ?? '', window.location.origin).pathname).toBe(
+      new URL(initialSrc ?? '', window.location.origin).pathname
+    );
+    expect(
+      within(screen.getByRole('dialog')).getByRole('img', { name: 'Front Door' })
+    ).toHaveAttribute('src', refreshedSrc);
+    visibility.mockReturnValue('hidden');
+    fireEvent(document, new Event('visibilitychange'));
+    act(() => vi.advanceTimersByTime(60000));
+    expect(image).toHaveAttribute('src', refreshedSrc);
+    visibility.mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(image.getAttribute('src')).not.toBe(refreshedSrc);
+    unmount();
+    act(() => vi.runOnlyPendingTimers());
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it.each(['reconnect', 'retry', 'visible'])(
     'recovers a failed camera snapshot at the same URL after %s',
     (recovery) => {
@@ -889,7 +984,10 @@ describe('dashboard companion connected state', () => {
         act(() => vi.advanceTimersByTime(30000));
       }
 
-      expect(screen.getByRole('img', { name: 'Front Door' })).toHaveAttribute('src', src);
+      const recoveredSrc = screen.getByRole('img', { name: 'Front Door' }).getAttribute('src');
+      expect(new URL(recoveredSrc ?? '', window.location.origin).pathname).toBe(
+        new URL(src ?? '', window.location.origin).pathname
+      );
       expect(screen.getByRole('button', { name: 'Open Front Door snapshot' })).toBeEnabled();
     }
   );
