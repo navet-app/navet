@@ -7,6 +7,9 @@ export const DEVICE_DISPLAY_SETTING_KEYS = [
   'headerTitleMode',
   'headerCustomText',
   'keepDeviceAwake',
+  'screensaverEnabled',
+  'companionEnabled',
+  'companionCollapsed',
   'compactMode',
   'kioskMode',
   'kioskSwipeRooms',
@@ -45,6 +48,9 @@ const DISPLAY_PROFILE_VALUE_SETS: Partial<Record<DeviceDisplaySettingKey, Readon
 };
 const BOOLEAN_DISPLAY_SETTINGS = new Set<DeviceDisplaySettingKey>([
   'keepDeviceAwake',
+  'screensaverEnabled',
+  'companionEnabled',
+  'companionCollapsed',
   'compactMode',
   'kioskMode',
   'kioskSwipeRooms',

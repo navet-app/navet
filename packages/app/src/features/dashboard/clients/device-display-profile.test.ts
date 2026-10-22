@@ -4,6 +4,7 @@ import {
   mergeDeviceDisplayProfilePolicies,
   projectDeviceDisplaySettings,
   sanitizeDeviceDisplayProfilePolicy,
+  sanitizeDeviceDisplaySettings,
 } from './device-display-profile';
 
 const timestamp = '2026-08-03T10:00:00.000Z';
@@ -19,6 +20,31 @@ function profile(name: string, settings: Record<string, unknown>) {
 }
 
 describe('device display profiles', () => {
+  it.each([true, false])('copies explicit screensaver and panel preferences (%s)', (enabled) => {
+    expect(
+      projectDeviceDisplaySettings({
+        ...defaultSettings,
+        screensaverEnabled: enabled,
+        companionEnabled: enabled,
+        companionCollapsed: enabled,
+      })
+    ).toMatchObject({
+      screensaverEnabled: enabled,
+      companionEnabled: enabled,
+      companionCollapsed: enabled,
+    });
+  });
+
+  it('rejects malformed screen preferences and leaves absent legacy preferences unset', () => {
+    expect(
+      sanitizeDeviceDisplaySettings({
+        screensaverEnabled: 'true',
+        companionEnabled: 1,
+        companionCollapsed: null,
+      })
+    ).toEqual({});
+    expect(sanitizeDeviceDisplaySettings({})).toEqual({});
+  });
   it('projects only safe cross-device display settings', () => {
     const settings = projectDeviceDisplaySettings({
       ...defaultSettings,

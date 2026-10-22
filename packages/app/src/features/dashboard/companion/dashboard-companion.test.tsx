@@ -25,6 +25,46 @@ describe('dashboard companion connected state', () => {
   });
   afterEach(() => resetPreviewRuntime());
 
+  it.each(['weather', 'camera'] as const)(
+    'preserves an offline %s selection on reorder and clears it on removal',
+    async (type) => {
+      const source = Object.values(integrationStore.getState().providerEntitiesByCanonicalId).find(
+        (entity) => entity.type === type
+      );
+      if (!source) throw new Error(`Missing preview ${type}`);
+      const store = useDashboardCollectionStore.getState();
+      const selection = type === 'weather' ? 'weatherEntityId' : 'cameraEntityId';
+      store.updateCompanion(store.activeDashboardId, {
+        showSecurity: false,
+        [selection]: source.canonicalId,
+        cards: [
+          { id: 'source', type: 'entity', entityId: source.canonicalId },
+          { id: 'clock', type: 'clock' },
+        ],
+      });
+      integrationStore.setState({ selectedProviderIds: [] });
+      renderWithProviders(<DashboardCompanion editing />);
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions: Clock and date' }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Move Clock and date up' }));
+      expect(
+        useDashboardCollectionStore.getState().collection.dashboardsById[store.activeDashboardId]
+          .companion?.[selection]
+      ).toBe(source.canonicalId);
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions: Device' }), {
+        button: 0,
+        ctrlKey: false,
+      });
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Remove Device' }));
+      expect(
+        useDashboardCollectionStore.getState().collection.dashboardsById[store.activeDashboardId]
+          .companion?.[selection]
+      ).toBeNull();
+    }
+  );
+
   it.each(['lock', 'weather', 'alarm'])(
     'opens the selected %s card without navigating or changing its state',
     async (type) => {

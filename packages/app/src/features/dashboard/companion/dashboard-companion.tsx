@@ -92,18 +92,19 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
   const update = (next: CompanionCard[]) => {
     if (!dashboard) return;
     // Keep the existing source-selection contract available to other dashboard surfaces.
-    const weather = next.find(
-      (card) =>
-        card.type === 'weather' ||
-        (card.type === 'entity' &&
-          entities.find((entity) => entity.canonicalId === card.entityId)?.type === 'weather')
-    );
-    const camera = next.find(
-      (card) =>
-        card.type === 'camera' ||
-        (card.type === 'entity' &&
-          entities.find((entity) => entity.canonicalId === card.entityId)?.type === 'camera')
-    );
+    const isSource = (
+      card: CompanionCard,
+      type: 'weather' | 'camera',
+      previous: string | null | undefined
+    ) => {
+      if (card.type === type) return true;
+      if (card.type !== 'entity') return false;
+      const entity = entities.find((item) => item.canonicalId === card.entityId);
+      // Missing provider metadata does not remove a still-configured source.
+      return entity ? entity.type === type : Boolean(card.entityId && card.entityId === previous);
+    };
+    const weather = next.find((card) => isSource(card, 'weather', settings.weatherEntityId));
+    const camera = next.find((card) => isSource(card, 'camera', settings.cameraEntityId));
     updateCompanion(dashboard.id, {
       ...settings,
       cards: next,
