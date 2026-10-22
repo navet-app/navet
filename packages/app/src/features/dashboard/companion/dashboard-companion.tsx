@@ -11,7 +11,7 @@ import {
 } from '@navet/app/features/weather/components/weather-card/weather-icon';
 import { useI18n, useIntegrationStore, useProviderResource, useTheme } from '@navet/app/hooks';
 import { useResourceUrl } from '@navet/app/hooks/use-resource-url';
-import { useEditModeStore, useNavigationStore, useSettingsStore } from '@navet/app/stores';
+import { useEditModeStore, useSettingsStore } from '@navet/app/stores';
 import { integrationSelectors } from '@navet/app/stores/selectors';
 import { formatTemperatureFromSourceUnit } from '@navet/app/utils/temperature';
 import type { NavetEntity } from '@navet/core/types';
@@ -30,6 +30,7 @@ import {
   CompanionEditorList,
   useCompanionCardLabel,
 } from './companion-editor';
+import { CompanionEntityDetails } from './companion-entity-details';
 import { CompanionEntityRow } from './companion-entity-row';
 
 const CompanionCalendar = lazy(async () => {
@@ -138,7 +139,7 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
       return security.length ? (
         <div className="space-y-2">
           {security.map((entity) => (
-            <CompanionSecurityRow key={entity.canonicalId} entity={entity} />
+            <CompanionSecurityRow key={entity.canonicalId} entity={entity} editing={editing} />
           ))}
         </div>
       ) : (
@@ -176,9 +177,9 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
         </Suspense>
       );
     if (card.type === 'weather' || entity.type === 'weather')
-      return <CompanionWeather entity={entity} />;
+      return <CompanionWeather entity={entity} editing={editing} />;
     if (entity.type === 'lock' || entity.attributes.alarmState)
-      return <CompanionSecurityRow entity={entity} />;
+      return <CompanionSecurityRow entity={entity} editing={editing} />;
     return <CompanionEntityRow key={entity.canonicalId} entity={entity} editing={editing} />;
   };
   const items = cards.map((card, index) =>
@@ -289,7 +290,7 @@ function CompanionGreeting({ text }: { text?: string }) {
   );
 }
 
-function CompanionWeather({ entity }: { entity: NavetEntity }) {
+function CompanionWeather({ entity, editing }: { entity: NavetEntity; editing: boolean }) {
   const { t } = useI18n();
   const { theme } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
@@ -305,20 +306,20 @@ function CompanionWeather({ entity }: { entity: NavetEntity }) {
       ? entity.attributes.condition
       : String(entity.primaryState ?? '');
   return (
-    <div className="min-w-0">
-      <p className={`truncate text-xs ${surface.textMuted}`}>{entity.name}</p>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-2xl font-medium tabular-nums">
+    <CompanionEntityDetails entity={entity} editing={editing} className="block min-w-0">
+      <span className={`block truncate text-xs ${surface.textMuted}`}>{entity.name}</span>
+      <span className="flex items-center justify-between gap-3">
+        <span className="text-2xl font-medium tabular-nums">
           {available && typeof value === 'number' && Number.isFinite(value)
             ? formatTemperatureFromSourceUnit(value, sourceUnit, unit)
             : '—'}
-        </p>
+        </span>
         <WeatherIcon condition={condition} className="h-9 w-9 shrink-0" />
-      </div>
-      <p className={`text-sm ${surface.textSecondary}`}>
+      </span>
+      <span className={`block text-sm ${surface.textSecondary}`}>
         {available ? formatWeatherConditionLabel(condition) : t('common.unavailable')}
-      </p>
-    </div>
+      </span>
+    </CompanionEntityDetails>
   );
 }
 
@@ -400,11 +401,10 @@ function CompanionCamera({ entity }: { entity: NavetEntity }) {
   );
 }
 
-function CompanionSecurityRow({ entity }: { entity: NavetEntity }) {
+function CompanionSecurityRow({ entity, editing }: { entity: NavetEntity; editing: boolean }) {
   const { t } = useI18n();
   const { theme } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
-  const navigate = useNavigationStore((state) => state.setActiveSection);
   const connected = useIntegrationStore(
     (state) => state.providerRuntime[entity.providerId]?.connected
   );
@@ -422,14 +422,14 @@ function CompanionSecurityRow({ entity }: { entity: NavetEntity }) {
             : t('common.unavailable');
   const Icon = alarm ? Shield : Lock;
   return (
-    <button
-      type="button"
-      onClick={() => navigate('security')}
-      className={`flex min-h-10 w-full items-center gap-2 rounded-lg text-left ${surface.hoverBg}`}
+    <CompanionEntityDetails
+      entity={entity}
+      editing={editing}
+      className="flex min-h-10 items-center gap-2"
     >
       <Icon className={`h-4 w-4 shrink-0 ${surface.textMuted}`} />
       <span className="min-w-0 flex-1 truncate text-xs">{entity.name}</span>
       <span className="max-w-[55%] text-right text-xs font-medium">{label}</span>
-    </button>
+    </CompanionEntityDetails>
   );
 }

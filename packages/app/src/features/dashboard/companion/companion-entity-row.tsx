@@ -11,6 +11,7 @@ import { formatTemperatureFromSourceUnit } from '@navet/app/utils/temperature';
 import type { NavetEntity } from '@navet/core/types';
 import { Activity } from 'lucide-react';
 import { lazy, Suspense } from 'react';
+import { CompanionEntityDetails } from './companion-entity-details';
 
 const LightCard = lazy(async () => ({
   default: (await import('@navet/app/features/lighting/components/light-card')).LightCard,
@@ -87,7 +88,17 @@ export function CompanionEntityRow({ entity, editing }: { entity: NavetEntity; e
       value={value}
     />
   );
-  let content = fallback;
+  let content = (
+    <CompanionEntityDetails
+      entity={entity}
+      editing={editing}
+      className="flex min-h-10 items-center gap-3 text-sm"
+    >
+      <Activity aria-hidden="true" className="h-4 w-4 shrink-0" />
+      <span className="min-w-0 flex-1 break-words">{entity.name}</span>
+      <span className="max-w-[50%] break-words text-right">{value}</span>
+    </CompanionEntityDetails>
+  );
   if (light)
     content = (
       <LightCard

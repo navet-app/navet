@@ -7,7 +7,7 @@ import { integrationStore } from '@navet/app/stores/integration-store';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CompanionEntityRow } from './companion-entity-row';
 
@@ -60,6 +60,24 @@ describe('companion card rows', () => {
     await screen.findByRole('button', { name: 'Toggle Kitchen island' });
     expect(screen.getByText('72%')).toBeInTheDocument();
     expect(screen.queryByRole('slider')).not.toBeInTheDocument();
+  });
+
+  it('opens light controls when its state value is clicked without changing power', async () => {
+    renderWithProviders(
+      <CompanionEntityRow entity={entity('light.kitchen_island')} editing={false} />
+    );
+    const value = await screen.findByText('72%');
+    fireEvent.click(value);
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(entity('light.kitchen_island').primaryState).toBe('on');
+  });
+
+  it('opens a sensor card from a generic entity row', async () => {
+    const sensor = entity('sensor.outside_temperature');
+    renderWithProviders(<CompanionEntityRow entity={sensor} editing={false} />);
+    fireEvent.click(screen.getByRole('button', { name: `Open settings for ${sensor.name}` }));
+    const dialog = await screen.findByRole('dialog', { name: sensor.name });
+    await waitFor(() => expect(within(dialog).getAllByText(sensor.name).length).toBeGreaterThan(1));
   });
 
   it.each([true, false])(

@@ -1,3 +1,4 @@
+import { companionRowHighlight } from '@navet/app/components/shared/companion-row-presentation';
 import { BrightnessSlider } from '@navet/app/components/shared/device-editor';
 import { getEntityIconPillStyles } from '@navet/app/components/shared/theme/entity-icon-pill-styles';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
@@ -54,6 +55,13 @@ export const LightCardTableRow = memo(function LightCardTableRow({
   const { theme, accentColor, primaryColor } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
   const controlsDisabled = isEditMode || disabled;
+  const displayStateLabel =
+    stateLabel ??
+    (isOn && supportsBrightness
+      ? `${Math.round(brightness)}%`
+      : isOn
+        ? t('common.on')
+        : t('common.off'));
   const ToggleIcon = IconComponent ?? Lightbulb;
   const iconPill = getEntityIconPillStyles({
     isActive: isOn,
@@ -72,7 +80,8 @@ export const LightCardTableRow = memo(function LightCardTableRow({
         'flex w-full min-w-0 items-center py-1 text-left transition-colors motion-reduce:transition-none',
         compact ? '@container/light-row min-h-10 gap-2' : 'min-h-12 gap-3',
         !isEditMode && !compact && 'cursor-pointer rounded-xl',
-        !isEditMode && !compact && surface.hoverBg
+        compact && companionRowHighlight,
+        !controlsDisabled && surface.hoverBg
       )}
       data-light-table-row
     >
@@ -123,19 +132,32 @@ export const LightCardTableRow = memo(function LightCardTableRow({
               isOn ? surface.textPrimary : surface.textSecondary
             }`,
             showToggle && '-ml-[3px]',
+            compact && 'flex items-center justify-between gap-2',
             getThemeFocusRingClassName(theme)
           )}
         >
-          {secondaryText ? (
-            <>
-              <span className="block">{name}</span>
-              <span className={cn('block text-xs font-normal', surface.textMuted)}>
-                {secondaryText}
-              </span>
-            </>
-          ) : (
-            name
-          )}
+          <span className="min-w-0">
+            {secondaryText ? (
+              <>
+                <span className="block">{name}</span>
+                <span className={cn('block text-xs font-normal', surface.textMuted)}>
+                  {secondaryText}
+                </span>
+              </>
+            ) : (
+              name
+            )}
+          </span>
+          {compact && stateLabel !== '' ? (
+            <span
+              className={cn(
+                'max-w-[45%] shrink-0 text-right text-xs font-normal tabular-nums',
+                surface.textSecondary
+              )}
+            >
+              {displayStateLabel}
+            </span>
+          ) : null}
         </button>
       ) : (
         <span
@@ -169,7 +191,7 @@ export const LightCardTableRow = memo(function LightCardTableRow({
         </div>
       ) : null}
 
-      {stateLabel !== '' ? (
+      {stateLabel !== '' && !(compact && cardInteraction) ? (
         <span
           className={cn(
             compact ? 'max-w-[45%] shrink-0' : 'w-8 shrink-0',
@@ -177,12 +199,7 @@ export const LightCardTableRow = memo(function LightCardTableRow({
             surface.textSecondary
           )}
         >
-          {stateLabel ??
-            (isOn && supportsBrightness
-              ? `${Math.round(brightness)}%`
-              : isOn
-                ? t('common.on')
-                : t('common.off'))}
+          {displayStateLabel}
         </span>
       ) : null}
     </div>

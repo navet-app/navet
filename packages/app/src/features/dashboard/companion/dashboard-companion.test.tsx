@@ -5,10 +5,11 @@ import {
 } from '@navet/app/preview/runtime';
 import { useEditModeStore } from '@navet/app/stores/edit-mode-store';
 import { integrationStore } from '@navet/app/stores/integration-store';
+import { useNavigationStore } from '@navet/app/stores/navigation-store';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDashboardCollectionStore } from '../dashboards/dashboard-collection-store';
 import { DashboardCompanion } from './dashboard-companion';
@@ -23,6 +24,49 @@ describe('dashboard companion connected state', () => {
     installPreviewRuntime(getPreviewRuntimeScenario('demo'));
   });
   afterEach(() => resetPreviewRuntime());
+
+  it.each(['lock', 'weather', 'alarm'])(
+    'opens the selected %s card without navigating or changing its state',
+    async (type) => {
+      const entity = Object.values(integrationStore.getState().providerEntitiesByCanonicalId).find(
+        (item) => (type === 'alarm' ? Boolean(item.attributes.alarmState) : item.type === type)
+      );
+      if (!entity) throw new Error(`Missing preview ${type}`);
+      const store = useDashboardCollectionStore.getState();
+      store.updateCompanion(store.activeDashboardId, {
+        showSecurity: true,
+        cards: [{ id: 'selected', type: 'entity', entityId: entity.canonicalId }],
+      });
+      const section = useNavigationStore.getState().activeSection;
+      renderWithProviders(<DashboardCompanion />);
+      const opener = screen.getByRole('button', { name: `Open settings for ${entity.name}` });
+      fireEvent.click(opener);
+      const dialog = await screen.findByRole('dialog', { name: entity.name });
+      // Wait for the existing entity card to load, rather than accepting an empty modal shell.
+      if (type === 'weather') {
+        expect(
+          await within(dialog).findByRole('button', { name: 'Stockholm' })
+        ).toBeInTheDocument();
+      } else {
+        await waitFor(() =>
+          expect(within(dialog).getAllByText(entity.name).length).toBeGreaterThan(1)
+        );
+      }
+      expect(useNavigationStore.getState().activeSection).toBe(section);
+      expect(
+        integrationStore.getState().providerEntitiesByCanonicalId[entity.canonicalId].primaryState
+      ).toBe(entity.primaryState);
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+      await waitFor(() => expect(opener).toHaveFocus());
+    }
+  );
+
+  it('disables security and weather dialog triggers while customizing', () => {
+    renderWithProviders(<DashboardCompanion editing />);
+    const openers = screen.getAllByRole('button', { name: /^Open settings for / });
+    expect(openers.length).toBeGreaterThan(1);
+    for (const opener of openers) expect(opener).toBeDisabled();
+  });
 
   it('renders normalized weather, camera and security from the selected sources', () => {
     renderWithProviders(<DashboardCompanion />);

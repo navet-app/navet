@@ -44,7 +44,8 @@ dashboard.
 Choose **Customize** to reveal editing controls for both the dashboard and its side panel. Use
 **Add item** in the side panel to add a device, camera, weather, calendar, chores, security status,
 clock and date, greeting, or note. Devices appear as compact rows. Select the icon to toggle power
-where supported, or select the name to open the device’s usual card dialog. Brightness and
+where supported, or select the name or state to open the device’s card dialog. Security and weather
+items open their entity cards without leaving the current dashboard. Brightness and
 temperature stay visible as values. Media players show track details without inline controls;
 select their name to open the media dialog.
 Cameras use their existing playback settings and snapshot fallback. The calendar shows up to three
