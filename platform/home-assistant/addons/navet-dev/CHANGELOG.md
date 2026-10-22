@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.18.7-beta.1
+
+No user-facing changes in this release.
+
+## 0.18.6-beta.2
+
+## Security
+
+- Allow non-admin sidebar access while loading Ingress media through the signed-in user's session instead of the privileged add-on proxy.
+
 ## 0.18.5-beta.1
 
 ## Improvements and bug fixes
