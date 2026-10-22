@@ -930,6 +930,32 @@ describe('EnergyDashboardPage', () => {
     expect(usageMetrics[0]?.compareDocumentPosition(usage)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
+  it('fits the Energy grid into the available width beside an expanded companion panel', async () => {
+    const previousInnerWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1366 });
+    setVisualViewportSize(1366, 1024);
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(962);
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600);
+    try {
+      renderDashboardPage('default');
+      const grid = screen.getByTestId('energy-overview-grid');
+      const inner = grid.parentElement;
+      expect(grid.style.gridTemplateColumns).toBe('repeat(12, minmax(80px, 1fr))');
+      await waitFor(() => expect(inner?.style.transform).toBe(`scale(${962 / 1136})`));
+      expect(inner?.style.width).toBe('1136px');
+      await waitFor(() =>
+        expect(inner?.parentElement?.style.height).toBe(`${600 * (962 / 1136)}px`)
+      );
+    } finally {
+      width.mockRestore();
+      height.mockRestore();
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        value: previousInnerWidth,
+      });
+    }
+  });
+
   it('uses the phone card-grid gap so four minimum tracks fit the available width', () => {
     const previousInnerWidth = window.innerWidth;
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });

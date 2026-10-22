@@ -291,7 +291,7 @@ export const EnergyDashboardPage = memo(function EnergyDashboardPage({
     outerContainerStyle: overviewOuterContainerStyle,
     outerRef: overviewOuterRef,
     renderedGridCols: overviewRenderedGridCols,
-  } = useFitDashboardGrid(overviewBreakpointCols, false);
+  } = useFitDashboardGrid(overviewBreakpointCols);
   const overviewLiveSpan = isPortraitTablet
     ? overviewRenderedGridCols
     : Math.min(4, overviewRenderedGridCols);
@@ -844,7 +844,7 @@ function CompactLoadSparklines({
     []
   );
   const { outerRef, innerRef, outerContainerStyle, innerContainerStyle, isAutoScaled, gridStyle } =
-    useFitDashboardGrid(breakpointCols, false);
+    useFitDashboardGrid(breakpointCols, !embedded);
   const wholeHomeCardSize = resolveSparklineCardSize(
     cardSizes[ENERGY_WHOLE_HOME_SPARKLINE_CARD_ID]
   );
