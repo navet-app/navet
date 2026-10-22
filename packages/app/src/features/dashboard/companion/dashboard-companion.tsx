@@ -366,7 +366,13 @@ function DashboardCompanionContent({
   const groupedSourceIds = new Set<string>();
   for (const card of cards) {
     const type = groupType(card);
-    if (card.type === 'security' && securityEntities.length && !summarySecurityEntities.length)
+    // Keep configured summaries editable so reordering serializes every saved card.
+    if (
+      !editing &&
+      card.type === 'security' &&
+      securityEntities.length &&
+      !summarySecurityEntities.length
+    )
       continue;
     if (card.entityId || type === 'camera' || type === 'weather') {
       const id = sourceId(card);

@@ -1,9 +1,10 @@
 import { RoundControlButton } from '@navet/app/components/primitives/round-control-button';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import type { ThemeType } from '@navet/app/hooks/use-theme';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
 
-interface TvControlButtonProps {
+interface TvControlButtonProps
+  extends Pick<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-expanded' | 'aria-controls'> {
   theme: ThemeType;
   size?: CardSize | 'large';
   label: string;
@@ -25,9 +26,11 @@ export function TvControlButton({
   iconClassName = '',
   onPress,
   children,
+  ...ariaProps
 }: TvControlButtonProps) {
   return (
     <RoundControlButton
+      {...ariaProps}
       theme={theme}
       size={size}
       variant="neutral"

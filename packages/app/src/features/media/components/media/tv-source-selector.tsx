@@ -17,6 +17,7 @@ interface TvSourceSelectorProps {
   constrainCardWidth?: boolean;
   compactCardSelector?: boolean;
   hideBadge?: boolean;
+  fillAvailableWidth?: boolean;
   theme: ThemeType;
   panelStyle: CSSProperties;
   tvTextTokens: {
@@ -33,6 +34,7 @@ export function TvSourceSelector({
   constrainCardWidth = false,
   compactCardSelector = false,
   hideBadge = false,
+  fillAvailableWidth = false,
   theme,
   panelStyle,
   tvTextTokens,
@@ -56,7 +58,7 @@ export function TvSourceSelector({
         <button
           type="button"
           onClick={(event) => event.stopPropagation()}
-          className={`flex min-w-0 items-center rounded-full border backdrop-blur-xl ${
+          className={`flex max-w-full min-w-0 items-center rounded-full border backdrop-blur-xl ${fillAvailableWidth ? 'flex-1' : ''} ${
             isSmallTvCard
               ? 'h-8 w-[72px] gap-1 px-1'
               : useCompactCardSelector

@@ -243,6 +243,33 @@ describe('dashboard companion connected state', () => {
     }
   );
 
+  it('preserves a fully represented security summary when reordering another item', async () => {
+    const scenario = getPreviewRuntimeScenario('demo');
+    const lock = scenario.entities.find((entity) => entity.type === 'lock');
+    if (!lock) throw new Error('Missing preview lock');
+    installPreviewRuntime(withPreviewEntities(scenario, [lock]));
+    const store = useDashboardCollectionStore.getState();
+    store.updateCompanion(store.activeDashboardId, {
+      showSecurity: true,
+      cards: [
+        { id: 'security', type: 'security' },
+        { id: 'lock', type: 'entity', entityId: lock.canonicalId },
+        { id: 'clock', type: 'clock' },
+      ],
+    });
+    renderWithProviders(<DashboardCompanion editing />);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions: Clock and date' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Move Clock and date up' }));
+    expect(
+      useDashboardCollectionStore
+        .getState()
+        .collection.dashboardsById[store.activeDashboardId].companion?.cards?.map((card) => card.id)
+    ).toEqual(['security', 'clock', 'lock']);
+  });
+
   it('finishes customization from the panel without changing saved content', () => {
     const store = selectKitchen();
     const before =

@@ -3,7 +3,7 @@ import type { TvRemoteAction } from '@navet/app/features/media/tv-remote-command
 import { useI18n } from '@navet/app/hooks';
 import type { ThemeType } from '@navet/app/hooks/use-theme';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
-import type { CSSProperties } from 'react';
+import { type CSSProperties, useLayoutEffect, useRef } from 'react';
 import { TvControlButton } from './tv-control-button';
 
 type TvDpadLayoutConfig = {
@@ -73,6 +73,36 @@ export function TvDpad({
 }: TvDpadProps) {
   const { t } = useI18n();
   const d = layout;
+  const padRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const pad = padRef.current;
+    if (!pad) return;
+    const buttons = pad.querySelectorAll('button');
+    const direction = buttons[0];
+    const center = buttons[4];
+    if (!direction || !center) return;
+    const separateTargets = () => {
+      if (!pad.clientWidth || !pad.clientHeight) return;
+      // Keep the shell and center fixed. Move cardinal buttons outward only
+      // when their actual rendered sizes would intersect the center target.
+      const x = Math.min(
+        d.edgeInset,
+        (pad.clientWidth - center.offsetWidth) / 2 - direction.offsetWidth
+      );
+      const y = Math.min(
+        d.edgeInset,
+        (pad.clientHeight - center.offsetHeight) / 2 - direction.offsetHeight
+      );
+      pad.style.setProperty('--tv-dpad-edge-x', `${x}px`);
+      pad.style.setProperty('--tv-dpad-edge-y', `${y}px`);
+    };
+    separateTargets();
+    const observer = new ResizeObserver(separateTargets);
+    observer.observe(pad);
+    observer.observe(direction);
+    observer.observe(center);
+    return () => observer.disconnect();
+  }, [d.edgeInset]);
   const mediaControlSurface = getMediaControlSurfaceTokens(theme);
 
   const iconClassName = mediaControlSurface.iconClassName;
@@ -82,7 +112,7 @@ export function TvDpad({
   };
 
   return (
-    <div className={`relative shrink-0 ${d.shell}`}>
+    <div ref={padRef} className={`relative shrink-0 ${d.shell}`}>
       <div
         className={`pointer-events-none absolute ${d.outerInset} rounded-full border`}
         style={shellStyle}
@@ -105,7 +135,7 @@ export function TvDpad({
           label={t('media.remote.up')}
           disabled={disabled}
           className="absolute left-1/2 -translate-x-1/2"
-          style={{ ...style, top: d.edgeInset }}
+          style={{ ...style, top: `var(--tv-dpad-edge-y, ${d.edgeInset}px)` }}
           iconClassName={iconClassName}
           onPress={() => onRemoteCommand('up')}
         >
@@ -116,7 +146,7 @@ export function TvDpad({
           size={d.buttonSize}
           label={t('media.remote.left')}
           disabled={disabled}
-          style={{ ...style, left: d.edgeInset }}
+          style={{ ...style, left: `var(--tv-dpad-edge-x, ${d.edgeInset}px)` }}
           className="absolute top-1/2 -translate-y-1/2"
           iconClassName={iconClassName}
           onPress={() => onRemoteCommand('left')}
@@ -128,7 +158,7 @@ export function TvDpad({
           size={d.buttonSize}
           label={t('media.remote.right')}
           disabled={disabled}
-          style={{ ...style, right: d.edgeInset }}
+          style={{ ...style, right: `var(--tv-dpad-edge-x, ${d.edgeInset}px)` }}
           className="absolute top-1/2 -translate-y-1/2"
           iconClassName={iconClassName}
           onPress={() => onRemoteCommand('right')}
@@ -140,7 +170,7 @@ export function TvDpad({
           size={d.buttonSize}
           label={t('media.remote.down')}
           disabled={disabled}
-          style={{ ...style, bottom: d.edgeInset }}
+          style={{ ...style, bottom: `var(--tv-dpad-edge-y, ${d.edgeInset}px)` }}
           className="absolute left-1/2 -translate-x-1/2"
           iconClassName={iconClassName}
           onPress={() => onRemoteCommand('down')}

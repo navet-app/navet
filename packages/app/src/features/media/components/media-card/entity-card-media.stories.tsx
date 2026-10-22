@@ -246,6 +246,12 @@ const tvCardStoryArgs = {
   title: 'Samsung TV Plus',
   artist: 'Live',
   entityType: 'TV',
+  mediaCapabilities: {
+    ...EMPTY_NAVET_MEDIA_CAPABILITIES,
+    canSetVolume: true,
+    canMuteVolume: true,
+    canSelectSource: true,
+  },
   deviceClass: 'tv',
   source: 'Samsung TV Plus',
   sourceList: ['TV', 'HDMI 1', 'HDMI 2', 'Apple TV'],
@@ -262,17 +268,80 @@ const tvCardStoryArgs = {
   simulateTvRemote: true,
 } satisfies Partial<Omit<ComponentProps<typeof MediaCard>, 'onSizeChange' | 'isEditMode'>>;
 
+/** Browser regression: visible control targets remain distinct and reachable. */
+async function verifyTvTargets(root: HTMLElement) {
+  const visibleRect = (button: HTMLElement) => {
+    const r = button.getBoundingClientRect();
+    const visible = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    for (let parent = button.parentElement; parent; parent = parent.parentElement) {
+      const css = getComputedStyle(parent);
+      const bounds = parent.getBoundingClientRect();
+      if (/auto|scroll|hidden|clip/.test(css.overflowX)) {
+        visible.left = Math.max(visible.left, bounds.left);
+        visible.right = Math.min(visible.right, bounds.right);
+      }
+      if (/auto|scroll|hidden|clip/.test(css.overflowY)) {
+        visible.top = Math.max(visible.top, bounds.top);
+        visible.bottom = Math.min(visible.bottom, bounds.bottom);
+      }
+    }
+    return visible;
+  };
+
+  const buttons = [...root.querySelectorAll<HTMLButtonElement>('button')].filter(
+    (button) => !button.classList.contains('inset-0')
+  );
+  for (const button of buttons) {
+    button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+    const r = button.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    await expect(button.contains(hit), `${button.ariaLabel} remains reachable`).toBe(true);
+    const rectangles = buttons.map((item) => ({ item, rect: visibleRect(item) }));
+    for (let i = 0; i < rectangles.length; i++) {
+      for (let j = i + 1; j < rectangles.length; j++) {
+        const a = rectangles[i];
+        const b = rectangles[j];
+        const x = Math.min(a.rect.right, b.rect.right) - Math.max(a.rect.left, b.rect.left);
+        const y = Math.min(a.rect.bottom, b.rect.bottom) - Math.max(a.rect.top, b.rect.top);
+        await expect(
+          x <= 0.5 || y <= 0.5,
+          `${a.item.ariaLabel} and ${b.item.ariaLabel} do not overlap`
+        ).toBe(true);
+      }
+    }
+  }
+}
+
 /** Widescreen TV: D-pad overlays top-right; volume/channel + action row share the fixed 104×104 pad size. */
 export const TV: Story = {
   args: {
     ...tvCardStoryArgs,
     size: 'medium',
   },
+  play: async ({ canvasElement, canvas }) => {
+    await verifyTvTargets(canvasElement);
+    const root = canvasElement.querySelector<HTMLElement>('[data-tv-card-root]');
+    const source = root?.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
+    const settings = canvas.getByRole('button', { name: 'More actions' });
+    if (!root || !source?.parentElement)
+      throw new Error('Expected TV controls and source selector');
+    const sourceRect = source.getBoundingClientRect();
+    const settingsRect = settings.getBoundingClientRect();
+    const gap = Number.parseFloat(getComputedStyle(source.parentElement).columnGap);
+    await expect(
+      Math.abs(settingsRect.right - root.getBoundingClientRect().right)
+    ).toBeLessThanOrEqual(0.5);
+    await expect(Math.abs(sourceRect.right + gap - settingsRect.left)).toBeLessThanOrEqual(0.5);
+  },
   parameters: {
     docs: {
       description: {
         story:
-          'Medium horizontal TV card. The D-pad uses the same 104×104 footprint as every other TV size and sits in the top-right overlay so the bottom action row and volume/channel strip stay clear.',
+          'Medium TV card: volume +/− in the first column, channel +/− in the second, compact navigation/playback beside them, and the existing D-pad at top right. Source/settings stay beneath the D-pad.',
       },
     },
   },
@@ -308,15 +377,22 @@ export const TVSmall: Story = {
     docs: {
       description: {
         story:
-          'Small tile: tap “Show navigation pad” in the header to reveal the same 104×104 D-pad (left-aligned). Volume and channel rows hide until you close the pad; the settings control remains at the bottom right.',
+          'Small TV card: separate volume and channel toggles reveal a single compact control row. Settings is always visible; navigation, playback and source selection remain in the TV dialog.',
       },
     },
   },
-  play: async ({ canvas, userEvent, step }) => {
-    await step('toggle navigation pad', async () => {
-      await userEvent.click(canvas.getByRole('button', { name: /show navigation pad/i }));
-      await expect(canvas.getByRole('button', { name: /^select$/i })).toBeInTheDocument();
-      await userEvent.click(canvas.getByRole('button', { name: /hide navigation pad/i }));
+  play: async ({ canvas, canvasElement, userEvent, step }) => {
+    await verifyTvTargets(canvasElement);
+    await step('toggle volume and channels with settings always available', async () => {
+      await userEvent.click(canvas.getByRole('button', { name: 'Volume controls' }));
+      await expect(canvas.getByRole('button', { name: 'Mute volume' })).toBeInTheDocument();
+      await verifyTvTargets(canvasElement);
+      await userEvent.keyboard('{Escape}');
+      await userEvent.click(canvas.getByRole('button', { name: 'Channel controls' }));
+      await expect(canvas.queryByRole('button', { name: 'Mute volume' })).not.toBeInTheDocument();
+      await expect(canvas.getByRole('button', { name: 'More actions' })).toBeInTheDocument();
+      await verifyTvTargets(canvasElement);
+      await userEvent.keyboard('{Escape}');
     });
   },
 };
@@ -328,11 +404,26 @@ export const TVMediumVertical: Story = {
     size: 'medium-vertical',
     source: 'Source',
   },
+  play: async ({ canvasElement, canvas }) => {
+    await verifyTvTargets(canvasElement);
+    const root = canvasElement.querySelector<HTMLElement>('[data-tv-card-root]');
+    if (!root) throw new Error('Expected tall TV card');
+    await expect(root.scrollHeight).toBeLessThanOrEqual(root.clientHeight);
+    await expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth);
+    const volume = canvas.getByRole('button', { name: 'Volume up' }).getBoundingClientRect();
+    const channel = canvas.getByRole('button', { name: 'Channel up' }).getBoundingClientRect();
+    const menu = canvas.getByRole('button', { name: 'Menu' }).getBoundingClientRect();
+    const playback = canvas
+      .getByRole('button', { name: /pause playback|resume playback/i })
+      .getBoundingClientRect();
+    await expect(Math.abs(volume.left - menu.left)).toBeLessThanOrEqual(0.5);
+    await expect(Math.abs(channel.left - playback.left)).toBeLessThanOrEqual(0.5);
+  },
   parameters: {
     docs: {
       description: {
         story:
-          'Medium vertical: the D-pad is not absolutely positioned—it sits below the header, left-aligned, with the same 104×104 size as other breakpoints.',
+          'Tall TV card: volume and channel buttons occupy the four corners around the existing D-pad. Mute joins playback/navigation below; source and settings stay at the bottom. The controls fit without scrolling.',
       },
     },
   },
@@ -345,11 +436,12 @@ export const TVLarge: Story = {
     size: 'large',
     source: 'Source',
   },
+  play: async ({ canvasElement }) => verifyTvTargets(canvasElement),
   parameters: {
     docs: {
       description: {
         story:
-          'Large tile: D-pad remains the compact 104×104 control under the header; utilities and the action row sit at the bottom of the card.',
+          'Large TV card: the existing 136×136 D-pad remains under the header; volume +/− sits to the left of the D-pad and channel +/− to the right. The action row stays below, with contained scrolling when needed.',
       },
     },
   },

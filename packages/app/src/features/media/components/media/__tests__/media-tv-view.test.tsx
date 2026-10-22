@@ -1,5 +1,5 @@
 import { renderWithProviders } from '@navet/app/test/render';
-import { fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MediaTvView } from '../media-tv-view';
 
@@ -28,6 +28,38 @@ const defaultProps = {
 };
 
 describe('MediaTvView', () => {
+  it.each(['medium', 'medium-vertical', 'large'] as const)(
+    'adjusts volume and channels independently from the %s card columns',
+    (size) => {
+      const onVolumeChange = vi.fn();
+      const onRemoteCommand = vi.fn();
+      const onToggleMute = vi.fn();
+      renderWithProviders(
+        <MediaTvView
+          {...defaultProps}
+          size={size}
+          onVolumeChange={onVolumeChange}
+          onRemoteCommand={onRemoteCommand}
+          onToggleMute={onToggleMute}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Volume up' }));
+      expect(onVolumeChange).toHaveBeenLastCalledWith(34);
+      fireEvent.click(screen.getByRole('button', { name: 'Volume down' }));
+      expect(onVolumeChange).toHaveBeenLastCalledWith(14);
+
+      const channelUp = screen.getByRole('button', { name: 'Channel up' });
+      expect(channelUp).toHaveTextContent('CH+');
+      fireEvent.click(channelUp);
+      expect(onRemoteCommand).toHaveBeenLastCalledWith('channelUp');
+      fireEvent.click(screen.getByRole('button', { name: 'Channel down' }));
+      expect(onRemoteCommand).toHaveBeenLastCalledWith('channelDown');
+      fireEvent.click(screen.getByRole('button', { name: 'Mute volume' }));
+      expect(onToggleMute).toHaveBeenCalledOnce();
+    }
+  );
+
   it('reserves the navigation pad footprint for long medium-card names', () => {
     const playerName = 'Samsung The Frame 65 QE65LS03AAUXXC';
     const { container, rerender } = renderWithProviders(
@@ -49,35 +81,60 @@ describe('MediaTvView', () => {
     expect(screen.getByText(playerName).closest('.pr-28')).toBeNull();
   });
 
-  it('renders the small TV control buttons and toggles the D-pad controls', () => {
-    renderWithProviders(<MediaTvView {...defaultProps} />);
-
-    expect(screen.getByRole('button', { name: 'Show volume controls' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show channel controls' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Volume down' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Channel down' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Menu' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Resume playback' })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show volume controls' }));
-
-    expect(screen.getByRole('button', { name: 'Hide volume controls' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Volume down' })).toBeInTheDocument();
+  it('switches small-card controls while keeping settings available', () => {
+    const onOpenDialog = vi.fn();
+    const onToggleMute = vi.fn();
+    renderWithProviders(
+      <MediaTvView {...defaultProps} onOpenDialog={onOpenDialog} onToggleMute={onToggleMute} />
+    );
+    const volumeToggle = screen.getByRole('button', { name: 'Volume controls' });
+    const settings = screen.getByRole('button', { name: 'More actions' });
+    expect(volumeToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Volume up' })).not.toBeInTheDocument();
+    for (const name of ['Menu', 'Home', 'Back', 'Resume playback', 'Show navigation pad']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
+    fireEvent.click(volumeToggle);
+    expect(screen.queryByRole('button', { name: 'Volume controls' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Channel controls' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Volume up' })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show channel controls' }));
-
-    expect(screen.getByRole('button', { name: 'Hide channel controls' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Channel down' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Volume down' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Mute volume' }));
+    expect(onToggleMute).toHaveBeenCalledOnce();
+    expect(settings).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Channel controls' }));
+    expect(screen.queryByRole('button', { name: 'Volume controls' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Channel controls' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Volume up' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Channel up' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Volume down' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Channel down' })).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    expect(screen.getByRole('button', { name: 'Volume controls' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Channel controls' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Channel up' })).not.toBeInTheDocument();
+    fireEvent.click(settings);
+    expect(onOpenDialog).toHaveBeenCalledOnce();
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show navigation pad' }));
-
-    expect(screen.getByRole('button', { name: 'Hide navigation pad' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Select' })).toBeInTheDocument();
+  it('returns small-card controls to the toggles after three seconds of inactivity', () => {
+    vi.useFakeTimers();
+    try {
+      renderWithProviders(<MediaTvView {...defaultProps} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Volume controls' }));
+      act(() => vi.advanceTimersByTime(2500));
+      fireEvent.click(screen.getByRole('button', { name: 'Volume up' }));
+      act(() => vi.advanceTimersByTime(2999));
+      expect(screen.getByRole('button', { name: 'Volume up' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Channel controls' })).not.toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.getByRole('button', { name: 'Volume controls' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Channel controls' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Volume up' })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('hides unsupported remote, volume, and source controls', () => {
@@ -101,12 +158,17 @@ describe('MediaTvView', () => {
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Show navigation pad' })).not.toBeInTheDocument();
     expect(screen.queryByText('HDMI 1')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Resume playback' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument();
   });
 
   it('renders source badges inside the TV input source selector menu', async () => {
     renderWithProviders(
-      <MediaTvView {...defaultProps} source="Apple TV" sourceList={['Apple TV', 'Netflix']} />
+      <MediaTvView
+        {...defaultProps}
+        size="medium"
+        source="Apple TV"
+        sourceList={['Apple TV', 'Netflix']}
+      />
     );
 
     fireEvent.pointerDown(screen.getByRole('button', { name: /apple tv/i }));
@@ -120,6 +182,7 @@ describe('MediaTvView', () => {
       <MediaTvView
         {...defaultProps}
         theme="light"
+        size="medium"
         source="Samsung TV Plus"
         sourceList={['Samsung TV Plus']}
       />

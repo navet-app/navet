@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react';
 import { TvControlButton } from './tv-control-button';
 
 interface TvVolumeControlsProps {
+  orientation?: 'horizontal' | 'vertical';
   theme: ThemeType;
   isMuted: boolean;
   volume: number;
@@ -22,6 +23,7 @@ interface TvVolumeControlsProps {
 }
 
 export function TvVolumeControls({
+  orientation = 'horizontal',
   theme,
   isMuted,
   volume,
@@ -51,49 +53,56 @@ export function TvVolumeControls({
     return null;
   }
 
+  const down = canSetVolume ? (
+    <TvControlButton
+      theme={theme}
+      size="small"
+      label={t('media.volumeDown')}
+      style={controlStyle}
+      iconClassName={iconClassName}
+      onPress={handleVolumeDown}
+    >
+      <Minus className={tvIconClass} />
+    </TvControlButton>
+  ) : null;
+  const mute = canMuteVolume ? (
+    <TvControlButton
+      theme={theme}
+      size="small"
+      label={isMuted ? t('media.unmuteVolume') : t('media.muteVolume')}
+      style={controlStyle}
+      iconClassName={iconClassName}
+      onPress={onToggleMute}
+    >
+      {isMuted ? <VolumeX className={tvIconClass} /> : <Volume2 className={tvIconClass} />}
+    </TvControlButton>
+  ) : null;
+  const up = canSetVolume ? (
+    <TvControlButton
+      theme={theme}
+      size="small"
+      label={t('media.volumeUp')}
+      style={controlStyle}
+      iconClassName={iconClassName}
+      onPress={handleVolumeUp}
+    >
+      <Plus className={tvIconClass} />
+    </TvControlButton>
+  ) : null;
   return (
-    <div className={`flex min-w-0 items-center ${tvControlClusterGap}`}>
-      {canSetVolume ? (
-        <TvControlButton
-          theme={theme}
-          size="small"
-          label={t('media.volumeDown')}
-          style={controlStyle}
-          iconClassName={iconClassName}
-          onPress={handleVolumeDown}
-        >
-          <Minus className={tvIconClass} />
-        </TvControlButton>
-      ) : null}
-      {canMuteVolume ? (
-        <TvControlButton
-          theme={theme}
-          size="small"
-          label={isMuted ? t('media.unmuteVolume') : t('media.muteVolume')}
-          style={controlStyle}
-          iconClassName={iconClassName}
-          onPress={onToggleMute}
-        >
-          {isMuted ? <VolumeX className={tvIconClass} /> : <Volume2 className={tvIconClass} />}
-        </TvControlButton>
-      ) : null}
-      {canSetVolume ? (
-        <TvControlButton
-          theme={theme}
-          size="small"
-          label={t('media.volumeUp')}
-          style={controlStyle}
-          iconClassName={iconClassName}
-          onPress={handleVolumeUp}
-        >
-          <Plus className={tvIconClass} />
-        </TvControlButton>
-      ) : null}
+    <div
+      className={`flex min-w-0 items-center ${tvControlClusterGap} ${orientation === 'vertical' ? 'flex-col' : ''}`}
+    >
+      {orientation === 'vertical' ? up : down}
+      {mute}
+      {orientation === 'vertical' ? down : up}
     </div>
   );
 }
 
 interface TvChannelControlsProps {
+  orientation?: 'horizontal' | 'vertical';
+  showLabels?: boolean;
   theme: ThemeType;
   remoteAvailable: boolean;
   controlStyle: CSSProperties;
@@ -104,6 +113,8 @@ interface TvChannelControlsProps {
 }
 
 export function TvChannelControls({
+  orientation = 'horizontal',
+  showLabels = false,
   theme,
   remoteAvailable,
   controlStyle,
@@ -117,28 +128,44 @@ export function TvChannelControls({
     return null;
   }
 
-  return (
-    <div className={`flex min-w-0 items-center ${tvControlClusterGap}`}>
-      <TvControlButton
-        theme={theme}
-        size="small"
-        label={t('media.remote.channelDown')}
-        style={controlStyle}
-        iconClassName={iconClassName}
-        onPress={() => onRemoteCommand('channelDown')}
-      >
+  const down = (
+    <TvControlButton
+      theme={theme}
+      size="small"
+      label={t('media.remote.channelDown')}
+      style={controlStyle}
+      iconClassName={iconClassName}
+      onPress={() => onRemoteCommand('channelDown')}
+    >
+      {showLabels ? (
+        <span className="text-xs">{t('media.remote.channelDownShort')}</span>
+      ) : (
         <ChevronDown className={tvIconClass} />
-      </TvControlButton>
-      <TvControlButton
-        theme={theme}
-        size="small"
-        label={t('media.remote.channelUp')}
-        style={controlStyle}
-        iconClassName={iconClassName}
-        onPress={() => onRemoteCommand('channelUp')}
-      >
+      )}
+    </TvControlButton>
+  );
+  const up = (
+    <TvControlButton
+      theme={theme}
+      size="small"
+      label={t('media.remote.channelUp')}
+      style={controlStyle}
+      iconClassName={iconClassName}
+      onPress={() => onRemoteCommand('channelUp')}
+    >
+      {showLabels ? (
+        <span className="text-xs">{t('media.remote.channelUpShort')}</span>
+      ) : (
         <ChevronUp className={tvIconClass} />
-      </TvControlButton>
+      )}
+    </TvControlButton>
+  );
+  return (
+    <div
+      className={`flex min-w-0 items-center ${tvControlClusterGap} ${orientation === 'vertical' ? 'flex-col' : ''}`}
+    >
+      {orientation === 'vertical' ? up : down}
+      {orientation === 'vertical' ? down : up}
     </div>
   );
 }
