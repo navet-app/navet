@@ -1,0 +1,6 @@
+type: new
+audiences:
+  - standalone
+  - home-assistant
+  - hacs
+summary: Customize a collapsible side panel and enable a device screensaver with weather, security alerts, and timers.

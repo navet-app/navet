@@ -10,8 +10,10 @@ import {
   WeatherIcon,
 } from '@navet/app/features/weather/components/weather-card/weather-icon';
 import { useI18n, useTheme } from '@navet/app/hooks';
+import { useWeatherDevicesCollection } from '@navet/app/hooks/use-devices';
 import { useIntegrationStore } from '@navet/app/hooks/use-integration-store';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
+import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
 import { formatTemperatureFromSourceUnit } from '@navet/app/utils/temperature';
 import { subscribeVisibilityAwareTask } from '@navet/app/utils/visibility-aware-scheduler';
 import { readNavetTimerState } from '@navet/core/household-device-state';
@@ -107,6 +109,7 @@ export default function Screensaver() {
 
 function ScreensaverDetails() {
   const { t } = useI18n();
+  const weatherDevices = useWeatherDevicesCollection();
   const temperatureUnit = useSettingsStore((state) => state.temperatureUnit);
   const settings = useDashboardCollectionStore(
     (state) => state.collection.dashboardsById[state.activeDashboardId]?.companion
@@ -115,10 +118,7 @@ function ScreensaverDetails() {
     useShallow((state) =>
       state.selectedProviderIds.flatMap((id) =>
         Object.values(state.providerEntitiesByProviderId[id] ?? {}).filter(
-          (entity) =>
-            entity.type === 'weather' ||
-            entity.type === 'timer' ||
-            Boolean(entity.attributes.alarmState)
+          (entity) => entity.type === 'timer' || Boolean(entity.attributes.alarmState)
         )
       )
     )
@@ -136,8 +136,8 @@ function ScreensaverDetails() {
     settings?.weatherEntityId === null
       ? undefined
       : settings?.weatherEntityId
-        ? entities.find((entity) => entity.canonicalId === settings.weatherEntityId)
-        : entities.find((entity) => entity.type === 'weather');
+        ? weatherDevices.find((device) => device.id === settings.weatherEntityId)
+        : weatherDevices[0];
   const alarm =
     settings?.showSecurity === false
       ? undefined
@@ -147,14 +147,15 @@ function ScreensaverDetails() {
   const timer = entities.find(
     (entity) => available(entity) && readNavetTimerState(entity)?.phase === 'active'
   );
-  const weatherAvailable = weather && available(weather);
-  const value = weather?.attributes.temperature;
-  const sourceUnit =
-    weather?.attributes.temperatureUnit === 'fahrenheit' ? 'fahrenheit' : 'celsius';
-  const condition =
-    typeof weather?.attributes.condition === 'string'
-      ? weather.attributes.condition
-      : String(weather?.primaryState ?? '');
+  const weatherProvider = weather ? parseProviderScopedId(weather.id)?.providerId : undefined;
+  const condition = weather?.condition ?? '';
+  const weatherAvailable =
+    weatherProvider &&
+    connections[weatherProvider] &&
+    condition !== 'unavailable' &&
+    condition !== 'unknown';
+  const value = weather?.temperature;
+  const sourceUnit = weather?.temperatureUnit ?? 'celsius';
   return (
     <div className="min-w-0 space-y-6 landscape:max-w-[32%]">
       {weather ? (

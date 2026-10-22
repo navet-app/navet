@@ -1,3 +1,5 @@
+import { mapNavetEntitiesToDeviceCollection } from '@navet/app/core/navet-device-collections';
+import * as deviceCollections from '@navet/app/hooks/use-devices';
 import {
   getPreviewRuntimeScenario,
   installPreviewRuntime,
@@ -8,7 +10,7 @@ import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import type { NavetEntity } from '@navet/core/types';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDashboardCollectionStore } from '../dashboards/dashboard-collection-store';
 import Screensaver from './screensaver';
@@ -21,7 +23,57 @@ describe('screensaver content and dismissal', () => {
     installPreviewRuntime(getPreviewRuntimeScenario('demo'));
     useScreensaverStore.getState().stop();
   });
-  afterEach(() => resetPreviewRuntime());
+  afterEach(() => {
+    cleanup();
+    resetPreviewRuntime();
+    vi.restoreAllMocks();
+  });
+
+  it.each(['automatic', 'explicit'])(
+    'shows %s weather from the feature collection without an indexed weather entity',
+    (selection) => {
+      const source = Object.values(integrationStore.getState().providerEntitiesByCanonicalId).find(
+        (entity) => entity.type === 'weather'
+      );
+      if (!source) throw new Error('Missing preview weather');
+      const weather = mapNavetEntitiesToDeviceCollection([source]).weather;
+      vi.spyOn(deviceCollections, 'useWeatherDevicesCollection').mockReturnValue(weather);
+      integrationStore.setState((state) => ({
+        providerEntitiesByCanonicalId: Object.fromEntries(
+          Object.entries(state.providerEntitiesByCanonicalId).filter(
+            ([id]) => id !== source.canonicalId
+          )
+        ),
+        providerEntitiesByProviderId: {
+          ...state.providerEntitiesByProviderId,
+          [source.providerId]: Object.fromEntries(
+            Object.entries(state.providerEntitiesByProviderId[source.providerId] ?? {}).filter(
+              ([, entity]) => entity.canonicalId !== source.canonicalId
+            )
+          ),
+        },
+      }));
+      const store = useDashboardCollectionStore.getState();
+      store.updateCompanion(store.activeDashboardId, {
+        weatherEntityId: selection === 'explicit' ? source.canonicalId : undefined,
+        showSecurity: false,
+      });
+      renderWithProviders(<Screensaver />);
+      expect(screen.getByText('64.4°F')).toBeInTheDocument();
+      act(() => useSettingsStore.getState().updateSettings({ temperatureUnit: 'celsius' }));
+      expect(screen.getByText('18°C')).toBeInTheDocument();
+      act(() =>
+        integrationStore.setState((state) => ({
+          providerRuntime: {
+            ...state.providerRuntime,
+            [source.providerId]: { ...state.providerRuntime[source.providerId], connected: false },
+          },
+        }))
+      );
+      expect(screen.queryByText('18°C')).not.toBeInTheDocument();
+      expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    }
+  );
 
   it('uses live weather and unit preferences, and reports disconnection', () => {
     renderWithProviders(<Screensaver />);
