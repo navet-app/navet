@@ -1,6 +1,7 @@
 import { mapNavetEntitiesToDeviceCollection } from '@navet/app/core/navet-device-collections';
 import { DemoChoreWorkspace } from '@navet/app/demo/demo-chore-workspace';
 import * as deviceCollections from '@navet/app/hooks/use-devices';
+import * as calendarCollections from '@navet/app/hooks/use-provider-calendar-devices';
 import {
   getPreviewRuntimeScenario,
   installPreviewRuntime,
@@ -639,6 +640,74 @@ describe('dashboard companion connected state', () => {
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
   });
 
+  it('adds and renders individual calendar feature sources without indexed calendar entities', async () => {
+    const source = getPreviewRuntimeScenario('demo').entities.find(
+      (entity) => entity.type === 'calendar'
+    );
+    if (!source) throw new Error('Missing preview calendar');
+    vi.spyOn(calendarCollections, 'useProviderCalendarDevicesCollection').mockReturnValue([
+      {
+        id: 'home_assistant:calendar.navet_overview',
+        name: 'Combined calendar',
+        room: 'Home',
+        size: 'medium',
+        events: [],
+        sources: [
+          { id: source.canonicalId, name: source.name, room: 'Home', available: true, events: [] },
+          {
+            id: 'home_assistant:calendar.other',
+            name: 'Other calendar',
+            room: 'Home',
+            available: false,
+            events: [],
+          },
+        ],
+      },
+    ]);
+    integrationStore.setState((state) => ({
+      providerEntitiesByCanonicalId: Object.fromEntries(
+        Object.entries(state.providerEntitiesByCanonicalId).filter(
+          ([, entity]) => entity.type !== 'calendar'
+        )
+      ),
+      providerEntitiesByProviderId: {
+        ...state.providerEntitiesByProviderId,
+        home_assistant: Object.fromEntries(
+          Object.entries(state.providerEntitiesByProviderId.home_assistant ?? {}).filter(
+            ([, entity]) => entity.type !== 'calendar'
+          )
+        ),
+      },
+    }));
+    renderWithProviders(<DashboardCompanion editing />);
+    fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+    fireEvent.change(screen.getByPlaceholderText('Search entities'), {
+      target: { value: source.name },
+    });
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: `Add item: ${source.name}` })
+    );
+    const store = useDashboardCollectionStore.getState();
+    expect(
+      store.collection.dashboardsById[store.activeDashboardId].companion?.cards?.at(-1)
+    ).toMatchObject({
+      type: 'calendar',
+      entityId: source.canonicalId,
+    });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Done' }));
+    expect(await screen.findByText('No upcoming events')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+    fireEvent.change(screen.getByPlaceholderText('Search entities'), {
+      target: { value: 'Other calendar' },
+    });
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Add item: Other calendar' })
+    );
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Done' }));
+    expect(await screen.findByRole('heading', { name: 'Other calendar' })).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+  });
+
   it.each(['weather', 'camera', 'alarm'] as const)(
     'preserves an offline %s selection on reorder and clears it on removal',
     async (type) => {
@@ -965,6 +1034,42 @@ describe('dashboard companion connected state', () => {
     expect(screen.queryByRole('heading', { name: 'Chores' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mark done: Unload dishwasher' })).toBeEnabled();
     expect(screen.getByText('Unload dishwasher')).toBeInTheDocument();
+  });
+
+  it('hides disabled chores from the panel and picker while retaining the saved card', async () => {
+    const store = useDashboardCollectionStore.getState();
+    store.updateCompanion(store.activeDashboardId, {
+      showSecurity: false,
+      cards: [{ id: 'saved-chores', type: 'chores' }],
+    });
+    renderWithProviders(
+      <DemoChoreWorkspace>
+        <DashboardCompanion />
+      </DemoChoreWorkspace>
+    );
+    expect(await screen.findByText('Unload dishwasher')).toBeInTheDocument();
+    act(() => useSettingsStore.getState().updateSettings({ choresEnabled: false }));
+    expect(screen.queryByText('Unload dishwasher')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Mark done: Unload dishwasher' })
+    ).not.toBeInTheDocument();
+    expect(
+      useDashboardCollectionStore.getState().collection.dashboardsById[store.activeDashboardId]
+        .companion?.cards
+    ).toEqual([{ id: 'saved-chores', type: 'chores' }]);
+    act(() => useEditModeStore.getState().setEditMode(true));
+    fireEvent.click(screen.getByRole('button', { name: 'Add item' }));
+    fireEvent.change(screen.getByPlaceholderText('Search entities'), {
+      target: { value: 'Chores' },
+    });
+    expect(
+      within(screen.getByRole('dialog')).queryByRole('button', { name: 'Add item: Chores' })
+    ).not.toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).queryByText('Chores')).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Done' }));
+    act(() => useEditModeStore.getState().setEditMode(false));
+    act(() => useSettingsStore.getState().updateSettings({ choresEnabled: true }));
+    expect(await screen.findByText('Unload dishwasher')).toBeInTheDocument();
   });
 
   it.each(['calendar', 'chores'])('adds %s through the panel editor', (type) => {

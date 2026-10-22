@@ -37,6 +37,7 @@ import { getDeviceTypeIcon } from '@navet/app/constants/device-type-icons';
 import { getDeviceTypeLabel } from '@navet/app/constants/device-type-labels';
 import { isLawnMowerEntityId } from '@navet/app/features/vacuum/components/vacuum/vacuum-utils';
 import { useI18n, useTheme } from '@navet/app/hooks';
+import { useSettingsStore } from '@navet/app/stores/settings-store';
 import type { NavetEntity } from '@navet/core/types';
 import { ArrowDown, ArrowUp, GripVertical, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { type ReactNode, useId } from 'react';
@@ -332,6 +333,7 @@ export function CompanionAddCardDialog({
 }) {
   const { t } = useI18n();
   const label = useCompanionCardLabel();
+  const choresEnabled = useSettingsStore((state) => state.choresEnabled);
   const items = new Map<string, Omit<CompanionCard, 'id'>>();
   const libraryCards: DashboardLibraryCard[] = entities.map((entity) => {
     const type =
@@ -367,6 +369,7 @@ export function CompanionAddCardDialog({
     };
   });
   for (const type of COMPANION_CARD_TYPES) {
+    if (type === 'chores' && !choresEnabled) continue;
     if (type === 'entity' || type === 'camera' || type === 'weather' || type === 'calendar')
       continue;
     const id = `companion-${type}`;

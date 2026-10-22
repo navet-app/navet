@@ -18,7 +18,10 @@ import {
   WeatherIcon,
 } from '@navet/app/features/weather/components/weather-card/weather-icon';
 import { useI18n, useIntegrationStore, useProviderResource, useTheme } from '@navet/app/hooks';
-import { useWeatherDevicesCollection } from '@navet/app/hooks/use-devices';
+import {
+  useCalendarDevicesCollection,
+  useWeatherDevicesCollection,
+} from '@navet/app/hooks/use-devices';
 import { useResourceUrl } from '@navet/app/hooks/use-resource-url';
 import { useEditModeStore, useSettingsStore } from '@navet/app/stores';
 import { integrationSelectors } from '@navet/app/stores/selectors';
@@ -140,6 +143,7 @@ function DashboardCompanionContent({
   }, [adding, editingCardId]);
   const cardLabel = useCompanionCardLabel();
   const settings = resolveDashboardCompanion(dashboard, roomId);
+  const choresEnabled = useSettingsStore((state) => state.choresEnabled);
   const cards = useMemo(() => getCompanionCards(settings), [settings]);
   const indexedEntities = useIntegrationStore(
     useShallow((state) =>
@@ -149,6 +153,7 @@ function DashboardCompanionContent({
     )
   );
   const weatherDevices = useWeatherDevicesCollection();
+  const calendarDevices = useCalendarDevicesCollection();
   const hydratingProviderIds = useIntegrationStore(
     useShallow((state) =>
       state.selectedProviderIds.filter(
@@ -158,8 +163,8 @@ function DashboardCompanionContent({
       )
     )
   );
-  // Weather is a feature collection on providers that do not index it as an entity.
-  // Adapt its normalized data here so selection, editing and details share one source list.
+  // Some providers expose weather and calendars only through feature collections.
+  // Adapt individual sources so selection, editing and details share one source list.
   const entities = useMemo(() => {
     const sources = new Map(indexedEntities.map((entity) => [entity.canonicalId, entity]));
     for (const weather of weatherDevices) {
@@ -183,8 +188,28 @@ function DashboardCompanionContent({
         attributes: { ...weather },
       });
     }
+    for (const calendar of calendarDevices) {
+      for (const source of calendar.sources?.length ? calendar.sources : [calendar]) {
+        const identity = parseProviderScopedId(source.id);
+        if (!identity || sources.has(source.id)) continue;
+        const available = !('available' in source) || source.available !== false;
+        sources.set(source.id, {
+          id: source.id,
+          canonicalId: source.id,
+          providerId: identity.providerId,
+          externalId: identity.nativeId,
+          type: 'calendar',
+          name: source.name,
+          room: source.room,
+          primaryState: available ? 'on' : 'unavailable',
+          availability: available ? 'available' : 'unavailable',
+          capabilities: [],
+          attributes: {},
+        });
+      }
+    }
     return [...sources.values()];
-  }, [indexedEntities, weatherDevices]);
+  }, [indexedEntities, weatherDevices, calendarDevices]);
   useEffect(
     () => () => {
       setConfiguring(false);
@@ -357,6 +382,7 @@ function DashboardCompanionContent({
   }
   const items = groups.map((group, index) => {
     const card = group[0];
+    if (card.type === 'chores' && !choresEnabled) return null;
     const previous = groups[index - 1]?.[0];
     const groupedSources = groupType(card) === 'camera' || groupType(card) === 'weather';
     const sameType = previous !== undefined && groupType(card) === groupType(previous);
