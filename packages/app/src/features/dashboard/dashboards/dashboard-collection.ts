@@ -3,6 +3,7 @@ import { HOME_WIDGET_ROOM, isAllRooms } from '@navet/app/constants/rooms';
 import { ensureCanonicalEntityId } from '@navet/app/utils/provider-entity-id';
 import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
 import { normalizeRoomName } from '@navet/app/utils/room-name';
+import { isRoomWorkspaceRoomId } from '../rooms/room-workspace-v2';
 import type { CustomCard } from '../stores/custom-cards-store';
 import type {
   HomeDashboardLayoutState,
@@ -48,6 +49,54 @@ export interface DashboardCompanionSettings {
 }
 
 export const DEFAULT_DASHBOARD_COMPANION: DashboardCompanionSettings = { showSecurity: true };
+export type RoomCompanionMode = 'dashboard' | 'room';
+
+function sanitizeRoomCompanionModes(value: unknown): Record<string, RoomCompanionMode> | undefined {
+  if (!isRecord(value)) return undefined;
+  const entries = Object.entries(value)
+    .filter((entry): entry is [string, RoomCompanionMode] => {
+      const [roomId, mode] = entry;
+      return isRoomWorkspaceRoomId(roomId) && (mode === 'dashboard' || mode === 'room');
+    })
+    .slice(0, MAX_DASHBOARD_ROOM_COUNT);
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+export function isRoomCompanionSelected(
+  dashboard: NavetDashboardDefinition | undefined,
+  roomId: string | null
+): boolean {
+  // Existing saved room panels predate explicit selection and remain selected on upgrade.
+  return Boolean(
+    roomId &&
+      dashboard?.roomCompanions?.[roomId] &&
+      dashboard.roomCompanionModes?.[roomId] !== 'dashboard'
+  );
+}
+
+export function sanitizeRoomCompanions(
+  value: unknown
+): Record<string, DashboardCompanionSettings> | undefined {
+  if (!isRecord(value)) return undefined;
+  const entries = Object.entries(value)
+    .filter(([roomId, settings]) => isRoomWorkspaceRoomId(roomId) && isRecord(settings))
+    .slice(0, MAX_DASHBOARD_ROOM_COUNT)
+    .map(([roomId, settings]) => [roomId, sanitizeDashboardCompanion(settings)]);
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+export function resolveDashboardCompanion(
+  dashboard: NavetDashboardDefinition | undefined,
+  roomId: string | null = null
+): DashboardCompanionSettings {
+  return (
+    (roomId && isRoomCompanionSelected(dashboard, roomId)
+      ? dashboard?.roomCompanions?.[roomId]
+      : undefined) ??
+    dashboard?.companion ??
+    DEFAULT_DASHBOARD_COMPANION
+  );
+}
 
 export function sanitizeDashboardCompanion(value: unknown): DashboardCompanionSettings {
   const input = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -146,6 +195,10 @@ export interface NavetDashboardDefinition {
   createdAt: string;
   updatedAt: string;
   companion?: DashboardCompanionSettings;
+  /** Saved panels keyed by stable room IDs, retained while the common panel is selected. */
+  roomCompanions?: Record<string, DashboardCompanionSettings>;
+  /** Absent selections retain the legacy behavior: a saved room panel is selected. */
+  roomCompanionModes?: Record<string, RoomCompanionMode>;
   homeRoomNames: string[] | null;
   homeLayout: HomeDashboardLayoutState;
   homeCardSizes: Record<string, CardSize>;
@@ -468,6 +521,12 @@ export function createDashboardDefinition(input: DashboardCreateInput): NavetDas
       source.kind === 'copy'
         ? sanitizeDashboardCompanion(source.dashboard.companion)
         : { ...DEFAULT_DASHBOARD_COMPANION },
+    ...(source.kind === 'copy' && source.dashboard.roomCompanions
+      ? { roomCompanions: sanitizeRoomCompanions(source.dashboard.roomCompanions) }
+      : {}),
+    ...(source.kind === 'copy' && source.dashboard.roomCompanionModes
+      ? { roomCompanionModes: sanitizeRoomCompanionModes(source.dashboard.roomCompanionModes) }
+      : {}),
     homeRoomNames,
     homeLayout,
     homeCardSizes,
@@ -554,6 +613,12 @@ export function sanitizeDashboardCollection(
           createdAt,
           updatedAt,
           companion: sanitizeDashboardCompanion(rawDefinition.companion),
+          ...(rawDefinition.roomCompanions
+            ? { roomCompanions: sanitizeRoomCompanions(rawDefinition.roomCompanions) }
+            : {}),
+          ...(rawDefinition.roomCompanionModes
+            ? { roomCompanionModes: sanitizeRoomCompanionModes(rawDefinition.roomCompanionModes) }
+            : {}),
           homeRoomNames: sanitizeDashboardRoomNames(rawDefinition.homeRoomNames),
           homeLayout,
           homeCardSizes: sanitizeCardSizes(rawDefinition.homeCardSizes, allowedIds),

@@ -1,17 +1,25 @@
-import { DeviceControlRow } from '@navet/app/components/shared/device-editor/device-control-row';
+import {
+  companionEntityIconClassName,
+  companionEntityNameTypography,
+  companionEntityRowClassName,
+  companionEntityValueClassName,
+} from '@navet/app/components/shared/companion-row-presentation';
+import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import { getDeviceTypeIcon } from '@navet/app/constants/device-type-icons';
 import {
   readNavetClimateState,
   readNavetLightState,
   readNavetMediaState,
   readNavetSensorState,
 } from '@navet/app/core/navet-device-state';
-import { useI18n, useIntegrationStore } from '@navet/app/hooks';
+import { useI18n, useIntegrationStore, useTheme } from '@navet/app/hooks';
 import { useSettingsStore } from '@navet/app/stores';
 import { formatTemperatureFromSourceUnit } from '@navet/app/utils/temperature';
 import type { NavetEntity } from '@navet/core/types';
 import { Activity } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { CompanionEntityDetails } from './companion-entity-details';
+import { CompanionRowLoading } from './companion-row-loading';
 
 const LightCard = lazy(async () => ({
   default: (await import('@navet/app/features/lighting/components/light-card')).LightCard,
@@ -33,6 +41,8 @@ const keepPanelSize = () => {};
 /** The card owns power and details; the panel selects only its compact row presentation. */
 export function CompanionEntityRow({ entity, editing }: { entity: NavetEntity; editing: boolean }) {
   const { t } = useI18n();
+  const { theme } = useTheme();
+  const surface = getThemeSurfaceTokens(theme);
   const unit = useSettingsStore((state) => state.temperatureUnit);
   const connected = useIntegrationStore(
     (state) => state.providerRuntime[entity.providerId]?.connected
@@ -68,7 +78,7 @@ export function CompanionEntityRow({ entity, editing }: { entity: NavetEntity; e
             : entity.primaryState == null || entity.primaryState === ''
               ? '—'
               : `${entity.primaryState}${sensor?.unit ? ` ${sensor.unit}` : ''}`;
-  const companion = { disabled: editing || !available, value };
+  const companion = { disabled: editing || !available, unavailable: !available, value };
   // The panel owns editing tools; do not register duplicate dashboard-card edit requests.
   const common = {
     id: entity.canonicalId,
@@ -80,23 +90,21 @@ export function CompanionEntityRow({ entity, editing }: { entity: NavetEntity; e
     isEditMode: false,
     companion,
   };
-  const fallback = (
-    <DeviceControlRow
-      kind="reading"
-      label={entity.name}
-      icon={<Activity className="h-4 w-4" />}
-      value={value}
-    />
-  );
+  const fallback = <CompanionRowLoading name={entity.name} icon={getDeviceTypeIcon(entity.type)} />;
   let content = (
     <CompanionEntityDetails
       entity={entity}
       editing={editing}
-      className="flex min-h-10 items-center gap-3 text-sm"
+      className={companionEntityRowClassName}
     >
-      <Activity aria-hidden="true" className="h-4 w-4 shrink-0" />
-      <span className="min-w-0 flex-1 break-words">{entity.name}</span>
-      <span className="max-w-[50%] break-words text-right">{value}</span>
+      <Activity
+        aria-hidden="true"
+        className={`${companionEntityIconClassName} ${surface.textMuted}`}
+      />
+      <span className={`min-w-0 flex-1 break-words ${companionEntityNameTypography}`}>
+        {entity.name}
+      </span>
+      <span className={companionEntityValueClassName}>{value}</span>
     </CompanionEntityDetails>
   );
   if (light)
@@ -154,7 +162,7 @@ export function CompanionEntityRow({ entity, editing }: { entity: NavetEntity; e
       />
     );
   else if (
-    entity.type === 'switch' ||
+    (entity.type === 'switch' && entity.attributes.serviceDomain !== 'humidifier') ||
     (entity.type === 'helper' && entity.capabilities.includes('toggle'))
   )
     content = (

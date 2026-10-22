@@ -12,6 +12,10 @@ import {
   DeviceTargetControl,
 } from '@navet/app/components/shared/device-editor';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import {
+  type EntityCardDialogControl,
+  useEntityCardDialogState,
+} from '@navet/app/components/shared/entity-card-dialog';
 import { useEntityCardInteractionController } from '@navet/app/components/shared/entity-card-interaction-controller';
 import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
@@ -43,6 +47,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 interface HumidifierCardProps {
+  dialog?: EntityCardDialogControl;
   id: string;
   name: string;
   room: string;
@@ -464,6 +469,7 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
   entityId,
   isOpen,
   onOpenChange,
+  onCloseAutoFocus,
   name,
   entityType,
   isOn,
@@ -483,6 +489,7 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
   entityId: string;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
   name: string;
   entityType: string;
   isOn: boolean;
@@ -548,6 +555,7 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
 
   return (
     <BaseCardDialog
+      onCloseAutoFocus={onCloseAutoFocus}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title={name}
@@ -584,6 +592,7 @@ export const HumidifierCard = memo(function HumidifierCard({
   size,
   onSizeChange: _onSizeChange,
   isEditMode,
+  dialog,
 }: HumidifierCardProps) {
   const { t } = useI18n();
   const { theme } = useTheme();
@@ -602,7 +611,7 @@ export const HumidifierCard = memo(function HumidifierCard({
   );
   const [currentHumidity, setCurrentHumidity] = useState<number | undefined>(undefined);
   const [mode, setMode] = useState(initialMode);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useEntityCardDialogState(dialog);
   const { HeaderIconComponent, headerIconText } = useSwitchCardAppearance({
     id,
     isScript: false,
@@ -792,139 +801,142 @@ export const HumidifierCard = memo(function HumidifierCard({
 
   return (
     <>
-      <CardWrapper
-        interactionProps={cardInteraction.cardProps}
-        isActive={isOn}
-        activeColor={humidityAccentColor}
-        className={`bg-gradient-to-br ${cardColors.gradient} ${cardColors.border} ${stateSurface.containerClassName}`}
-        style={stateSurfaceStyle.cardStyle}
-        lightOverlayClassName={lightOverlay}
-        showShadow={isOn && theme !== 'light'}
-      >
-        {isOn ? (
-          <div
-            className={`absolute inset-0 bg-gradient-to-br ${cardColors.glow} to-transparent transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-500`}
-          />
-        ) : null}
-        {cardShell.sheenOverlayClassName ? (
-          <div className={cardShell.sheenOverlayClassName} />
-        ) : null}
-        {stateSurfaceStyle.innerOverlayClassName ? (
-          <div
-            className={stateSurfaceStyle.innerOverlayClassName}
-            style={stateSurfaceStyle.innerOverlayStyle}
-          />
-        ) : null}
-        {stateSurfaceStyle.shineOverlayClassName ? (
-          <div className={stateSurfaceStyle.shineOverlayClassName} />
-        ) : null}
-        {stateSurface.overlayClassName ? (
-          <div className={`absolute inset-0 ${stateSurface.overlayClassName}`} />
-        ) : null}
+      {!dialog ? (
+        <CardWrapper
+          interactionProps={cardInteraction.cardProps}
+          isActive={isOn}
+          activeColor={humidityAccentColor}
+          className={`bg-gradient-to-br ${cardColors.gradient} ${cardColors.border} ${stateSurface.containerClassName}`}
+          style={stateSurfaceStyle.cardStyle}
+          lightOverlayClassName={lightOverlay}
+          showShadow={isOn && theme !== 'light'}
+        >
+          {isOn ? (
+            <div
+              className={`absolute inset-0 bg-gradient-to-br ${cardColors.glow} to-transparent transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-500`}
+            />
+          ) : null}
+          {cardShell.sheenOverlayClassName ? (
+            <div className={cardShell.sheenOverlayClassName} />
+          ) : null}
+          {stateSurfaceStyle.innerOverlayClassName ? (
+            <div
+              className={stateSurfaceStyle.innerOverlayClassName}
+              style={stateSurfaceStyle.innerOverlayStyle}
+            />
+          ) : null}
+          {stateSurfaceStyle.shineOverlayClassName ? (
+            <div className={stateSurfaceStyle.shineOverlayClassName} />
+          ) : null}
+          {stateSurface.overlayClassName ? (
+            <div className={`absolute inset-0 ${stateSurface.overlayClassName}`} />
+          ) : null}
 
-        <div className="relative z-[2] h-full flex flex-col p-3">
-          <EntityCardHeader
-            title={name}
-            subtitle={subtitle}
-            layout="eyebrow-first"
-            size={resolvedSize}
-            tone={tone}
-            titleClassName={stateSurface.primaryTextClassName}
-            subtitleClassName={stateSurface.mutedTextClassName}
-            leading={
-              <EntityCardHeaderIcon
-                IconComponent={HumidityIcon}
-                iconText={headerIconText ?? undefined}
-                isActive={isOn}
-                size={resolvedSize}
-                tone={tone}
-                baseColor={humidityAccentColor}
-                ariaLabel={cardInteraction.iconButtonProps['aria-label']}
-                onClick={cardInteraction.iconButtonProps.onClick}
-              />
-            }
-          />
+          <div className="relative z-[2] h-full flex flex-col p-3">
+            <EntityCardHeader
+              title={name}
+              subtitle={subtitle}
+              layout="eyebrow-first"
+              size={resolvedSize}
+              tone={tone}
+              titleClassName={stateSurface.primaryTextClassName}
+              subtitleClassName={stateSurface.mutedTextClassName}
+              leading={
+                <EntityCardHeaderIcon
+                  IconComponent={HumidityIcon}
+                  iconText={headerIconText ?? undefined}
+                  isActive={isOn}
+                  size={resolvedSize}
+                  tone={tone}
+                  baseColor={humidityAccentColor}
+                  ariaLabel={cardInteraction.iconButtonProps['aria-label']}
+                  onClick={cardInteraction.iconButtonProps.onClick}
+                />
+              }
+            />
 
-          <HumidifierGauge
-            id={`${id}-humidity`}
-            isOn={isOn}
-            targetHumidity={targetHumidityValue}
-            minHumidity={resolvedMinHumidity}
-            maxHumidity={resolvedMaxHumidity}
-            step={sliderStep}
-            size={isSmall ? 'small' : 'medium'}
-            accentColor={humidityAccentColor}
-            glowClassName={glowClassName}
-            readableTokens={readableTokens}
-            onTargetHumidityChange={setTargetHumidity}
-            onTargetHumidityCommit={updateHumidity}
-            label={t('humidifier.targetHumidity')}
-          />
+            <HumidifierGauge
+              id={`${id}-humidity`}
+              isOn={isOn}
+              targetHumidity={targetHumidityValue}
+              minHumidity={resolvedMinHumidity}
+              maxHumidity={resolvedMaxHumidity}
+              step={sliderStep}
+              size={isSmall ? 'small' : 'medium'}
+              accentColor={humidityAccentColor}
+              glowClassName={glowClassName}
+              readableTokens={readableTokens}
+              onTargetHumidityChange={setTargetHumidity}
+              onTargetHumidityCommit={updateHumidity}
+              label={t('humidifier.targetHumidity')}
+            />
 
-          <div className="flex-1">
-            <div className={`relative flex h-full flex-col ${isSmall ? 'gap-1.5' : ''}`}>
-              <div className="mt-auto inline-flex w-fit flex-col self-start">
-                <div className="min-w-0">
-                  <div
-                    className={`mb-1 text-3xl font-bold leading-none transition-colors duration-500 ${stateSurface.primaryTextClassName}`}
-                    style={{ color: readableTokens.titleColor }}
-                  >
-                    {formatHumidityValue(currentHumidityValue ?? targetHumidityValue)}
-                  </div>
-                  <div
-                    className={`text-xs ${stateSurface.secondaryTextClassName}`}
-                    style={{ color: readableTokens.subtitleColor }}
-                  >
-                    {statusLabel}
+            <div className="flex-1">
+              <div className={`relative flex h-full flex-col ${isSmall ? 'gap-1.5' : ''}`}>
+                <div className="mt-auto inline-flex w-fit flex-col self-start">
+                  <div className="min-w-0">
+                    <div
+                      className={`mb-1 text-3xl font-bold leading-none transition-colors duration-500 ${stateSurface.primaryTextClassName}`}
+                      style={{ color: readableTokens.titleColor }}
+                    >
+                      {formatHumidityValue(currentHumidityValue ?? targetHumidityValue)}
+                    </div>
+                    <div
+                      className={`text-xs ${stateSurface.secondaryTextClassName}`}
+                      style={{ color: readableTokens.subtitleColor }}
+                    >
+                      {statusLabel}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className={isSmall ? 'pt-2' : 'pt-4'}>
-                <CardActionRow
-                  theme={theme}
-                  size={isSmall ? 'small' : 'medium'}
-                  leftContent={
-                    <div className="relative z-[3]">
-                      <CardActionRowGroup>
-                        <HumidifierHumidityControls
-                          targetHumidity={targetHumidityValue}
-                          minHumidity={resolvedMinHumidity}
-                          maxHumidity={resolvedMaxHumidity}
-                          step={sliderStep}
-                          isOn={isOn}
+                <div className={isSmall ? 'pt-2' : 'pt-4'}>
+                  <CardActionRow
+                    theme={theme}
+                    size={isSmall ? 'small' : 'medium'}
+                    leftContent={
+                      <div className="relative z-[3]">
+                        <CardActionRowGroup>
+                          <HumidifierHumidityControls
+                            targetHumidity={targetHumidityValue}
+                            minHumidity={resolvedMinHumidity}
+                            maxHumidity={resolvedMaxHumidity}
+                            step={sliderStep}
+                            isOn={isOn}
+                            size={isSmall ? 'small' : 'medium'}
+                            onCommit={updateHumidity}
+                          />
+                          <HumidifierModeControls
+                            availableModes={visibleModes}
+                            currentMode={mode}
+                            isOn={isOn}
+                            size={isSmall ? 'small' : 'medium'}
+                            onModeChange={updateMode}
+                          />
+                        </CardActionRowGroup>
+                      </div>
+                    }
+                    rightContent={
+                      <div className="relative z-[3]">
+                        <CardSettingsActionButton
+                          {...cardInteraction.settingsButtonProps}
+                          theme={theme}
                           size={isSmall ? 'small' : 'medium'}
-                          onCommit={updateHumidity}
+                          tone={isOn ? 'default' : 'muted'}
+                          variant="soft"
                         />
-                        <HumidifierModeControls
-                          availableModes={visibleModes}
-                          currentMode={mode}
-                          isOn={isOn}
-                          size={isSmall ? 'small' : 'medium'}
-                          onModeChange={updateMode}
-                        />
-                      </CardActionRowGroup>
-                    </div>
-                  }
-                  rightContent={
-                    <div className="relative z-[3]">
-                      <CardSettingsActionButton
-                        {...cardInteraction.settingsButtonProps}
-                        theme={theme}
-                        size={isSmall ? 'small' : 'medium'}
-                        tone={isOn ? 'default' : 'muted'}
-                        variant="soft"
-                      />
-                    </div>
-                  }
-                />
+                      </div>
+                    }
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </CardWrapper>
+        </CardWrapper>
+      ) : null}
 
       <HumidifierSettingsDialog
+        onCloseAutoFocus={dialog?.onCloseAutoFocus}
         entityId={id}
         isOpen={isSettingsOpen}
         onOpenChange={setIsSettingsOpen}

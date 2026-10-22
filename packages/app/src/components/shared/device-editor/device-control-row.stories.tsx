@@ -22,9 +22,11 @@ import { DeviceTargetControl } from './device-target-control';
 function AdvancedControls({
   disabled = false,
   onAction,
+  centeredTarget = false,
 }: {
   disabled?: boolean;
   onAction: () => void;
+  centeredTarget?: boolean;
 }) {
   const { theme, accentColor } = useTheme();
   const [target, setTarget] = useState(21);
@@ -43,6 +45,19 @@ function AdvancedControls({
           currentReading="Current 20°C"
           status="Heating"
           readableTokens={readableTokens}
+          renderControls={
+            centeredTarget
+              ? (value) => (
+                  <ClimateTempControls
+                    targetTemp={target}
+                    onTempChange={setTarget}
+                    isOn={!disabled}
+                  >
+                    {value}
+                  </ClimateTempControls>
+                )
+              : undefined
+          }
           controls={
             <ClimateTempControls targetTemp={target} onTempChange={setTarget} isOn={!disabled} />
           }
@@ -182,6 +197,7 @@ export const Unavailable: Story = {
   },
 };
 export const Light: Story = { ...Controls, globals: { theme: 'light' } };
+export const CenteredTarget: Story = { args: { centeredTarget: true } };
 export const Glass: Story = { ...Controls, globals: { theme: 'glass' } };
 export const Black: Story = { ...Controls, globals: { theme: 'black' } };
 export const Mobile: Story = {

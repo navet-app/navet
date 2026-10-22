@@ -1,6 +1,8 @@
-import { I18nProvider } from '@navet/app/i18n/i18n-provider';
-import { homeAssistantStore } from '@navet/app/stores/home-assistant-store';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { integrationStore } from '@navet/app/stores/integration-store';
+import { renderWithProviders } from '@navet/app/test/render';
+import { resetAppStores } from '@navet/app/test/store-reset';
+import type { NavetEntity } from '@navet/core/types';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LockCard } from '../lock-card';
 
@@ -23,44 +25,50 @@ vi.mock('sonner', () => ({
   },
 }));
 
-function renderLockCard() {
-  return render(
-    <I18nProvider>
-      <LockCard
-        id="lock.front_door"
-        name="Front Door"
-        initialState
-        size="small"
-        isEditMode={false}
-      />
-    </I18nProvider>
+const id = 'home_assistant:lock.front_door';
+
+function renderLockCard(dialogOpen = false) {
+  return renderWithProviders(
+    <LockCard
+      id={id}
+      name="Front Door"
+      initialState
+      size="small"
+      isEditMode={false}
+      dialog={dialogOpen ? { isOpen: true, onOpenChange: () => {} } : undefined}
+    />
   );
 }
 
 function setLockEntity(state: 'locked' | 'unlocked') {
-  const now = new Date().toISOString();
-
-  homeAssistantStore.setState({
-    entities: {
-      'lock.front_door': {
-        entity_id: 'lock.front_door',
-        state,
-        attributes: {},
-        last_changed: now,
-        last_updated: now,
-        context: {
-          id: 'test-context',
-          parent_id: null,
-          user_id: null,
-        },
-      },
-    },
+  const entity: NavetEntity = {
+    id,
+    canonicalId: id,
+    externalId: 'lock.front_door',
+    providerId: 'home_assistant',
+    name: 'Front Door',
+    type: 'lock',
+    primaryState: state,
+    availability: 'available',
+    capabilities: ['lock'],
+    attributes: { value: state, locked: state === 'locked' },
+  };
+  integrationStore.setState({
+    providerEntitiesByCanonicalId: { [id]: entity },
+    providerEntitiesByProviderId: { home_assistant: { [id]: entity } },
   });
 }
 
 describe('LockCard', () => {
-  beforeEach(() => {
-    homeAssistantStore.setState({ entities: null });
+  beforeEach(async () => {
+    await resetAppStores();
+    integrationStore.setState((state) => ({
+      providerRuntime: {
+        ...state.providerRuntime,
+        home_assistant: { ...state.providerRuntime.home_assistant, connected: true },
+      },
+    }));
+    setLockEntity('locked');
     lockEntityMock.mockReset();
     lockEntityMock.mockResolvedValue(undefined);
     toastErrorMock.mockReset();
@@ -68,13 +76,13 @@ describe('LockCard', () => {
     unlockEntityMock.mockResolvedValue(undefined);
   });
 
-  it('shows a loading state until the Home Assistant entity echoes the unlock', async () => {
+  it('shows a loading state until the provider entity echoes the unlock', async () => {
     setLockEntity('locked');
     renderLockCard();
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'Slide to unlock' }), { key: ' ' });
 
-    await waitFor(() => expect(unlockEntityMock).toHaveBeenCalledWith('lock.front_door'));
+    await waitFor(() => expect(unlockEntityMock).toHaveBeenCalledWith(id));
     expect(screen.getByText('Unlocking...')).toBeInTheDocument();
     expect(screen.queryByText('Unlocked')).not.toBeInTheDocument();
 
@@ -90,7 +98,7 @@ describe('LockCard', () => {
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'Slide to lock' }), { key: ' ' });
 
-    await waitFor(() => expect(lockEntityMock).toHaveBeenCalledWith('lock.front_door'));
+    await waitFor(() => expect(lockEntityMock).toHaveBeenCalledWith(id));
     expect(screen.getByText('Locking...')).toBeInTheDocument();
     expect(screen.queryByText('Unlocked')).not.toBeInTheDocument();
 
@@ -109,5 +117,20 @@ describe('LockCard', () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('Unable to update lock'));
     expect(screen.getByText('Locked')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Slide to unlock' })).toBeInTheDocument();
+  });
+  it('disables actions in an open native dialog after the provider disconnects', () => {
+    renderLockCard(true);
+    act(() =>
+      integrationStore.setState((state) => ({
+        providerRuntime: {
+          ...state.providerRuntime,
+          home_assistant: { ...state.providerRuntime.home_assistant, connected: false },
+        },
+      }))
+    );
+    const action = screen.getByRole('button', { name: 'Slide to unlock' });
+    expect(action).toBeDisabled();
+    fireEvent.keyDown(action, { key: ' ' });
+    expect(unlockEntityMock).not.toHaveBeenCalled();
   });
 });

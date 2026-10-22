@@ -39,6 +39,7 @@ import {
   type DashboardLibraryCard,
   type DashboardLibraryEntityType,
   DashboardLibraryList,
+  type DashboardLibraryRemoval,
 } from '../dashboard-library-list';
 import type { CardTemplate, CardTemplateId } from './types';
 
@@ -47,6 +48,7 @@ function cardSizeKey(size: CardSize): `dashboard.addCard.size.${CardSize}` {
 }
 
 interface AddEntityDialogViewProps {
+  libraryRemoval?: DashboardLibraryRemoval;
   open: boolean;
   onClose: () => void;
   currentRoom: string;
@@ -54,6 +56,7 @@ interface AddEntityDialogViewProps {
   setActiveTab: (tab: 'cards' | 'widgets') => void;
   showCardsTab: boolean;
   libraryOnly?: boolean;
+  libraryAddDisabled?: boolean;
   title?: string;
   description?: string;
   actionLabel?: string;
@@ -100,6 +103,8 @@ export function AddEntityDialogView({
   setActiveTab,
   showCardsTab,
   libraryOnly = false,
+  libraryAddDisabled,
+  libraryRemoval,
   title,
   description,
   actionLabel,
@@ -451,6 +456,8 @@ export function AddEntityDialogView({
                       addLabel={actionLabel ?? t('dashboard.addEntity.action')}
                       emptyText={libraryEmptyText ?? t('dashboard.addCard.libraryEmpty')}
                       onAdd={handleAddFromLibrary}
+                      addDisabled={libraryAddDisabled}
+                      removal={libraryRemoval}
                       fillAvailable
                     />
                   </div>

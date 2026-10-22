@@ -1,10 +1,12 @@
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import type { CompanionRowPresentation } from '@navet/app/components/shared/companion-row-presentation';
+import type { EntityCardDialogControl } from '@navet/app/components/shared/entity-card-dialog';
 import type { DeviceMetric } from '@navet/app/types/device.types';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import type { ReactNode } from 'react';
 
 export interface SwitchCardProps {
+  dialog?: EntityCardDialogControl;
   id: string;
   name: string;
   size: CardSize;

@@ -11,6 +11,24 @@ const PORT = 4181;
 const BASE_URL = `http://${HOST}:${PORT}`;
 const OUTPUT_DIR = resolve(repoRoot, process.env.NAVET_PR_REVIEW_OUTPUT ?? '.cache/pr-review');
 
+async function verifyStableHeaderActions(page) {
+  const actions = page.locator('[data-header-dashboard-actions]').filter({ visible: true });
+  const initial = await actions.boundingBox();
+  if (!initial) throw new Error('Desktop header actions are missing.');
+
+  for (const [toggle, nextToggle] of [
+    ['Hide side panel', 'Show side panel'],
+    ['Show side panel', 'Hide side panel'],
+  ]) {
+    await page.getByRole('button', { name: toggle, exact: true }).click();
+    await page.getByRole('button', { name: nextToggle, exact: true }).waitFor();
+    const current = await actions.boundingBox();
+    if (!current || Math.abs(current.x - initial.x) > 1 || Math.abs(current.y - initial.y) > 1) {
+      throw new Error(`Header actions moved after ${toggle}: ${JSON.stringify({ initial, current })}`);
+    }
+  }
+}
+
 const scenarios = [
   { name: 'phone-home', path: '/demo/home', viewport: { width: 390, height: 844 } },
   {
@@ -25,8 +43,8 @@ const scenarios = [
     },
   },
   { name: 'tablet-portrait-home', path: '/demo/home', viewport: { width: 1024, height: 1366 } },
-  { name: 'tablet-landscape-home', path: '/demo/home', viewport: { width: 1366, height: 1024 } },
-  { name: 'desktop-home', path: '/demo/home', viewport: { width: 1440, height: 900 } },
+  { name: 'tablet-landscape-home', path: '/demo/home', viewport: { width: 1366, height: 1024 }, prepare: verifyStableHeaderActions },
+  { name: 'desktop-home', path: '/demo/home', viewport: { width: 1440, height: 900 }, prepare: verifyStableHeaderActions },
   { name: 'tablet-landscape-lights', path: '/demo/lights', viewport: { width: 1366, height: 1024 } },
   { name: 'tablet-landscape-climate', path: '/demo/climate', viewport: { width: 1366, height: 1024 } },
   { name: 'tablet-landscape-media', path: '/demo/media', viewport: { width: 1366, height: 1024 } },
@@ -62,7 +80,7 @@ for (const [room, sample] of Object.entries(namedRoomSamples)) {
     name: `desktop-room-${room.toLowerCase().replaceAll(' ', '-')}`,
     path: '/demo/home', viewport: { width: 1440, height: 900 },
     prepare: async (page) => {
-      const direct = page.getByRole('button', { name: room, exact: true }).filter({ visible: true });
+      const direct = page.getByRole('button', { name: room, exact: true }).filter({ visible: true, hasText: room });
       if (await direct.count()) {
         await direct.click();
       } else {
@@ -75,6 +93,46 @@ for (const [room, sample] of Object.entries(namedRoomSamples)) {
       }
       await page.getByText(sample, { exact: true }).first().waitFor();
       await page.getByRole('navigation', { name: 'Summary bar', exact: true }).waitFor();
+    },
+  });
+}
+
+// Exercise room inheritance through the actual navigation and panel editor.
+for (const width of [1366, 1440]) {
+  scenarios.push({
+    name: `desktop-room-panel-editor-${width}`,
+    path: '/demo/home', viewport: { width, height: 900 },
+    prepare: async (page) => {
+      const kitchenScenario = scenarios.find((scenario) => scenario.name === 'desktop-room-kitchen');
+      await kitchenScenario.prepare(page);
+      const panel = page.getByRole('region', { name: 'Side panel', exact: true });
+      await page.getByRole('button', { name: 'Customize', exact: true }).click();
+      const scope = panel.getByRole('button', { name: 'Panel for Kitchen', exact: true });
+      await scope.waitFor();
+      await panel.getByRole('button', { name: 'Add item', exact: true }).waitFor();
+      await panel.getByRole('button', { name: 'Add item', exact: true }).click();
+      const addDialog = page.getByRole('dialog', { name: 'Add item', exact: true });
+      await addDialog.getByPlaceholder('Search entities', { exact: true }).fill('Note');
+      await addDialog.getByRole('button', { name: 'Add item: Note', exact: true }).click();
+      await page.getByLabel('Note text', { exact: true }).fill('Shared panel edited from Kitchen');
+      await page.getByRole('dialog').getByRole('button', { name: 'Done', exact: true }).click();
+      await scope.click();
+      await page.getByRole('menuitem', { name: 'Create room panel', exact: true }).click();
+      await panel.getByRole('button', { name: 'Edit Note', exact: true }).click();
+      await page.getByLabel('Note text', { exact: true }).fill('Saved Kitchen panel');
+      await page.getByRole('dialog').getByRole('button', { name: 'Done', exact: true }).click();
+      await scope.click();
+      await page.getByRole('menuitemradio', { name: 'Dashboard panel', exact: true }).click();
+      if (await page.getByRole('alertdialog').count()) throw new Error('Switching panels must not request deletion.');
+      await panel.getByText('Shared panel edited from Kitchen', { exact: true }).waitFor();
+      if (await panel.getByText('Saved Kitchen panel', { exact: true }).count()) throw new Error('Shared panel was changed by room edits.');
+      await page.reload({ waitUntil: 'networkidle' });
+      await kitchenScenario.prepare(page);
+      await page.getByRole('button', { name: 'Customize', exact: true }).click();
+      await panel.getByText('Shared panel edited from Kitchen', { exact: true }).waitFor();
+      await scope.click();
+      await page.getByRole('menuitemradio', { name: 'Kitchen panel', exact: true }).click();
+      await panel.getByText('Saved Kitchen panel', { exact: true }).waitFor();
     },
   });
 }
@@ -197,7 +255,11 @@ try {
   await waitForServer();
   browser = await chromium.launch({ headless: true });
 
-  for (const scenario of scenarios) {
+  const requestedScenarios = process.env.NAVET_PR_REVIEW_SCENARIOS?.split(',');
+  for (const name of requestedScenarios ?? []) {
+    if (!scenarios.some((item) => item.name === name)) throw new Error(`Unknown review scenario: ${name}`);
+  }
+  for (const scenario of scenarios.filter((item) => !requestedScenarios || requestedScenarios.includes(item.name))) {
     const context = await browser.newContext({
       viewport: scenario.viewport,
       colorScheme: 'dark',

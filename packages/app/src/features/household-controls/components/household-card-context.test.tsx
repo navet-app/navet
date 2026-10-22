@@ -4,7 +4,7 @@ import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import type { NavetEntity } from '@navet/core/types';
 import { act, fireEvent, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CounterCard } from './counter-card';
 import { RemoteCard } from './remote-card';
 import { TimerCard } from './timer-card';
@@ -22,6 +22,29 @@ beforeEach(async () => {
 });
 
 describe('household card settings and identity context', () => {
+  it.each(cards)(
+    'opens the native $type dialog without rendering a card face',
+    ({ type, Card }) => {
+      const onOpenChange = vi.fn();
+      const { container } = renderWithProviders(
+        <Card
+          id={`home_assistant:${type}.kitchen`}
+          name="Kitchen control"
+          room="Kitchen"
+          providerId="home_assistant"
+          size="small"
+          isEditMode={false}
+          dialog={{ isOpen: true, onOpenChange }}
+        />
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Kitchen control' });
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+      expect(container).not.toHaveTextContent('Kitchen control');
+      fireEvent.click(within(dialog).getAllByRole('button', { name: 'Close' })[0]);
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    }
+  );
+
   it.each(
     cards.flatMap((card) =>
       (['unknown', 'unavailable'] as const).map((availability) => ({ ...card, availability }))

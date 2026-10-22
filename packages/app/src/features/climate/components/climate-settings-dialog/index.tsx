@@ -10,7 +10,6 @@ import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/ca
 import { resolveClimateModeControlOptions } from '@navet/app/features/climate/utils/climate-mode-control-options';
 import { getClimateGaugeColor } from '@navet/app/features/climate/utils/climate-styles';
 import { convertCelsiusPresetToSourceUnit } from '@navet/app/features/climate/utils/climate-temperature-presets';
-import { getClimateTemperatureStatusLabel } from '@navet/app/features/climate/utils/climate-temperature-status-label';
 import { useI18n, useTheme } from '@navet/app/hooks';
 import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
 import { settingsSelectors } from '@navet/app/stores/selectors';
@@ -64,6 +63,7 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
   entityId,
   isOpen,
   onOpenChange,
+  onCloseAutoFocus,
   name,
   isOn,
   mode,
@@ -176,40 +176,53 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
       label: `${formatTemperatureValueFromSourceUnit(sourceValue, sourceTemperatureUnit, temperatureUnit)}°`,
     };
   });
+  const targetReading = formatTemperatureFromSourceUnit(
+    targetTemp,
+    sourceTemperatureUnit,
+    temperatureUnit
+  );
+  const currentReading = formatTemperatureFromSourceUnit(
+    currentTemp,
+    sourceTemperatureUnit,
+    temperatureUnit
+  );
+  const activity = action?.toLowerCase() || visualMode;
+  const activityLabel = t(
+    !isOn || activity === 'off'
+      ? 'common.off'
+      : activity.includes('heat')
+        ? 'climate.activity.heating'
+        : activity.includes('cool')
+          ? 'climate.activity.cooling'
+          : activity.includes('dry')
+            ? 'climate.activity.drying'
+            : activity.includes('fan')
+              ? 'climate.mode.fan'
+              : 'climate.idle'
+  );
   const climateTabContent = (
     <div className="space-y-4">
       <DeviceTargetControl
         label={t('climate.target')}
-        value={formatTemperatureFromSourceUnit(targetTemp, sourceTemperatureUnit, temperatureUnit)}
-        currentReading={t('climate.currentTemperature', {
-          temp: formatTemperatureFromSourceUnit(
-            currentTemp,
-            sourceTemperatureUnit,
-            temperatureUnit
-          ),
-        })}
-        status={getClimateTemperatureStatusLabel(
-          t,
-          formatTemperatureFromSourceUnit(targetTemp, sourceTemperatureUnit, temperatureUnit),
-          formatTemperatureFromSourceUnit(currentTemp, sourceTemperatureUnit, temperatureUnit),
-          visualMode,
-          targetTemp,
-          currentTemp
-        )}
+        value={targetReading}
+        currentReading={t('climate.currentTemperature', { temp: currentReading })}
+        status={activityLabel}
         readableTokens={dialogTextTokens}
-        controls={
+        renderControls={(value) => (
           <ClimateTempControls
             targetTemp={controlDisplayTargetTemp}
             onTempChange={handleDisplayTargetTempChange}
             onTempCommit={handleDisplayTargetTempCommit}
             isOn={isOn}
             size="medium"
-            controlSize="lg"
+            controlSize="sm"
             minTemp={controlDisplayMinTemp}
             maxTemp={controlDisplayMaxTemp}
             step={controlDisplayStep}
-          />
-        }
+          >
+            {value}
+          </ClimateTempControls>
+        )}
       />
 
       {modeOptions.length > 1 ? (
@@ -323,6 +336,7 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
       excludeHelperEntityIds={siblingEntities.map(({ id }) => id)}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
+      onCloseAutoFocus={onCloseAutoFocus}
       title={name}
       entityId={entityId}
       description={entityType}

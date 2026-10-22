@@ -16,6 +16,7 @@ export function CoverSettingsDialog(props: {
   name: string;
   room: string;
   isOpen: boolean;
+  onCloseAutoFocus?: (event: Event) => void;
   onOpenChange: (open: boolean) => void;
   position: number;
   stateLabel: string;
@@ -38,6 +39,7 @@ export function CoverSettingsDialog(props: {
   const surface = getThemeSurfaceTokens(theme);
   return (
     <DeviceControlsDialog
+      onCloseAutoFocus={props.onCloseAutoFocus}
       entityId={props.entityId}
       name={props.name}
       room={props.room}

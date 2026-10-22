@@ -1,4 +1,5 @@
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import { useEntityCardDialogState } from '@navet/app/components/shared/entity-card-dialog';
 import { useEntityCardInteractionController } from '@navet/app/components/shared/entity-card-interaction-controller';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { readNavetCoverState } from '@navet/app/core/navet-device-state';
@@ -64,6 +65,7 @@ export const CoverCardContainer = memo(function CoverCardContainer({
   size,
   onSizeChange,
   isEditMode,
+  dialog,
 }: CoverCardProps) {
   const resolvedInitialPosition = normalizeCoverPosition(initialPosition) ?? 0;
   const [position, setPosition] = useState(resolvedInitialPosition);
@@ -77,7 +79,7 @@ export const CoverCardContainer = memo(function CoverCardContainer({
   const [coverState, setCoverState] = useState<CoverState>(
     initialState ?? (resolvedInitialPosition === 0 ? 'closed' : 'open')
   );
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useEntityCardDialogState(dialog);
   const { t } = useI18n();
   const runAction = useServiceActionHandler();
   const providerEntity = useProviderEntityModel(id);
@@ -337,6 +339,7 @@ export const CoverCardContainer = memo(function CoverCardContainer({
 
   return (
     <CoverCardView
+      dialog={dialog}
       entityId={id}
       name={name}
       room={room}

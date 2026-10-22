@@ -1,6 +1,7 @@
 import { CardDialogOverflowMenu } from '@navet/app/components/patterns/card-dialog-overflow-menu';
 import { CardErrorBoundary } from '@navet/app/components/shared/card-error-boundary';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import type { EntityCardDialogControl } from '@navet/app/components/shared/entity-card-dialog';
 import { getBaseCardRadiusClassName } from '@navet/app/components/system/tokens';
 import {
   type NavetMediaCapabilities,
@@ -40,6 +41,7 @@ interface DeviceData {
 }
 
 interface CardRendererOptions {
+  dialog?: EntityCardDialogControl;
   device: DeviceData;
   size: CardSize;
   handleSizeChange: (id: string, size: CardSize) => void;
@@ -461,8 +463,9 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
     />
   ),
 
-  climate: ({ device, size, handleSizeChange, isEditMode, headerSubtitleOverride }) => (
+  climate: ({ device, size, handleSizeChange, isEditMode, headerSubtitleOverride, dialog }) => (
     <ClimateCard
+      dialog={dialog}
       id={device.id as string}
       name={device.name as string}
       room={device.room as string}
@@ -483,8 +486,9 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
     />
   ),
 
-  hvac: ({ device, size, handleSizeChange, isEditMode, headerSubtitleOverride }) => (
+  hvac: ({ device, size, handleSizeChange, isEditMode, headerSubtitleOverride, dialog }) => (
     <ClimateCard
+      dialog={dialog}
       id={device.id as string}
       name={device.name as string}
       room={device.room as string}
@@ -544,8 +548,9 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
     />
   ),
 
-  weather: ({ device, size, isEditMode }) => (
+  weather: ({ device, size, isEditMode, dialog }) => (
     <WeatherCard
+      dialog={dialog}
       id={device.id as string}
       location={device.location as string}
       temperature={device.temperature as number}
@@ -590,9 +595,10 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
     />
   ),
 
-  switches: ({ device, size, handleSizeChange, isEditMode }) =>
+  switches: ({ device, size, handleSizeChange, isEditMode, dialog }) =>
     device.serviceDomain === 'humidifier' ? (
       <HumidifierCard
+        dialog={dialog}
         id={device.id as string}
         name={device.name as string}
         room={device.room as string}
@@ -612,6 +618,7 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       />
     ) : (
       <SwitchCard
+        dialog={dialog}
         id={device.id as string}
         name={device.name as string}
         size={size}
@@ -628,9 +635,10 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       />
     ),
 
-  helpers: ({ device, size, isEditMode }) =>
+  helpers: ({ device, size, isEditMode, dialog }) =>
     device.helper ? (
       <HelperCard
+        dialog={dialog}
         id={device.id as string}
         name={device.name as string}
         room={device.room as string | undefined}
@@ -641,6 +649,7 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       />
     ) : (
       <SwitchCard
+        dialog={dialog}
         id={device.id as string}
         name={device.name as string}
         size={size}
@@ -653,9 +662,10 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       />
     ),
 
-  timers: ({ device, size, isEditMode }) =>
+  timers: ({ device, size, isEditMode, dialog }) =>
     typeof device.providerId === 'string' && isIntegrationProviderId(device.providerId) ? (
       <TimerCard
+        dialog={dialog}
         id={device.id}
         name={device.name as string}
         room={device.room as string | undefined}
@@ -665,9 +675,10 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       />
     ) : null,
 
-  counters: ({ device, size, isEditMode }) =>
+  counters: ({ device, size, isEditMode, dialog }) =>
     typeof device.providerId === 'string' && isIntegrationProviderId(device.providerId) ? (
       <CounterCard
+        dialog={dialog}
         id={device.id}
         name={device.name as string}
         room={device.room as string | undefined}
@@ -677,9 +688,10 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       />
     ) : null,
 
-  valves: ({ device, size, isEditMode }) =>
+  valves: ({ device, size, isEditMode, dialog }) =>
     typeof device.providerId === 'string' && isIntegrationProviderId(device.providerId) ? (
       <ValveCard
+        dialog={dialog}
         id={device.id}
         name={device.name as string}
         room={device.room as string | undefined}
@@ -689,9 +701,10 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       />
     ) : null,
 
-  remotes: ({ device, size, isEditMode }) =>
+  remotes: ({ device, size, isEditMode, dialog }) =>
     typeof device.providerId === 'string' && isIntegrationProviderId(device.providerId) ? (
       <RemoteCard
+        dialog={dialog}
         id={device.id}
         name={device.name as string}
         room={device.room as string | undefined}
@@ -701,8 +714,9 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       />
     ) : null,
 
-  covers: ({ device, size, handleSizeChange, isEditMode }) => (
+  covers: ({ device, size, handleSizeChange, isEditMode, dialog }) => (
     <CoverCard
+      dialog={dialog}
       id={device.id as string}
       name={device.name as string}
       room={device.room as string}
@@ -718,8 +732,9 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
     />
   ),
 
-  locks: ({ device, size, isEditMode }) => (
+  locks: ({ device, size, isEditMode, dialog }) => (
     <LockCard
+      dialog={dialog}
       id={device.id as string}
       name={device.name as string}
       initialState={device.state as boolean | undefined}
@@ -728,8 +743,9 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
     />
   ),
 
-  scenes: ({ device, size, handleSizeChange, isEditMode }) => (
+  scenes: ({ device, size, handleSizeChange, isEditMode, dialog }) => (
     <SceneCard
+      dialog={dialog}
       id={device.id as string}
       name={device.name as string}
       room={device.room as string}
@@ -757,8 +773,9 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
     />
   ),
 
-  persons: ({ device, size, handleSizeChange, isEditMode }) => (
+  persons: ({ device, size, handleSizeChange, isEditMode, dialog }) => (
     <PersonCard
+      dialog={dialog}
       id={device.id as string}
       name={device.name as string}
       room={device.room as string}
@@ -771,12 +788,14 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
     />
   ),
 
-  sensors: ({ device, size, handleSizeChange, isEditMode, headerSubtitleOverride }) =>
+  sensors: ({ device, size, handleSizeChange, isEditMode, headerSubtitleOverride, dialog }) =>
     (() => {
       const alarm = readAlarmEntityFromCardDevice(device);
       if (alarm) {
         return (
           <SecurityPanelCard
+            isEditMode={isEditMode}
+            dialog={dialog}
             alarms={[alarm]}
             size={size === 'large' || size === 'extra-large' ? size : 'medium'}
           />
@@ -785,6 +804,7 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
 
       return (
         <InfoCard
+          dialog={dialog}
           id={device.id as string}
           name={device.name as string}
           room={device.room as string}
@@ -803,8 +823,9 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       );
     })(),
 
-  'grouped-sensors': ({ device, size, handleSizeChange, isEditMode }) => (
+  'grouped-sensors': ({ device, size, handleSizeChange, isEditMode, dialog }) => (
     <GroupedSensorCard
+      dialog={dialog}
       id={device.id as string}
       name={device.name as string}
       room={device.room as string}
@@ -818,9 +839,10 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
     />
   ),
 
-  vacuums: ({ device, size, handleSizeChange, isEditMode }) =>
+  vacuums: ({ device, size, handleSizeChange, isEditMode, dialog }) =>
     isLawnMowerEntityId(device.id as string) ? (
       <LawnMowerCard
+        dialog={dialog}
         id={device.id as string}
         name={device.name as string}
         providerId={device.providerId as CardProviderId}
@@ -836,6 +858,7 @@ const cardRegistry: Partial<Record<string, CardRenderFn>> = {
       />
     ) : (
       <VacuumCard
+        dialog={dialog}
         id={device.id as string}
         name={device.name as string}
         providerId={device.providerId as CardProviderId}
@@ -883,6 +906,13 @@ export const renderCard = (options: CardRendererOptions): ReactElement | null =>
   if (!renderer) return null;
   const card = renderer(options);
   if (!card) return null;
+  if (options.dialog) {
+    return (
+      <CardErrorBoundary>
+        <Suspense fallback={null}>{card}</Suspense>
+      </CardErrorBoundary>
+    );
+  }
   return (
     <CardErrorBoundary>
       <EntityAvailabilityFrame

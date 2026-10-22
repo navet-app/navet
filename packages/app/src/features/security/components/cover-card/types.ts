@@ -1,4 +1,5 @@
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import type { EntityCardDialogControl } from '@navet/app/components/shared/entity-card-dialog';
 import type { TranslationKey } from '@navet/app/i18n';
 import type { LucideIcon } from 'lucide-react';
 import type { ButtonHTMLAttributes } from 'react';
@@ -17,6 +18,7 @@ export type DeviceClass =
   | 'window';
 
 export interface CoverCardProps {
+  dialog?: EntityCardDialogControl;
   id: string;
   name: string;
   room: string;

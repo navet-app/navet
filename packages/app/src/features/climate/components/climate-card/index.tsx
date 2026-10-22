@@ -40,6 +40,7 @@ export const ClimateCard = memo(function ClimateCard({
   onSizeChange: _onSizeChange,
   isEditMode,
   companion,
+  dialog,
 }: ClimateCardProps) {
   const { t } = useI18n();
   const { accentColor } = useTheme();
@@ -137,7 +138,7 @@ export const ClimateCard = memo(function ClimateCard({
           : Thermometer;
   return (
     <>
-      {companion ? (
+      {dialog ? null : companion ? (
         <LightCardTableRow
           compact
           name={name}
@@ -147,11 +148,13 @@ export const ClimateCard = memo(function ClimateCard({
           IconComponent={HeaderIcon}
           isEditMode={isEditMode}
           disabled={companion.disabled}
+          unavailable={companion.unavailable}
           toggleDisabled={
             controller.supportedClimateModes !== undefined &&
             !controller.supportedClimateModes.includes('off')
           }
           stateLabel={companion.value}
+          secondaryText={targetTemperatureLabel}
           cardInteraction={controller.cardInteraction}
           iconButtonProps={controller.cardInteraction.iconButtonProps}
           onBrightnessChange={ignoreRowBrightness}
@@ -301,11 +304,12 @@ export const ClimateCard = memo(function ClimateCard({
         </CardWrapper>
       )}
 
-      {controller.isSettingsOpen ? (
+      {(dialog?.isOpen ?? controller.isSettingsOpen) ? (
         <ClimateSettingsDialog
           entityId={id}
-          isOpen={controller.isSettingsOpen}
-          onOpenChange={controller.setIsSettingsOpen}
+          isOpen={(dialog?.isOpen ?? controller.isSettingsOpen) && !companion?.disabled}
+          onOpenChange={dialog?.onOpenChange ?? controller.setIsSettingsOpen}
+          onCloseAutoFocus={dialog?.onCloseAutoFocus}
           name={name}
           isOn={controller.isOn}
           mode={controller.mode}

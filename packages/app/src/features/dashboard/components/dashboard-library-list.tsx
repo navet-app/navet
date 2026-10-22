@@ -1,12 +1,18 @@
 import { Button } from '@navet/app/components/primitives';
 import type { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { navetIconSizeTokens } from '@navet/app/components/system/tokens';
-import { type LucideIcon, Plus } from 'lucide-react';
+import { type LucideIcon, Minus, Plus } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 
 const LIST_HEIGHT = 360;
 const ROW_HEIGHT = 61;
 const OVERSCAN = 1;
+
+export type DashboardLibraryRemoval = {
+  ids: string[];
+  label: string;
+  onRemove: (id: string) => void;
+};
 
 export type DashboardLibraryCard = {
   id: string;
@@ -34,12 +40,16 @@ const DashboardLibraryRow = memo(function DashboardLibraryRow({
   addLabel,
   showDivider,
   onAdd,
+  disabled,
+  removing = false,
 }: {
   card: DashboardLibraryCard;
   surface: ReturnType<typeof getThemeSurfaceTokens>;
   addLabel: string;
   showDivider: boolean;
   onAdd: () => void;
+  disabled?: boolean;
+  removing?: boolean;
 }) {
   const IconComponent = card.icon;
   return (
@@ -66,11 +76,18 @@ const DashboardLibraryRow = memo(function DashboardLibraryRow({
         </div>
       </div>
       <Button
-        variant="secondary"
+        variant={removing ? 'destructive' : 'secondary'}
         size="compact"
         aria-label={`${addLabel}: ${card.title}`}
         onClick={onAdd}
-        leading={<Plus className={navetIconSizeTokens.xs} aria-hidden="true" />}
+        disabled={disabled}
+        leading={
+          removing ? (
+            <Minus className={navetIconSizeTokens.xs} aria-hidden="true" />
+          ) : (
+            <Plus className={navetIconSizeTokens.xs} aria-hidden="true" />
+          )
+        }
         className="h-[30px] shrink-0 rounded-full px-2.5 motion-reduce:transition-none md:h-8 md:px-3"
       >
         {addLabel}
@@ -87,6 +104,8 @@ export const DashboardLibraryList = memo(function DashboardLibraryList({
   onAdd,
   height = LIST_HEIGHT,
   fillAvailable = false,
+  addDisabled = false,
+  removal,
 }: {
   cards: DashboardLibraryCard[];
   surface: ReturnType<typeof getThemeSurfaceTokens>;
@@ -95,6 +114,8 @@ export const DashboardLibraryList = memo(function DashboardLibraryList({
   onAdd: (cardId: string) => void;
   height?: number;
   fillAvailable?: boolean;
+  addDisabled?: boolean;
+  removal?: DashboardLibraryRemoval;
 }) {
   const [scrollTop, setScrollTop] = useState(0);
   const [measuredHeight, setMeasuredHeight] = useState(height);
@@ -174,9 +195,13 @@ export const DashboardLibraryList = memo(function DashboardLibraryList({
               key={card.id}
               card={card}
               surface={surface}
-              addLabel={addLabel}
+              addLabel={removal?.ids.includes(card.id) ? removal.label : addLabel}
               showDivider={startIndex + index > 0}
-              onAdd={() => onAdd(card.id)}
+              onAdd={() =>
+                removal?.ids.includes(card.id) ? removal.onRemove(card.id) : onAdd(card.id)
+              }
+              removing={removal?.ids.includes(card.id)}
+              disabled={addDisabled && !removal?.ids.includes(card.id)}
             />
           ))}
         </div>

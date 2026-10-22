@@ -1,4 +1,5 @@
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import type { EntityCardDialogControl } from '@navet/app/components/shared/entity-card-dialog';
 import { CardWrapper } from '@navet/app/components/ui/card-wrapper';
 import { useAccentColor, useI18n } from '@navet/app/hooks';
 import { settingsSelectors } from '@navet/app/stores/selectors';
@@ -30,6 +31,7 @@ export type ForecastDay = {
 };
 
 interface WeatherCardProps {
+  dialog?: EntityCardDialogControl;
   id: string;
   location: string;
   temperature: number;
@@ -93,6 +95,7 @@ export const WeatherCard = memo(function WeatherCard({
   size,
   onSizeChange: _onSizeChange,
   isEditMode,
+  dialog,
 }: WeatherCardProps) {
   const { t } = useI18n();
   const accentColor = useAccentColor();
@@ -109,8 +112,8 @@ export const WeatherCard = memo(function WeatherCard({
     weatherTintStyle,
     weatherTextTreatment,
     weatherShellClassName,
-    isSettingsOpen,
-    setIsSettingsOpen,
+    isSettingsOpen: localIsSettingsOpen,
+    setIsSettingsOpen: setLocalIsSettingsOpen,
     interaction,
     cityName,
     selectedForecastMode,
@@ -119,6 +122,8 @@ export const WeatherCard = memo(function WeatherCard({
     setTintColor,
   } = useWeatherCardController({ id, location, condition, isEditMode });
 
+  const isSettingsOpen = dialog?.isOpen ?? localIsSettingsOpen;
+  const setIsSettingsOpen = dialog?.onOpenChange ?? setLocalIsSettingsOpen;
   const isSmall = size === 'small';
   const isMedium = size === 'medium';
   const isLarge = size === 'large';
@@ -200,100 +205,137 @@ export const WeatherCard = memo(function WeatherCard({
 
   return (
     <>
-      <CardWrapper
-        className={`${cardShell.backdropClassName} ${weatherShellClassName} ${!isEditMode ? 'cursor-pointer' : ''}`}
-        style={weatherTintStyle}
-        lightOverlayClassName={weatherOverlayClassName || undefined}
-        showShadow={false}
-        interactionProps={interaction.cardProps}
-      >
-        <WeatherBackground
-          condition={condition}
-          effectsQuality={effectiveEffectsQuality}
-          hasCustomTint={hasCustomTint}
-          size={size}
-          theme={theme}
-        />
-
-        {hasCustomTint ? (
-          tintSurface.glowStyle ? (
-            <div className="absolute inset-0" style={tintSurface.glowStyle} />
-          ) : null
-        ) : (
-          <div className={`absolute inset-0 ${shell.glowClassName} ${shellGlowOpacityClass}`} />
-        )}
-        {!hasCustomTint ? (
-          <div
-            className="pointer-events-none absolute inset-0 z-[1]"
-            style={gradientBackgroundStyle}
+      {!dialog ? (
+        <CardWrapper
+          className={`${cardShell.backdropClassName} ${weatherShellClassName} ${!isEditMode ? 'cursor-pointer' : ''}`}
+          style={weatherTintStyle}
+          lightOverlayClassName={weatherOverlayClassName || undefined}
+          showShadow={false}
+          interactionProps={interaction.cardProps}
+        >
+          <WeatherBackground
+            condition={condition}
+            effectsQuality={effectiveEffectsQuality}
+            hasCustomTint={hasCustomTint}
+            size={size}
+            theme={theme}
           />
-        ) : null}
 
-        <div className={`relative z-2 flex h-full min-h-0 flex-col ${cardContentPaddingClassName}`}>
-          <div className={`flex items-start justify-between ${compactHeaderClassName}`}>
-            <div className="min-w-0">
-              <div className={`inline-flex min-w-0 items-center ${compactLocationRowClassName}`}>
-                <Navigation
-                  className={`${isMedium || isSmall ? 'h-3.5 w-3.5' : 'h-4 w-4'} shrink-0`}
-                  style={iconStyleSecondary}
-                />
-                <div
-                  className={`truncate ${isMedium || isSmall ? compactLocationTextClassName : 'text-base'} font-semibold leading-none tracking-[-0.03em]`}
-                  style={titleStyle}
-                >
-                  {cityName}
-                </div>
-              </div>
+          {hasCustomTint ? (
+            tintSurface.glowStyle ? (
+              <div className="absolute inset-0" style={tintSurface.glowStyle} />
+            ) : null
+          ) : (
+            <div className={`absolute inset-0 ${shell.glowClassName} ${shellGlowOpacityClass}`} />
+          )}
+          {!hasCustomTint ? (
+            <div
+              className="pointer-events-none absolute inset-0 z-[1]"
+              style={gradientBackgroundStyle}
+            />
+          ) : null}
 
-              {isMedium || isSmall ? (
-                <div className={compactTemperatureBlockClassName}>
+          <div
+            className={`relative z-2 flex h-full min-h-0 flex-col ${cardContentPaddingClassName}`}
+          >
+            <div className={`flex items-start justify-between ${compactHeaderClassName}`}>
+              <div className="min-w-0">
+                <div className={`inline-flex min-w-0 items-center ${compactLocationRowClassName}`}>
+                  <Navigation
+                    className={`${isMedium || isSmall ? 'h-3.5 w-3.5' : 'h-4 w-4'} shrink-0`}
+                    style={iconStyleSecondary}
+                  />
                   <div
-                    className={`font-bold leading-none ${compactTemperatureTextClassName} ${compactTemperatureClassName}`}
+                    className={`truncate ${isMedium || isSmall ? compactLocationTextClassName : 'text-base'} font-semibold leading-none tracking-[-0.03em]`}
                     style={titleStyle}
                   >
-                    {formatWeatherTemperature(temperature, sourceTemperatureUnit)}
-                  </div>
-                  <div className={compactMetaTextClassName} style={subtitleStyle}>
-                    H:{formatWeatherTemperatureValue(highTemp, highTempUnit)}° L:
-                    {formatWeatherTemperatureValue(lowTemp, lowTempUnit)}°
-                    {typeof feelsLikeTemperature === 'number'
-                      ? ` · ${t('weather.feelsLikeShort', {
-                          temp: formatWeatherTemperature(
-                            feelsLikeTemperature,
-                            feelsLikeTemperatureUnit
-                          ),
-                        })}`
-                      : ''}
+                    {cityName}
                   </div>
                 </div>
-              ) : null}
-            </div>
-            <div className="shrink-0 text-right">
-              <WeatherIcon
-                condition={condition}
-                className={`${isMedium || isSmall ? compactHeaderIconClassName : headerIconClassName} ml-auto shrink-0`}
-                style={iconStylePrimary}
-              />
-              <div
-                className={`${compactSummaryClassName} ${compactSummaryTextClassName} font-medium leading-tight`}
-                style={subtitleStyle}
-              >
-                {summaryLabel}
+
+                {isMedium || isSmall ? (
+                  <div className={compactTemperatureBlockClassName}>
+                    <div
+                      className={`font-bold leading-none ${compactTemperatureTextClassName} ${compactTemperatureClassName}`}
+                      style={titleStyle}
+                    >
+                      {formatWeatherTemperature(temperature, sourceTemperatureUnit)}
+                    </div>
+                    <div className={compactMetaTextClassName} style={subtitleStyle}>
+                      H:{formatWeatherTemperatureValue(highTemp, highTempUnit)}° L:
+                      {formatWeatherTemperatureValue(lowTemp, lowTempUnit)}°
+                      {typeof feelsLikeTemperature === 'number'
+                        ? ` · ${t('weather.feelsLikeShort', {
+                            temp: formatWeatherTemperature(
+                              feelsLikeTemperature,
+                              feelsLikeTemperatureUnit
+                            ),
+                          })}`
+                        : ''}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <div className="shrink-0 text-right">
+                <WeatherIcon
+                  condition={condition}
+                  className={`${isMedium || isSmall ? compactHeaderIconClassName : headerIconClassName} ml-auto shrink-0`}
+                  style={iconStylePrimary}
+                />
+                <div
+                  className={`${compactSummaryClassName} ${compactSummaryTextClassName} font-medium leading-tight`}
+                  style={subtitleStyle}
+                >
+                  {summaryLabel}
+                </div>
               </div>
             </div>
-          </div>
 
-          {isSmall || isMedium ? (
-            <div className="flex h-full flex-col">
-              {visibleForecast.length > 0 ? (
-                <div className="mt-auto">
-                  <WeatherForecastRow
-                    forecast={visibleForecast}
-                    temperatureUnit={temperatureUnit}
-                    defaultTemperatureUnit={sourceTemperatureUnit}
-                    showHourlyForecast={showHourlyForecast}
-                    isSmall={isSmall}
-                    isMedium={isMedium}
+            {isSmall || isMedium ? (
+              <div className="flex h-full flex-col">
+                {visibleForecast.length > 0 ? (
+                  <div className="mt-auto">
+                    <WeatherForecastRow
+                      forecast={visibleForecast}
+                      temperatureUnit={temperatureUnit}
+                      defaultTemperatureUnit={sourceTemperatureUnit}
+                      showHourlyForecast={showHourlyForecast}
+                      isSmall={isSmall}
+                      isMedium={isMedium}
+                      textPrimary={textPrimary}
+                      textSecondary={textSecondary}
+                      textShadow={weatherTextTreatment.textShadow}
+                      titleStyle={titleStyle}
+                      subtitleStyle={subtitleStyle}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="mt-auto flex min-h-0 flex-col">
+                <div className="flex items-end justify-between gap-4">
+                  <WeatherDetails
+                    temperature={temperature}
+                    temperatureUnit={sourceTemperatureUnit}
+                    highTemp={highTemp}
+                    highTempUnit={highTempUnit}
+                    lowTemp={lowTemp}
+                    lowTempUnit={lowTempUnit}
+                    feelsLikeTemperature={feelsLikeTemperature}
+                    feelsLikeTemperatureUnit={feelsLikeTemperatureUnit}
+                    displayTemperatureUnit={temperatureUnit}
+                    rainForecast={rainForecast}
+                    precipitation={precipitation}
+                    precipitationUnit={precipitationUnit}
+                    humidity={humidity}
+                    windSpeed={windSpeed}
+                    windSpeedUnit={windSpeedUnit}
+                    windGustSpeed={windGustSpeed}
+                    pressure={pressure}
+                    pressureUnit={pressureUnit}
+                    uvIndex={uvIndex}
+                    cloudCoverage={cloudCoverage}
+                    selectedMetricIds={selectedMetricIds}
                     textPrimary={textPrimary}
                     textSecondary={textSecondary}
                     textShadow={weatherTextTreatment.textShadow}
@@ -301,77 +343,45 @@ export const WeatherCard = memo(function WeatherCard({
                     subtitleStyle={subtitleStyle}
                   />
                 </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="mt-auto flex min-h-0 flex-col">
-              <div className="flex items-end justify-between gap-4">
-                <WeatherDetails
-                  temperature={temperature}
-                  temperatureUnit={sourceTemperatureUnit}
-                  highTemp={highTemp}
-                  highTempUnit={highTempUnit}
-                  lowTemp={lowTemp}
-                  lowTempUnit={lowTempUnit}
-                  feelsLikeTemperature={feelsLikeTemperature}
-                  feelsLikeTemperatureUnit={feelsLikeTemperatureUnit}
-                  displayTemperatureUnit={temperatureUnit}
-                  rainForecast={rainForecast}
-                  precipitation={precipitation}
-                  precipitationUnit={precipitationUnit}
-                  humidity={humidity}
-                  windSpeed={windSpeed}
-                  windSpeedUnit={windSpeedUnit}
-                  windGustSpeed={windGustSpeed}
-                  pressure={pressure}
-                  pressureUnit={pressureUnit}
-                  uvIndex={uvIndex}
-                  cloudCoverage={cloudCoverage}
-                  selectedMetricIds={selectedMetricIds}
+
+                <WeatherSunTimes
+                  sunrise={sunrise}
+                  sunset={sunset}
+                  daylight={daylight}
                   textPrimary={textPrimary}
                   textSecondary={textSecondary}
                   textShadow={weatherTextTreatment.textShadow}
                   titleStyle={titleStyle}
                   subtitleStyle={subtitleStyle}
+                  iconStyleSecondary={iconStyleSecondary}
                 />
+
+                {visibleForecast.length > 0 && (
+                  <div className="flex justify-between gap-2">
+                    <WeatherForecastRow
+                      forecast={visibleForecast}
+                      temperatureUnit={temperatureUnit}
+                      defaultTemperatureUnit={sourceTemperatureUnit}
+                      showHourlyForecast={showHourlyForecast}
+                      isSmall={false}
+                      isMedium={false}
+                      textPrimary={textPrimary}
+                      textSecondary={textSecondary}
+                      textShadow={weatherTextTreatment.textShadow}
+                      titleStyle={titleStyle}
+                      subtitleStyle={subtitleStyle}
+                    />
+                  </div>
+                )}
               </div>
-
-              <WeatherSunTimes
-                sunrise={sunrise}
-                sunset={sunset}
-                daylight={daylight}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-                textShadow={weatherTextTreatment.textShadow}
-                titleStyle={titleStyle}
-                subtitleStyle={subtitleStyle}
-                iconStyleSecondary={iconStyleSecondary}
-              />
-
-              {visibleForecast.length > 0 && (
-                <div className="flex justify-between gap-2">
-                  <WeatherForecastRow
-                    forecast={visibleForecast}
-                    temperatureUnit={temperatureUnit}
-                    defaultTemperatureUnit={sourceTemperatureUnit}
-                    showHourlyForecast={showHourlyForecast}
-                    isSmall={false}
-                    isMedium={false}
-                    textPrimary={textPrimary}
-                    textSecondary={textSecondary}
-                    textShadow={weatherTextTreatment.textShadow}
-                    titleStyle={titleStyle}
-                    subtitleStyle={subtitleStyle}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </CardWrapper>
+            )}
+          </div>
+        </CardWrapper>
+      ) : null}
 
       {isSettingsOpen ? (
         <WeatherSettingsDialog
+          onCloseAutoFocus={dialog?.onCloseAutoFocus}
           entityId={id}
           isOpen={isSettingsOpen}
           onOpenChange={setIsSettingsOpen}

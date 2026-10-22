@@ -1,4 +1,5 @@
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import type { EntityCardDialogControl } from '@navet/app/components/shared/entity-card-dialog';
 import { SwitchCard } from '@navet/app/features/lighting/components/switch-card';
 import { useI18n, useProviderEntityModel } from '@navet/app/hooks';
 import { readNavetRemoteState } from '@navet/core/household-device-state';
@@ -12,6 +13,7 @@ export function RemoteCard(props: {
   providerId: IntegrationProviderId;
   size: CardSize;
   isEditMode: boolean;
+  dialog?: EntityCardDialogControl;
 }) {
   return <RemoteCardContent key={`${props.providerId}:${props.id}`} {...props} />;
 }
@@ -22,6 +24,7 @@ function RemoteCardContent({
   providerId,
   size,
   isEditMode,
+  dialog,
 }: {
   id: string;
   name: string;
@@ -29,6 +32,7 @@ function RemoteCardContent({
   providerId: IntegrationProviderId;
   size: CardSize;
   isEditMode: boolean;
+  dialog?: EntityCardDialogControl;
 }) {
   const { t } = useI18n();
   const entity = useProviderEntityModel(id);
@@ -58,6 +62,7 @@ function RemoteCardContent({
           : null;
   return (
     <SwitchCard
+      dialog={dialog}
       id={id}
       name={name}
       providerId={providerId}

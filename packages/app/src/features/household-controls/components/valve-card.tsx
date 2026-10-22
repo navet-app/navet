@@ -7,6 +7,10 @@ import { Input } from '@navet/app/components/primitives/input';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import {
+  type EntityCardDialogControl,
+  useEntityCardDialogState,
+} from '@navet/app/components/shared/entity-card-dialog';
 import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
 import { getOpenDeviceCardSurface } from '@navet/app/components/shared/theme/open-device-card-surface';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
@@ -247,6 +251,7 @@ export function ValveCard(props: {
   providerId: IntegrationProviderId;
   size: CardSize;
   isEditMode: boolean;
+  dialog?: EntityCardDialogControl;
 }) {
   const { key } = useProviderControlSession(props.id, props.providerId);
   return <ValveCardContent key={key} {...props} />;
@@ -259,6 +264,7 @@ function ValveCardContent({
   providerId,
   size,
   isEditMode,
+  dialog: dialogControl,
 }: {
   id: string;
   name: string;
@@ -266,6 +272,7 @@ function ValveCardContent({
   providerId: IntegrationProviderId;
   size: CardSize;
   isEditMode: boolean;
+  dialog?: EntityCardDialogControl;
 }) {
   const { t } = useI18n();
   const { theme, colors, accentColor } = useTheme();
@@ -273,7 +280,7 @@ function ValveCardContent({
   const state = readNavetValveState(entity ?? undefined) ?? EMPTY_VALVE;
   const capabilities = entity?.capabilities ?? [];
   const action = useValveControls(id, providerId, state);
-  const [dialog, setDialog] = useState(false);
+  const [dialog, setDialog] = useEntityCardDialogState(dialogControl);
   useEditModeSettingsRequest(id, () => setDialog(true), isEditMode);
   const compact = size === 'tiny' || size === 'extra-small';
   const unavailable = entity?.availability !== 'available';
@@ -319,151 +326,156 @@ function ValveCardContent({
   );
   return (
     <>
-      <BaseCard
-        size={size}
-        title={name}
-        subtitle={room}
-        header={
-          size !== 'tiny' ? (
-            <EntityCardHeader
-              title={name}
-              subtitle={t('deviceType.valve')}
-              layout="eyebrow-first"
-              size={size}
-              compact={size === 'extra-small'}
-              tone={headerTone}
-              leading={
-                <EntityCardHeaderIcon
-                  IconComponent={Droplets}
-                  isActive={headerTone === 'primary'}
-                  size={size === 'extra-small' ? 'tiny' : size}
-                  tone={headerTone}
-                  ariaLabel={t('entityCardInteraction.toggle', { name })}
-                  disabled={toggleDisabled}
-                  onClick={() => {
-                    if (toggleDisabled) return;
-                    void (toggleCloses ? action.close() : action.open());
-                  }}
-                />
-              }
-              trailing={compact ? settings : undefined}
-            />
-          ) : undefined
-        }
-        interactive={size === 'tiny' && !isEditMode}
-        role={size === 'tiny' && !isEditMode ? 'button' : undefined}
-        tabIndex={size === 'tiny' && !isEditMode ? 0 : undefined}
-        aria-label={
-          size === 'tiny'
-            ? `${t('providerDetails.controls', { name })}, ${value}${value === label ? '' : `, ${label}`}`
-            : undefined
-        }
-        onClick={() => {
-          if (size === 'tiny' && !isEditMode) setDialog(true);
-        }}
-        frameClassName={openSurface?.frameClassName}
-        style={openSurface?.style}
-        disableDefaultSheen={fullyOpen || showPosition}
-        disableDefaultLightOverlay={fullyOpen}
-        overlay={
-          openSurface ? (
-            openSurface.overlay
-          ) : showPosition ? (
-            <CoverPositionFill
-              position={position}
+      {!dialogControl ? (
+        <BaseCard
+          size={size}
+          title={name}
+          subtitle={room}
+          header={
+            size !== 'tiny' ? (
+              <EntityCardHeader
+                title={name}
+                subtitle={t('deviceType.valve')}
+                layout="eyebrow-first"
+                size={size}
+                compact={size === 'extra-small'}
+                tone={headerTone}
+                leading={
+                  <EntityCardHeaderIcon
+                    IconComponent={Droplets}
+                    isActive={headerTone === 'primary'}
+                    size={size === 'extra-small' ? 'tiny' : size}
+                    tone={headerTone}
+                    ariaLabel={t('entityCardInteraction.toggle', { name })}
+                    disabled={toggleDisabled}
+                    onClick={() => {
+                      if (toggleDisabled) return;
+                      void (toggleCloses ? action.close() : action.open());
+                    }}
+                  />
+                }
+                trailing={compact ? settings : undefined}
+              />
+            ) : undefined
+          }
+          interactive={size === 'tiny' && !isEditMode}
+          role={size === 'tiny' && !isEditMode ? 'button' : undefined}
+          tabIndex={size === 'tiny' && !isEditMode ? 0 : undefined}
+          aria-label={
+            size === 'tiny'
+              ? `${t('providerDetails.controls', { name })}, ${value}${value === label ? '' : `, ${label}`}`
+              : undefined
+          }
+          onClick={() => {
+            if (size === 'tiny' && !isEditMode) setDialog(true);
+          }}
+          frameClassName={openSurface?.frameClassName}
+          style={openSurface?.style}
+          disableDefaultSheen={fullyOpen || showPosition}
+          disableDefaultLightOverlay={fullyOpen}
+          overlay={
+            openSurface ? (
+              openSurface.overlay
+            ) : showPosition ? (
+              <CoverPositionFill
+                position={position}
+                theme={theme}
+                coverageGradient={openColors.gradient}
+                cardSize={size}
+                showSlats={false}
+              />
+            ) : undefined
+          }
+          headerTrailing={compact ? settings : undefined}
+          headerCompact={size === 'extra-small'}
+          contentClassName="flex h-full flex-col"
+          actionRow={
+            compact
+              ? undefined
+              : {
+                  leftContent: (
+                    <div className="flex gap-1.5">
+                      {capabilities.includes('valve_open') ? (
+                        <CoverControlButton
+                          theme={theme}
+                          size="small"
+                          label={t('cover.open')}
+                          disabled={
+                            isEditMode ||
+                            action.pending ||
+                            !state.canOpen ||
+                            isFullyOpen(state) ||
+                            state.phase === 'opening'
+                          }
+                          onClick={() => {
+                            void action.open();
+                          }}
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </CoverControlButton>
+                      ) : null}
+                      {capabilities.includes('valve_stop') ? (
+                        <CoverControlButton
+                          theme={theme}
+                          size="small"
+                          label={t('cover.stop')}
+                          disabled={
+                            isEditMode || !state.canStop || action.pendingCommand === 'stop'
+                          }
+                          onClick={() => {
+                            void action.stop();
+                          }}
+                        >
+                          <Square className="h-3.5 w-3.5" />
+                        </CoverControlButton>
+                      ) : null}
+                      {capabilities.includes('valve_close') ? (
+                        <CoverControlButton
+                          theme={theme}
+                          size="small"
+                          label={t('cover.close')}
+                          disabled={
+                            isEditMode ||
+                            action.pending ||
+                            !state.canClose ||
+                            state.phase === 'closed' ||
+                            state.phase === 'closing'
+                          }
+                          onClick={() => {
+                            void action.close();
+                          }}
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </CoverControlButton>
+                      ) : null}
+                    </div>
+                  ),
+                  rightContent: settings,
+                }
+          }
+        >
+          {size !== 'tiny' ? (
+            <CardMetric
+              value={value}
+              label={!unavailable && state.position !== null ? label : undefined}
               theme={theme}
-              coverageGradient={openColors.gradient}
-              cardSize={size}
-              showSlats={false}
-            />
-          ) : undefined
-        }
-        headerTrailing={compact ? settings : undefined}
-        headerCompact={size === 'extra-small'}
-        contentClassName="flex h-full flex-col"
-        actionRow={
-          compact
-            ? undefined
-            : {
-                leftContent: (
-                  <div className="flex gap-1.5">
-                    {capabilities.includes('valve_open') ? (
-                      <CoverControlButton
-                        theme={theme}
-                        size="small"
-                        label={t('cover.open')}
-                        disabled={
-                          isEditMode ||
-                          action.pending ||
-                          !state.canOpen ||
-                          isFullyOpen(state) ||
-                          state.phase === 'opening'
-                        }
-                        onClick={() => {
-                          void action.open();
-                        }}
-                      >
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </CoverControlButton>
-                    ) : null}
-                    {capabilities.includes('valve_stop') ? (
-                      <CoverControlButton
-                        theme={theme}
-                        size="small"
-                        label={t('cover.stop')}
-                        disabled={isEditMode || !state.canStop || action.pendingCommand === 'stop'}
-                        onClick={() => {
-                          void action.stop();
-                        }}
-                      >
-                        <Square className="h-3.5 w-3.5" />
-                      </CoverControlButton>
-                    ) : null}
-                    {capabilities.includes('valve_close') ? (
-                      <CoverControlButton
-                        theme={theme}
-                        size="small"
-                        label={t('cover.close')}
-                        disabled={
-                          isEditMode ||
-                          action.pending ||
-                          !state.canClose ||
-                          state.phase === 'closed' ||
-                          state.phase === 'closing'
-                        }
-                        onClick={() => {
-                          void action.close();
-                        }}
-                      >
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </CoverControlButton>
-                    ) : null}
-                  </div>
-                ),
-                rightContent: settings,
+              isActive={!unavailable && position > 0}
+              accentClassName={openColors.accent}
+              labelStyle={stateTone === 'primary' ? { color: stateText.subtitleColor } : undefined}
+              className="mt-auto"
+              valueClassName={
+                !showPosition ? 'text-2xl font-light leading-tight break-words' : undefined
               }
-        }
-      >
-        {size !== 'tiny' ? (
-          <CardMetric
-            value={value}
-            label={!unavailable && state.position !== null ? label : undefined}
-            theme={theme}
-            isActive={!unavailable && position > 0}
-            accentClassName={openColors.accent}
-            labelStyle={stateTone === 'primary' ? { color: stateText.subtitleColor } : undefined}
-            className="mt-auto"
-            valueClassName={
-              !showPosition ? 'text-2xl font-light leading-tight break-words' : undefined
-            }
-          />
-        ) : null}
-        <div className={size === 'tiny' ? 'sr-only' : undefined}>
-          <ValveStatus pending={action.pending} error={action.error} />
-        </div>
-      </BaseCard>
+            />
+          ) : null}
+          <div className={size === 'tiny' ? 'sr-only' : undefined}>
+            <ValveStatus pending={action.pending} error={action.error} />
+          </div>
+        </BaseCard>
+      ) : null}
       {dialog ? (
         <BaseCardDialog
+          onCloseAutoFocus={dialogControl?.onCloseAutoFocus}
           isOpen
           onOpenChange={setDialog}
           title={name}

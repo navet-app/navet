@@ -10,6 +10,7 @@ import { SensorGroupSettingsView } from './view';
 export const SensorGroupSettingsContainer = memo(function SensorGroupSettingsContainer({
   isOpen,
   onClose,
+  onCloseAutoFocus,
   groupName,
   roomValue,
   roomLabel,
@@ -38,6 +39,7 @@ export const SensorGroupSettingsContainer = memo(function SensorGroupSettingsCon
 
   return (
     <BaseCardDialogWithState
+      onCloseAutoFocus={onCloseAutoFocus}
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) {

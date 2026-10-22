@@ -144,7 +144,40 @@ describe('ClimateSettingsDialog', () => {
     });
 
     expect(screen.getByRole('dialog')).toHaveClass('from-blue-900/95');
-    expect(screen.getByText('Cooling down to 20°C')).toBeInTheDocument();
+    expect(screen.getByText('20°C', { selector: 'dd' })).toBeInTheDocument();
+    expect(screen.getByText('Current 25°C')).toBeInTheDocument();
+    expect(screen.getByText('Heating')).toBeInTheDocument();
+  });
+
+  it('places the target between its buttons and keeps the current reading and state visible', () => {
+    useSettingsStore.setState({ temperatureUnit: 'celsius' });
+    renderDialog({
+      targetTemp: 30.7,
+      currentTemp: 30.7,
+      sourceTemperatureUnit: 'celsius',
+      isOn: false,
+    });
+    const value = screen.getByText('30.7°C', { selector: 'dd' });
+    const controls = value.parentElement?.parentElement;
+    expect(controls?.firstElementChild).toBe(
+      screen.getByRole('button', { name: 'Decrease temperature' })
+    );
+    expect(controls?.lastElementChild).toBe(
+      screen.getByRole('button', { name: 'Increase temperature' })
+    );
+    expect(screen.getByText('Current 30.7°C')).toBeInTheDocument();
+    expect(screen.getByText('Off')).toBeInTheDocument();
+    expect(screen.queryByText('Off · 30.7°C')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['idle', 'Idle'],
+    ['heating', 'Heating'],
+    ['cooling', 'Cooling'],
+  ])('shows the reported %s activity', (action, label) => {
+    renderDialog({ isOn: true, action });
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.getByText('Current 70°F')).toBeInTheDocument();
   });
 
   it('renders Celsius comfort presets as Fahrenheit display values and commits Fahrenheit source values', () => {

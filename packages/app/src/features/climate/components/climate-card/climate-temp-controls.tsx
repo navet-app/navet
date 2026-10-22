@@ -4,9 +4,10 @@ import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/c
 import { navetSpacingTokens } from '@navet/app/components/system/tokens';
 import { useI18n, useTheme } from '@navet/app/hooks';
 import { Minus, Plus } from 'lucide-react';
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 
 interface ClimateTempControlsProps {
+  children?: ReactNode;
   targetTemp: number;
   onTempChange: (temp: number) => void;
   onTempCommit?: (temp: number) => void;
@@ -34,6 +35,7 @@ export const ClimateTempControls = memo(function ClimateTempControls({
   minTemp = 16,
   maxTemp = 30,
   step = 0.5,
+  children,
 }: ClimateTempControlsProps) {
   const { theme } = useTheme();
   const { t } = useI18n();
@@ -43,7 +45,7 @@ export const ClimateTempControls = memo(function ClimateTempControls({
   const hoverScale = isCompact ? 'hover:scale-105' : '';
 
   return (
-    <div className={`flex items-center ${navetSpacingTokens.inline.xs}`}>
+    <div className={`flex items-center ${children ? 'gap-4' : navetSpacingTokens.inline.xs}`}>
       <RoundControlButton
         theme={theme}
         size={primitiveSize}
@@ -60,6 +62,7 @@ export const ClimateTempControls = memo(function ClimateTempControls({
       >
         <Minus className={controlSize === 'lg' ? 'h-5 w-5' : controlSizes.icon} />
       </RoundControlButton>
+      {children}
       <RoundControlButton
         theme={theme}
         size={primitiveSize}

@@ -5,6 +5,7 @@ import {
   deleteDashboardFromCollection,
   getCompanionCards,
   resolveDashboard,
+  resolveDashboardCompanion,
   resolveDashboardNavigationRooms,
   sanitizeDashboardCollection,
   sanitizeDashboardCompanion,
@@ -172,6 +173,69 @@ describe('dashboard collection contract', () => {
 
 // Companion configuration is additive to schema 1 and contains entity IDs, never resource URLs.
 describe('dashboard companion configuration', () => {
+  it('inherits the common panel only when a room override is absent', () => {
+    const dashboard = createDashboardDefinition({ id: 'home', name: 'Home' });
+    dashboard.companion = {
+      showSecurity: false,
+      cards: [{ id: 'note', type: 'note', text: 'Common' }],
+    };
+    dashboard.roomCompanions = { room_kitchen1: { showSecurity: false, cards: [] } };
+    expect(resolveDashboardCompanion(dashboard, 'room_office01')).toBe(dashboard.companion);
+    expect(getCompanionCards(resolveDashboardCompanion(dashboard, 'room_kitchen1'))).toEqual([]);
+    expect(resolveDashboardCompanion(dashboard)).toBe(dashboard.companion);
+  });
+
+  it('sanitizes saved room panels, retains empty overrides and copies them independently', () => {
+    const legacy = createLegacyDashboardCollection({ homeLayout: null });
+    const restored = sanitizeDashboardCollection(
+      {
+        ...legacy,
+        dashboardsById: {
+          home: {
+            ...legacy.dashboardsById.home,
+            roomCompanions: {
+              room_kitchen1: { showSecurity: false, cards: [] },
+              room_office01: {
+                showSecurity: false,
+                cards: [{ id: 'note', type: 'note', text: 'Office' }],
+              },
+              Kitchen: { showSecurity: true },
+              room_invalid1: null,
+              room_invalid2: [],
+            },
+            roomCompanionModes: {
+              room_kitchen1: 'dashboard',
+              room_office01: 'unsupported',
+              Kitchen: 'room',
+            },
+          },
+        },
+      },
+      legacy
+    ).dashboardsById.home;
+    expect(restored.roomCompanions).toEqual({
+      room_kitchen1: { showSecurity: false, cards: [] },
+      room_office01: { showSecurity: false, cards: [{ id: 'note', type: 'note', text: 'Office' }] },
+    });
+    const copy = createDashboardDefinition({
+      name: 'Copy',
+      source: { kind: 'copy', dashboard: restored },
+    });
+    expect(copy.roomCompanions).toEqual(restored.roomCompanions);
+    expect(restored.roomCompanionModes).toEqual({ room_kitchen1: 'dashboard' });
+    expect(copy.roomCompanionModes).toEqual(restored.roomCompanionModes);
+    expect(copy.roomCompanionModes).not.toBe(restored.roomCompanionModes);
+    expect(resolveDashboardCompanion(copy, 'room_kitchen1')).toBe(copy.companion);
+    expect(resolveDashboardCompanion(copy, 'room_office01')).toBe(
+      copy.roomCompanions?.room_office01
+    );
+    expect(copy.roomCompanions?.room_office01.cards).not.toBe(
+      restored.roomCompanions?.room_office01.cards
+    );
+    copy.roomCompanions?.room_office01.cards?.push({ id: 'another', type: 'clock' });
+    expect(restored.roomCompanions?.room_office01.cards).toHaveLength(1);
+  });
+
   it('defaults old dashboards without replacing their Home layout', () => {
     const legacy = createLegacyDashboardCollection({ homeLayout: { cardIds: ['light.kitchen'] } });
     delete legacy.dashboardsById.home.companion;

@@ -1,4 +1,11 @@
-import { companionRowHighlight } from '@navet/app/components/shared/companion-row-presentation';
+import {
+  companionEntityDisabledClassName,
+  companionEntityIconClassName,
+  companionEntityNameTypography,
+  companionEntityRowClassName,
+  companionEntityValueClassName,
+  companionRowHighlight,
+} from '@navet/app/components/shared/companion-row-presentation';
 import { BrightnessSlider } from '@navet/app/components/shared/device-editor';
 import { getEntityIconPillStyles } from '@navet/app/components/shared/theme/entity-icon-pill-styles';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
@@ -22,6 +29,7 @@ interface LightCardTableRowProps {
   cardInteraction?: Pick<LightCardController['cardInteraction'], 'settingsButtonProps'>;
   compact?: boolean;
   disabled?: boolean;
+  unavailable?: boolean;
   toggleDisabled?: boolean;
   secondaryText?: string;
   showToggle?: boolean;
@@ -46,6 +54,7 @@ export const LightCardTableRow = memo(function LightCardTableRow({
   isEditMode,
   compact = false,
   disabled = false,
+  unavailable = false,
   toggleDisabled = false,
   secondaryText,
   showToggle = true,
@@ -54,14 +63,16 @@ export const LightCardTableRow = memo(function LightCardTableRow({
   const { t } = useI18n();
   const { theme, accentColor, primaryColor } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
-  const controlsDisabled = isEditMode || disabled;
-  const displayStateLabel =
-    stateLabel ??
-    (isOn && supportsBrightness
-      ? `${Math.round(brightness)}%`
-      : isOn
-        ? t('common.on')
-        : t('common.off'));
+  const controlsDisabled = isEditMode || disabled || unavailable;
+  const displaySecondaryText = unavailable ? undefined : secondaryText;
+  const displayStateLabel = unavailable
+    ? t('common.unavailable')
+    : (stateLabel ??
+      (isOn && supportsBrightness
+        ? `${Math.round(brightness)}%`
+        : isOn
+          ? t('common.on')
+          : t('common.off')));
   const ToggleIcon = IconComponent ?? Lightbulb;
   const iconPill = getEntityIconPillStyles({
     isActive: isOn,
@@ -78,9 +89,10 @@ export const LightCardTableRow = memo(function LightCardTableRow({
     <div
       className={cn(
         'flex w-full min-w-0 items-center py-1 text-left transition-colors motion-reduce:transition-none',
-        compact ? '@container/light-row min-h-10 gap-2' : 'min-h-12 gap-3',
+        compact ? `@container/light-row ${companionEntityRowClassName}` : 'min-h-12 gap-3',
         !isEditMode && !compact && 'cursor-pointer rounded-xl',
-        compact && companionRowHighlight,
+        compact && `relative ${companionRowHighlight}`,
+        compact && controlsDisabled && companionEntityDisabledClassName,
         !controlsDisabled && surface.hoverBg
       )}
       data-light-table-row
@@ -89,37 +101,50 @@ export const LightCardTableRow = memo(function LightCardTableRow({
         <button
           type="button"
           aria-label={iconButtonProps['aria-label']}
-          aria-pressed={isOn}
+          aria-pressed={unavailable ? undefined : isOn}
           disabled={controlsDisabled || toggleDisabled}
           onClick={iconButtonProps.onClick}
           onPointerDown={iconButtonProps.onPointerDown}
           className={cn(
-            '-ml-[5px] flex shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-75',
-            compact ? 'h-9 w-9' : 'h-11 w-11',
+            'flex shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-75',
+            compact ? 'relative z-10 -mx-2.5 h-9 w-9' : '-ml-[5px] h-11 w-11',
             getThemeFocusRingClassName(theme)
           )}
         >
           <span
-            className={cn(iconPill.badgeClassName, 'navet-card-header-control-dense')}
-            style={iconPill.badgeStyle}
-            data-light-row-icon-pill
+            className={
+              compact
+                ? `flex items-center justify-center ${surface.textMuted}`
+                : cn(iconPill.badgeClassName, 'navet-card-header-control-dense')
+            }
+            style={compact ? undefined : iconPill.badgeStyle}
+            data-light-row-icon-pill={compact ? undefined : true}
           >
             {iconText ? (
               <span
-                className={cn('text-xs font-semibold', iconPill.iconClassName)}
-                style={iconPill.iconStyle}
+                className={
+                  compact
+                    ? 'text-xs font-medium'
+                    : cn('text-xs font-semibold', iconPill.iconClassName)
+                }
+                style={compact ? undefined : iconPill.iconStyle}
               >
                 {iconText}
               </span>
             ) : (
               <ToggleIcon
-                className={iconPill.iconClassName}
-                style={iconPill.iconStyle}
+                className={compact ? companionEntityIconClassName : iconPill.iconClassName}
+                style={compact ? undefined : iconPill.iconStyle}
                 aria-hidden="true"
               />
             )}
           </span>
         </button>
+      ) : compact ? (
+        <ToggleIcon
+          aria-hidden="true"
+          className={`${companionEntityIconClassName} ${surface.textMuted}`}
+        />
       ) : null}
 
       {cardInteraction ? (
@@ -128,33 +153,30 @@ export const LightCardTableRow = memo(function LightCardTableRow({
           aria-haspopup="dialog"
           disabled={controlsDisabled}
           className={cn(
-            `min-h-9 min-w-0 flex-1 ${compact ? 'break-words' : 'truncate'} rounded-lg text-left text-sm font-medium ${
-              isOn ? surface.textPrimary : surface.textSecondary
+            `min-h-9 min-w-0 flex-1 ${compact ? 'break-words' : 'truncate'} rounded-lg text-left ${
+              compact || isOn ? surface.textPrimary : surface.textSecondary
             }`,
-            showToggle && '-ml-[3px]',
-            compact && 'flex items-center justify-between gap-2',
+            compact ? companionEntityNameTypography : 'text-sm font-medium',
+            showToggle && !compact && '-ml-[3px]',
+            compact &&
+              'flex items-center justify-between gap-2 after:absolute after:inset-0 after:rounded-lg after:content-[""]',
             getThemeFocusRingClassName(theme)
           )}
         >
           <span className="min-w-0">
-            {secondaryText ? (
+            {displaySecondaryText ? (
               <>
                 <span className="block">{name}</span>
                 <span className={cn('block text-xs font-normal', surface.textMuted)}>
-                  {secondaryText}
+                  {displaySecondaryText}
                 </span>
               </>
             ) : (
               name
             )}
           </span>
-          {compact && stateLabel !== '' ? (
-            <span
-              className={cn(
-                'max-w-[45%] shrink-0 text-right text-xs font-normal tabular-nums',
-                surface.textSecondary
-              )}
-            >
+          {compact && (unavailable || stateLabel !== '') ? (
+            <span className={cn(companionEntityValueClassName, surface.textPrimary)}>
               {displayStateLabel}
             </span>
           ) : null}

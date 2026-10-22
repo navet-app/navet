@@ -7,9 +7,11 @@ import type { HeaderController } from './use-header-controller';
 export function CompanionPanel({
   controller,
   editing,
+  onDone,
 }: {
   controller: HeaderController;
   editing: boolean;
+  onDone?: () => void;
 }) {
   const { theme } = useTheme();
   return (
@@ -22,7 +24,7 @@ export function CompanionPanel({
         viewportProps={{ tabIndex: 0, 'data-companion-scroll-viewport': 'true' }}
         contentClassName="px-5 py-4"
       >
-        <DashboardCompanion editing={editing} />
+        <DashboardCompanion editing={editing} onDone={onDone} />
       </OverlayScrollArea>
     </div>
   );

@@ -1,6 +1,8 @@
 import { BaseCard } from '@navet/app/components/primitives';
 import { EntityCardHeader } from '@navet/app/components/primitives/entity-card-header';
+import { EntityCardTitleBlock } from '@navet/app/components/primitives/entity-card-title-block';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
+import { companionEntityNameTypography } from '@navet/app/components/shared/companion-row-presentation';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { useI18n } from '@navet/app/hooks';
 import { useTheme } from '@navet/app/hooks/use-theme';
@@ -339,7 +341,11 @@ export function CameraCardView({
                     : 'bg-slate-400'
               }`}
             />
-            {statusLabel ? <span>{statusLabel}</span> : null}
+            {statusLabel ? (
+              <span className={isMosaicTile && isFeedRunning ? 'sr-only' : undefined}>
+                {statusLabel}
+              </span>
+            ) : null}
           </div>
           {!hasLiveStream && !isUnavailable && snapshotAge ? (
             <span className={statusMutedTextClassName}>
@@ -384,16 +390,24 @@ export function CameraCardView({
         >
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <EntityCardHeader
-                title={name}
-                subtitle={isCompact ? '' : room}
-                layout="eyebrow-first"
-                size={size}
-                titleClassName={titleClassName}
-                subtitleClassName={subtitleClassName}
-                className="!mb-0 min-w-0"
-                contentClassName="text-left"
-              />
+              {isMosaicTile ? (
+                <EntityCardTitleBlock
+                  title={name}
+                  subtitle=""
+                  titleClassName={`truncate ${companionEntityNameTypography} ${titleClassName} opacity-50`}
+                />
+              ) : (
+                <EntityCardHeader
+                  title={name}
+                  subtitle={isCompact ? '' : room}
+                  layout="eyebrow-first"
+                  size={size}
+                  titleClassName={titleClassName}
+                  subtitleClassName={subtitleClassName}
+                  className="!mb-0 min-w-0"
+                  contentClassName="text-left"
+                />
+              )}
             </div>
 
             {!isEditMode && !isMosaicTile && (

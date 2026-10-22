@@ -14,6 +14,7 @@ export function DeviceControlsDialog({
   status,
   isOpen,
   onOpenChange,
+  onCloseAutoFocus,
   controls,
   customize,
   tintColor,
@@ -25,6 +26,7 @@ export function DeviceControlsDialog({
   status: string;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
   controls: ReactNode;
   customize: ReactNode;
   tintColor?: string;
@@ -34,6 +36,7 @@ export function DeviceControlsDialog({
   const surface = getThemeSurfaceTokens(theme);
   return (
     <BaseCardDialog
+      onCloseAutoFocus={onCloseAutoFocus}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       roomSelectorFallbackRoomName={room}

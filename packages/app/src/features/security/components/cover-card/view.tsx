@@ -4,6 +4,7 @@ import { CardMetricActionLayout } from '@navet/app/components/primitives/card-me
 import { EntityCardHeader } from '@navet/app/components/primitives/entity-card-header';
 import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-card-header-icon';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
+import type { EntityCardDialogControl } from '@navet/app/components/shared/entity-card-dialog';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
 import { getOpenDeviceCardSurface } from '@navet/app/components/shared/theme/open-device-card-surface';
 import { type ThemeType, useI18n, useTheme } from '@navet/app/hooks';
@@ -50,6 +51,7 @@ interface CoverCardViewProps {
   stateDisplay: { text: string; color: string; unavailable?: boolean };
   iconButtonProps: CoverIconButtonProps;
   settingsButtonProps: CoverIconButtonProps;
+  dialog?: EntityCardDialogControl;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
   onSizeChange: (id: string, size: CardSize) => void;
@@ -88,6 +90,7 @@ export function CoverCardView({
   iconButtonProps,
   settingsButtonProps,
   isSettingsOpen,
+  dialog,
   setIsSettingsOpen,
   onSizeChange: _onSizeChange,
   onPreviewPosition,
@@ -141,6 +144,36 @@ export function CoverCardView({
     },
   };
 
+  const settingsDialog = isSettingsOpen ? (
+    <CoverSettingsDialog
+      onCloseAutoFocus={dialog?.onCloseAutoFocus}
+      showPosition={showPosition}
+      hasPosition={hasPosition}
+      controlMode={controlMode}
+      onControlModeChange={onControlModeChange}
+      entityId={entityId}
+      name={name}
+      room={room}
+      isOpen={isSettingsOpen}
+      onOpenChange={setIsSettingsOpen}
+      position={clampedPosition}
+      stateLabel={stateDisplay.text}
+      deviceClass={deviceClass}
+      deviceClassConfig={deviceClassConfig}
+      onDeviceClassChange={setDeviceClass}
+      onPreviewPosition={onPreviewPosition}
+      onCommitPosition={onCommitPosition}
+      onOpen={handleOpen}
+      onStop={handleStop}
+      onClose={handleClose}
+      canOpen={canOpen}
+      supportsStop={supportsStop}
+      canStop={canStop}
+      canClose={canClose}
+      canSetPosition={canSetPosition}
+    />
+  ) : null;
+  if (dialog) return settingsDialog;
   return (
     <BaseCard
       size={size}
@@ -281,34 +314,7 @@ export function CoverCardView({
         )}
       </div>
 
-      {isSettingsOpen ? (
-        <CoverSettingsDialog
-          showPosition={showPosition}
-          hasPosition={hasPosition}
-          controlMode={controlMode}
-          onControlModeChange={onControlModeChange}
-          entityId={entityId}
-          name={name}
-          room={room}
-          isOpen={isSettingsOpen}
-          onOpenChange={setIsSettingsOpen}
-          position={clampedPosition}
-          stateLabel={stateDisplay.text}
-          deviceClass={deviceClass}
-          deviceClassConfig={deviceClassConfig}
-          onDeviceClassChange={setDeviceClass}
-          onPreviewPosition={onPreviewPosition}
-          onCommitPosition={onCommitPosition}
-          onOpen={handleOpen}
-          onStop={handleStop}
-          onClose={handleClose}
-          canOpen={canOpen}
-          supportsStop={supportsStop}
-          canStop={canStop}
-          canClose={canClose}
-          canSetPosition={canSetPosition}
-        />
-      ) : null}
+      {settingsDialog}
     </BaseCard>
   );
 }

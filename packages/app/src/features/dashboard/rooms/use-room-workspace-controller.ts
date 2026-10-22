@@ -19,6 +19,7 @@ import type {
   RoomWorkspaceStage,
   RoomWorkspaceViewModel,
 } from './components';
+import { createDiscoveredRooms } from './room-workspace-discovery';
 import {
   createRoomWorkspaceEditorSession,
   type RoomWorkspacePendingOperation,
@@ -39,7 +40,6 @@ import {
   deleteRoomWorkspaceGroupV2,
   getRoomWorkspaceRoomsInDisplayOrderV2,
   linkRoomWorkspaceSourceV2,
-  type RoomWorkspaceDiscoveredRoom,
   type RoomWorkspaceGroupId,
   type RoomWorkspaceImageReferenceV2,
   type RoomWorkspaceIndexV2,
@@ -198,21 +198,6 @@ function resolveEntityWorkspaceRoomId(
   }
 
   return index.roomIdBySourceCanonicalId.get(candidateId) ?? null;
-}
-
-function createDiscoveredRooms(
-  roomsByCanonicalId: Record<string, NavetProviderRoom>
-): RoomWorkspaceDiscoveredRoom[] {
-  return Object.values(roomsByCanonicalId)
-    .map((room) => ({
-      displayName: room.name,
-      sourceRef: {
-        providerId: room.providerId,
-        canonicalId: room.canonicalId,
-        sourceType: 'provider_managed' as const,
-      },
-    }))
-    .sort((left, right) => left.sourceRef.canonicalId.localeCompare(right.sourceRef.canonicalId));
 }
 
 function areWorkspacesEqual(left: RoomWorkspaceV2 | null, right: RoomWorkspaceV2 | null): boolean {

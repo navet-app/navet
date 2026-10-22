@@ -301,6 +301,7 @@ function DashboardChrome({
     <CompanionPanel
       controller={headerController}
       editing={mobileEditActions?.isEditMode ?? storeEditing}
+      onDone={mobileEditActions?.onToggleEditMode}
     />
   );
   const actionsBesideRooms =

@@ -3,7 +3,7 @@ import { useChoreWorkspaceStore } from '@navet/app/features/chores/chore-workspa
 import { ChoreWorkspaceSyncContext } from '@navet/app/features/chores/use-chore-workspace-sync';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
-import { act, screen } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CompanionChores } from './companion-chores';
 
@@ -13,28 +13,43 @@ describe('companion chores', () => {
     useChoreWorkspaceStore.getState().reset();
   });
 
-  it('shows chore status without completion buttons and keeps the full household view accessible', async () => {
+  it('completes a chore in place and removes the navigation link', async () => {
     renderWithProviders(
       <DemoChoreWorkspace>
         <CompanionChores editing={false} />
       </DemoChoreWorkspace>
     );
     expect(await screen.findByText('Unload dishwasher')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Mark done:/ })).not.toBeInTheDocument();
     expect(useChoreWorkspaceStore.getState().data?.occurrencesById['today-dishwasher'].status).toBe(
       'available'
     );
-    expect(screen.getByRole('button', { name: 'Chores' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Chores' })).not.toBeInTheDocument();
+    const complete = screen.getByRole('button', { name: 'Mark done: Unload dishwasher' });
+    fireEvent.click(complete);
+    await waitFor(() =>
+      expect(
+        useChoreWorkspaceStore.getState().data?.occurrencesById['today-dishwasher'].status
+      ).toBe('done')
+    );
+    expect(screen.queryByText('Unload dishwasher')).not.toBeInTheDocument();
   });
 
-  it('disables household navigation during customization', async () => {
-    renderWithProviders(
+  it('disables chore actions during customization and saving', async () => {
+    const { rerender } = renderWithProviders(
       <DemoChoreWorkspace>
         <CompanionChores editing={true} />
       </DemoChoreWorkspace>
     );
     expect(await screen.findByText('Unload dishwasher')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Chores' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Mark done: Unload dishwasher' })).toBeDisabled();
+    rerender(
+      <DemoChoreWorkspace>
+        <CompanionChores editing={false} />
+      </DemoChoreWorkspace>
+    );
+    expect(screen.getByRole('button', { name: 'Mark done: Unload dishwasher' })).toBeEnabled();
+    act(() => useChoreWorkspaceStore.setState({ status: 'saving' }));
+    expect(screen.getByRole('button', { name: 'Mark done: Unload dishwasher' })).toBeDisabled();
   });
 
   it('does not expose cached chores after the workspace loses authority', async () => {
@@ -59,7 +74,9 @@ describe('companion chores', () => {
       </ChoreWorkspaceSyncContext.Provider>
     );
     expect(spy).not.toHaveBeenCalled();
-    expect(screen.getByRole('status')).toHaveTextContent('Loading household chores');
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...');
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
     view.unmount();
     useChoreWorkspaceStore.setState({ load });
   });

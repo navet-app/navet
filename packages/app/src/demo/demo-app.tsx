@@ -21,6 +21,7 @@ import { HomeEditCommandBar } from '@navet/app/features/dashboard/components/hom
 import { WidgetCard } from '@navet/app/features/dashboard/components/widget-card';
 import { useFitDashboardGrid } from '@navet/app/features/dashboard/hooks/use-fit-dashboard-grid';
 import { useProgressiveBatching } from '@navet/app/features/dashboard/hooks/use-progressive-batching';
+import { useRoomWorkspaceStore } from '@navet/app/features/dashboard/rooms/room-workspace-store';
 import { DashboardLayout } from '@navet/app/features/dashboard/shell';
 import type { CustomCard } from '@navet/app/features/dashboard/stores/custom-cards-store';
 import { useDashboardEntitiesStore } from '@navet/app/features/dashboard/stores/dashboard-entities-store';
@@ -41,6 +42,7 @@ import {
 import { SensorCard } from '@navet/app/features/sensors/components/sensor-card';
 import { useBreakpointCols } from '@navet/app/hooks/use-breakpoint-cols';
 import { useDeferredVisibility } from '@navet/app/hooks/use-deferred-visibility';
+import { useRoomNavigation } from '@navet/app/hooks/use-room-navigation';
 import { I18nProvider, useI18n } from '@navet/app/i18n';
 import { integrationSessionRuntime } from '@navet/app/integration-session-runtime';
 import type { Section } from '@navet/app/navigation/sections';
@@ -949,6 +951,8 @@ function useDemoDisplayDefaults() {
   const [runtimeReady, setRuntimeReady] = useState(false);
 
   useEffect(() => {
+    const previousNavigation = useNavigationStore.getState();
+    useNavigationStore.getState().setCurrentRoom(ALL_ROOMS_ID);
     const detectedEffectsQuality = useSettingsStore.getState().effectsQuality;
     const reduceEffects = detectedEffectsQuality === 'low';
     const kioskPreview = window.location.pathname.split('/').filter(Boolean).includes('kiosk');
@@ -991,6 +995,12 @@ function useDemoDisplayDefaults() {
       restoreEntityVisibility();
       integrationSessionRuntime.replaceSession(previousSession);
       resetPreviewRuntime();
+      useNavigationStore.setState({
+        currentRoom: previousNavigation.currentRoom,
+        currentRoomId: previousNavigation.currentRoomId,
+        lastExplicitRoom: previousNavigation.lastExplicitRoom,
+        lastExplicitRoomId: previousNavigation.lastExplicitRoomId,
+      });
     };
   }, []);
 
@@ -1981,7 +1991,8 @@ function DemoContent() {
   const { t } = useI18n();
   const runtimeReady = useDemoDisplayDefaults();
   const authSession = useOptionalAuthSession();
-  const [activeRoom, setActiveRoom] = useState<string>(ALL_ROOMS_ID);
+  const roomWorkspace = useRoomWorkspaceStore((state) => state.workspace);
+  const { activeRoom, changeRoom: setActiveRoom } = useRoomNavigation(ALL_ROOMS_ID, roomWorkspace);
   const [addCardOpen, setAddCardOpen] = useState(false);
   const [addedWidgets, setAddedWidgets] = useState<CustomCard[]>([]);
   const [removedWidgets, setRemovedWidgets] = useState<CustomCard[]>([]);

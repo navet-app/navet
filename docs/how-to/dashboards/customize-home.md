@@ -43,22 +43,40 @@ dashboard.
 
 Choose **Customize** to reveal editing controls for both the dashboard and its side panel. Use
 **Add item** in the side panel to add a device, camera, weather, calendar, chores, security status,
-clock and date, greeting, or note. Devices appear as compact rows. Select the icon to toggle power
-where supported, or select the name or state to open the device’s card dialog. Security and weather
-items open their entity cards without leaving the current dashboard. Brightness and
-temperature stay visible as values. Media players show track details without inline controls;
+clock and date, greeting, or note. The picker uses the dashboard’s searchable item library, with
+category navigation, room filters, and sorting. Choose **Add item** beside each item to add it immediately. The picker stays open so you can
+add several camera or weather sources; each becomes a separate panel item. Choose **Done** to close
+the picker. Adding a note or greeting opens its text editor. Devices appear as compact rows. Select the icon to toggle power
+where supported, or select the name or state to open the same entity dialog used by its dashboard
+card. Brightness and temperature stay visible as values. Media players show track details without inline controls;
 select their name to open the media dialog.
 Cameras use their existing playback settings and snapshot fallback. The calendar shows up to three
 upcoming events from the selected source; tap an event for details. Chores show up to three
-outstanding jobs for today, including overdue jobs. Select **Chores** to open the full household
-view and act on them.
+outstanding jobs for today, including overdue jobs. Use the action beside a chore to mark it done,
+claim it, or approve it. If several people are eligible, choose the person from the action menu.
 Drag items to reorder them, or use their **More actions** menu to move or remove them. The pencil
-opens a focused dialog for that item’s source or content. Changes save as you edit; choose **Done** on the dashboard editing bar to finish. Panel controls stay hidden
+opens a focused dialog for that item’s source or content. Changes save as you edit; choose **Done** beside **Add item** or on the dashboard editing bar to finish. Panel controls stay hidden
 during everyday use.
 
-Panel content belongs to the active Home dashboard and stays the same in every room. Other Home
-dashboards can have different content. Existing camera, weather and security selections are
-preserved. **Automatic** uses the first source of that kind from your selected providers. A
+Each saved dashboard has a common side panel. Home and feature sections such as Energy and
+Security use that common panel. Rooms also use it unless you choose a custom room panel.
+
+Choose **Customize** from any room to edit the panel currently displayed. The compact selector
+below **Add item** and **Done** identifies it as **Dashboard panel** or **[room] panel**. Changes to the
+dashboard panel apply to Home and every room using that panel. Changes to a room panel apply
+only to that room on this dashboard.
+
+Open the selector and choose **Create room panel** to start an independent copy of the dashboard
+panel. Add, edit, reorder or remove items as usual. Removing every item leaves an empty room
+panel; renaming the room preserves it.
+
+Use the selector to switch between **Dashboard panel** and the saved room panel. Switching keeps
+both panels and remembers your choice for that room. To remove a saved room panel, choose
+**Delete room panel** and confirm. That room then uses the dashboard panel.
+Other saved dashboards keep their own panels and selections; duplicating a dashboard copies
+them independently.
+
+Existing camera, weather and security selections are preserved. **Automatic** uses the first source of that kind from your selected providers. A
 missing selected source stays unavailable rather than being replaced by another source.
 
 The panel is available on landscape screens at least 1100 pixels wide and 600 pixels tall. Other

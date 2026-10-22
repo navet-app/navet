@@ -7,6 +7,7 @@ export interface ClimateTemperaturePreset {
 }
 
 export interface ClimateSettingsDialogProps {
+  onCloseAutoFocus?: (event: Event) => void;
   entityId: string;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;

@@ -32,6 +32,7 @@ import { memo, useCallback } from 'react';
 import type { SwitchSiblingEntity } from './use-switch-card-controller';
 
 interface SwitchSettingsDialogProps {
+  onCloseAutoFocus?: (event: Event) => void;
   entityId: string;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -61,6 +62,7 @@ export const SwitchSettingsDialog = memo(function SwitchSettingsDialog({
   entityId,
   isOpen,
   onOpenChange,
+  onCloseAutoFocus,
   name,
   labelContextName,
   entityType,
@@ -210,6 +212,7 @@ export const SwitchSettingsDialog = memo(function SwitchSettingsDialog({
 
   return (
     <BaseCardDialog
+      onCloseAutoFocus={onCloseAutoFocus}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title={name}

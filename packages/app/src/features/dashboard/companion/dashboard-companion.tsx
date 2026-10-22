@@ -2,7 +2,15 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { useHeaderDateTime } from '@navet/app/components/layout/use-header-datetime';
 import { Button } from '@navet/app/components/primitives/button';
 import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
+import {
+  companionEntityDisabledClassName,
+  companionEntityIconClassName,
+  companionEntityNameTypography,
+  companionEntityRowClassName,
+  companionEntityValueClassName,
+} from '@navet/app/components/shared/companion-row-presentation';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import { getDeviceTypeIcon } from '@navet/app/constants/device-type-icons';
 import { readNavetAlarmEntity, readNavetCameraState } from '@navet/app/core/navet-device-state';
 import { getAlarmStateLabel } from '@navet/app/features/security/utils/alarm-state-label';
 import {
@@ -10,18 +18,26 @@ import {
   WeatherIcon,
 } from '@navet/app/features/weather/components/weather-card/weather-icon';
 import { useI18n, useIntegrationStore, useProviderResource, useTheme } from '@navet/app/hooks';
+import { useWeatherDevicesCollection } from '@navet/app/hooks/use-devices';
 import { useResourceUrl } from '@navet/app/hooks/use-resource-url';
 import { useEditModeStore, useSettingsStore } from '@navet/app/stores';
 import { integrationSelectors } from '@navet/app/stores/selectors';
-import { formatTemperatureFromSourceUnit } from '@navet/app/utils/temperature';
+import { parseProviderScopedId } from '@navet/app/utils/provider-ids';
+import {
+  formatTemperatureFromSourceUnit,
+  formatTemperatureValueFromSourceUnit,
+  normalizeTemperatureUnit,
+} from '@navet/app/utils/temperature';
 import type { NavetEntity } from '@navet/core/types';
 import { ArrowUpRight, CameraOff, Lock, Plus, Shield } from 'lucide-react';
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   type CompanionCard,
-  DEFAULT_DASHBOARD_COMPANION,
   getCompanionCards,
+  isRoomCompanionSelected,
+  type NavetDashboardDefinition,
+  resolveDashboardCompanion,
 } from '../dashboards/dashboard-collection';
 import { useDashboardCollectionStore } from '../dashboards/dashboard-collection-store';
 import {
@@ -32,6 +48,9 @@ import {
 } from './companion-editor';
 import { CompanionEntityDetails } from './companion-entity-details';
 import { CompanionEntityRow } from './companion-entity-row';
+import { CompanionPanelScope } from './companion-panel-scope';
+import { CompanionRowLoading } from './companion-row-loading';
+import { useCompanionRoomScope } from './use-companion-room-scope';
 
 const CompanionCalendar = lazy(async () => {
   const module = await import('./companion-calendar');
@@ -47,40 +66,124 @@ const CompanionCameraFeed = lazy(async () => {
 });
 
 // Content is dashboard-owned; panel tools appear only during dashboard customization.
-export function DashboardCompanion({ editing: controlledEditing }: { editing?: boolean } = {}) {
+export function DashboardCompanion({
+  editing: controlledEditing,
+  onDone,
+}: {
+  editing?: boolean;
+  onDone?: () => void;
+} = {}) {
   const storeEditing = useEditModeStore((state) => state.isEditMode);
+  const setEditMode = useEditModeStore((state) => state.setEditMode);
   const editing = controlledEditing ?? storeEditing;
+  const dashboard = useDashboardCollectionStore(
+    (state) => state.collection.dashboardsById[state.activeDashboardId]
+  );
+  const { roomId, roomName } = useCompanionRoomScope(editing);
+
+  return (
+    <DashboardCompanionContent
+      key={`${dashboard?.id}:${roomId ?? 'common'}`}
+      dashboard={dashboard}
+      roomId={roomId}
+      roomName={roomName}
+      editing={editing}
+      onDone={onDone ?? (() => setEditMode(false))}
+    />
+  );
+}
+
+function DashboardCompanionContent({
+  dashboard,
+  roomId,
+  roomName,
+  editing,
+  onDone,
+}: {
+  dashboard: NavetDashboardDefinition | undefined;
+  roomId: string | null;
+  roomName: string;
+  editing: boolean;
+  onDone: () => void;
+}) {
   const { t } = useI18n();
   const { theme } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
   const setConfiguring = useDashboardCollectionStore(
     (state) => state.setCompanionCustomizationOpen
   );
-  const dashboard = useDashboardCollectionStore(
-    (state) => state.collection.dashboardsById[state.activeDashboardId]
-  );
   const updateCompanion = useDashboardCollectionStore((state) => state.updateCompanion);
+  const updateRoomCompanion = useDashboardCollectionStore((state) => state.updateRoomCompanion);
   const [adding, setAdding] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
+  const pendingAddedId = useRef<string | null>(null);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const selectedRoomId = isRoomCompanionSelected(dashboard, roomId) ? roomId : null;
   useEffect(() => {
     setConfiguring(adding || editingCardId !== null);
   }, [adding, editingCardId, setConfiguring]);
   useEffect(() => {
-    if (!editing) {
-      setAdding(false);
-      setEditingCardId(null);
-    }
-  }, [editing]);
+    setAdding(false);
+    setEditingCardId(null);
+  }, [editing, selectedRoomId]);
+  useEffect(() => {
+    if (adding || editingCardId || !pendingAddedId.current) return;
+    const frame = requestAnimationFrame(() => {
+      const item = panelRef.current?.querySelector(
+        `[data-companion-card-id="${pendingAddedId.current}"]`
+      );
+      item?.scrollIntoView?.({ block: 'nearest' });
+      pendingAddedId.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [adding, editingCardId]);
   const cardLabel = useCompanionCardLabel();
-  const settings = dashboard?.companion ?? DEFAULT_DASHBOARD_COMPANION;
+  const settings = resolveDashboardCompanion(dashboard, roomId);
   const cards = useMemo(() => getCompanionCards(settings), [settings]);
-  const entities = useIntegrationStore(
+  const indexedEntities = useIntegrationStore(
     useShallow((state) =>
       state.selectedProviderIds.flatMap((id) =>
         Object.values(state.providerEntitiesByProviderId[id] ?? {})
       )
     )
   );
+  const weatherDevices = useWeatherDevicesCollection();
+  const hydratingProviderIds = useIntegrationStore(
+    useShallow((state) =>
+      state.selectedProviderIds.filter(
+        (id) =>
+          state.providerRuntime[id]?.connected &&
+          state.providerRuntime[id]?.entitiesHydrated === false
+      )
+    )
+  );
+  // Weather is a feature collection on providers that do not index it as an entity.
+  // Adapt its normalized data here so selection, editing and details share one source list.
+  const entities = useMemo(() => {
+    const sources = new Map(indexedEntities.map((entity) => [entity.canonicalId, entity]));
+    for (const weather of weatherDevices) {
+      const identity = parseProviderScopedId(weather.id);
+      if (!identity) continue;
+      if (sources.has(weather.id)) continue;
+      sources.set(weather.id, {
+        id: weather.id,
+        canonicalId: weather.id,
+        providerId: identity.providerId,
+        externalId: identity.nativeId,
+        type: 'weather',
+        name: weather.name,
+        room: weather.room,
+        primaryState: weather.condition,
+        availability:
+          weather.condition === 'unavailable' || weather.condition === 'unknown'
+            ? weather.condition
+            : 'available',
+        capabilities: [],
+        attributes: { ...weather },
+      });
+    }
+    return [...sources.values()];
+  }, [indexedEntities, weatherDevices]);
   useEffect(
     () => () => {
       setConfiguring(false);
@@ -90,7 +193,7 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
     [dashboard?.id, setConfiguring]
   );
   const update = (next: CompanionCard[]) => {
-    if (!dashboard) return;
+    if (!dashboard || !editing) return;
     // Keep the existing source-selection contract available to other dashboard surfaces.
     const isSource = (
       card: CompanionCard,
@@ -105,23 +208,35 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
     };
     const weather = next.find((card) => isSource(card, 'weather', settings.weatherEntityId));
     const camera = next.find((card) => isSource(card, 'camera', settings.cameraEntityId));
-    updateCompanion(dashboard.id, {
+    const nextSettings = {
       ...settings,
       cards: next,
       weatherEntityId: weather ? weather.entityId : null,
       cameraEntityId: camera ? camera.entityId : null,
-      showSecurity: next.some(
-        (card) =>
-          card.type === 'security' ||
-          (card.type === 'entity' &&
-            Boolean(
-              entities.find((entity) => entity.canonicalId === card.entityId)?.attributes.alarmState
-            ))
-      ),
-    });
+      showSecurity: next.some((card) => {
+        if (card.type === 'security') return true;
+        if (card.type !== 'entity') return false;
+        const entity = entities.find((item) => item.canonicalId === card.entityId);
+        if (entity) return Boolean(entity.attributes.alarmState);
+        // Retain compatibility visibility while an existing source's metadata is offline.
+        return (
+          settings.showSecurity &&
+          cards.some((previous) => previous.id === card.id && previous.entityId === card.entityId)
+        );
+      }),
+    };
+    if (selectedRoomId) updateRoomCompanion(dashboard.id, selectedRoomId, nextSettings);
+    else updateCompanion(dashboard.id, nextSettings);
   };
   const label = (card: CompanionCard) =>
     entities.find((entity) => entity.canonicalId === card.entityId)?.name ?? cardLabel(card.type);
+  const individuallySelectedIds = new Set(cards.map((card) => card.entityId).filter(Boolean));
+  const securityEntities = entities.filter(
+    (entity) => entity.type === 'lock' || Boolean(entity.attributes.alarmState)
+  );
+  const summarySecurityEntities = securityEntities.filter(
+    (entity) => !individuallySelectedIds.has(entity.canonicalId)
+  );
   const content = (card: CompanionCard) => {
     if (card.type === 'clock') return <CompanionClock />;
     if (card.type === 'greeting') return <CompanionGreeting text={card.text} />;
@@ -129,19 +244,27 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
       return <p className="whitespace-pre-wrap break-words text-sm">{card.text}</p>;
     if (card.type === 'chores')
       return (
-        <Suspense fallback={null}>
+        <Suspense fallback={<CompanionRowLoading name={cardLabel('chores')} />}>
           <CompanionChores editing={editing} />
         </Suspense>
       );
     if (card.type === 'security') {
-      const security = entities.filter(
-        (entity) => entity.type === 'lock' || Boolean(entity.attributes.alarmState)
-      );
+      if (!securityEntities.length && hydratingProviderIds.length)
+        return <CompanionRowLoading name={cardLabel('security')} />;
+      const security = summarySecurityEntities;
       return security.length ? (
-        <div className="space-y-2">
-          {security.map((entity) => (
-            <CompanionSecurityRow key={entity.canonicalId} entity={entity} editing={editing} />
-          ))}
+        <div className="space-y-1">
+          {security.map((entity) =>
+            hydratingProviderIds.includes(entity.providerId) ? (
+              <CompanionRowLoading
+                key={entity.canonicalId}
+                name={entity.name}
+                icon={getDeviceTypeIcon(entity.type)}
+              />
+            ) : (
+              <CompanionSecurityRow key={entity.canonicalId} entity={entity} editing={editing} />
+            )
+          )}
         </div>
       ) : (
         <p className={`text-sm ${surface.textMuted}`}>
@@ -156,6 +279,20 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
             (card.type === 'entity' || entity.type === card.type)
         )
       : entities.find((entity) => entity.type === card.type);
+    const sourceProviderId =
+      entity?.providerId ??
+      (card.entityId ? parseProviderScopedId(card.entityId)?.providerId : undefined);
+    if (
+      sourceProviderId
+        ? hydratingProviderIds.includes(sourceProviderId)
+        : !entity && hydratingProviderIds.length > 0
+    )
+      return (
+        <CompanionRowLoading
+          name={label(card)}
+          icon={getDeviceTypeIcon(entity?.type ?? card.type)}
+        />
+      );
     if (!entity)
       return (
         <p className={`text-sm ${surface.textMuted}`}>
@@ -165,15 +302,25 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
     if (card.type === 'camera' || entity.type === 'camera') {
       if (readNavetCameraState(entity)?.isStreamCapable)
         return (
-          <Suspense fallback={<CompanionCamera entity={entity} />}>
+          <Suspense
+            fallback={
+              <div
+                className={`flex aspect-video items-center overflow-hidden rounded-xl px-3 ${surface.subtleBg}`}
+              >
+                <CompanionRowLoading name={entity.name} icon={getDeviceTypeIcon('camera')} />
+              </div>
+            }
+          >
             <CompanionCameraFeed key={entity.canonicalId} entity={entity} editing={editing} />
           </Suspense>
         );
-      return <CompanionCamera key={entity.canonicalId} entity={entity} />;
+      return <CompanionCamera key={entity.canonicalId} entity={entity} editing={editing} />;
     }
     if (card.type === 'calendar' || entity.type === 'calendar')
       return (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={<CompanionRowLoading name={entity.name} icon={getDeviceTypeIcon('calendar')} />}
+        >
           <CompanionCalendar key={entity.canonicalId} entity={entity} editing={editing} />
         </Suspense>
       );
@@ -183,61 +330,141 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
       return <CompanionSecurityRow entity={entity} editing={editing} />;
     return <CompanionEntityRow key={entity.canonicalId} entity={entity} editing={editing} />;
   };
-  const items = cards.map((card, index) =>
-    editing ? (
+  const groupType = (card: CompanionCard) =>
+    card.type === 'entity'
+      ? (entities.find((entity) => entity.canonicalId === card.entityId)?.type ?? card.type)
+      : card.type;
+  const groups: CompanionCard[][] = [];
+  const sourceId = (card: CompanionCard) =>
+    card.entityId ?? entities.find((entity) => entity.type === groupType(card))?.canonicalId;
+  const groupedSourceIds = new Set<string>();
+  for (const card of cards) {
+    const type = groupType(card);
+    if (card.type === 'security' && securityEntities.length && !summarySecurityEntities.length)
+      continue;
+    if (card.entityId || type === 'camera' || type === 'weather') {
+      const id = sourceId(card);
+      if (id && groupedSourceIds.has(id)) continue;
+      if (id) groupedSourceIds.add(id);
+    }
+    const group =
+      type === 'camera' || type === 'weather'
+        ? groups.find((items) => groupType(items[0]) === type)
+        : undefined;
+    if (group) group.push(card);
+    else groups.push([card]);
+  }
+  const items = groups.map((group, index) => {
+    const card = group[0];
+    const previous = groups[index - 1]?.[0];
+    const groupedSources = groupType(card) === 'camera' || groupType(card) === 'weather';
+    const sameType = previous !== undefined && groupType(card) === groupType(previous);
+    const sharesGroup = (card.type === 'clock' && previous?.type === 'greeting') || sameType;
+    const divider = index > 0 && !sharesGroup;
+    return editing ? (
       <CompanionCardEditor
         key={card.id}
+        className={divider ? `border-t pt-5 ${surface.dividerBorder}` : undefined}
         open={editingCardId === card.id}
         onOpenChange={(open) => setEditingCardId(open ? card.id : null)}
-        card={card}
-        label={label(card)}
+        card={groupedSources ? { ...card, type: groupType(card) as 'camera' | 'weather' } : card}
+        label={groupedSources ? cardLabel(groupType(card) as 'camera' | 'weather') : label(card)}
         index={index}
-        count={cards.length}
+        count={groups.length}
         entities={entities}
-        onChange={(next) => update(cards.map((item) => (item.id === card.id ? next : item)))}
-        onMove={(to) => update(arrayMove(cards, index, to))}
-        onRemove={() => update(cards.filter((item) => item.id !== card.id))}
+        groupCards={groupedSources ? group : undefined}
+        onRemoveCard={(id) => {
+          const removed = cards.find((item) => item.id === id);
+          update(
+            cards.filter(
+              (item) =>
+                item.id !== id &&
+                !(
+                  removed &&
+                  groupedSources &&
+                  sourceId(removed) &&
+                  sourceId(item) === sourceId(removed)
+                )
+            )
+          );
+        }}
+        onChange={(next) => update(cards.map((item) => (item.id === next.id ? next : item)))}
+        onMove={(to) => update(arrayMove(groups, index, to).flat())}
+        onRemove={() =>
+          update(
+            cards.filter((item) =>
+              groupedSources
+                ? groupType(item) !== groupType(card)
+                : !group.some((member) => member.id === item.id)
+            )
+          )
+        }
       >
-        {content(card)}
+        <div className="space-y-4">
+          {group.map((item) => (
+            <div key={item.id} data-companion-card-id={item.id}>
+              {content(item)}
+            </div>
+          ))}
+        </div>
       </CompanionCardEditor>
     ) : (
       <div
         key={card.id}
+        data-companion-card-id={card.id}
         className={
-          index > 0 && !(card.type === 'clock' && cards[index - 1]?.type === 'greeting')
-            ? card.type === 'entity' && cards[index - 1]?.type === 'entity'
-              ? 'mt-1'
-              : 'mt-4'
-            : undefined
+          divider
+            ? `mt-4 border-t pt-4 ${surface.dividerBorder}`
+            : sameType
+              ? card.type === 'entity' && previous?.type === 'entity'
+                ? 'mt-1'
+                : 'mt-4'
+              : undefined
         }
       >
-        {content(card)}
+        <div className="space-y-4">
+          {group.map((item) => (
+            <div key={item.id} data-companion-card-id={item.id}>
+              {content(item)}
+            </div>
+          ))}
+        </div>
       </div>
-    )
-  );
+    );
+  });
   return (
     <section
+      ref={panelRef}
       aria-label={t('sidebar.companion.title')}
       className={editing ? 'space-y-5' : undefined}
     >
-      <div className={editing ? 'flex items-center justify-between gap-2' : 'sr-only'}>
-        <h2 className={`text-sm font-medium ${surface.textSecondary}`}>
-          {t('sidebar.companion.title')}
-        </h2>
-        {editing ? (
-          <Button
-            variant="ghost"
-            size="compact"
-            disabled={cards.length >= 64}
-            leading={<Plus className="h-4 w-4" />}
-            onClick={() => setAdding(true)}
-          >
-            {t('sidebar.companion.addCard')}
-          </Button>
-        ) : null}
-      </div>
       {editing ? (
-        <CompanionEditorList cards={cards} onChange={update}>
+        <>
+          <div
+            className={`sticky top-0 z-30 -mx-5 -mt-4 flex items-center justify-end gap-3 border-r px-5 pb-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] ${surface.border} ${surface.shellPanel}`}
+          >
+            <Button
+              variant="secondary"
+              size="compact"
+              disabled={cards.length >= 64}
+              leading={<Plus className="h-4 w-4" />}
+              onClick={() => setAdding(true)}
+            >
+              {t('sidebar.companion.addCard')}
+            </Button>
+            <Button variant="primary" size="compact" onClick={onDone}>
+              {t('common.done')}
+            </Button>
+          </div>
+          {dashboard ? (
+            <div className="flex min-w-0">
+              <CompanionPanelScope dashboard={dashboard} roomId={roomId} roomName={roomName} />
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      {editing ? (
+        <CompanionEditorList cards={cards} groups={groups} onChange={update}>
           <div className="space-y-5">{items}</div>
         </CompanionEditorList>
       ) : (
@@ -252,9 +479,15 @@ export function DashboardCompanion({ editing: controlledEditing }: { editing?: b
       {adding && editing ? (
         <CompanionAddCardDialog
           entities={entities}
-          onAdd={(card) => {
-            update([...cards, card]);
-            if (card.type === 'note' || card.type === 'greeting') setEditingCardId(card.id);
+          cards={cards}
+          onRemove={(ids) => update(cards.filter((card) => !ids.includes(card.id)))}
+          remainingCapacity={64 - cards.length}
+          onAdd={(added) => {
+            pendingAddedId.current = added.at(-1)?.id ?? null;
+            update([...cards, ...added]);
+            const card = added[0];
+            if (card && (card.type === 'note' || card.type === 'greeting'))
+              setEditingCardId(card.id);
           }}
           onClose={() => setAdding(false)}
         />
@@ -301,30 +534,72 @@ function CompanionWeather({ entity, editing }: { entity: NavetEntity; editing: b
   );
   const available = connected && entity.availability === 'available';
   const value = entity.attributes.temperature;
-  const sourceUnit = entity.attributes.temperatureUnit === 'fahrenheit' ? 'fahrenheit' : 'celsius';
+  const sourceUnit = normalizeTemperatureUnit(entity.attributes.temperatureUnit) ?? 'celsius';
+  const range = [
+    [
+      'H',
+      entity.attributes.highTemp,
+      normalizeTemperatureUnit(entity.attributes.highTempUnit) ?? sourceUnit,
+    ],
+    [
+      'L',
+      entity.attributes.lowTemp,
+      normalizeTemperatureUnit(entity.attributes.lowTempUnit) ?? sourceUnit,
+    ],
+  ] as const;
+  const rangeLabel = available
+    ? range
+        .flatMap(([label, temperature, temperatureUnit]) =>
+          typeof temperature === 'number' && Number.isFinite(temperature)
+            ? [
+                `${label}:${formatTemperatureValueFromSourceUnit(temperature, temperatureUnit, unit)}°`,
+              ]
+            : []
+        )
+        .join(' ')
+    : '';
   const condition =
     typeof entity.attributes.condition === 'string'
       ? entity.attributes.condition
       : String(entity.primaryState ?? '');
   return (
-    <CompanionEntityDetails entity={entity} editing={editing} className="block min-w-0">
-      <span className={`block truncate text-xs ${surface.textMuted}`}>{entity.name}</span>
-      <span className="flex items-center justify-between gap-3">
-        <span className="text-2xl font-medium tabular-nums">
-          {available && typeof value === 'number' && Number.isFinite(value)
-            ? formatTemperatureFromSourceUnit(value, sourceUnit, unit)
-            : '—'}
+    <div className="flow-root">
+      <CompanionEntityDetails
+        entity={entity}
+        editing={editing}
+        className="-my-2 block min-w-0 py-2"
+      >
+        <span className="flex items-center justify-between gap-3">
+          <span className="min-w-0">
+            <span
+              className={`block truncate ${companionEntityNameTypography} ${surface.textMuted}`}
+            >
+              {entity.name}
+            </span>
+            <span className="block text-2xl font-medium tabular-nums">
+              {available && typeof value === 'number' && Number.isFinite(value)
+                ? formatTemperatureFromSourceUnit(value, sourceUnit, unit)
+                : '—'}
+            </span>
+            {rangeLabel ? (
+              <span className={`block text-xs tabular-nums ${surface.textSecondary}`}>
+                {rangeLabel}
+              </span>
+            ) : null}
+          </span>
+          <span className="flex min-w-0 max-w-[50%] flex-col items-end gap-0.5">
+            <WeatherIcon condition={condition} className="h-9 w-9 shrink-0" />
+            <span className="break-words text-right text-xs font-medium">
+              {available ? formatWeatherConditionLabel(condition) : t('common.unavailable')}
+            </span>
+          </span>
         </span>
-        <WeatherIcon condition={condition} className="h-9 w-9 shrink-0" />
-      </span>
-      <span className={`block text-sm ${surface.textSecondary}`}>
-        {available ? formatWeatherConditionLabel(condition) : t('common.unavailable')}
-      </span>
-    </CompanionEntityDetails>
+      </CompanionEntityDetails>
+    </div>
   );
 }
 
-function CompanionCamera({ entity }: { entity: NavetEntity }) {
+function CompanionCamera({ entity, editing = false }: { entity: NavetEntity; editing?: boolean }) {
   const { theme } = useTheme();
   const { t } = useI18n();
   const surface = getThemeSurfaceTokens(theme);
@@ -355,16 +630,16 @@ function CompanionCamera({ entity }: { entity: NavetEntity }) {
     </div>
   );
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 ${editing || !available ? companionEntityDisabledClassName : ''}`}>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        disabled={!src}
+        disabled={!src || editing}
         className="block w-full rounded-xl text-left focus-visible:outline focus-visible:outline-2"
         aria-label={t('sidebar.companion.openCamera', { name: entity.name })}
       >
         <span className="mb-2 flex items-center justify-between gap-2 text-sm font-medium">
-          <span className="truncate">{entity.name}</span>
+          <span className={`truncate ${companionEntityNameTypography}`}>{entity.name}</span>
           <ArrowUpRight className="h-4 w-4 shrink-0" />
         </span>
         {src ? (
@@ -380,7 +655,7 @@ function CompanionCamera({ entity }: { entity: NavetEntity }) {
       </button>
       <BaseCardDialog
         variant="modal"
-        isOpen={open}
+        isOpen={open && Boolean(available) && !editing}
         onOpenChange={setOpen}
         title={entity.name}
         theme={theme}
@@ -426,11 +701,13 @@ function CompanionSecurityRow({ entity, editing }: { entity: NavetEntity; editin
     <CompanionEntityDetails
       entity={entity}
       editing={editing}
-      className="flex min-h-10 items-center gap-2"
+      className={companionEntityRowClassName}
     >
-      <Icon className={`h-4 w-4 shrink-0 ${surface.textMuted}`} />
-      <span className="min-w-0 flex-1 truncate text-xs">{entity.name}</span>
-      <span className="max-w-[55%] text-right text-xs font-medium">{label}</span>
+      <Icon aria-hidden="true" className={`${companionEntityIconClassName} ${surface.textMuted}`} />
+      <span className={`min-w-0 flex-1 break-words ${companionEntityNameTypography}`}>
+        {entity.name}
+      </span>
+      <span className={companionEntityValueClassName}>{label}</span>
     </CompanionEntityDetails>
   );
 }

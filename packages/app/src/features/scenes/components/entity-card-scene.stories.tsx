@@ -79,3 +79,9 @@ export const Docs: Story = {
     docsOnly: true,
   },
 };
+
+export const Dialog: Story = {
+  play: async ({ canvas, userEvent, args }) => {
+    await userEvent.click(canvas.getByRole('button', { name: args.name }));
+  },
+};

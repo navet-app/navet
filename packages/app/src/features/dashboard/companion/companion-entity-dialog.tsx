@@ -1,11 +1,22 @@
+import type { EntityCardDialogControl } from '@navet/app/components/shared/entity-card-dialog';
 import { mapNavetEntitiesToDeviceCollection } from '@navet/app/core/navet-device-collections';
+import { readNavetAlarmEntity } from '@navet/app/core/navet-device-state';
+import { SecurityPanelCard } from '@navet/app/features/security/components/alarm-panel-card';
 import type { NavetEntity } from '@navet/core/types';
 import { renderCard } from '../utils/card-renderer';
 
 const keepPanelSize = () => {};
 
-/** Reuse the dashboard's entity mapping and controls instead of routing to a section. */
-export function CompanionEntityCard({ entity }: { entity: NavetEntity }) {
+/** Open the feature-owned dialog with the same mapping used by dashboard cards. */
+export function CompanionEntityDialog({
+  entity,
+  dialog,
+}: {
+  entity: NavetEntity;
+  dialog: EntityCardDialogControl;
+}) {
+  const alarm = readNavetAlarmEntity(entity);
+  if (alarm) return <SecurityPanelCard alarms={[alarm]} dialog={dialog} />;
   const collection = mapNavetEntitiesToDeviceCollection([entity]);
   for (const type of Object.keys(collection) as (keyof typeof collection)[]) {
     const device = collection[type].find((item) => item.id === entity.canonicalId);
@@ -15,6 +26,7 @@ export function CompanionEntityCard({ entity }: { entity: NavetEntity }) {
         size: type === 'locks' ? 'small' : 'medium',
         handleSizeChange: keepPanelSize,
         isEditMode: false,
+        dialog,
       });
     }
   }
@@ -30,5 +42,6 @@ export function CompanionEntityCard({ entity }: { entity: NavetEntity }) {
     size: 'medium',
     handleSizeChange: keepPanelSize,
     isEditMode: false,
+    dialog,
   });
 }

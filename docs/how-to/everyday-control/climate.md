@@ -28,6 +28,13 @@ including humidity readings exposed by thermostats. Sensors you hide stay hidden
    change it.
 4. Select the thermostat for more controls, including available HVAC modes and presets.
 
+The side panel shows current temperature in the same text style as other entity values,
+with the target and status in smaller text.
+In the thermostat dialog, the large number between **−** and **+** is the target. The current
+temperature and activity, such as **Idle** or **Heating**, stay visible beneath it, including
+when the current and target temperatures match. Adjusting the target updates the requested
+temperature; the current reading continues to show the room's measured temperature.
+
 In the thermostat dialog, open **More actions** to edit the room or card name. Select **Controls**
 for additional device controls, then **Back to controls** to return to the thermostat.
 

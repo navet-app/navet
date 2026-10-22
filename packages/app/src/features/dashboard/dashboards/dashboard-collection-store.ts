@@ -10,6 +10,7 @@ import {
 import { storage } from '@navet/app/utils/storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { isRoomWorkspaceRoomId } from '../rooms/room-workspace-v2';
 import { useCardZonesStore } from '../stores/card-zones-store';
 import { type CardType, type CustomCard, useCustomCardsStore } from '../stores/custom-cards-store';
 import {
@@ -29,6 +30,7 @@ import {
   MAX_DASHBOARD_COUNT,
   type NavetDashboardCollection,
   normalizeHomeDashboardLayout,
+  type RoomCompanionMode,
   resolveDashboard,
   sanitizeDashboardCollection,
   sanitizeDashboardCompanion,
@@ -69,6 +71,12 @@ interface DashboardCollectionState {
   assignDashboard: (clientId: string, dashboardId: DashboardId) => void;
   clearDashboardAssignment: (clientId: string) => void;
   updateCompanion: (dashboardId: DashboardId, settings: DashboardCompanionSettings) => void;
+  updateRoomCompanion: (
+    dashboardId: DashboardId,
+    roomId: string,
+    settings: DashboardCompanionSettings | null
+  ) => void;
+  selectRoomCompanion: (dashboardId: DashboardId, roomId: string, mode: RoomCompanionMode) => void;
   updateActiveHomeLayout: (
     updater:
       | HomeDashboardLayoutState
@@ -437,6 +445,32 @@ export const useDashboardCollectionStore = create<DashboardCollectionState>()(
             companion: sanitizeDashboardCompanion(settings),
           })),
         })),
+      updateRoomCompanion: (dashboardId, roomId, settings) =>
+        set((state) => {
+          if (!isRoomWorkspaceRoomId(roomId)) return state;
+          return {
+            collection: updateDefinition(state, dashboardId, (definition) => {
+              const roomCompanions = { ...definition.roomCompanions };
+              const roomCompanionModes = { ...definition.roomCompanionModes };
+              if (settings === null) {
+                delete roomCompanions[roomId];
+                delete roomCompanionModes[roomId];
+              } else roomCompanions[roomId] = sanitizeDashboardCompanion(settings);
+              return { ...definition, roomCompanions, roomCompanionModes };
+            }),
+          };
+        }),
+      selectRoomCompanion: (dashboardId, roomId, mode) =>
+        set((state) => {
+          const definition = state.collection.dashboardsById[dashboardId];
+          if (!isRoomWorkspaceRoomId(roomId) || !definition?.roomCompanions?.[roomId]) return state;
+          return {
+            collection: updateDefinition(state, dashboardId, (current) => ({
+              ...current,
+              roomCompanionModes: { ...current.roomCompanionModes, [roomId]: mode },
+            })),
+          };
+        }),
       updateActiveHomeLayout: (updater) =>
         set((state) => {
           const definition = state.collection.dashboardsById[state.activeDashboardId];

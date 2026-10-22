@@ -1,4 +1,5 @@
 import { BaseCard } from '@navet/app/components/primitives';
+import { Button } from '@navet/app/components/primitives/button';
 import { EntityCardHeader } from '@navet/app/components/primitives/entity-card-header';
 import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-card-header-icon';
 import { EntityCardTitleBlock } from '@navet/app/components/primitives/entity-card-title-block';
@@ -14,6 +15,7 @@ import {
 import { getCustomCardTintSurface } from '@navet/app/components/shared/theme/custom-card-tint-surface';
 import { TinyCardWatermark } from '@navet/app/components/shared/tiny-card-watermark';
 import { LightCardTableRow } from '@navet/app/features/lighting/components/light-card/light-card-table-row';
+import { useI18n } from '@navet/app/hooks';
 import { memo } from 'react';
 import type { SwitchCardProps } from './switch-card.types';
 import { SwitchSettingsDialog } from './switch-settings-dialog';
@@ -27,6 +29,7 @@ const OVERLAY_VISUAL_TRANSITION_CLASS = 'transition-[background,opacity,filter] 
 
 export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 'room'>) {
   const controller = useSwitchCardController(props);
+  const { t } = useI18n();
   const cardShell = getCardShellSurfaceTokens(controller.theme);
   const stateSurface = getCardStateSurfaceTokens(controller.theme, controller.isOn);
   const isTiny = isTinyCardSize(props.size);
@@ -73,8 +76,9 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
   const controlsDialog =
     controller.hasControlsDialog && controller.isDialogOpen ? (
       <SwitchSettingsDialog
+        onCloseAutoFocus={props.dialog?.onCloseAutoFocus}
         entityId={props.id}
-        isOpen={controller.isDialogOpen}
+        isOpen={controller.isDialogOpen && !props.companion?.disabled}
         onOpenChange={controller.setIsDialogOpen}
         name={controller.displayName}
         labelContextName={props.name}
@@ -101,12 +105,17 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
               onCheckedChange={props.binaryControl.onToggle}
               status={props.binaryControl.status}
             />
+          ) : controller.isScript ? (
+            <Button onClick={controller.handleToggle} disabled={controller.toggleDisabled}>
+              {t('common.run')}
+            </Button>
           ) : undefined
         }
         tintColor={controller.tintColor}
         onTintColorChange={controller.setTintColor}
       />
     ) : null;
+  if (props.dialog) return controlsDialog;
   if (props.companion)
     return (
       <>
@@ -119,6 +128,7 @@ export const SwitchCard = memo(function SwitchCard(props: Omit<SwitchCardProps, 
           IconComponent={controller.HeaderIconComponent}
           isEditMode={Boolean(props.isEditMode)}
           disabled={props.companion.disabled || controller.toggleDisabled}
+          unavailable={props.companion.unavailable}
           stateLabel={props.companion.value}
           cardInteraction={controller.cardInteraction}
           iconButtonProps={controller.cardInteraction.iconButtonProps}

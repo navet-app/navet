@@ -29,6 +29,7 @@ export {
 } from './dashboard-grouping-navigation';
 export { DashboardHeroSection, type DashboardHeroSectionProps } from './dashboard-hero-section';
 export { FieldBlock, type FieldBlockProps } from './field-block';
+export { FolderTabHandle, type FolderTabHandleProps } from './folder-tab-handle';
 export {
   InteractionPreviewCard,
   SettingsLivePreviewFrame,

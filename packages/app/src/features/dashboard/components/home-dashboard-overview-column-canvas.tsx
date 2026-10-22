@@ -1,7 +1,8 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { FolderTabHandle } from '@navet/app/components/patterns/folder-tab-handle';
 import { getDndTransformStyle } from '@navet/app/components/shared/dnd-transform-style';
 import type { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
-import { useI18n, useTheme } from '@navet/app/hooks';
+import { useI18n } from '@navet/app/hooks';
 import { GripVertical, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { DragMeta, DropMeta } from '../hooks/use-home-dashboard-editor';
@@ -22,8 +23,6 @@ export function ColumnCanvas({
   children: ReactNode;
 }) {
   const { t } = useI18n();
-  const { theme } = useTheme();
-  const tabBackground = theme === 'light' ? 'bg-white/70' : 'bg-white/8';
   const {
     attributes,
     listeners,
@@ -55,16 +54,10 @@ export function ColumnCanvas({
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-10"
       />
-      <div data-dashboard-column-header className="flex min-w-0 items-end">
-        <span
-          aria-hidden="true"
-          data-dashboard-column-rule="start"
-          className={`w-2.5 shrink-0 border-b ${surface.borderStrong}`}
-        />
-        <div
-          data-dashboard-column-tab
-          className={`inline-flex max-w-[calc(100%_-_0.625rem)] min-w-0 items-center gap-2 rounded-t-xl border border-b-0 px-1.5 pt-0.5 ${surface.borderStrong} ${tabBackground}`}
-        >
+      <FolderTabHandle
+        data-dashboard-column-header
+        title={columnTitle}
+        handle={
           <button
             type="button"
             aria-label={t('dashboard.edit.moveSection', { section: columnTitle })}
@@ -75,18 +68,8 @@ export function ColumnCanvas({
           >
             <GripVertical className="h-3.5 w-3.5" />
           </button>
-          <span
-            className={`min-w-0 truncate pr-2 text-xs font-semibold uppercase tracking-[0.14em] ${surface.textMuted}`}
-          >
-            {columnTitle}
-          </span>
-        </div>
-        <span
-          aria-hidden="true"
-          data-dashboard-column-rule="end"
-          className={`min-w-0 flex-1 border-b ${surface.borderStrong}`}
-        />
-      </div>
+        }
+      />
       <div
         className="space-y-4 transition-shadow"
         style={{

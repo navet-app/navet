@@ -11,6 +11,7 @@ export interface AvailableSensor {
 }
 
 export interface SensorGroupSettingsDialogProps {
+  onCloseAutoFocus?: (event: Event) => void;
   entityId: string;
   isOpen: boolean;
   onClose: () => void;

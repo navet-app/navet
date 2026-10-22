@@ -1,6 +1,7 @@
-import { CardDialogHeader } from '@navet/app/components/patterns/card-dialog';
-import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
-import { companionRowHighlight } from '@navet/app/components/shared/companion-row-presentation';
+import {
+  companionEntityDisabledClassName,
+  companionRowHighlight,
+} from '@navet/app/components/shared/companion-row-presentation';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { getThemeFocusRingClassName } from '@navet/app/components/system/tokens';
 import { cn } from '@navet/app/components/ui/utils';
@@ -8,8 +9,8 @@ import { useI18n, useIntegrationStore, useTheme } from '@navet/app/hooks';
 import type { NavetEntity } from '@navet/core/types';
 import { lazy, type ReactNode, Suspense, useRef, useState } from 'react';
 
-const CompanionEntityCard = lazy(async () => ({
-  default: (await import('./companion-entity-card')).CompanionEntityCard,
+const CompanionEntityDialog = lazy(async () => ({
+  default: (await import('./companion-entity-dialog')).CompanionEntityDialog,
 }));
 
 export function CompanionEntityDetails({
@@ -43,41 +44,30 @@ export function CompanionEntityDetails({
         onClick={() => setOpen(true)}
         className={cn(
           companionRowHighlight,
-          'text-left',
+          'text-left transition-colors motion-reduce:transition-none',
           !disabled && surface.hoverBg,
+          disabled && companionEntityDisabledClassName,
           getThemeFocusRingClassName(theme),
           className
         )}
       >
         {children}
       </button>
-      <BaseCardDialog
-        variant="modal"
-        title={entity.name}
-        titleInContent
-        bodyPadding={false}
-        theme={theme}
-        isOpen={open && !disabled}
-        onOpenChange={setOpen}
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          trigger.current?.focus();
-        }}
-      >
-        <CardDialogHeader
-          title={entity.name}
-          theme={theme}
-          editableTitle={false}
-          showRoomSelector={false}
-        />
-        <div className="px-4 pb-4">
-          {open && !disabled ? (
-            <Suspense fallback={null}>
-              <CompanionEntityCard entity={entity} />
-            </Suspense>
-          ) : null}
-        </div>
-      </BaseCardDialog>
+      {open && !disabled ? (
+        <Suspense fallback={null}>
+          <CompanionEntityDialog
+            entity={entity}
+            dialog={{
+              isOpen: true,
+              onOpenChange: setOpen,
+              onCloseAutoFocus: (event) => {
+                event.preventDefault();
+                trigger.current?.focus();
+              },
+            }}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }

@@ -193,7 +193,7 @@ function normalizeLegacyRoomName(value: string): string {
   return normalizeText(value).toLocaleLowerCase().slice(0, MAX_NAME_LENGTH);
 }
 
-function isRoomWorkspaceRoomId(value: unknown): value is RoomWorkspaceRoomId {
+export function isRoomWorkspaceRoomId(value: unknown): value is RoomWorkspaceRoomId {
   return (
     typeof value === 'string' &&
     value.length <= MAX_OPAQUE_ID_LENGTH &&

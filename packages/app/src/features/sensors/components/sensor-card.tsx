@@ -8,6 +8,10 @@ import {
   isTinyCardSize,
 } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import {
+  type EntityCardDialogControl,
+  useEntityCardDialogState,
+} from '@navet/app/components/shared/entity-card-dialog';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
 import { readNavetSensorState } from '@navet/app/core/navet-device-state';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
@@ -15,7 +19,7 @@ import { inferSensorDisplayIcon } from '@navet/app/hooks/device-mappers';
 import { settingsSelectors } from '@navet/app/stores/selectors';
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import type { SecuritySeverity } from '@navet/app/types/device.types';
-import { type KeyboardEvent, memo, type ReactNode, useMemo, useState } from 'react';
+import { type KeyboardEvent, memo, type ReactNode, useMemo } from 'react';
 import {
   type SensorStatisticsPoint,
   useSensorStatisticsHistory,
@@ -28,6 +32,7 @@ import type { SensorIconType } from './sensors';
 import { useSensorCardAppearance } from './use-sensor-card-appearance';
 
 export interface InfoCardProps {
+  dialog?: EntityCardDialogControl;
   id: string;
   name: string;
   room: string;
@@ -66,6 +71,7 @@ export const InfoCard = memo(function InfoCard({
   isEditMode,
   onOpenSettings,
   disableBuiltInSettingsDialog = false,
+  dialog,
   sparklineData,
   bottomActionBar,
   useLiveState = true,
@@ -74,7 +80,7 @@ export const InfoCard = memo(function InfoCard({
   const { t } = useI18n();
   const locale = useSettingsStore(settingsSelectors.language);
   const use24HourTime = useSettingsStore(settingsSelectors.use24HourTime);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useEntityCardDialogState(dialog);
   const providerEntity = useProviderEntityModel(id);
   const providerState = useLiveState ? readNavetSensorState(providerEntity) : null;
   const liveDeviceClass = providerState?.deviceClass ?? deviceClass;
@@ -202,7 +208,7 @@ export const InfoCard = memo(function InfoCard({
 
   return (
     <>
-      {shouldShowQualityBar && qualityModel ? (
+      {dialog ? null : shouldShowQualityBar && qualityModel ? (
         <BaseCard
           size={size}
           footer={!isVeryCompact ? bottomActionBar : undefined}
@@ -356,6 +362,7 @@ export const InfoCard = memo(function InfoCard({
 
       {!disableBuiltInSettingsDialog && isSettingsOpen ? (
         <SensorSettingsDialog
+          onCloseAutoFocus={dialog?.onCloseAutoFocus}
           entityId={id}
           isOpen={isSettingsOpen}
           onOpenChange={setIsSettingsOpen}

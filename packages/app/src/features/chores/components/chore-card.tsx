@@ -50,10 +50,14 @@ export interface ChoreCardAction {
   disabled?: boolean;
 }
 
-function ChoreActionControl({
+export function ChoreActionControl({
   action,
   participantsById,
+  compact = false,
+  accessibleLabel,
 }: {
+  compact?: boolean;
+  accessibleLabel?: string;
   action: ChoreCardAction;
   participantsById: Record<string, ChoreParticipant>;
 }) {
@@ -66,9 +70,10 @@ function ChoreActionControl({
   const button = (
     <Button
       size="compact"
-      variant={action.kind === 'approve' ? 'primary' : 'secondary'}
-      className="min-w-28 justify-center px-4"
-      leading={<ActionIcon className="h-4 w-4" aria-hidden="true" />}
+      variant={compact ? 'ghost' : action.kind === 'approve' ? 'primary' : 'secondary'}
+      className={compact ? '-mr-3 shrink-0' : 'min-w-28 justify-center px-4'}
+      aria-label={accessibleLabel}
+      leading={compact ? undefined : <ActionIcon className="h-4 w-4" aria-hidden="true" />}
       trailing={
         chooseParticipant ? <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" /> : null
       }

@@ -3,6 +3,7 @@ import { EntityCardHeader } from '@navet/app/components/primitives/entity-card-h
 import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-card-header-icon';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import type { EntityCardDialogControl } from '@navet/app/components/shared/entity-card-dialog';
 import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
 import { getCardStateSurfaceTokens } from '@navet/app/components/shared/theme/card-state-surface-tokens';
@@ -50,6 +51,7 @@ type IllustrationSurface = {
 };
 
 export interface VacuumCardProps {
+  dialog?: EntityCardDialogControl;
   id: string;
   name: string;
   providerId?: IntegrationProviderId;
@@ -378,6 +380,7 @@ function formatRawVacuumStatus(value: string): string {
 }
 
 export interface SharedVacuumCardState {
+  dialog?: EntityCardDialogControl;
   id: string;
   resolvedSize: VacuumCardSize;
   liveName: string;
@@ -435,6 +438,7 @@ export function useVacuumCardState(
     lastCleaned,
     size,
     isEditMode,
+    dialog,
   }: VacuumCardProps,
   options: { entityVariant: 'vacuum' | 'lawn-mower' }
 ): SharedVacuumCardState {
@@ -469,8 +473,8 @@ export function useVacuumCardState(
   });
   const {
     currentStatus,
-    isDialogOpen,
-    setIsDialogOpen,
+    isDialogOpen: localIsDialogOpen,
+    setIsDialogOpen: setLocalIsDialogOpen,
     isUpdatingFanSpeed,
     displayFanSpeed,
     handleStartCleaning,
@@ -488,6 +492,8 @@ export function useVacuumCardState(
     currentFanSpeed: vacuumCapabilities.currentFanSpeed,
   });
   const motionLevel = useVacuumMotionLevel();
+  const isDialogOpen = dialog?.isOpen ?? localIsDialogOpen;
+  const setIsDialogOpen = dialog?.onOpenChange ?? setLocalIsDialogOpen;
   useEditModeSettingsRequest(id, () => setIsDialogOpen(true), Boolean(isEditMode));
   const liveName =
     typeof liveAttrs?.friendly_name === 'string' && liveAttrs.friendly_name.length > 0
@@ -603,6 +609,7 @@ export function useVacuumCardState(
   };
 
   return {
+    dialog,
     id,
     resolvedSize,
     liveName,
@@ -707,49 +714,52 @@ export function SharedVacuumCardShell({
   );
 
   return (
-    <div className="relative h-full w-full">
-      <BaseCard
-        size={state.resolvedSize}
-        frameClassName={state.frameClassName}
-        disableDefaultSheen
-        overlay={state.overlay}
-        contentClassName="h-full"
-      >
-        <div className="relative flex h-full flex-col">
-          {state.resolvedSize === 'medium' ? compactVisual : null}
-          <div className="relative z-10 flex h-full flex-col">
-            <EntityCardHeader
-              title={state.liveName}
-              subtitle={state.subtitle}
-              layout="eyebrow-first"
-              size={state.resolvedSize}
-              accentColor={state.headerAccentColor}
-              tone={state.headerTone}
-              titleClassName={state.primaryTextClassName}
-              subtitleClassName={state.mutedTextClassName}
-              leading={
-                <EntityCardHeaderIcon
-                  IconComponent={Bot}
-                  isActive={state.isActive}
-                  size={state.resolvedSize}
-                  baseColor={state.headerAccentColor}
-                  tone={state.headerTone}
-                />
-              }
-            />
+    <div className={state.dialog ? undefined : 'relative h-full w-full'}>
+      {!state.dialog ? (
+        <BaseCard
+          size={state.resolvedSize}
+          frameClassName={state.frameClassName}
+          disableDefaultSheen
+          overlay={state.overlay}
+          contentClassName="h-full"
+        >
+          <div className="relative flex h-full flex-col">
+            {state.resolvedSize === 'medium' ? compactVisual : null}
+            <div className="relative z-10 flex h-full flex-col">
+              <EntityCardHeader
+                title={state.liveName}
+                subtitle={state.subtitle}
+                layout="eyebrow-first"
+                size={state.resolvedSize}
+                accentColor={state.headerAccentColor}
+                tone={state.headerTone}
+                titleClassName={state.primaryTextClassName}
+                subtitleClassName={state.mutedTextClassName}
+                leading={
+                  <EntityCardHeaderIcon
+                    IconComponent={Bot}
+                    isActive={state.isActive}
+                    size={state.resolvedSize}
+                    baseColor={state.headerAccentColor}
+                    tone={state.headerTone}
+                  />
+                }
+              />
 
-            <CardMetricActionLayout
-              size={state.resolvedSize}
-              className="pt-1"
-              metric={compactMetric}
-              actions={controls}
-            />
+              <CardMetricActionLayout
+                size={state.resolvedSize}
+                className="pt-1"
+                metric={compactMetric}
+                actions={controls}
+              />
+            </div>
           </div>
-        </div>
-      </BaseCard>
+        </BaseCard>
+      ) : null}
 
       {state.isDialogOpen ? (
         <VacuumSettingsDialog
+          onCloseAutoFocus={state.dialog?.onCloseAutoFocus}
           entityId={state.id}
           isOpen={state.isDialogOpen}
           disabled={state.isUnavailable}

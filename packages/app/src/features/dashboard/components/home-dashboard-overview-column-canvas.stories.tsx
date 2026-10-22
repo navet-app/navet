@@ -52,9 +52,9 @@ export const FolderTabs: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const headers = canvasElement.querySelectorAll('[data-dashboard-column-header]');
-    const tabs = canvasElement.querySelectorAll('[data-dashboard-column-tab]');
-    const startRules = canvasElement.querySelectorAll('[data-dashboard-column-rule="start"]');
-    const endRules = canvasElement.querySelectorAll('[data-dashboard-column-rule="end"]');
+    const tabs = canvasElement.querySelectorAll('[data-folder-tab]');
+    const startRules = canvasElement.querySelectorAll('[data-folder-tab-rule="start"]');
+    const endRules = canvasElement.querySelectorAll('[data-folder-tab-rule="end"]');
 
     await expect(headers).toHaveLength(2);
     await expect(tabs).toHaveLength(2);
@@ -83,7 +83,7 @@ export const Phone: Story = {
   },
   play: async ({ canvasElement }) => {
     const headers = canvasElement.querySelectorAll('[data-dashboard-column-header]');
-    const tabs = canvasElement.querySelectorAll('[data-dashboard-column-tab]');
+    const tabs = canvasElement.querySelectorAll('[data-folder-tab]');
 
     await expect(headers).toHaveLength(2);
     await expect(tabs).toHaveLength(2);

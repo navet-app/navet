@@ -32,6 +32,8 @@ export function AddEntityDialogPrimitive({
   libraryCards,
   showCardsTab = true,
   libraryOnly = false,
+  libraryAddDisabled,
+  libraryRemoval,
   title,
   description,
   actionLabel,
@@ -103,10 +105,11 @@ export function AddEntityDialogPrimitive({
   };
 
   const handleAddFromLibrary = (cardId: string) => {
+    if (libraryAddDisabled) return;
+    onAddLibraryCard(cardId);
     setRecentlyAddedLibraryCardIds((current) =>
       current.includes(cardId) ? current : [...current, cardId]
     );
-    onAddLibraryCard(cardId);
   };
 
   const normalizeSearchText = useCallback(
@@ -121,13 +124,13 @@ export function AddEntityDialogPrimitive({
   );
 
   const visibleLibraryCards = useMemo(() => {
-    if (recentlyAddedLibraryCardIds.length === 0) {
+    if (libraryRemoval || recentlyAddedLibraryCardIds.length === 0) {
       return libraryCards;
     }
 
     const recentlyAddedIds = new Set(recentlyAddedLibraryCardIds);
     return libraryCards.filter((card) => !recentlyAddedIds.has(card.id));
-  }, [libraryCards, recentlyAddedLibraryCardIds]);
+  }, [libraryCards, recentlyAddedLibraryCardIds, libraryRemoval]);
 
   const libraryEntityTypes = useMemo<DashboardLibraryEntityType[]>(() => {
     const groups = new Map<string, DashboardLibraryEntityType>();
@@ -289,6 +292,8 @@ export function AddEntityDialogPrimitive({
       setActiveTab={setActiveTab}
       showCardsTab={showCardsTab || libraryOnly}
       libraryOnly={libraryOnly}
+      libraryAddDisabled={libraryAddDisabled}
+      libraryRemoval={libraryRemoval}
       title={title}
       description={description}
       actionLabel={actionLabel}

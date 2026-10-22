@@ -1,3 +1,7 @@
+import {
+  companionEntityDisabledClassName,
+  companionEntityNameTypography,
+} from '@navet/app/components/shared/companion-row-presentation';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { CalendarEventDialog } from '@navet/app/features/calendar/components/calendar/calendar-event-dialog';
 import {
@@ -54,8 +58,12 @@ export function CompanionCalendar({ entity, editing }: { entity: NavetEntity; ed
   }, [available, calendars, entity.canonicalId, now, sourceUnavailable]);
   const { smallGroups } = useCalendarData(events);
   return (
-    <div className="space-y-2">
-      <h3 className={`break-words text-sm font-medium ${surface.textSecondary}`}>{entity.name}</h3>
+    <div
+      className={`space-y-2 ${editing || !available || sourceUnavailable ? companionEntityDisabledClassName : ''}`}
+    >
+      <h3 className={`break-words ${companionEntityNameTypography} ${surface.textSecondary}`}>
+        {entity.name}
+      </h3>
       {!available || sourceUnavailable ? (
         <p className={`text-sm ${surface.textMuted}`}>{t('common.unavailable')}</p>
       ) : events.length ? (

@@ -339,6 +339,11 @@ describe('dashboard-config import hardening', () => {
       weatherEntityId: null,
       showSecurity: false,
     });
+    state.updateRoomCompanion(state.activeDashboardId, 'room_kitchen1', {
+      cards: [],
+      showSecurity: false,
+    });
+    state.selectRoomCompanion(state.activeDashboardId, 'room_kitchen1', 'dashboard');
     useSettingsStore.getState().updateSettings({ companionCollapsed: true });
     const exported = exportDashboardConfig();
     expect(exported.dashboards?.dashboardsById.home.companion).toEqual({
@@ -352,6 +357,14 @@ describe('dashboard-config import hardening', () => {
       { cameraEntityId: 'home_assistant:camera.front', weatherEntityId: null, showSecurity: false }
     );
     expect(useSettingsStore.getState().companionCollapsed).toBe(true);
+    expect(
+      useDashboardCollectionStore.getState().collection.dashboardsById.home.roomCompanions
+    ).toEqual({
+      room_kitchen1: { cards: [], showSecurity: false },
+    });
+    expect(
+      useDashboardCollectionStore.getState().collection.dashboardsById.home.roomCompanionModes
+    ).toEqual({ room_kitchen1: 'dashboard' });
   });
 
   it('round-trips each dashboard room-navigation scope', () => {

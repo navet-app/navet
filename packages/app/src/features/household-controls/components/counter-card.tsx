@@ -5,6 +5,10 @@ import { Input } from '@navet/app/components/primitives/input';
 import { RoundControlButton } from '@navet/app/components/primitives/round-control-button';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import {
+  type EntityCardDialogControl,
+  useEntityCardDialogState,
+} from '@navet/app/components/shared/entity-card-dialog';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
 import { SensorCard } from '@navet/app/features/sensors/components/sensor-card';
 import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
@@ -198,6 +202,7 @@ export function CounterCard({
   providerId,
   size,
   isEditMode,
+  dialog,
 }: {
   id: string;
   name: string;
@@ -206,6 +211,7 @@ export function CounterCard({
   providerId: IntegrationProviderId;
   size: CardSize;
   isEditMode: boolean;
+  dialog?: EntityCardDialogControl;
 }) {
   const { t } = useI18n();
   const { theme } = useTheme();
@@ -224,47 +230,50 @@ export function CounterCard({
     canSetValue: false,
   };
   const unavailable = !!entity && (!live || entity.availability !== 'available');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useEntityCardDialogState(dialog);
   useEditModeSettingsRequest(id, () => setOpen(true), isEditMode);
   return (
     <>
-      <SensorCard
-        id={id}
-        name={name}
-        room={room ?? ''}
-        size={size}
-        isEditMode={isEditMode}
-        unit=""
-        subtitle={room || t('deviceType.counter')}
-        value={
-          !entity
-            ? t('common.loading')
-            : unavailable
-              ? t(
-                  entity.availability === 'unknown'
-                    ? 'providerDetails.unknown'
-                    : 'common.unavailable'
-                )
-              : String(counter.value ?? t('providerDetails.unknown'))
-        }
-        status={!entity || unavailable ? 'unavailable' : 'measurement'}
-        onSizeChange={() => undefined}
-        onOpenSettings={() => {
-          if (!isEditMode) setOpen(true);
-        }}
-        disableBuiltInSettingsDialog
-        bottomActionBar={
-          <CounterCardActions
-            id={id}
-            providerId={providerId}
-            counter={counter}
-            size={size}
-            disabled={isEditMode || !entity || unavailable}
-          />
-        }
-      />
+      {!dialog ? (
+        <SensorCard
+          id={id}
+          name={name}
+          room={room ?? ''}
+          size={size}
+          isEditMode={isEditMode}
+          unit=""
+          subtitle={room || t('deviceType.counter')}
+          value={
+            !entity
+              ? t('common.loading')
+              : unavailable
+                ? t(
+                    entity.availability === 'unknown'
+                      ? 'providerDetails.unknown'
+                      : 'common.unavailable'
+                  )
+                : String(counter.value ?? t('providerDetails.unknown'))
+          }
+          status={!entity || unavailable ? 'unavailable' : 'measurement'}
+          onSizeChange={() => undefined}
+          onOpenSettings={() => {
+            if (!isEditMode) setOpen(true);
+          }}
+          disableBuiltInSettingsDialog
+          bottomActionBar={
+            <CounterCardActions
+              id={id}
+              providerId={providerId}
+              counter={counter}
+              size={size}
+              disabled={isEditMode || !entity || unavailable}
+            />
+          }
+        />
+      ) : null}
       {open ? (
         <BaseCardDialog
+          onCloseAutoFocus={dialog?.onCloseAutoFocus}
           isOpen={open}
           onOpenChange={setOpen}
           title={name}

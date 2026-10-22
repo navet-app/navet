@@ -29,6 +29,7 @@ function isVacuumSettingsTab(value: string): value is VacuumSettingsTab {
 }
 
 interface VacuumSettingsDialogProps {
+  onCloseAutoFocus?: (event: Event) => void;
   entityId: string;
   isOpen: boolean;
   disabled?: boolean;
@@ -62,6 +63,7 @@ export const VacuumSettingsDialog = memo(function VacuumSettingsDialog({
   isOpen,
   disabled = false,
   onClose,
+  onCloseAutoFocus,
   isLawnMower = false,
   onStartCleaning,
   onPauseCleaning,
@@ -262,6 +264,7 @@ export const VacuumSettingsDialog = memo(function VacuumSettingsDialog({
 
   return (
     <BaseCardDialog
+      onCloseAutoFocus={onCloseAutoFocus}
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) onClose();

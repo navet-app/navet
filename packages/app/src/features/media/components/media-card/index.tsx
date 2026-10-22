@@ -7,6 +7,7 @@ import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/ca
 import { getCardStateSurfaceTokens } from '@navet/app/components/shared/theme/card-state-surface-tokens';
 import { useEffectiveEffectsQuality } from '@navet/app/components/shared/theme/effective-effects-quality';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import { getDeviceTypeIcon } from '@navet/app/constants/device-type-icons';
 import type { NavetMediaCapabilities } from '@navet/app/core/navet-device-state';
 import { LightCardTableRow } from '@navet/app/features/lighting/components/light-card/light-card-table-row';
 import { useI18n, useTheme } from '@navet/app/hooks';
@@ -443,8 +444,10 @@ export const MediaCard = memo(function MediaCard({
           brightness={0}
           supportsBrightness={false}
           showToggle={false}
+          IconComponent={getDeviceTypeIcon('media_player')}
           isEditMode={isEditMode}
           disabled={companion.disabled}
+          unavailable={companion.unavailable}
           toggleDisabled={!(isOff ? mediaCapabilities?.canTurnOn : mediaCapabilities?.canTurnOff)}
           stateLabel={companion.value === t('common.unavailable') ? companion.value : ''}
           secondaryText={
@@ -587,7 +590,7 @@ export const MediaCard = memo(function MediaCard({
             initialTab={dialogInitialTab}
             mediaStackSettings={mediaStackSettings}
             remoteAvailable={tvRemoteAvailable}
-            isOpen={isOpen}
+            isOpen={isOpen && !companion?.disabled}
             onOpenChange={(open) => {
               if (!open) {
                 setDialogInitialTab(undefined);

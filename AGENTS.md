@@ -104,6 +104,7 @@ Community work follows `docs/engineering/request-workflows.md`; writing skills s
   when changing/removing a migration.
 - Never alter tests merely to fit implementation. Classify touched legacy tests Keep, Rewrite or Delete.
 - Preserve unrelated work. Never use/suggest `--no-verify`; never force-add the ignored root `marketing/`.
+- Keep development changes local until the user explicitly requests pushing the current changes.
 - Work in the current checkout. Obtain explicit user approval before creating or using any
   worktree, including an existing worktree. A dirty checkout or an existing PR does not grant approval.
 

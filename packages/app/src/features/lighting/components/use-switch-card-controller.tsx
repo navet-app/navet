@@ -3,6 +3,7 @@ import {
   isTinyCardSize,
 } from '@navet/app/components/shared/card-size-selector';
 import { useEditModeSettingsRequest } from '@navet/app/components/shared/edit-mode-settings-request';
+import { useEntityCardDialogState } from '@navet/app/components/shared/entity-card-dialog';
 import { useEntityCardInteractionController } from '@navet/app/components/shared/entity-card-interaction-controller';
 import {
   useI18n,
@@ -44,10 +45,11 @@ export function useSwitchCardController({
   energy,
   metrics,
   isEditMode = false,
+  dialog,
 }: Omit<SwitchCardProps, 'room'>) {
   const [localIsOn, setIsOn] = useState(initialState);
   const isOn = binaryControl?.isOn ?? localIsOn;
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useEntityCardDialogState(dialog);
   const resetTimerRef = useRef<number | null>(null);
   const providerEntity = useProviderEntityModel(id);
   const currentProviderId = useIntegrationStore((state) => state.currentProviderId);
@@ -181,6 +183,7 @@ export function useSwitchCardController({
     entityType: resolvedEntityType,
     formatMetricValue,
     getMetricLabel,
+    handleToggle,
     handleMetricToggle: metricState.handleMetricToggle,
     HeaderIconComponent: appearance.HeaderIconComponent,
     hasControlsDialog,

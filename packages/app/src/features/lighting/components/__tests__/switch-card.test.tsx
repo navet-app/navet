@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SwitchCard } from '../switch-card';
 
 const dialogState = vi.hoisted(() => ({
+  run: vi.fn(),
   isOpen: false,
   openSettings: vi.fn(() => {
     dialogState.isOpen = true;
@@ -28,6 +29,9 @@ vi.mock('../use-switch-card-controller', () => ({
     },
     entityType: 'Switch',
     displayName: props.name,
+    isScript: props.id.includes('script.'),
+    handleToggle: dialogState.run,
+    toggleDisabled: props.isEditMode === true,
     hasControlsDialog: true,
     isDialogOpen: dialogState.isOpen,
     setIsDialogOpen: vi.fn(),
@@ -64,15 +68,50 @@ vi.mock('../use-switch-card-controller', () => ({
 }));
 
 vi.mock('../switch-settings-dialog', () => ({
-  SwitchSettingsDialog: ({ isOpen, name }: { isOpen: boolean; name: string }) =>
-    isOpen ? <div role="dialog">{name} settings</div> : null,
+  SwitchSettingsDialog: ({
+    isOpen,
+    name,
+    customControls,
+  }: {
+    isOpen: boolean;
+    name: string;
+    customControls?: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div role="dialog">
+        {name} settings{customControls}
+      </div>
+    ) : null,
 }));
 
 describe('SwitchCard', () => {
   beforeEach(() => {
     dialogState.isOpen = false;
     dialogState.openSettings.mockClear();
+    dialogState.run.mockClear();
   });
+
+  it.each([false, true])(
+    'provides a script Run action in its dialog (editing=%s)',
+    (isEditMode) => {
+      dialogState.isOpen = true;
+      renderWithProviders(
+        <SwitchCard
+          id="script.evening"
+          name="Evening"
+          size="small"
+          isEditMode={isEditMode}
+          dialog={{ isOpen: true, onOpenChange: vi.fn() }}
+        />
+      );
+      const run = screen.getByRole('button', { name: 'Run' });
+      if (isEditMode) expect(run).toBeDisabled();
+      else {
+        fireEvent.click(run);
+        expect(dialogState.run).toHaveBeenCalledOnce();
+      }
+    }
+  );
 
   it('does not show an internal settings button on tiny cards in edit mode', () => {
     renderWithProviders(

@@ -22,7 +22,7 @@ export function HeaderDashboardActions({
   const canCustomize =
     Boolean(editActions) || (storeEditing && section !== 'tasks' && section !== 'settings');
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    <div data-header-dashboard-actions className="flex shrink-0 self-start items-center gap-2">
       {canCustomize ? (
         <Button
           size="compact"

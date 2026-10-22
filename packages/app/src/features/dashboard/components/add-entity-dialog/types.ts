@@ -3,7 +3,7 @@ import type { CardType } from '@navet/app/features/dashboard/stores/custom-cards
 import type { TranslationKey } from '@navet/app/i18n';
 import type { DeviceWithType } from '@navet/app/types/device.types';
 import type { ReactNode } from 'react';
-import type { DashboardLibraryCard } from '../dashboard-library-list';
+import type { DashboardLibraryCard, DashboardLibraryRemoval } from '../dashboard-library-list';
 
 export interface AddEntityDialogPrimitiveProps {
   open: boolean;
@@ -15,6 +15,8 @@ export interface AddEntityDialogPrimitiveProps {
   showCardsTab?: boolean;
   /** Use the Home library for entity selection without custom-card authoring. */
   libraryOnly?: boolean;
+  libraryAddDisabled?: boolean;
+  libraryRemoval?: DashboardLibraryRemoval;
   title?: string;
   description?: string;
   actionLabel?: string;

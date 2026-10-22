@@ -1,10 +1,17 @@
+import { CardDialogBody, CardDialogHeader } from '@navet/app/components/patterns/card-dialog';
 import {
   BaseCard,
   EntityCardHeader,
   EntityCardHeaderIcon,
   SlideAction,
 } from '@navet/app/components/primitives';
+import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
+import {
+  type EntityCardDialogControl,
+  useEntityCardDialogState,
+} from '@navet/app/components/shared/entity-card-dialog';
+import { useEntityCardInteractionController } from '@navet/app/components/shared/entity-card-interaction-controller';
 import {
   getCardReadableTextTokens,
   resolveCardToneBaseColor,
@@ -17,6 +24,7 @@ import { getLightCardSurfaceTokens } from '@navet/app/components/shared/theme/li
 import { readNavetLockState } from '@navet/app/core/navet-device-state';
 import {
   useI18n,
+  useIntegrationStore,
   useProviderEntityModel,
   useServiceActionHandler,
   useTheme,
@@ -27,6 +35,7 @@ import { type CSSProperties, memo, useEffect, useState } from 'react';
 import { getSecurityCardSurfaceTokens } from './security-card-surface-tokens';
 
 interface LockCardProps {
+  dialog?: EntityCardDialogControl;
   id: string;
   name: string;
   room: string;
@@ -127,12 +136,26 @@ export const LockCard = memo(function LockCard({
   initialState = true,
   size = 'small',
   isEditMode = false,
+  dialog,
 }: Omit<LockCardProps, 'room'>) {
+  const [dialogOpen, setDialogOpen] = useEntityCardDialogState(dialog);
   const [isLocked, setIsLocked] = useState(initialState);
   const [pendingTargetLocked, setPendingTargetLocked] = useState<boolean | null>(null);
   const [isPendingAction, setIsPendingAction] = useState(false);
   const providerEntity = useProviderEntityModel(id);
   const providerState = readNavetLockState(providerEntity);
+  const connected = useIntegrationStore((state) =>
+    providerEntity ? state.providerRuntime[providerEntity.providerId]?.connected : true
+  );
+  const unavailable = Boolean(
+    providerEntity && (!connected || providerEntity.availability !== 'available')
+  );
+  const interaction = useEntityCardInteractionController({
+    ariaLabel: name,
+    isEditMode: isEditMode || unavailable,
+    onOpenControls: () => setDialogOpen(true),
+    onOpenSettings: () => setDialogOpen(true),
+  });
   const { t } = useI18n();
   const runAction = useServiceActionHandler();
 
@@ -209,7 +232,7 @@ export const LockCard = memo(function LockCard({
       : null;
 
   const handleToggleLock = () => {
-    if (isPendingAction) {
+    if (isEditMode || isPendingAction || unavailable) {
       return;
     }
 
@@ -290,101 +313,133 @@ export const LockCard = memo(function LockCard({
   });
   const lockSliderStyles = getLockSliderStyles(theme, activeBaseColor);
 
-  return (
-    <BaseCard
+  const lockControl = (
+    <SlideAction
+      actionLabel={swipeLabel}
+      ariaLabel={swipeLabel}
+      completionIcon={Check}
+      disabled={isEditMode || isPendingAction || unavailable}
+      labelStyle={{ color: slideLabelTokens.titleColor }}
+      onComplete={handleToggleLock}
+      progressFillClassName={securitySurface.lockSliderFillBg}
+      progressFillStyle={lockSliderStyles.progressFillStyle}
       size="small"
-      className={`${isPendingAction ? 'opacity-80' : ''}`}
-      frameClassName={
-        theme === 'light'
-          ? `${cardShell.rootFrameClassName} ${lightThemeSurfaceTokens.cardClassName}`
-          : `${cardShell.rootFrameClassName} bg-linear-to-br ${cardColors.gradient} ${cardColors.border} ${securitySurface.containerShadowClassName}`
-      }
-      style={
-        theme === 'light'
-          ? lightThemeSurfaceTokens.cardStyle
-          : displayIsLocked && blackActiveSurface
-            ? blackActiveSurface.cardStyle
-            : undefined
-      }
-      disableDefaultSheen
-      overlay={
-        <>
-          {theme === 'light' ? null : (
-            <div
-              className={`absolute inset-0 bg-linear-to-b ${cardColors.glow} via-transparent to-transparent transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-500`}
-            />
-          )}
-          {theme === 'light' ? null : displayIsLocked &&
-            blackActiveSurface?.innerOverlayClassName ? (
-            <div
-              className={blackActiveSurface.innerOverlayClassName}
-              style={blackActiveSurface.innerOverlayStyle}
-            />
-          ) : null}
-          {theme === 'light' ? null : (
-            <div className={`absolute inset-0 ${overlayTintClassName}`} />
-          )}
-          {theme === 'light' ? null : displayIsLocked &&
-            blackActiveSurface?.shineOverlayClassName ? (
-            <div className={blackActiveSurface.shineOverlayClassName} />
-          ) : null}
-        </>
-      }
-    >
-      <div className="relative flex h-full min-h-0 flex-col">
-        <EntityCardHeader
-          title={name}
-          subtitle={statusLabel}
-          layout="eyebrow-first"
+      theme={theme}
+      trackClassName={securitySurface.sliderTrackClassName}
+      trackStyle={lockSliderStyles.trackStyle}
+      thumbClassName={slideThumbTokens.badgeClassName}
+      thumbIconClassName={slideThumbTokens.iconClassName}
+      thumbIconStyle={slideThumbTokens.iconStyle}
+      thumbStyle={slideThumbTokens.badgeStyle}
+    />
+  );
+  return (
+    <>
+      {!dialog ? (
+        <BaseCard
+          {...interaction.cardProps}
           size="small"
-          tone={headerTone}
-          accentColor={activeBaseColor}
-          leading={headerLeading}
-          titleClassName={`${topNameClassName} ${headerTitleClassName}`}
-          subtitleClassName={headerSubtitleClassName}
-          titleStyle={headerTitleStyle}
-          subtitleStyle={headerSubtitleStyle}
-          className="mb-1.5"
-        />
-
-        <div className="flex min-h-0 flex-1 items-center justify-center pt-2 pb-4">
-          <div
-            className={`relative flex h-16 w-16 items-center justify-center rounded-full border ${heroPlateClassName}`}
-          >
-            <div
-              className={`absolute inset-0 rounded-full bg-linear-to-br ${cardColors.glow} to-transparent`}
+          className={`${isPendingAction ? 'opacity-80' : ''}`}
+          frameClassName={
+            theme === 'light'
+              ? `${cardShell.rootFrameClassName} ${lightThemeSurfaceTokens.cardClassName}`
+              : `${cardShell.rootFrameClassName} bg-linear-to-br ${cardColors.gradient} ${cardColors.border} ${securitySurface.containerShadowClassName}`
+          }
+          style={
+            theme === 'light'
+              ? lightThemeSurfaceTokens.cardStyle
+              : displayIsLocked && blackActiveSurface
+                ? blackActiveSurface.cardStyle
+                : undefined
+          }
+          disableDefaultSheen
+          overlay={
+            <>
+              {theme === 'light' ? null : (
+                <div
+                  className={`absolute inset-0 bg-linear-to-b ${cardColors.glow} via-transparent to-transparent transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-500`}
+                />
+              )}
+              {theme === 'light' ? null : displayIsLocked &&
+                blackActiveSurface?.innerOverlayClassName ? (
+                <div
+                  className={blackActiveSurface.innerOverlayClassName}
+                  style={blackActiveSurface.innerOverlayStyle}
+                />
+              ) : null}
+              {theme === 'light' ? null : (
+                <div className={`absolute inset-0 ${overlayTintClassName}`} />
+              )}
+              {theme === 'light' ? null : displayIsLocked &&
+                blackActiveSurface?.shineOverlayClassName ? (
+                <div className={blackActiveSurface.shineOverlayClassName} />
+              ) : null}
+            </>
+          }
+        >
+          <div className="relative flex h-full min-h-0 flex-col">
+            <EntityCardHeader
+              title={name}
+              subtitle={statusLabel}
+              layout="eyebrow-first"
+              size="small"
+              tone={headerTone}
+              accentColor={activeBaseColor}
+              leading={headerLeading}
+              titleClassName={`${topNameClassName} ${headerTitleClassName}`}
+              subtitleClassName={headerSubtitleClassName}
+              titleStyle={headerTitleStyle}
+              subtitleStyle={headerSubtitleStyle}
+              className="mb-1.5"
             />
-            <div className={`absolute inset-[8px] rounded-full border ${heroInnerRingClassName}`} />
-            <div className={`absolute inset-[14px] rounded-full ${securitySurface.lockButtonBg}`} />
-            {isPendingAction ? (
-              <Loader2 className={`relative h-6.5 w-6.5 animate-spin ${stateIconClassName}`} />
-            ) : (
-              <IconComponent className={`relative h-6.5 w-6.5 ${stateIconClassName}`} />
-            )}
-          </div>
-        </div>
 
-        <div className="mt-auto pt-1.5">
-          <SlideAction
-            actionLabel={swipeLabel}
-            ariaLabel={swipeLabel}
-            completionIcon={Check}
-            disabled={isEditMode || isPendingAction}
-            labelStyle={{ color: slideLabelTokens.titleColor }}
-            onComplete={handleToggleLock}
-            progressFillClassName={securitySurface.lockSliderFillBg}
-            progressFillStyle={lockSliderStyles.progressFillStyle}
-            size="small"
+            <div className="flex min-h-0 flex-1 items-center justify-center pt-2 pb-4">
+              <div
+                className={`relative flex h-16 w-16 items-center justify-center rounded-full border ${heroPlateClassName}`}
+              >
+                <div
+                  className={`absolute inset-0 rounded-full bg-linear-to-br ${cardColors.glow} to-transparent`}
+                />
+                <div
+                  className={`absolute inset-[8px] rounded-full border ${heroInnerRingClassName}`}
+                />
+                <div
+                  className={`absolute inset-[14px] rounded-full ${securitySurface.lockButtonBg}`}
+                />
+                {isPendingAction ? (
+                  <Loader2 className={`relative h-6.5 w-6.5 animate-spin ${stateIconClassName}`} />
+                ) : (
+                  <IconComponent className={`relative h-6.5 w-6.5 ${stateIconClassName}`} />
+                )}
+              </div>
+            </div>
+
+            <div className="mt-auto pt-1.5">{lockControl}</div>
+          </div>
+        </BaseCard>
+      ) : null}
+      <BaseCardDialog
+        variant="modal"
+        titleInContent
+        title={name}
+        theme={theme}
+        isOpen={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onCloseAutoFocus={dialog?.onCloseAutoFocus}
+        maxWidth="sm"
+        bodyPadding={false}
+      >
+        <CardDialogBody>
+          <CardDialogHeader
+            title={name}
+            description={statusLabel}
             theme={theme}
-            trackClassName={securitySurface.sliderTrackClassName}
-            trackStyle={lockSliderStyles.trackStyle}
-            thumbClassName={slideThumbTokens.badgeClassName}
-            thumbIconClassName={slideThumbTokens.iconClassName}
-            thumbIconStyle={slideThumbTokens.iconStyle}
-            thumbStyle={slideThumbTokens.badgeStyle}
+            editableTitle={false}
+            showRoomSelector={false}
           />
-        </div>
-      </div>
-    </BaseCard>
+          {lockControl}
+        </CardDialogBody>
+      </BaseCardDialog>
+    </>
   );
 });
