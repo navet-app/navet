@@ -109,6 +109,9 @@ describe('CameraLiveViewer', () => {
       '!-translate-y-1/2'
     );
     expect(dialog).not.toHaveClass('h-full');
+    const footer = screen.getByTestId('camera-viewer-bottom-controls');
+    expect(footer).toHaveClass('py-3');
+    expect(footer.className).not.toContain('safe-area-inset-bottom');
     expect(screen.getByTestId('camera-viewer-media')).toHaveClass(
       'aspect-video',
       'w-full',
@@ -183,6 +186,39 @@ describe('CameraLiveViewer', () => {
       }
     }
   });
+
+  it.each(['safari', 'standard'] as const)(
+    'opens the playing video in native fullscreen using the %s API',
+    async (api) => {
+      getCameraPlaybackPlanMock.mockResolvedValue({
+        cameraState: 'streaming',
+        snapshotResource: null,
+        selectedTransport: null,
+        selectedStreamResource: null,
+        supportsStreaming: false,
+        refreshPolicy: { retryDelaysMs: [1_000] },
+      });
+      await act(async () => {
+        renderWithProviders(<CameraLiveViewer {...defaultProps} />);
+      });
+      const video = document.createElement('video');
+      const enterVideoFullscreen = vi.fn().mockResolvedValue(undefined);
+      Object.assign(
+        video,
+        api === 'safari'
+          ? { webkitEnterFullscreen: enterVideoFullscreen }
+          : { requestFullscreen: enterVideoFullscreen }
+      );
+      const media = screen.getByTestId('camera-viewer-media');
+      media.appendChild(video);
+      const enterDialogFullscreen = vi.fn().mockResolvedValue(undefined);
+      Object.assign(media.parentElement ?? {}, { requestFullscreen: enterDialogFullscreen });
+      fireEvent.click(screen.getByRole('button', { name: 'Open Focused camera viewer' }));
+      // Invoke the native API in the click, before awaiting another fullscreen request.
+      expect(enterVideoFullscreen).toHaveBeenCalledTimes(1);
+      expect(enterDialogFullscreen).not.toHaveBeenCalled();
+    }
+  );
 
   it('groups camera controls in one More actions cover sheet on phones', async () => {
     setMediaQueryMatch('(max-width: 639px)', true);

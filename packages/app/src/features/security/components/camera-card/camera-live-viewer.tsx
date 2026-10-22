@@ -827,7 +827,11 @@ export function CameraLiveViewer({
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsNativeFullscreen(document.fullscreenElement === viewerRef.current);
+      setIsNativeFullscreen(
+        Boolean(
+          document.fullscreenElement && viewerRef.current?.contains(document.fullscreenElement)
+        )
+      );
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -841,19 +845,34 @@ export function CameraLiveViewer({
 
     const viewer = viewerRef.current;
     if (!viewer) return;
-    if (viewer.requestFullscreen) {
-      try {
-        await viewer.requestFullscreen();
-        return;
-      } catch {
-        // iPhone Safari may only allow native fullscreen on the video element.
-      }
-    }
-
     const video = viewer.querySelector('video') as
       | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
       | null;
-    video?.webkitEnterFullscreen?.();
+    // Safari's video fullscreen must run directly in the user gesture, before
+    // awaiting a container request that can consume fullscreen activation.
+    if (video?.webkitEnterFullscreen) {
+      try {
+        video.webkitEnterFullscreen();
+        return;
+      } catch {
+        // Fall back when this video's current transport cannot enter native fullscreen.
+      }
+    }
+    if (video?.requestFullscreen) {
+      try {
+        await video.requestFullscreen();
+        return;
+      } catch {
+        // Snapshot and unsupported video transports can use the viewer container.
+      }
+    }
+    if (viewer.requestFullscreen) {
+      try {
+        await viewer.requestFullscreen();
+      } catch {
+        // Keep the in-page viewer usable when the browser disallows fullscreen.
+      }
+    }
   }, []);
 
   const viewerStatusLabel = isStreamReadinessOpaque
@@ -1002,7 +1021,9 @@ export function CameraLiveViewer({
 
         <div
           data-testid="camera-viewer-bottom-controls"
-          className="pointer-events-none relative order-3 z-20 shrink-0 border-white/10 border-t bg-zinc-950/95 pl-[calc(env(safe-area-inset-left,0px)+1rem)] pr-[calc(env(safe-area-inset-right,0px)+1rem)] pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pl-[calc(env(safe-area-inset-left,0px)+1.25rem)] md:pr-[calc(env(safe-area-inset-right,0px)+1.25rem)]"
+          className={`pointer-events-none relative order-3 z-20 shrink-0 border-white/10 border-t bg-zinc-950/95 pl-[calc(env(safe-area-inset-left,0px)+1rem)] pr-[calc(env(safe-area-inset-right,0px)+1rem)] md:pl-[calc(env(safe-area-inset-left,0px)+1.25rem)] md:pr-[calc(env(safe-area-inset-right,0px)+1.25rem)] ${
+            isNativeFullscreen ? 'pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]' : 'py-3'
+          }`}
         >
           <div className="flex min-w-0 flex-col gap-3">
             <CameraAccessoryRail accessories={accessoryEntities} cameraName={name} />
