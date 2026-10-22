@@ -40,6 +40,7 @@ describe('dashboard companion connected state', () => {
   });
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     resetPreviewRuntime();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -757,6 +758,45 @@ describe('dashboard companion connected state', () => {
     expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Open Front Door snapshot' })).toBeDisabled();
   });
+
+  it.each(['reconnect', 'retry', 'visible'])(
+    'recovers a failed camera snapshot at the same URL after %s',
+    (recovery) => {
+      vi.useFakeTimers();
+      const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+      renderWithProviders(<DashboardCompanion />);
+      const image = screen.getByRole('img', { name: 'Front Door' });
+      const src = image.getAttribute('src');
+      fireEvent.error(image);
+      expect(screen.queryByRole('img', { name: 'Front Door' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Open Front Door snapshot' })).toBeDisabled();
+
+      if (recovery === 'reconnect') {
+        for (const connected of [false, true]) {
+          act(() =>
+            integrationStore.setState((state) => ({
+              providerRuntime: {
+                ...state.providerRuntime,
+                home_assistant: { ...state.providerRuntime.home_assistant, connected },
+              },
+            }))
+          );
+        }
+      } else if (recovery === 'visible') {
+        visibility.mockReturnValue('hidden');
+        fireEvent(document, new Event('visibilitychange'));
+        act(() => vi.advanceTimersByTime(30000));
+        expect(screen.queryByRole('img', { name: 'Front Door' })).not.toBeInTheDocument();
+        visibility.mockReturnValue('visible');
+        fireEvent(document, new Event('visibilitychange'));
+      } else {
+        act(() => vi.advanceTimersByTime(30000));
+      }
+
+      expect(screen.getByRole('img', { name: 'Front Door' })).toHaveAttribute('src', src);
+      expect(screen.getByRole('button', { name: 'Open Front Door snapshot' })).toBeEnabled();
+    }
+  );
 
   it('keeps a missing selected camera unavailable rather than silently showing a different camera', () => {
     const store = useDashboardCollectionStore.getState();

@@ -28,6 +28,7 @@ import {
   formatTemperatureValueFromSourceUnit,
   normalizeTemperatureUnit,
 } from '@navet/app/utils/temperature';
+import { subscribeVisibilityAwareTask } from '@navet/app/utils/visibility-aware-scheduler';
 import type { NavetEntity } from '@navet/core/types';
 import { ArrowUpRight, CameraOff, Lock, Plus, Shield } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -619,6 +620,15 @@ function CompanionCamera({ entity, editing = false }: { entity: NavetEntity; edi
   const [open, setOpen] = useState(false);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const resolvedUrl = pictureUrl ?? (resource?.kind === 'image' ? resource.url : undefined);
+  useEffect(() => {
+    if (!failedUrl) return;
+    if (!available || resolvedUrl !== failedUrl) {
+      setFailedUrl(null);
+      return;
+    }
+    // Retry stable snapshot URLs after transient errors; suspend retries in hidden tabs.
+    return subscribeVisibilityAwareTask(() => setFailedUrl(null), 30000);
+  }, [available, failedUrl, resolvedUrl]);
   const src = available && resolvedUrl !== failedUrl ? resolvedUrl : undefined;
   const fallback = (
     <div
