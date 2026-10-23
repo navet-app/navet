@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.8-beta.1
+
+## New features
+
+- Customize a collapsible side panel and enable a device screensaver with weather, security alerts, and timers.
+
 ## 0.18.7-beta.1
 
 No user-facing changes in this release.
