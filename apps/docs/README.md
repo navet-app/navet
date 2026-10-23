@@ -6,7 +6,10 @@ Starlight.
 ## Content model
 
 Public pages are loaded from their canonical repository locations.
-`src/content.config.ts` contains the explicit allowlist and public route for each Markdown file.
+`src/content.config.ts` maps explicitly selected pages to their public routes and automatically
+loads `docs/how-to/**/*.md`. How-to files publish under `/guide/` with the same directory structure;
+directory `index.md` files become section landing pages, and `docs/how-to/index.md` becomes
+`/guide/how-to/`. Add new task guides in that tree without duplicating content in this workspace.
 Files under `ai/` and internal maintainer, release, testing, and audit paths are not published unless
 they are deliberately added to that map.
 
@@ -36,6 +39,8 @@ Developer, brand, and support resources appear alongside the product groups.
 - Keep paragraphs focused and headings in sentence case. Explain provider limits where they
   affect the task; link to the compatibility matrix for the complete comparison.
 - Put common tasks directly in the sidebar. Keep technical references separate from getting started.
+- Add a sidebar entry in `astro.config.mjs` when introducing a common task guide; loading a page
+  into the content collection makes it searchable but does not add it to the sidebar.
 - Set an explicit `next` link when the learning path differs from sidebar order.
 - Preserve public routes and heading anchors when editing; update incoming links when an anchor changes.
 - Keep one Starlight `Search` instance in the shared header. Its search index mount uses a fixed ID.

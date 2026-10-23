@@ -36,6 +36,9 @@ entities are available. See the [integration reference](/integrations/) for prov
 - **Progress** shows contributions and a weekly review.
 - **Settings** manages people, motivation style, backups, restore, and recovery.
 - **Routines** keeps provider automations, scenes, and scripts available beside native chores.
+  Choose its **Lists** selector to open [provider-owned shopping and to-do lists](/guide/everyday-control/shared-lists/).
+  These items keep their provider's storage and completion model; chores backups cover the Navet
+  chores workspace.
 
 Chores are enabled by default. **Settings → Dashboard → Household chores** can hide or restore the
 feature, its Home summary, and room chore surfaces without deleting chore definitions or history.

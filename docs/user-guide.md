@@ -29,7 +29,7 @@ New here? Start with [Your first 15 minutes](/guide/quick-start/first-15-minutes
 | [Media](/guide/everyday-control/media/) | Browse media and control playback, speakers, and volume. |
 | [Energy](/guide/everyday-control/energy/) | See live usage and explore the history your provider supplies. |
 | [Security](/guide/everyday-control/security/) | View cameras, alarms, and security activity. |
-| [Household](/guide/everyday-control/household-chores/) | Keep track of chores. Find automations and scripts under Routines. |
+| [Household](/guide/everyday-control/household-chores/) | Manage chores, then open Routines for automations, scripts, and the Lists selector for shopping and to-do items. |
 | [Settings](/guide/settings/) | Adjust appearance, interactions, providers, and device preferences. |
 
 The sections and controls available depend on your connected platform and devices.
@@ -44,6 +44,9 @@ You can [create another dashboard](/guide/dashboards/create-second-dashboard/),
 [back up your configuration](/guide/dashboards/backup-and-restore/).
 
 For a shared screen, follow [Kiosk and Wall Display mode](/guide/wall-displays/kiosk-mode/).
+On supported landscape displays, [customize the side panel](/guide/dashboards/customize-home/#customize-the-side-panel)
+with persistent controls and information. Enable the optional
+[screensaver](/guide/dashboards/customize-home/#screensaver-mode) for an idle clock, weather, and alerts.
 
 ## Providers and availability
 
@@ -61,6 +64,12 @@ something you expect is absent.
 - [Low-power displays](/guide/wall-displays/low-power/) — adjust visual quality for your wall panel.
 - [Sidebar extensions](/guide/settings/sidebar-extensions/) — add links and quick actions.
 - [Phone and tablet](/guide/quick-start/phone-and-tablet/) — use Navet on a smaller screen.
+
+## Lists, calendars, and history
+
+- [Shopping and to-do lists](/guide/everyday-control/shared-lists/) — manage items in Home Assistant lists.
+- [Calendars and events](/guide/everyday-control/calendar-events/) — select calendars and create timed or all-day events when supported.
+- [History and activity](/guide/everyday-control/history-and-activity/) — inspect an entity's recorded states and activity from the user menu.
 
 ## Widget reference
 

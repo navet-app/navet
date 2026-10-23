@@ -18,6 +18,9 @@ device.
 - [Understand Energy usage and KPIs](/guide/everyday-control/energy/)
 - [Run automations and scripts](/guide/everyday-control/automations-and-scripts/)
 - [Use notifications and provider actions](/guide/everyday-control/notifications/)
+- [Manage shopping and to-do lists](/guide/everyday-control/shared-lists/)
+- [View calendars and create events](/guide/everyday-control/calendar-events/)
+- [Explore history and activity](/guide/everyday-control/history-and-activity/)
 
 ## Dashboard content
 

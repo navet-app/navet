@@ -15,6 +15,22 @@ so unrelated Home layout changes do not rerender or reshape its card composition
 For feature-specific needs, extend the narrowest model or create a feature-owned section
 component. Stable feature projections and normal React composition are the performance boundary.
 
+### Side panel and screensaver
+
+Dashboard's `companion/` composes the common side panel, room-specific panels, item editors and
+compact entity controls. Panel items consume normalized entities and existing feature dialogs;
+camera, calendar and chore behavior stays with its owning feature. Saved panel content and room
+selection belong to the dashboard, while enabled/collapsed state belongs to the device. The
+[profile ownership contract](dashboard-profile-ownership.md#shared-profile) owns persistence and
+copy/duplication rules.
+
+Dashboard's `screensaver/` owns the idle gate, transient active state and overlay. Enablement is a
+device preference. The gate waits for five idle minutes and defers while editing, interacting with
+forms/overlays or viewing an embedded custom page. Visibility changes reset the delay, and dismissal
+consumes its input so a device control beneath the overlay cannot fire. Screensaver data follows
+the active Home dashboard's common panel settings and connected provider state; it does not expose
+camera images or calendar event details. Keep-awake remains an independent display setting.
+
 ## Provider Runtime Queries
 
 `ProviderRuntimeQuery` is the app-facing query seam for provider entity snapshots, registry

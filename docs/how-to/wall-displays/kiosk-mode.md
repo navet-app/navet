@@ -44,6 +44,17 @@ Kiosk control provides:
 Open **Kiosk behavior** to enable **Swipe between rooms**. Swipes work on empty dashboard space so
 they do not replace normal card gestures.
 
+## Show information while idle
+
+Enable **Settings → Display & controls → Screensaver** for an idle clock, weather, triggered-alarm
+alerts, and active timers. It is off by default and starts after five idle minutes. Tap or press a
+key to dismiss it. Keep-awake is a separate setting; enabling the screensaver does not prevent the
+device from sleeping. See [Screensaver mode](/guide/dashboards/customize-home/#screensaver-mode)
+for preview, source selection, and conditions that delay entry.
+
+For persistent controls on a supported landscape screen, configure the
+[side panel](/guide/dashboards/customize-home/#customize-the-side-panel).
+
 ## Home Assistant header and sidebar
 
 Navet kiosk mode controls Navet's own chrome. In Home Assistant-hosted modes, hiding Home
