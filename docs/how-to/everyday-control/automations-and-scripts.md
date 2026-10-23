@@ -9,7 +9,7 @@ keeping configuration details read-only in Navet.
 
 ![The Routines dashboard with summary counts, automation and quick-action tabs, filters, and run controls.](/docs/how-to/everyday-control/tasks-dashboard.webp)
 
-For shopping and to-do items, open [Household → Lists](/guide/everyday-control/shared-lists/).
+For shopping and to-do items, open [Household → Routines → Lists](/guide/everyday-control/shared-lists/).
 For recurring household work with assignments and schedules, use
 [Household chores](/guide/everyday-control/household-chores/).
 

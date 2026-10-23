@@ -84,7 +84,7 @@ Climate dialogs offer thermostat presets, climate fan modes, vertical and horizo
 and target humidity when the owning device advertises them. These controls use the climate
 device's options and limits.
 
-Home Assistant supplies shopping and to-do lists under **Household → Lists**. Each list declares
+Home Assistant supplies shopping and to-do lists under **Household → Routines → Lists**. Each list declares
 its supported item actions and fields. Follow [Manage shopping and to-do lists](/guide/everyday-control/shared-lists/)
 for adding, completing, editing, and removing items.
 

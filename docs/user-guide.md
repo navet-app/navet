@@ -29,7 +29,7 @@ New here? Start with [Your first 15 minutes](/guide/quick-start/first-15-minutes
 | [Media](/guide/everyday-control/media/) | Browse media and control playback, speakers, and volume. |
 | [Energy](/guide/everyday-control/energy/) | See live usage and explore the history your provider supplies. |
 | [Security](/guide/everyday-control/security/) | View cameras, alarms, and security activity. |
-| [Household](/guide/everyday-control/household-chores/) | Manage chores, open shopping and to-do lists under Lists, and find automations and scripts under Routines. |
+| [Household](/guide/everyday-control/household-chores/) | Manage chores, then open Routines for automations, scripts, and the Lists selector for shopping and to-do items. |
 | [Settings](/guide/settings/) | Adjust appearance, interactions, providers, and device preferences. |
 
 The sections and controls available depend on your connected platform and devices.

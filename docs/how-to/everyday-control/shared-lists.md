@@ -4,15 +4,18 @@ description: Add, complete, edit, and remove items in lists supplied by Home Ass
 editUrl: https://github.com/navet-app/navet/edit/main/docs/how-to/everyday-control/shared-lists.md
 ---
 
-Use **Household → Lists** for shopping and to-do items from a connected Home Assistant source.
+Use **Household → Routines → Lists** for shopping and to-do items from a connected Home Assistant source.
 Create the list in Home Assistant first. Navet shows the lists that source makes available;
 Homey and openHAB do not currently supply lists to Navet.
 
 ## Choose a list
 
-1. Open **Household → Lists**.
+1. Open **Household → Routines → Lists**.
 2. Use **Choose a list** to select the shopping or to-do list you want.
 3. Review its items. Checked items are completed.
+
+When household chores are turned off, the outer **Routines** tab is omitted; choose **Lists**
+in the tasks workspace directly.
 
 Changes are saved to the selected list's owning provider and appear on other screens using that
 list. Lists are separate from Navet's [recurring household chores](/guide/chores/) and

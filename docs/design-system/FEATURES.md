@@ -58,8 +58,10 @@ see [chores architecture](../architecture/household-chores.md).
 
 Tasks owns provider routines under Household. Automation details summarize triggers, conditions,
 actions, diagnostics and dependent entities from provider configuration.
-It also owns provider-backed shopping and to-do lists under **Lists**. Household controls owns
-timer, counter, valve and remote cards; lighting owns helper value controls.
+Tasks also owns provider-backed shopping and to-do lists and the **Routines**/**Lists** selector.
+With chores enabled, lists are reached through **Household → Routines → Lists**; otherwise Tasks
+mounts directly. Household controls owns timer, counter, valve and remote cards; lighting owns
+helper value controls.
 
 ## Energy Dashboard
 
