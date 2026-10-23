@@ -11,7 +11,7 @@ import {
   resolveVerifiedPromotion,
 } from './release-promotion.mjs';
 
-// Keep the existing promotion contracts; add coverage for the runner-file boundary.
+// Keep: existing tests verify promotion contracts and the runner-file boundary.
 it('appends runner outputs but rejects traversal, sibling paths and symlink escapes', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'navet-actions-output-'));
   try {
@@ -86,6 +86,41 @@ const plan = (options = {}) =>
   });
 
 describe('promotion defaults', () => {
+  it.each(['beta', 'rc'])('starts a %s on the chosen version after 0.18.7', (channel) => {
+    const options = { channel, tags: ['v0.18.7'], sources: [source(dev)] };
+    expect(plan({ ...options, versionBump: 'patch' }).release_tag).toBe(`v0.18.8-${channel}.1`);
+    expect(plan({ ...options, versionBump: 'minor' }).release_tag).toBe(`v0.19.0-${channel}.1`);
+    expect(plan({ ...options, versionBump: 'automatic' }).release_tag).toBe(`v0.18.8-${channel}.1`);
+    expect(plan({
+      ...options,
+      versionBump: 'minor',
+      tags: ['v0.18.7', `v0.19.0-${channel}.1`, `v0.19.0-${channel}.3`],
+    }).release_tag).toBe(`v0.19.0-${channel}.4`);
+  });
+  it('calculates explicit bumps from stable even when the Dev base is newer', () => {
+    const options = { tags: ['v0.18.7'], sources: [source('navet-dev-0.20.0-dev.20260920120000')] };
+    expect(plan({ ...options, versionBump: 'automatic' }).release_tag).toBe('v0.20.0-beta.1');
+    expect(plan({ ...options, versionBump: 'patch' }).release_tag).toBe('v0.18.8-beta.1');
+    expect(plan({ ...options, versionBump: 'minor' }).release_tag).toBe('v0.19.0-beta.1');
+  });
+  it.each(['rc', 'stable'])('keeps the tested candidate version for %s with a bump selected', (channel) => {
+    expect(plan({
+      channel,
+      versionBump: 'minor',
+      tags: ['v0.18.7', 'v0.19.0-beta.1'],
+      sources: [source('v0.19.0-beta.1')],
+    }).release_tag).toBe(channel === 'stable' ? 'v0.19.0' : 'v0.19.0-rc.1');
+  });
+  it('honors an exact target over the bump choice, including without a stable baseline', () => {
+    expect(plan({ versionBump: 'minor', releaseTag: 'v0.20.0-beta.1' }).release_tag)
+      .toBe('v0.20.0-beta.1');
+    expect(plan({ tags: [], versionBump: 'patch', releaseTag: 'v0.19.0-beta.1' }).release_tag)
+      .toBe('v0.19.0-beta.1');
+  });
+  it('requires a stable baseline for explicit bumps and rejects unsupported choices', () => {
+    expect(() => plan({ tags: [], versionBump: 'minor' })).toThrow('No stable tag exists');
+    expect(() => plan({ versionBump: 'major' })).toThrow('Choose automatic, patch, or minor');
+  });
   it('selects newest eligible Dev by timestamp and advances beyond reserved beta tags', () => {
     expect(
       plan({

@@ -15,6 +15,14 @@ on:
         description: Preview selected tags without publishing
         type: boolean
         default: true
+      version_bump:
+        description: Version bump from latest stable when starting from Dev (exact target overrides this)
+        type: choice
+        default: automatic
+        options:
+          - automatic
+          - patch
+          - minor
       installation_tested:
         description: I installed and tested the selected beta/RC before promoting it to stable
         type: boolean
@@ -58,6 +66,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_CHANNEL: ${{ inputs.channel }}
+          VERSION_BUMP: ${{ inputs.version_bump }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           SOURCE_TAG: ${{ inputs.source_tag }}
           PREVIEW_ONLY: ${{ inputs.preview_only }}

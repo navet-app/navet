@@ -75,10 +75,13 @@ export function resolvePromotion({
   channel = 'beta',
   sourceTag = '',
   releaseTag = '',
+  versionBump = 'automatic',
   tags,
   sources,
 }) {
   if (!['beta', 'rc', 'stable'].includes(channel)) throw new Error('Choose beta, rc, or stable.');
+  if (!['automatic', 'patch', 'minor'].includes(versionBump))
+    throw new Error('Choose automatic, patch, or minor for the version bump.');
   const parsedTags = tags.map(parsePromotionTag).filter(Boolean);
   const latestStable = parsedTags
     .filter((tag) => tag.channel === 'stable')
@@ -118,7 +121,12 @@ export function resolvePromotion({
   if (channel === 'stable' && source.channel === 'dev')
     throw new Error('Stable must promote a tested beta or RC.');
   let base = source.base;
-  if (source.channel === 'dev' && latestStable && compareVersion(source, latestStable) <= 0) {
+  if (source.channel === 'dev' && !releaseTag && versionBump !== 'automatic') {
+    if (!latestStable)
+      throw new Error('No stable tag exists. Use automatic or enter an exact target tag.');
+    const [major, minor, patch] = latestStable.version;
+    base = versionBump === 'minor' ? `${major}.${minor + 1}.0` : `${major}.${minor}.${patch + 1}`;
+  } else if (source.channel === 'dev' && latestStable && compareVersion(source, latestStable) <= 0) {
     base = `${latestStable.version[0]}.${latestStable.version[1]}.${latestStable.version[2] + 1}`;
   }
   if (!releaseTag) {
@@ -285,6 +293,7 @@ async function main() {
       channel,
       sourceTag,
       releaseTag: (process.env.RELEASE_TAG ?? '').trim(),
+      versionBump: process.env.VERSION_BUMP || 'automatic',
       tags: git('tag', '--list').split('\n'),
       sources,
     },

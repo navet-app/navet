@@ -91,6 +91,9 @@ without moving shared aliases. Dev builds do not publish HACS or update supervis
 1. Run **Promote Navet Release** from `main`. Choose `beta`, `rc`, or `stable` in `channel`.
    Leave `source_tag` and `release_tag` blank for automatic selection, or enter exact tags to
    override the defaults.
+   When starting from Dev, choose `patch` or `minor` in **Version bump** (`version_bump`) to
+   advance from the latest stable tag. For `0.18.7 → 0.19.0`, choose `minor` and leave
+   `release_tag` blank. The default `automatic` preserves automatic version selection.
 2. Leave `preview_only` enabled to check the selected source, commit, target version, and eligible
    sources in the run summary without publishing. GitHub's form cannot load live tag choices;
    selection happens when the workflow runs.
@@ -120,12 +123,14 @@ no publication. If only the tag exists or publication is incomplete, the run fai
 guidance for **Publish Release**. Explicit source or target overrides still require a valid new promotion.
 
 Candidate numbers, including explicit overrides, must advance past every existing tag for that
-version and channel, including tags from failed attempts. A Dev build's version is used when it
-is newer than the latest stable tag;
-otherwise the next stable patch version is used. For example, after `v0.17.1`, a Dev build based
+version and channel, including tags from failed attempts. With `version_bump: automatic`, a Dev
+build's version is used when it is newer than the latest stable tag; otherwise the next stable
+patch version is used. For example, after `v0.17.1`, a Dev build based
 on `0.17.1` targets `v0.17.2-beta.1`, or `v0.17.2-beta.2` if beta.1 already exists. Set
-`release_tag` explicitly to start a different minor/major version. Beta/RC sources retain their
-base version when promoted. Existing tags cannot be overwritten; use **Publish Release** for
+`version_bump` to `patch` or `minor` to calculate the next version from the latest stable tag;
+these choices require an existing stable tag. An exact `release_tag` overrides the bump choice,
+including when copying a previewed plan. Beta/RC sources retain their base version when promoted,
+regardless of the bump choice. Existing tags cannot be overwritten; use **Publish Release** for
 recovery of an already-created target.
 
 Beta must start from Dev. An RC can start from Dev, beta, or another RC. Stable must start from a

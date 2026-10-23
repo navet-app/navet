@@ -77,6 +77,7 @@ describe('production release tag publisher', () => {
     }
   });
 
+  // Keep: workflow inputs reach selection while preview and publication boundaries remain enforced.
   it('resolves optional tags and only publishes outside preview without advancing protected main', () => {
     expect(workflow.on.workflow_dispatch.inputs.source_tag).toMatchObject({
       type: 'string',
@@ -92,6 +93,11 @@ describe('production release tag publisher', () => {
       options: ['beta', 'rc', 'stable'],
     });
     expect(workflow.on.workflow_dispatch.inputs.preview_only.default).toBe(true);
+    expect(workflow.on.workflow_dispatch.inputs.version_bump).toMatchObject({
+      type: 'choice',
+      default: 'automatic',
+      options: ['automatic', 'patch', 'minor'],
+    });
     expect(workflow.concurrency).toEqual({
       group: 'navet-release-promotion',
       'cancel-in-progress': false,
@@ -108,6 +114,7 @@ describe('production release tag publisher', () => {
       (step) => step.name === 'Require successful source publication before creating a tag',
     );
     expect(selection.run).toContain('node scripts/release-promotion.mjs');
+    expect(selection.env.VERSION_BUMP).toBe('${{ inputs.version_bump }}');
     expect(selection.run).toContain('git fetch --force origin main --tags');
     for (const step of [validate, publish, dispatch, evidence]) {
       expect(step.env.SOURCE_TAG).toBe('${{ steps.selection.outputs.source_tag }}');
