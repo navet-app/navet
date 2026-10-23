@@ -10,11 +10,12 @@ Homey and openHAB in Navet.
 
 ## Choose calendars
 
-1. Find a calendar in **Add Card → All cards** and add it to Home or a room if it is not already
-   on your dashboard.
-2. Open the calendar card's settings.
-3. Under **Calendars**, select the sources to show together.
-4. Choose **This week** or **This month** for the view.
+1. Open Home or the room containing your calendar and choose **Customize** to enter edit mode.
+2. If the calendar is not already there, find it in **Add Card → All cards** and add it.
+3. Open the calendar card's settings.
+4. Under **Calendars**, select the sources to show together.
+5. Choose **This week** or **This month** for the view.
+6. Close the settings dialog, then choose **Done** to leave edit mode.
 
 Select an event on the card to read its details. You can also add a calendar to the
 [side panel](/guide/dashboards/customize-home/#customize-the-side-panel) for a compact upcoming list.
