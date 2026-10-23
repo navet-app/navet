@@ -21,7 +21,7 @@ New to Navet? [Install it first](/install/), then follow
 - [Wall displays](/guide/wall-displays/) — configure kiosk behavior, keep-awake, and low-power
   hardware.
 - [Everyday control](/guide/everyday-control/) — lights, climate, media, security, energy,
-  household chores, automations, notifications, and widgets.
+  household chores, shopping and to-do lists, calendars, history, automations, notifications, and widgets.
 - [Settings](/guide/settings/) — appearance, providers, interactions, localization, and sidebar
   extensions.
 - [Troubleshooting](/guide/troubleshooting/) — recover cameras, connections, missing entities,

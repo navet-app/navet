@@ -10,5 +10,7 @@ the Home summary bar. Each of those settings can still be adjusted separately.
 ## Guides
 
 - [Set up kiosk and Wall Display mode](/guide/wall-displays/kiosk-mode/)
+- [Enable the screensaver](/guide/dashboards/customize-home/#screensaver-mode)
+- [Customize the side panel](/guide/dashboards/customize-home/#customize-the-side-panel)
 - [Optimize Navet for low-power displays](/guide/wall-displays/low-power/)
 - [Recover kiosk access and keep-awake](/guide/wall-displays/recovery/)

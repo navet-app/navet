@@ -66,11 +66,22 @@ to Home Assistant, Homey, or openHAB snapshots separately.
 `IntegrationProviderRuntimeRegistration` sits beside the small contract. It declares whether a
 provider is implemented or planned, publishes the dashboard feature matrix, and may register
 provider-owned services for media, lights, native actions, cameras, security, climate, rooms and
-entities, history, energy, calendars, weather, notifications, tasks, conversations, and entity
+entities, history, energy, calendars, weather, notifications, tasks, to-do lists, conversations, and entity
 runtime access.
 
 History services can declare entity-level availability through `supportsEntityHistory`. Shared
 history routing skips unsupported entities while preserving failures from supported requests.
+`getActivity` supplies recorded activity separately from state history and numeric statistics.
+`entityHistoryQueryMode` distinguishes time-range readers from retained-series readers such as
+Homey Insights; retained-series requests are read once for the selected range. The app's history
+explorer bounds queries to 31 days and the newest 1,000 records, reading recent windows first
+and widening sparse time-range requests. Provider recording filters and retention still apply.
+
+Calendar services expose source capabilities and optional `createEvent` with normalized timed or
+all-day input. To-do list services own list discovery, item subscriptions and supported item
+mutations. The app gates controls by the selected source's capabilities; provider adapters own
+native payloads and authenticated transport. Lists remain provider-owned data, separate from
+Navet's installation-owned [chores workspace](household-chores.md).
 
 Administrative services expose entity integration reload through an availability predicate,
 an optional availability subscription and an execution method. Unknown support stays unavailable
@@ -137,18 +148,9 @@ manager; provider-specific authentication and transport remain with their existi
 - Hubitat: planned metadata only; no adapter package
 - SmartThings: planned metadata only; no adapter package
 
-Current runtime feature scope:
-
-| Capability group | Home Assistant | Homey | openHAB |
-|---|---:|---:|---:|
-| rooms, realtime entities, lighting, switches, sensors | Yes | Yes | Yes |
-| climate and media controls | Yes | Yes | Yes |
-| lock and cover controls, security sensors | Yes | Yes | Yes |
-| device power and energy measurements | Yes | Yes | Yes |
-| cameras, energy statistics, calendar, weather forecasts | Yes | No | No |
-| notifications, entity history, hub resources | Yes | Yes | No |
-| automation configuration and alarm-panel controls | Yes | No | No |
-| Assist conversations | Yes | No | No |
+The [provider capability matrix](../integrations.md#capability-matrix) owns current feature coverage,
+including writable calendars, shared lists, state history and recorded activity. Adapter runtime
+registrations and entity capabilities determine whether a specific operation is available.
 
 The app may keep multiple implemented sessions connected at once. Provider-scoped IDs and
 provider-owned state remain separate; selected provider collections are merged for dashboard use,

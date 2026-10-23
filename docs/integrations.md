@@ -51,24 +51,13 @@ it in its own interface.
 
 ### History and activity
 
-Open the user menu → **History and activity**, choose an entity, select a date/time range,
-and choose **State history** or **Activity**. Times use the display's time zone, shown in the form.
-State history preserves numeric readings and nonnumeric states; a retained state supplied at the
-range boundary is labelled **State at the start of the range**. Activity includes recorded cause
-details, such as an automation, service, or user action, when the source supplies them. Numeric
-energy statistics remain in Energy.
+Home Assistant supplies entity state history and recorded activity. Homey supplies state history
+for supported Insights entities; openHAB supplies neither. Requests use the entity's owning source
+and are limited by its recording filters and retention.
 
-Each request targets the entity's owning source. Home Assistant supplies state history and recorded
-activity; Homey supplies history for supported Insights entities. Unsupported sources show an
-unavailable message. Activity follows Home Assistant's filters and can omit frequently changing
-numeric sensors. An empty result can mean there were no records, the entity is excluded, or the
-source no longer retains that period. Navet cannot reconstruct deleted records.
-
-Queries cover up to 31 days. Navet reads recent records first, widens sparse requests, and stops
-once the newest 1,000 records and the limit indicator are known. Sources such as Homey that return
-a retained period are read once for the selected range. Results offer **Show more** for additional
-rows within that limit. Choose a shorter range for more detail.
-Home Assistant uses the existing authenticated transport in standalone, Ingress and custom panel.
+Follow [Explore history and activity](/guide/everyday-control/history-and-activity/) to select an
+entity, load a date range, and understand empty results or record limits. Energy statistics remain
+in the [Energy dashboard](/guide/everyday-control/energy/).
 
 ### Home Assistant
 
@@ -77,10 +66,10 @@ media players, cameras, energy, calendars, weather, notifications, updates, Assi
 supported task or automation surfaces. Home Assistant also provides the advanced dashboard and administration
 services marked **Yes** in the matrix above.
 
-Calendar cards can create events in selected writable Home Assistant calendars. Read-only calendars
-continue to show events. Timed events use the display's time zone, shown in the form; all-day events
-use calendar dates with a last included day. A failed create keeps the form details for retry.
-The owning adapter uses the existing authenticated transport in standalone, Ingress and custom panel.
+Calendar cards display events and support creation in selected writable Home Assistant calendars.
+See [View calendars and create events](/guide/everyday-control/calendar-events/) for source selection,
+timed events, and all-day dates. These features use the existing authenticated transport in
+standalone, Ingress, and custom panel installations.
 
 Supported household helpers include toggles, buttons, numeric values, dropdown options, text,
 and dates or times. Controls follow the entity's available options and limits.
@@ -95,9 +84,9 @@ Climate dialogs offer thermostat presets, climate fan modes, vertical and horizo
 and target humidity when the owning device advertises them. These controls use the climate
 device's options and limits.
 
-Open **Household → Lists** to view a connected source's shopping or to-do items. Supported lists allow adding,
-completing or reopening, editing, and removing items. Description and due-date fields appear only
-when that list supports them.
+Home Assistant supplies shopping and to-do lists under **Household → Lists**. Each list declares
+its supported item actions and fields. Follow [Manage shopping and to-do lists](/guide/everyday-control/shared-lists/)
+for adding, completing, editing, and removing items.
 
 ### Homey
 

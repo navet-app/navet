@@ -20,7 +20,7 @@ Example:
 ```yaml
 services:
   navet:
-    image: ghcr.io/awesomestvi/navet:v0.4.1
+    image: ghcr.io/awesomestvi/navet:v0.18.7
     volumes:
       - navet-data:/data
 
@@ -29,8 +29,14 @@ volumes:
 ```
 
 Keep the same named volume and Compose project when rolling backward or forward. Never use
-`docker compose down -v` for a normal rollback because it deletes Navet's credential sessions and
-dashboard profile.
+`docker compose down -v` for a normal rollback because it deletes Navet's credential sessions,
+dashboard profile, device preferences, and chores workspace.
+
+Use the selected release's `navet-release-evidence.json` asset to identify the published image
+digest and source commit. The [release workflow](release-workflow.md#container-registry) owns image
+namespaces; source repository moves do not change these image paths.
+Standalone stable and beta/RC image tags include the leading `v`; add-on image versions omit it.
+Navet Dev uses its exact published development image tag instead.
 
 ## Home Assistant Add-on
 

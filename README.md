@@ -62,7 +62,17 @@ Open focused controls for lighting, climate, media, energy, security, and routin
 platform supports them.
 
 Shape the Home view around your household with editable layouts, dashboard profiles, widgets,
-themes, wallpapers, adaptive visual effects, and localization.
+themes, wallpapers, adaptive visual effects, and localization. On larger landscape screens,
+[customize a side panel](https://docs.navet.app/guide/dashboards/customize-home/#customize-the-side-panel)
+with controls and information, or enable the optional
+[screensaver](https://docs.navet.app/guide/dashboards/customize-home/#screensaver-mode) for idle displays.
+
+[Household chores](https://docs.navet.app/guide/chores/) adds shared assignments, schedules, progress,
+and optional rewards. With Home Assistant, manage
+[shopping and to-do lists](https://docs.navet.app/guide/everyday-control/shared-lists/) and create
+[calendar events](https://docs.navet.app/guide/everyday-control/calendar-events/). Explore
+[history and activity](https://docs.navet.app/guide/everyday-control/history-and-activity/)
+when the owning provider supplies records.
 
 ## Works with the platform you already use
 

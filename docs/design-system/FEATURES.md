@@ -7,8 +7,9 @@ and import locations. Use [provider coverage](../integrations.md#capability-matr
 ## Active Feature Folders
 
 Under `packages/app/src/features/`: `auth`, `calendar`, `chores`, `climate`, `dashboard`, `energy`,
-`household-controls`, `lighting`, `media`, `notifications`, `person`, `rss`, `scenes`, `security`, `sensors`, `settings`,
-`tasks`, `vacuum`, `weather`. Search the owning feature, then its direct callers.
+`history`, `household-controls`, `lighting`, `media`, `notifications`, `person`, `rss`, `scenes`,
+`security`, `sensors`, `settings`, `tasks`, `vacuum`, `weather`. Search the owning feature, then its
+direct callers.
 
 ## App Shell
 
@@ -66,10 +67,22 @@ Energy owns the model, coverage state, live flow, configurable KPIs and usage wo
 provider history groups devices, rooms or sources by day/week/month/year/custom range.
 Overview-derived explanations identify consumer IDs when referring to tracked devices.
 
+## Calendars And History
+
+Calendar owns source selection, event details and timed/all-day event creation. Writable source
+capabilities gate creation; the owning adapter translates normalized event input.
+History owns the user-menu explorer, entity and range selection, state/activity views and record
+limits. It uses provider history services; numeric energy statistics remain owned by Energy.
+
 ## Settings Profiles
 
 Settings owns `standard`/`wall_display` presets: scoped changes to spacing, header title,
-keep-awake, kiosk and Home summary. It also owns providers, four themes, accents, wallpapers,
+keep-awake, kiosk and Home summary. It also owns device preferences for side-panel visibility,
+collapse state and screensaver enablement.
+Dashboard's `companion/` owns panel composition and room overrides; `screensaver/` owns the idle
+gate and overlay. Panel content belongs to each saved dashboard; see
+[profile ownership](../architecture/dashboard-profile-ownership.md#shared-profile).
+Settings also owns providers, four themes, accents, wallpapers,
 interaction/effects policy, sidebar extensions, import/export, experiments and runtime information.
 
 ## Shared UI Ownership

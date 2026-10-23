@@ -98,4 +98,5 @@ In edit mode, use the card's size control to choose
 
 - [Add notes, photos, and RSS feeds](/guide/everyday-control/notes-photos-rss/)
 - [Create actions, maps, and status widgets](/guide/everyday-control/actions-maps-status/)
+- [View calendars and create events](/guide/everyday-control/calendar-events/)
 - [Widget reference](/guide/widgets/)

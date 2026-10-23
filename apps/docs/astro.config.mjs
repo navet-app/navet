@@ -82,6 +82,10 @@ export default defineConfig({
                 { label: "Switch and manage", link: "/guide/dashboards/switch-and-manage/" },
                 { label: "Assign to a device", link: "/guide/dashboards/assign-to-device/" },
                 { label: "Customize Home", link: "/guide/dashboards/customize-home/" },
+                {
+                  label: "Side panel",
+                  link: "/guide/dashboards/customize-home/#customize-the-side-panel",
+                },
                 { label: "Add cards and widgets", link: "/guide/dashboards/add-cards/" },
                 { label: "Layout packs", link: "/guide/dashboards/layout-packs/" },
                 {
@@ -113,6 +117,10 @@ export default defineConfig({
               items: [
                 { label: "Wall display guides", link: "/guide/wall-displays/" },
                 { label: "Kiosk and Wall Display", link: "/guide/wall-displays/kiosk-mode/" },
+                {
+                  label: "Screensaver",
+                  link: "/guide/dashboards/customize-home/#screensaver-mode",
+                },
                 { label: "Low-power displays", link: "/guide/wall-displays/low-power/" },
                 { label: "Kiosk recovery", link: "/guide/wall-displays/recovery/" },
               ],
@@ -139,6 +147,18 @@ export default defineConfig({
                 {
                   label: "Automations and scripts",
                   link: "/guide/everyday-control/automations-and-scripts/",
+                },
+                {
+                  label: "Shopping and to-do lists",
+                  link: "/guide/everyday-control/shared-lists/",
+                },
+                {
+                  label: "Calendars and events",
+                  link: "/guide/everyday-control/calendar-events/",
+                },
+                {
+                  label: "History and activity",
+                  link: "/guide/everyday-control/history-and-activity/",
                 },
                 {
                   label: "Notes, photos, and RSS",
