@@ -906,6 +906,8 @@ export const daMessages = {
   'screensaver.preview': 'Forhåndsvis pauseskærm',
   'screensaver.return': 'Tilbage til kontrolpanelet',
   'screensaver.returnHint': 'Tryk hvor som helst eller på en tast for at vende tilbage',
+  'wallpaper.themeBackground': 'Temabaggrund',
+  'wallpaper.noneSelected': 'Ingen baggrund valgt.',
   'wallpaper.change': 'Skift baggrund',
   'wallpaper.backgroundType': 'Baggrundstype',
   'wallpaper.solidColor': 'Ensfarvet',

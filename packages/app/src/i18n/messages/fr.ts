@@ -918,6 +918,8 @@ export const frMessages = {
   'screensaver.preview': 'Aperçu de l’écran de veille',
   'screensaver.return': 'Revenir au tableau de bord',
   'screensaver.returnHint': 'Touchez l’écran ou appuyez sur une touche pour revenir',
+  'wallpaper.themeBackground': 'Fond du thème',
+  'wallpaper.noneSelected': 'Aucun fond d’écran sélectionné.',
   'wallpaper.change': 'Changer le fond d’écran',
   'wallpaper.backgroundType': 'Type de fond',
   'wallpaper.solidColor': 'Couleur unie',

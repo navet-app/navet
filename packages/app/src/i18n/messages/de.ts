@@ -916,6 +916,8 @@ export const deMessages = {
   'screensaver.preview': 'Bildschirmschoner ansehen',
   'screensaver.return': 'Zurück zum Dashboard',
   'screensaver.returnHint': 'Zum Zurückkehren irgendwo tippen oder eine Taste drücken',
+  'wallpaper.themeBackground': 'Designhintergrund',
+  'wallpaper.noneSelected': 'Kein Hintergrundbild ausgewählt.',
   'wallpaper.change': 'Hintergrund ändern',
   'wallpaper.backgroundType': 'Hintergrundtyp',
   'wallpaper.solidColor': 'Einfarbig',

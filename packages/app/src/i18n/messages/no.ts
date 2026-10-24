@@ -907,6 +907,8 @@ export const noMessages = {
   'screensaver.preview': 'Forhåndsvis skjermsparer',
   'screensaver.return': 'Tilbake til dashbordet',
   'screensaver.returnHint': 'Trykk hvor som helst eller på en tast for å gå tilbake',
+  'wallpaper.themeBackground': 'Temabakgrunn',
+  'wallpaper.noneSelected': 'Ingen bakgrunn valgt.',
   'wallpaper.change': 'Bytt bakgrunn',
   'wallpaper.backgroundType': 'Bakgrunnstype',
   'wallpaper.solidColor': 'Ensfarget',

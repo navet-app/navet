@@ -912,6 +912,8 @@ export const esMessages = {
   'screensaver.preview': 'Vista previa del salvapantallas',
   'screensaver.return': 'Volver al panel',
   'screensaver.returnHint': 'Toca cualquier parte o pulsa una tecla para volver',
+  'wallpaper.themeBackground': 'Fondo del tema',
+  'wallpaper.noneSelected': 'No hay ningún fondo seleccionado.',
   'wallpaper.change': 'Cambiar fondo',
   'wallpaper.backgroundType': 'Tipo de fondo',
   'wallpaper.solidColor': 'Color sólido',

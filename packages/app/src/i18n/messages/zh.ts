@@ -829,6 +829,8 @@ export const zhMessages = {
   'screensaver.preview': '预览屏幕保护',
   'screensaver.return': '返回仪表盘',
   'screensaver.returnHint': '点击任意位置或按任意键返回',
+  'wallpaper.themeBackground': '主题背景',
+  'wallpaper.noneSelected': '未选择壁纸。',
   'wallpaper.change': '更换壁纸',
   'wallpaper.backgroundType': '背景类型',
   'wallpaper.solidColor': '纯色',

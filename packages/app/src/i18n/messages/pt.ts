@@ -911,6 +911,8 @@ export const ptMessages = {
   'screensaver.preview': 'Pré-visualizar proteção de ecrã',
   'screensaver.return': 'Voltar ao painel',
   'screensaver.returnHint': 'Toca em qualquer lugar ou prime uma tecla para voltar',
+  'wallpaper.themeBackground': 'Fundo do tema',
+  'wallpaper.noneSelected': 'Nenhum fundo selecionado.',
   'wallpaper.change': 'Alterar fundo',
   'wallpaper.backgroundType': 'Tipo de fundo',
   'wallpaper.solidColor': 'Cor sólida',

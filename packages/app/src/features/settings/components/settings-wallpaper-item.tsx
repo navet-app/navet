@@ -2,7 +2,6 @@ import { Button } from '@navet/app/components/primitives/button';
 import {
   isBuiltInWallpaperToken,
   resolveBuiltInWallpaperDescriptor,
-  resolveWallpaperBackgroundImage,
 } from '@navet/app/constants/built-in-wallpapers';
 import { getSolidWallpaper } from '@navet/app/constants/solid-wallpapers';
 import { useI18n } from '@navet/app/hooks';
@@ -12,6 +11,7 @@ import {
   AppearanceBackgroundDialog,
   type AppearanceBackgroundTarget,
 } from './appearance-background-dialog';
+import { AppearanceWallpaperPreview } from './appearance-wallpaper-preview';
 import { SettingsItem } from './settings-section-shell';
 
 export function AppearanceWallpaperItem({ controller }: { controller: SettingsSectionController }) {
@@ -45,16 +45,7 @@ export function AppearanceWallpaperItem({ controller }: { controller: SettingsSe
       styles={styles}
     >
       <div className="space-y-3">
-        <div
-          role="img"
-          aria-label={t('settings.appearance.wallpaper.previewAlt')}
-          className={`relative aspect-video w-full overflow-hidden rounded-xl border ${styles.cardBg} ${styles.borderColor}`}
-          style={{
-            backgroundImage: resolveWallpaperBackgroundImage(wallpaper) ?? undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        />
+        <AppearanceWallpaperPreview wallpaper={wallpaper} styles={styles} />
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={(event) => open('wallpaper', event)}>
             {t('wallpaper.change')}

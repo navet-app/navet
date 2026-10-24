@@ -909,6 +909,8 @@ export const fiMessages = {
   'screensaver.preview': 'Esikatsele näytönsäästäjää',
   'screensaver.return': 'Palaa kojelautaan',
   'screensaver.returnHint': 'Palaa napauttamalla näyttöä tai painamalla näppäintä',
+  'wallpaper.themeBackground': 'Teeman tausta',
+  'wallpaper.noneSelected': 'Taustakuvaa ei ole valittu.',
   'wallpaper.change': 'Vaihda taustakuva',
   'wallpaper.backgroundType': 'Taustan tyyppi',
   'wallpaper.solidColor': 'Yksivärinen',

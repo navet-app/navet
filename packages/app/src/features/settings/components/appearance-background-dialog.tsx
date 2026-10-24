@@ -7,10 +7,7 @@ import {
 import { InteractivePill } from '@navet/app/components/primitives/interactive-pill';
 import { Select } from '@navet/app/components/primitives/select';
 import { CustomScrollbar } from '@navet/app/components/shared/device-editor/custom-scrollbar';
-import {
-  BUILT_IN_WALLPAPERS,
-  resolveWallpaperBackgroundImage,
-} from '@navet/app/constants/built-in-wallpapers';
+import { BUILT_IN_WALLPAPERS } from '@navet/app/constants/built-in-wallpapers';
 import {
   isScreensaverBackground,
   isScreensaverIdleMinutes,
@@ -29,6 +26,7 @@ import { Title as DialogTitle } from '@radix-ui/react-dialog';
 import { Check, Upload, X } from 'lucide-react';
 import { type MouseEvent, type RefObject, useId, useRef, useState } from 'react';
 import type { SettingsSectionController } from '../hooks/use-settings-section-controller';
+import { AppearanceWallpaperPreview } from './appearance-wallpaper-preview';
 import { OnOffPillToggle } from './settings-pill-toggle';
 
 export type AppearanceBackgroundTarget = 'wallpaper' | 'screensaver';
@@ -150,16 +148,7 @@ export function AppearanceBackgroundDialog({
                   </Button>
                 </div>
               ) : (
-                <div
-                  role="img"
-                  aria-label={t('settings.appearance.wallpaper.previewAlt')}
-                  className={`aspect-video overflow-hidden rounded-xl ${styles.cardBg}`}
-                  style={{
-                    backgroundImage: resolveWallpaperBackgroundImage(wallpaper) ?? undefined,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                  }}
-                />
+                <AppearanceWallpaperPreview wallpaper={wallpaper} styles={styles} />
               )}
               {screensaver ? (
                 <div className="space-y-2">

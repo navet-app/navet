@@ -911,6 +911,8 @@ export const plMessages = {
   'screensaver.preview': 'Podgląd wygaszacza',
   'screensaver.return': 'Wróć do pulpitu',
   'screensaver.returnHint': 'Dotknij ekranu lub naciśnij klawisz, aby wrócić',
+  'wallpaper.themeBackground': 'Tło motywu',
+  'wallpaper.noneSelected': 'Nie wybrano tapety.',
   'wallpaper.change': 'Zmień tapetę',
   'wallpaper.backgroundType': 'Typ tła',
   'wallpaper.solidColor': 'Jednolity kolor',

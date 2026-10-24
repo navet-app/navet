@@ -333,6 +333,8 @@ export const enMessages = {
   'screensaver.preview': 'Preview screensaver',
   'screensaver.return': 'Return to dashboard',
   'screensaver.returnHint': 'Tap anywhere or press a key to return',
+  'wallpaper.themeBackground': 'Theme background',
+  'wallpaper.noneSelected': 'No wallpaper selected.',
   'wallpaper.change': 'Change wallpaper',
   'wallpaper.backgroundType': 'Background type',
   'wallpaper.solidColor': 'Solid color',

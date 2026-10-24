@@ -28,6 +28,9 @@ describe('SettingsAppearanceSection', () => {
 
   it('opens wallpaper choices on demand and applies built-ins and solid colors', () => {
     renderWithProviders(<TestSection />);
+    expect(screen.getByRole('img', { name: 'Theme background' })).toHaveTextContent(
+      'No wallpaper selected.'
+    );
     expect(screen.queryByRole('group', { name: 'Built-in wallpapers' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Change wallpaper' }));
     const dialog = screen.getByRole('dialog', { name: 'Wallpaper' });
@@ -38,6 +41,7 @@ describe('SettingsAppearanceSection', () => {
     ).not.toBeInTheDocument();
     fireEvent.click(within(choices).getByRole('button', { name: 'Wallpaper nocturne-07' }));
     expect(useThemeStore.getState().wallpaper).toBe('builtin:nocturne-07');
+    expect(within(dialog).queryByText('No wallpaper selected.')).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Solid color' }));
     const colors = within(dialog).getByRole('group', { name: 'Solid colors' });
     expect(within(colors).getAllByRole('button')).toHaveLength(24);
@@ -45,6 +49,9 @@ describe('SettingsAppearanceSection', () => {
     expect(useThemeStore.getState().wallpaper).toBe('solid:mint');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Remove wallpaper' }));
     expect(useThemeStore.getState().wallpaper).toBeNull();
+    expect(within(dialog).getByRole('img', { name: 'Theme background' })).toHaveTextContent(
+      'No wallpaper selected.'
+    );
   });
 
   it('configures the device screensaver without changing the dashboard wallpaper', () => {

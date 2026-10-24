@@ -925,6 +925,8 @@ export const itMessages = {
   'screensaver.preview': 'Anteprima salvaschermo',
   'screensaver.return': 'Torna alla dashboard',
   'screensaver.returnHint': 'Tocca un punto qualsiasi o premi un tasto per tornare',
+  'wallpaper.themeBackground': 'Sfondo del tema',
+  'wallpaper.noneSelected': 'Nessuno sfondo selezionato.',
   'wallpaper.change': 'Cambia sfondo',
   'wallpaper.backgroundType': 'Tipo di sfondo',
   'wallpaper.solidColor': 'Tinta unita',

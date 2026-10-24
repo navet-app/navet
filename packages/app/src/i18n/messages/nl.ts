@@ -912,6 +912,8 @@ export const nlMessages = {
   'screensaver.preview': 'Schermbeveiliging bekijken',
   'screensaver.return': 'Terug naar dashboard',
   'screensaver.returnHint': 'Tik ergens of druk op een toets om terug te keren',
+  'wallpaper.themeBackground': 'Thema-achtergrond',
+  'wallpaper.noneSelected': 'Geen achtergrond geselecteerd.',
   'wallpaper.change': 'Achtergrond wijzigen',
   'wallpaper.backgroundType': 'Type achtergrond',
   'wallpaper.solidColor': 'Effen kleur',

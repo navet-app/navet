@@ -907,6 +907,8 @@ export const svMessages = {
   'screensaver.preview': 'Förhandsvisa skärmsläckaren',
   'screensaver.return': 'Tillbaka till instrumentpanelen',
   'screensaver.returnHint': 'Tryck var som helst eller på en tangent för att återvända',
+  'wallpaper.themeBackground': 'Temabakgrund',
+  'wallpaper.noneSelected': 'Ingen bakgrundsbild vald.',
   'wallpaper.change': 'Byt bakgrundsbild',
   'wallpaper.backgroundType': 'Bakgrundstyp',
   'wallpaper.solidColor': 'Enfärgad',
