@@ -217,15 +217,26 @@ export function AppearanceBackgroundDialog({
                 <p className={`text-sm ${styles.subtleColor}`}>{t('screensaver.automaticHint')}</p>
               ) : (
                 <>
-                  {!screensaver && mode === 'wallpaper' ? (
+                  {!screensaver ? (
                     <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="secondary"
-                        leading={<Upload className="h-4 w-4" />}
-                        onClick={() => uploadRef.current?.click()}
-                      >
-                        {t('settings.appearance.wallpaper.upload')}
-                      </Button>
+                      {mode === 'wallpaper' ? (
+                        <Button
+                          variant="secondary"
+                          leading={<Upload className="h-4 w-4" />}
+                          onClick={() => uploadRef.current?.click()}
+                        >
+                          {t('settings.appearance.wallpaper.upload')}
+                        </Button>
+                      ) : null}
+                      {wallpaper ? (
+                        <Button
+                          variant="ghost"
+                          leading={<X className="h-4 w-4" />}
+                          onClick={controller.handleRemoveWallpaper}
+                        >
+                          {t('settings.appearance.wallpaper.remove')}
+                        </Button>
+                      ) : null}
                       <input
                         ref={uploadRef}
                         type="file"
@@ -303,15 +314,6 @@ export function AppearanceBackgroundDialog({
                   </fieldset>
                 </>
               )}
-              {!screensaver && wallpaper ? (
-                <Button
-                  variant="ghost"
-                  leading={<X className="h-4 w-4" />}
-                  onClick={controller.handleRemoveWallpaper}
-                >
-                  {t('settings.appearance.wallpaper.remove')}
-                </Button>
-              ) : null}
             </>
           ) : null}
           {screensaver ? (
