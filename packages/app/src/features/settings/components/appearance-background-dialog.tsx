@@ -24,7 +24,7 @@ import { useScreensaverStore } from '@navet/app/features/dashboard/screensaver/s
 import { ScreensaverThumbnail } from '@navet/app/features/dashboard/screensaver/screensaver-thumbnail';
 import { useI18n } from '@navet/app/hooks';
 import { Check, Upload, X } from 'lucide-react';
-import { type MouseEvent, type RefObject, useId, useRef, useState } from 'react';
+import { type MouseEvent, type RefObject, useEffect, useId, useRef, useState } from 'react';
 import type { SettingsSectionController } from '../hooks/use-settings-section-controller';
 import { AppearanceWallpaperPreview } from './appearance-wallpaper-preview';
 import { OnOffPillToggle } from './settings-pill-toggle';
@@ -56,8 +56,13 @@ export function AppearanceBackgroundDialog({
   const solid = getSolidWallpaper(selected);
   const mode = selected === 'automatic' ? 'automatic' : solid ? 'solid' : 'wallpaper';
   const [lastWallpaper, setLastWallpaper] = useState(
-    selected?.startsWith('builtin:') ? selected : BUILT_IN_WALLPAPERS[0].token
+    selected && selected !== 'automatic' && !solid ? selected : BUILT_IN_WALLPAPERS[0].token
   );
+  useEffect(() => {
+    if (selected && selected !== 'automatic' && !getSolidWallpaper(selected)) {
+      setLastWallpaper(selected);
+    }
+  }, [selected]);
   const [lastColor, setLastColor] = useState(solid?.value ?? SOLID_WALLPAPERS[0].value);
   const uploadRef = useRef<HTMLInputElement | null>(null);
   const delayId = useId();
@@ -70,7 +75,6 @@ export function AppearanceBackgroundDialog({
           'screensaverBackground',
         ]);
     } else controller.handleSelectWallpaper(value);
-    if (value.startsWith('builtin:')) setLastWallpaper(value);
     const color = getSolidWallpaper(value);
     if (color) setLastColor(color.value);
   };

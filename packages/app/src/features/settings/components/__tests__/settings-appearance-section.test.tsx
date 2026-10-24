@@ -4,7 +4,7 @@ import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { useThemeStore } from '@navet/app/stores/theme-store';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SettingsAppearanceSection } from '../settings-appearance-section';
 
@@ -53,6 +53,28 @@ describe('SettingsAppearanceSection', () => {
       'No wallpaper selected.'
     );
   });
+
+  it.each([false, true])(
+    'remembers an uploaded wallpaper across background modes (uploaded while open: %s)',
+    (uploadedWhileOpen) => {
+      const uploadedWallpaper = 'data:image/png;base64,aW1hZ2U=';
+      if (!uploadedWhileOpen) useThemeStore.getState().setWallpaper(uploadedWallpaper);
+      renderWithProviders(<TestSection />);
+      fireEvent.click(screen.getByRole('button', { name: 'Change wallpaper' }));
+      const dialog = screen.getByRole('dialog', { name: 'Wallpaper' });
+      if (uploadedWhileOpen) {
+        act(() => useThemeStore.getState().setWallpaper(uploadedWallpaper));
+      }
+      const wallpaperChoice = within(dialog).getByRole('button', {
+        name: /^Wallpaper$/,
+      });
+      fireEvent.click(wallpaperChoice);
+      expect(useThemeStore.getState().wallpaper).toBe(uploadedWallpaper);
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Solid color' }));
+      fireEvent.click(wallpaperChoice);
+      expect(useThemeStore.getState().wallpaper).toBe(uploadedWallpaper);
+    }
+  );
 
   it('configures the device screensaver without changing the dashboard wallpaper', () => {
     useThemeStore.getState().setWallpaper('builtin:nocturne-01');
