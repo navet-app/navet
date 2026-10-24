@@ -1,11 +1,5 @@
-import { Button } from '@navet/app/components/primitives/button';
 import { InteractivePill } from '@navet/app/components/primitives/interactive-pill';
 import { ThemeAppearancePicker } from '@navet/app/components/shared/theme/theme-appearance-picker';
-import {
-  BUILT_IN_WALLPAPERS,
-  isBuiltInWallpaperToken,
-  resolveWallpaperPreviewSources,
-} from '@navet/app/constants/built-in-wallpapers';
 import { useI18n } from '@navet/app/hooks';
 import type { EffectsQuality } from '@navet/app/stores/settings-store';
 import { detectDeviceTier } from '@navet/app/utils/detect-device-tier';
@@ -13,37 +7,10 @@ import {
   getLegacyReducedEffectsFlags,
   resolveEffectsQuality,
 } from '@navet/app/utils/effects-quality';
-import { AlertTriangle, Check, Upload, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
+import { useMemo } from 'react';
 import type { SettingsSectionController } from '../hooks/use-settings-section-controller';
 import { SettingsItem } from './settings-section-shell';
-
-function WallpaperPreviewImage({
-  value,
-  alt,
-  className,
-}: {
-  value: string;
-  alt: string;
-  className: string;
-}) {
-  const preview = resolveWallpaperPreviewSources(value);
-  if (!preview) {
-    return null;
-  }
-
-  if (preview.kind === 'custom') {
-    return <img src={preview.imgSrc} alt={alt} className={className} />;
-  }
-
-  return (
-    <picture>
-      <source srcSet={preview.avifSrc} type="image/avif" />
-      <source srcSet={preview.webpSrc} type="image/webp" />
-      <img src={preview.imgSrc} alt={alt} className={className} />
-    </picture>
-  );
-}
 
 export function AppearanceThemeAccentItem({
   controller,
@@ -262,117 +229,4 @@ export function AppearanceAmbienceItem({ controller }: { controller: SettingsSec
   );
 }
 
-export function AppearanceWallpaperItem({ controller }: { controller: SettingsSectionController }) {
-  const { t } = useI18n();
-  const { handleRemoveWallpaper, handleSelectWallpaper, handleWallpaperUpload, styles, wallpaper } =
-    controller;
-  const wallpaperInputRef = useRef<HTMLInputElement | null>(null);
-  const openWallpaperPicker = () => wallpaperInputRef.current?.click();
-  const [showAllWallpapers, setShowAllWallpapers] = useState(false);
-  const initialWallpapers = BUILT_IN_WALLPAPERS.slice(0, 6);
-  const selectedWallpaper = BUILT_IN_WALLPAPERS.find((option) => option.token === wallpaper);
-  if (selectedWallpaper && !initialWallpapers.includes(selectedWallpaper)) {
-    initialWallpapers[5] = selectedWallpaper;
-  }
-  const visibleWallpapers = showAllWallpapers ? BUILT_IN_WALLPAPERS : initialWallpapers;
-
-  return (
-    <SettingsItem
-      title={t('settings.appearance.wallpaper.title')}
-      description={t('settings.appearance.wallpaper.description')}
-      styles={styles}
-    >
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {wallpaper && !isBuiltInWallpaperToken(wallpaper) ? (
-            <div className="h-10 w-16 shrink-0 overflow-hidden rounded-lg">
-              <WallpaperPreviewImage
-                value={wallpaper}
-                alt={t('settings.appearance.wallpaper.previewAlt')}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          ) : null}
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={openWallpaperPicker}
-            leading={<Upload className="h-4 w-4" />}
-          >
-            {t('settings.appearance.wallpaper.upload')}
-          </Button>
-          {wallpaper ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleRemoveWallpaper}
-              leading={<X className="h-4 w-4" />}
-            >
-              {t('settings.appearance.wallpaper.remove')}
-            </Button>
-          ) : null}
-        </div>
-
-        <input
-          ref={wallpaperInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleWallpaperUpload}
-          className="hidden"
-        />
-
-        <div>
-          <div className="grid grid-cols-2 gap-3 @min-[560px]/settings-detail:grid-cols-3">
-            {visibleWallpapers.map((option) => {
-              const isSelected = wallpaper === option.token;
-
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => handleSelectWallpaper(option.token)}
-                  aria-pressed={isSelected}
-                  aria-label={t('settings.appearance.wallpaper.optionAria', { id: option.id })}
-                  className="group relative aspect-video w-full overflow-hidden rounded-xl border focus-visible:outline-2 focus-visible:outline-offset-4"
-                  style={{
-                    borderColor: isSelected ? `${styles.accentColor}88` : undefined,
-                    boxShadow: isSelected ? `0 0 0 1px ${styles.accentColor}55` : undefined,
-                  }}
-                >
-                  <WallpaperPreviewImage
-                    value={option.token}
-                    alt=""
-                    className="h-full w-full object-cover motion-safe:transition-transform motion-safe:duration-300 motion-safe:group-hover:scale-[1.03]"
-                  />
-                  {isSelected ? (
-                    <div
-                      className="pointer-events-none absolute inset-0 rounded-xl"
-                      style={{ boxShadow: `inset 0 0 0 2px ${styles.accentColor}` }}
-                    >
-                      <span className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-black shadow-sm">
-                        <Check aria-hidden="true" className="h-4 w-4" />
-                      </span>
-                    </div>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            className="mt-2"
-            aria-expanded={showAllWallpapers}
-            onClick={() => setShowAllWallpapers((value) => !value)}
-          >
-            {t(
-              showAllWallpapers
-                ? 'settings.appearance.wallpaper.showLess'
-                : 'settings.appearance.wallpaper.showAll'
-            )}
-          </Button>
-        </div>
-      </div>
-    </SettingsItem>
-  );
-}
+export { AppearanceWallpaperItem } from './settings-wallpaper-item';

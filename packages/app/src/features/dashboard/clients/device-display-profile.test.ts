@@ -25,11 +25,15 @@ describe('device display profiles', () => {
       projectDeviceDisplaySettings({
         ...defaultSettings,
         screensaverEnabled: enabled,
+        screensaverIdleMinutes: 15,
+        screensaverBackground: 'solid:mint',
         companionEnabled: enabled,
         companionCollapsed: enabled,
       })
     ).toMatchObject({
       screensaverEnabled: enabled,
+      screensaverIdleMinutes: 15,
+      screensaverBackground: 'solid:mint',
       companionEnabled: enabled,
       companionCollapsed: enabled,
     });
@@ -39,6 +43,8 @@ describe('device display profiles', () => {
     expect(
       sanitizeDeviceDisplaySettings({
         screensaverEnabled: 'true',
+        screensaverIdleMinutes: -1,
+        screensaverBackground: 'https://example.com/unapproved.jpg',
         companionEnabled: 1,
         companionCollapsed: null,
       })

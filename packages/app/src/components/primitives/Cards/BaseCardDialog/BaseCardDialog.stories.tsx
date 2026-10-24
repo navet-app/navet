@@ -150,7 +150,7 @@ function BaseSheetDialogStory() {
   );
 }
 
-function BaseFullscreenDialogStory() {
+function BaseFullscreenDialogStory({ edgeToEdge = false }: { edgeToEdge?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -163,6 +163,7 @@ function BaseFullscreenDialogStory() {
         isOpen={isOpen}
         onOpenChange={setIsOpen}
         title="Camera viewer"
+        edgeToEdge={edgeToEdge}
         description="Fullscreen viewer variant"
         theme="dark"
       >
@@ -198,4 +199,8 @@ export const Sheet: Story = {
 
 export const Fullscreen: Story = {
   render: () => <BaseFullscreenDialogStory />,
+};
+
+export const EdgeToEdgeFullscreen: Story = {
+  render: () => <BaseFullscreenDialogStory edgeToEdge />,
 };

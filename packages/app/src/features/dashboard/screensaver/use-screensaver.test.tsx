@@ -42,6 +42,23 @@ describe('screensaver lifecycle', () => {
     expect(useScreensaverStore.getState().active).toBe(false);
   });
 
+  it('uses the chosen delay and restarts the idle interval when it changes', () => {
+    useSettingsStore
+      .getState()
+      .updateSettings({ screensaverEnabled: true, screensaverIdleMinutes: 1 });
+    const { result } = renderHook(() => useScreensaver());
+    advance(59_999);
+    expect(result.current).toBe(false);
+    advance(1);
+    expect(result.current).toBe(true);
+    act(() => useScreensaverStore.getState().stop());
+    act(() => useSettingsStore.getState().updateSettings({ screensaverIdleMinutes: 10 }));
+    advance(60_000);
+    expect(result.current).toBe(false);
+    advance(540_000);
+    expect(result.current).toBe(true);
+  });
+
   it.each(['pointermove', 'keydown', 'wheel', 'scroll', 'focusin'])(
     'restarts the full idle delay after %s activity',
     (event) => {

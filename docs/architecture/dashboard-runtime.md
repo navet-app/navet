@@ -24,8 +24,8 @@ selection belong to the dashboard, while enabled/collapsed state belongs to the 
 [profile ownership contract](dashboard-profile-ownership.md#shared-profile) owns persistence and
 copy/duplication rules.
 
-Dashboard's `screensaver/` owns the idle gate, transient active state and overlay. Enablement is a
-device preference. The gate waits for five idle minutes and defers while editing, interacting with
+Dashboard's `screensaver/` owns the idle gate, transient active state and overlay. Enablement, idle delay and background selection are device preferences. Automatic background selection follows the dashboard wallpaper; explicit selections use built-in wallpapers or solid colors.
+The gate waits for the selected idle delay (five minutes by default) and defers while editing, interacting with
 forms/overlays or viewing an embedded custom page. Visibility changes reset the delay, and dismissal
 consumes its input so a device control beneath the overlay cannot fire. Screensaver data follows
 the active Home dashboard's common panel settings and connected provider state; it does not expose

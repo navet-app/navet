@@ -10,6 +10,40 @@ describe('useSettingsStore', () => {
     await resetAppStores();
   });
 
+  it('persists screensaver choices and gives legacy or invalid settings safe defaults', async () => {
+    useSettingsStore
+      .getState()
+      .updateSettings({ screensaverIdleMinutes: 15, screensaverBackground: 'solid:mint' });
+    const saved = localStorage.getItem(STORE_STORAGE_KEYS.settings);
+    if (!saved) throw new Error('Screensaver settings were not persisted');
+    useSettingsStore
+      .getState()
+      .updateSettings({ screensaverIdleMinutes: 5, screensaverBackground: 'automatic' });
+    localStorage.setItem(STORE_STORAGE_KEYS.settings, saved);
+    await useSettingsStore.persist.rehydrate();
+    expect(useSettingsStore.getState()).toMatchObject({
+      screensaverIdleMinutes: 15,
+      screensaverBackground: 'solid:mint',
+    });
+    for (const state of [
+      { screensaverEnabled: true },
+      {
+        screensaverEnabled: true,
+        screensaverIdleMinutes: -1,
+        screensaverBackground: 'javascript:alert(1)',
+      },
+    ]) {
+      useSettingsStore.getState().resetSettings();
+      localStorage.setItem(STORE_STORAGE_KEYS.settings, JSON.stringify({ state, version: 0 }));
+      await useSettingsStore.persist.rehydrate();
+      expect(useSettingsStore.getState()).toMatchObject({
+        screensaverEnabled: true,
+        screensaverIdleMinutes: 5,
+        screensaverBackground: 'automatic',
+      });
+    }
+  });
+
   it('persists cover control choices and filters invalid saved modes', async () => {
     useSettingsStore.getState().updateCoverControlMode('cover.garage', 'simple');
     useSettingsStore.getState().updateCoverControlMode('homey:garage', 'position');

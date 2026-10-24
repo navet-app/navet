@@ -63,21 +63,6 @@ describe('SettingsInteractionSection', () => {
     useDashboardProfileRuntimeStore.getState().setClient(getDashboardClientIdentity());
   });
 
-  it('enables and disables the device screensaver with a preview action', () => {
-    renderWithProviders(<TestSection />);
-    const group = screen.getByRole('group', { name: 'Screensaver' });
-    expect(within(group).getByRole('button', { name: 'Off' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    );
-    expect(screen.queryByRole('button', { name: 'Preview screensaver' })).not.toBeInTheDocument();
-    fireEvent.click(within(group).getByRole('button', { name: 'On' }));
-    expect(useSettingsStore.getState().screensaverEnabled).toBe(true);
-    expect(screen.getByRole('button', { name: 'Preview screensaver' })).toBeEnabled();
-    fireEvent.click(within(group).getByRole('button', { name: 'Off' }));
-    expect(useSettingsStore.getState().screensaverEnabled).toBe(false);
-  });
-
   it('keeps browser zoom available until the user opts in', () => {
     renderWithProviders(<TestSection />);
 

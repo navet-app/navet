@@ -1,3 +1,9 @@
+import {
+  isScreensaverBackground,
+  isScreensaverIdleMinutes,
+  type ScreensaverBackground,
+  type ScreensaverIdleMinutes,
+} from '@navet/app/constants/screensaver-options';
 import { STORE_STORAGE_KEYS } from '@navet/app/constants/storage-keys';
 import { type AppLanguage, getNavigatorLanguage } from '@navet/app/i18n/config';
 import type { PlatformCameraTransport } from '@navet/app/platform/provider-feature-models';
@@ -59,6 +65,8 @@ export interface UserSettings {
   defaultView: 'all' | string;
   compactMode: boolean;
   screensaverEnabled: boolean;
+  screensaverIdleMinutes: ScreensaverIdleMinutes;
+  screensaverBackground: ScreensaverBackground;
   companionEnabled: boolean;
   companionCollapsed: boolean;
   kioskMode: boolean;
@@ -124,6 +132,8 @@ export const defaultSettings: UserSettings = {
   defaultView: 'all',
   compactMode: false,
   screensaverEnabled: false,
+  screensaverIdleMinutes: 5,
+  screensaverBackground: 'automatic',
   companionEnabled: true,
   companionCollapsed: false,
   kioskMode: false,
@@ -387,6 +397,12 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           ...state,
           ...newSettings,
+          screensaverIdleMinutes: isScreensaverIdleMinutes(newSettings.screensaverIdleMinutes)
+            ? newSettings.screensaverIdleMinutes
+            : state.screensaverIdleMinutes,
+          screensaverBackground: isScreensaverBackground(newSettings.screensaverBackground)
+            ? newSettings.screensaverBackground
+            : state.screensaverBackground,
           headerTitleMode:
             newSettings.headerTitleMode !== undefined &&
             isHeaderTitleMode(newSettings.headerTitleMode)
@@ -542,6 +558,12 @@ export const useSettingsStore = create<SettingsState>()(
         return set(() => ({
           ...defaultSettings,
           ...supportedSettings,
+          screensaverIdleMinutes: isScreensaverIdleMinutes(supportedSettings.screensaverIdleMinutes)
+            ? supportedSettings.screensaverIdleMinutes
+            : defaultSettings.screensaverIdleMinutes,
+          screensaverBackground: isScreensaverBackground(supportedSettings.screensaverBackground)
+            ? supportedSettings.screensaverBackground
+            : defaultSettings.screensaverBackground,
           preventBrowserZoom: supportedSettings.preventBrowserZoom === true,
           headerTitleMode: isHeaderTitleMode(supportedSettings.headerTitleMode)
             ? supportedSettings.headerTitleMode
@@ -615,6 +637,12 @@ export const useSettingsStore = create<SettingsState>()(
         return {
           ...current,
           ...next,
+          screensaverIdleMinutes: isScreensaverIdleMinutes(next.screensaverIdleMinutes)
+            ? next.screensaverIdleMinutes
+            : current.screensaverIdleMinutes,
+          screensaverBackground: isScreensaverBackground(next.screensaverBackground)
+            ? next.screensaverBackground
+            : current.screensaverBackground,
           preventBrowserZoom: next.preventBrowserZoom === true,
           effectsQuality:
             effectsQualityUserOverride && isEffectsQuality(next.effectsQuality)

@@ -82,7 +82,7 @@ describe('SettingsSection', () => {
     ['Display preset', 'Display & controls'],
     ['Side panel', 'Display & controls'],
     ['Header title', 'Display & controls'],
-    ['Screensaver', 'Display & controls'],
+    ['Screensaver', 'Appearance', 'Wallpaper'],
     ['Keep device awake', 'Display & controls'],
     ['Device settings', 'Display & controls'],
     ['Copy settings once', 'Display & controls', 'Device settings'],

@@ -34,7 +34,12 @@ describe('settings profile scope', () => {
   });
 
   it('round-trips screensaver opt-in only through device preferences', () => {
-    const settings = { ...defaultSettings, screensaverEnabled: true };
+    const settings = {
+      ...defaultSettings,
+      screensaverEnabled: true,
+      screensaverIdleMinutes: 10 as const,
+      screensaverBackground: 'solid:mint' as const,
+    };
     const device = projectSettingsPreferenceLayer(settings, 'device');
     expect(device.settings.screensaverEnabled).toBe(true);
     expect(projectSettingsPreferenceLayer(settings, 'shared').settings).not.toHaveProperty(
@@ -43,8 +48,24 @@ describe('settings profile scope', () => {
     expect(projectSettingsPreferenceLayer(settings, 'account').settings).not.toHaveProperty(
       'screensaverEnabled'
     );
+    expect(device.settings).toMatchObject({
+      screensaverIdleMinutes: 10,
+      screensaverBackground: 'solid:mint',
+    });
+    for (const layer of ['shared', 'account'] as const) {
+      expect(projectSettingsPreferenceLayer(settings, layer).settings).not.toHaveProperty(
+        'screensaverIdleMinutes'
+      );
+      expect(projectSettingsPreferenceLayer(settings, layer).settings).not.toHaveProperty(
+        'screensaverBackground'
+      );
+    }
     applySettingsPreferenceLayerToStore(device, 'device');
-    expect(useSettingsStore.getState().screensaverEnabled).toBe(true);
+    expect(useSettingsStore.getState()).toMatchObject({
+      screensaverEnabled: true,
+      screensaverIdleMinutes: 10,
+      screensaverBackground: 'solid:mint',
+    });
   });
 
   it('round-trips companion enablement only through device preferences', () => {

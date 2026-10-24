@@ -132,6 +132,8 @@ interface BaseCardDialogSheetProps extends BaseCardDialogSharedProps {
 
 interface BaseCardDialogFullscreenProps extends BaseCardDialogSharedProps {
   variant: 'fullscreen';
+  /** Fill the viewport while retaining the configured mobile sheet and dismiss controls. */
+  edgeToEdge?: boolean;
   contentTitle?: string;
   contentDescription?: string;
   mobileCoverSheet?: boolean;
@@ -1026,6 +1028,7 @@ function BaseCardDialogFullscreenVariant({
   contentTitle,
   contentDescription,
   titleInContent = false,
+  edgeToEdge = false,
   mobileCoverSheet = true,
   persistentMobileDismiss = true,
 }: BaseCardDialogFullscreenProps) {
@@ -1043,7 +1046,9 @@ function BaseCardDialogFullscreenVariant({
       contentTitle={titleInContent ? undefined : (contentTitle ?? title)}
       contentDescription={contentDescription ?? description}
       contentClassName={cn(
-        'fixed inset-3 z-50 overflow-hidden rounded-[28px] border border-white/10 shadow-2xl outline-none animate-in fade-in zoom-in-95 duration-200 md:inset-8',
+        edgeToEdge
+          ? 'fixed inset-0 z-50 overflow-hidden rounded-none border-0 shadow-none outline-none animate-in fade-in duration-200'
+          : 'fixed inset-3 z-50 overflow-hidden rounded-[28px] border border-white/10 shadow-2xl outline-none animate-in fade-in zoom-in-95 duration-200 md:inset-8',
         theme === 'glass' ? 'bg-slate-950/55' : 'bg-black',
         contentClassName
       )}
@@ -1052,7 +1057,7 @@ function BaseCardDialogFullscreenVariant({
       contentGlowStyle={contentGlowStyle}
       contentOverlayClassName={contentOverlayClassName}
       contentOverlayStyle={contentOverlayStyle}
-      bodyClassName={shellBodyClassName}
+      bodyClassName={cn(edgeToEdge && 'h-full', shellBodyClassName)}
     >
       {children}
     </BaseCardDialogRoot>

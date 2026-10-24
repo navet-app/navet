@@ -195,7 +195,7 @@ remapped when the server recognizes the same durable browser binding under a rot
 Forgetting a device also removes its linked-profile assignment.
 
 Only allowlisted non-secret presentation settings can be copied or linked, including screensaver
-enablement and side-panel visibility and collapse preferences. Visual-quality
+enablement, idle delay and background selection, plus side-panel visibility and collapse preferences. Visual-quality
 automatic detection remains local to each device unless the user explicitly chooses a quality in
 the linked policy; camera URLs, provider credentials, language, and account preferences never enter
 this domain. The custom-panel deployment stays local-only because it has no profile-store endpoint.

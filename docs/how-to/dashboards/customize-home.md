@@ -87,20 +87,26 @@ Choose the search icon in that row to open search when needed.
 
 ## Screensaver mode
 
-Open **Settings → Display & controls → Screensaver** and choose **On** to enable it for this device.
-It is off by default. Choose **Preview screensaver** to open it immediately, or leave the dashboard
-idle for five minutes. Tap anywhere or press a key to return; the dismissal does not activate a
-control underneath. Your dashboard stays open behind it.
+Open **Settings → Appearance → Wallpaper → Screensaver** and choose **On** to enable it for this
+device. It is off by default. Use **Start after** to choose 1, 2, 5, 10, 15 or 30 minutes of
+inactivity; the default is 5 minutes. **Automatic** follows your dashboard wallpaper, with a
+bundled wallpaper as the fallback. Choose **Wallpaper** or **Solid color** to use a separate
+screensaver background. The chooser includes all built-in wallpapers and 24 solid colors.
 
-The screensaver shows the local time and date using your language and clock preferences. It uses
-your dashboard wallpaper, with a bundled wallpaper as the fallback. Current weather follows the
+The dialog shows a landscape preview. Choose **Preview screensaver** to open the screensaver on
+your display. Tap anywhere or press a key to return; dismissal does not activate a control
+underneath. Your dashboard stays open behind it. Turning the screensaver off keeps its delay and
+background choices. These preferences belong to this device and can be copied through a device
+display profile.
+
+The screensaver shows the local time and date using your language and clock preferences. Current weather follows the
 first weather item in the active Home dashboard’s side panel, even when the panel is disabled.
 A triggered alarm takes priority over an active timer. Security visibility follows that dashboard’s
 companion setting. Missing sources stay unavailable, and disconnected sources do not show cached
 values as live. Camera images and personal calendar details are not shown.
 
 Automatic entry waits while you are editing, using a form, viewing a dialog or menu, or navigating
-an embedded custom page. Hidden tabs pause the idle timer and start a fresh five-minute delay when
+an embedded custom page. Hidden tabs pause the idle timer and start a fresh interval using your selected delay when
 you return. The mode uses the browser’s existing display area; **Keep device awake** remains a
 separate setting for preventing the display from sleeping.
 

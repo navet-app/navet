@@ -2,7 +2,8 @@ import { useHeaderDateTime } from '@navet/app/components/layout/use-header-datet
 import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
 import { getDialogReturnFocus } from '@navet/app/components/shared/dialog-return-focus';
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
-import { resolveWallpaperBackgroundImage } from '@navet/app/constants/built-in-wallpapers';
+import { navetTypographyTokens } from '@navet/app/components/system/tokens';
+import { resolveScreensaverAppearance } from '@navet/app/constants/screensaver-options';
 import { readNavetAlarmEntity } from '@navet/app/core/navet-device-state';
 import { useDashboardCollectionStore } from '@navet/app/features/dashboard/dashboards/dashboard-collection-store';
 import {
@@ -19,7 +20,7 @@ import { subscribeVisibilityAwareTask } from '@navet/app/utils/visibility-aware-
 import { readNavetTimerState } from '@navet/core/household-device-state';
 import type { NavetEntity } from '@navet/core/types';
 import { ShieldAlert, Timer } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useScreensaverStore } from './screensaver-store';
 
@@ -27,7 +28,6 @@ export default function Screensaver() {
   const { t } = useI18n();
   const { theme, wallpaper } = useTheme();
   const surface = getThemeSurfaceTokens(theme);
-  const { formattedTime, formattedDate } = useHeaderDateTime();
   const [returnFocus] = useState(() =>
     getDialogReturnFocus(
       document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -37,7 +37,8 @@ export default function Screensaver() {
     Boolean(returnFocus?.hasAttribute('data-screensaver-preview'))
   );
   const dismiss = useScreensaverStore((state) => state.stop);
-  const background = resolveWallpaperBackgroundImage(wallpaper ?? 'builtin:nocturne-01');
+  const selectedBackground = useSettingsStore((state) => state.screensaverBackground);
+  const appearance = resolveScreensaverAppearance(selectedBackground, wallpaper);
   return (
     <BaseCardDialog
       isOpen
@@ -55,14 +56,62 @@ export default function Screensaver() {
         target?.focus({ preventScroll: true });
       }}
       variant="fullscreen"
+      edgeToEdge
       theme={theme}
       title={t('screensaver.title')}
       description={t('screensaver.returnHint')}
       mobileCoverSheet={false}
       persistentMobileDismiss={false}
-      contentClassName={`!inset-0 !rounded-none !border-0 !shadow-none !animate-none ${surface.appBg} ${surface.textPrimary}`}
-      shellBodyClassName="h-full"
+      contentClassName={`!animate-none ${surface.appBg} ${surface.textPrimary}`}
     >
+      <ScreensaverScene {...appearance}>
+        <button
+          type="button"
+          aria-label={t('screensaver.return')}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            dismiss();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Tab') return;
+            event.preventDefault();
+            event.stopPropagation();
+            dismiss();
+          }}
+          className="pointer-events-auto absolute inset-0 h-full w-full focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-8 focus-visible:outline-current"
+        />
+      </ScreensaverScene>
+    </BaseCardDialog>
+  );
+}
+
+// Shared by the real screensaver and settings preview so layout and live details stay aligned.
+export function ScreensaverScene({
+  background,
+  color,
+  foreground,
+  children,
+}: {
+  background: string | null;
+  color?: string;
+  foreground?: string;
+  children?: ReactNode;
+}) {
+  const { t } = useI18n();
+  const { formattedTime, formattedDate } = useHeaderDateTime();
+  return (
+    <div
+      className="@container/screensaver pointer-events-none absolute inset-0 font-sans"
+      style={{ containerType: 'size' }}
+    >
+      {color ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{ backgroundColor: color }}
+        />
+      ) : null}
       {background ? (
         <div
           aria-hidden
@@ -73,37 +122,30 @@ export default function Screensaver() {
       {background ? (
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/60" />
       ) : null}
-      <button
-        type="button"
-        aria-label={t('screensaver.return')}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          dismiss();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Tab') return;
-          event.preventDefault();
-          event.stopPropagation();
-          dismiss();
-        }}
-        className="absolute inset-0 h-full w-full focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-8 focus-visible:outline-current"
-      />
+      {children}
       <div
-        className={`pointer-events-none relative flex h-full min-h-0 flex-col justify-center gap-10 overflow-y-auto p-[clamp(1.5rem,6vw,6rem)] sm:justify-between sm:py-[12vh] ${background ? 'text-white' : ''}`}
+        data-screensaver-scene
+        style={{ color: foreground }}
+        className={`pointer-events-none relative flex h-full min-h-0 flex-col justify-between gap-10 overflow-y-auto p-[clamp(1.5rem,6cqw,6rem)] @min-[640px]/screensaver:justify-between @min-[640px]/screensaver:py-[12cqh] ${background ? 'text-white' : ''}`}
       >
-        <div className="flex flex-col gap-10 landscape:flex-row landscape:items-end landscape:justify-between">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(3rem,8cqh,5rem)] text-center @min-[640px]/screensaver:flex-none @min-[640px]/screensaver:justify-start @min-[640px]/screensaver:gap-10">
           <div className="min-w-0">
-            <p className="mb-4 text-lg opacity-80">{formattedDate}</p>
-            <p className="text-[clamp(3rem,11vw,12rem)] font-light leading-none tracking-tight tabular-nums">
+            <p
+              className={`${navetTypographyTokens.label} mb-6 opacity-70 @min-[640px]/screensaver:mb-4`}
+            >
+              {formattedDate}
+            </p>
+            <p className="text-[clamp(4.5rem,18cqw,6rem)] font-normal leading-none tracking-tight tabular-nums @min-[640px]/screensaver:text-[clamp(3rem,11cqw,12rem)]">
               {formattedTime}
             </p>
           </div>
           <ScreensaverDetails />
         </div>
-        <p className="text-center text-sm opacity-75">{t('screensaver.returnHint')}</p>
+        <p className={`${navetTypographyTokens.caption} shrink-0 text-center opacity-50`}>
+          {t('screensaver.returnHint')}
+        </p>
       </div>
-    </BaseCardDialog>
+    </div>
   );
 }
 
@@ -157,20 +199,20 @@ function ScreensaverDetails() {
   const value = weather?.temperature;
   const sourceUnit = weather?.temperatureUnit ?? 'celsius';
   return (
-    <div className="min-w-0 space-y-6 landscape:max-w-[32%]">
+    <div className="min-w-0 max-w-full space-y-6">
       {weather ? (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center gap-3">
           <WeatherIcon
             condition={weatherAvailable ? condition : 'unknown'}
-            className="h-9 w-9 shrink-0"
+            className="h-7 w-7 shrink-0"
           />
           <div>
-            <p className="text-3xl font-medium tabular-nums">
+            <p className={`${navetTypographyTokens.pageHeading} tabular-nums`}>
               {weatherAvailable && typeof value === 'number' && Number.isFinite(value)
                 ? formatTemperatureFromSourceUnit(value, sourceUnit, temperatureUnit)
                 : '—'}
             </p>
-            <p className="text-sm opacity-80">
+            <p className={`${navetTypographyTokens.caption} opacity-70`}>
               {weatherAvailable ? formatWeatherConditionLabel(condition) : t('common.unavailable')}
             </p>
           </div>
@@ -179,7 +221,7 @@ function ScreensaverDetails() {
         <p>{t('sidebar.companion.unavailable', { name: t('sidebar.companion.weather') })}</p>
       ) : null}
       {alarm ? (
-        <div className="flex items-center gap-3 border-t border-current/25 pt-5">
+        <div className="flex items-center justify-center gap-3 border-t border-current/25 pt-5">
           <ShieldAlert className="h-6 w-6 shrink-0" />
           <div className="min-w-0">
             <p className="line-clamp-2 break-words text-xl font-medium">{alarm.name}</p>
@@ -204,7 +246,7 @@ function ScreensaverTimer({ entity }: { entity: NavetEntity }) {
       ? null
       : Math.ceil(state.remainingSeconds);
   return (
-    <div className="flex items-center gap-3 border-t border-current/25 pt-5">
+    <div className="flex items-center justify-center gap-3 border-t border-current/25 pt-5">
       <Timer className="h-6 w-6 shrink-0" />
       <div className="min-w-0">
         <p className="line-clamp-2 break-words text-xl font-medium">{entity.name}</p>

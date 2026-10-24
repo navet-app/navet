@@ -1,4 +1,5 @@
 import { resolveBuiltInWallpaperToken } from '@navet/app/constants/built-in-wallpapers';
+import { getSolidWallpaper } from '@navet/app/constants/solid-wallpapers';
 import { STORE_STORAGE_KEYS } from '@navet/app/constants/storage-keys';
 import {
   readLocalStorageWithMigration,
@@ -50,6 +51,7 @@ function normalizeWallpaperPath(wallpaper: string | null | undefined) {
     return null;
   }
 
+  if (getSolidWallpaper(trimmed)) return trimmed;
   const builtInWallpaperToken = resolveBuiltInWallpaperToken(trimmed);
   if (builtInWallpaperToken) {
     return builtInWallpaperToken;

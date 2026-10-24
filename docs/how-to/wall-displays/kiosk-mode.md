@@ -46,8 +46,8 @@ they do not replace normal card gestures.
 
 ## Show information while idle
 
-Enable **Settings → Display & controls → Screensaver** for an idle clock, weather, triggered-alarm
-alerts, and active timers. It is off by default and starts after five idle minutes. Tap or press a
+Enable **Settings → Appearance → Wallpaper → Screensaver** for an idle clock, weather, triggered-alarm
+alerts, and active timers. It is off by default. Choose its idle delay and background in the dialog. Tap or press a
 key to dismiss it. Keep-awake is a separate setting; enabling the screensaver does not prevent the
 device from sleeping. See [Screensaver mode](/guide/dashboards/customize-home/#screensaver-mode)
 for preview, source selection, and conditions that delay entry.

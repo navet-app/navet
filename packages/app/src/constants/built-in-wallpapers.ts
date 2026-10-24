@@ -1,5 +1,6 @@
 import generatedWallpaperManifest from '@assets/public/wallpapers/generated/manifest.json';
 import { getPublicAssetUrl } from '@navet/app/utils/public-assets';
+import { getSolidWallpaper } from './solid-wallpapers';
 
 export const BUILT_IN_WALLPAPER_IDS = [
   'aurora-haze-01',
@@ -248,6 +249,8 @@ export function resolveWallpaperBackgroundImage(value: string | null | undefined
     return null;
   }
 
+  const solid = getSolidWallpaper(trimmed);
+  if (solid) return `linear-gradient(${solid.color}, ${solid.color})`;
   const builtInToken = resolveBuiltInWallpaperToken(trimmed);
   if (!builtInToken) {
     return `url("${escapeCssUrl(trimmed)}")`;
@@ -269,6 +272,7 @@ export function resolveWallpaperPreviewSources(
     return null;
   }
 
+  if (getSolidWallpaper(trimmed)) return null;
   const builtInToken = resolveBuiltInWallpaperToken(trimmed);
   if (!builtInToken) {
     return {

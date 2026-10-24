@@ -15,6 +15,7 @@ function hasInteractionInProgress() {
 
 export function useScreensaver({ editing = false }: { editing?: boolean } = {}) {
   const enabled = useSettingsStore((state) => state.screensaverEnabled);
+  const idleMinutes = useSettingsStore((state) => state.screensaverIdleMinutes);
   const storeEditing = useEditModeStore((state) => state.isEditMode);
   const customAction = useNavigationStore((state) => state.activeCustomSidebarActionId);
   const active = useScreensaverStore((state) => state.active);
@@ -35,10 +36,13 @@ export function useScreensaver({ editing = false }: { editing?: boolean } = {}) 
     const schedule = () => {
       clear();
       if (document.visibilityState === 'hidden' || useScreensaverStore.getState().active) return;
-      timer = setTimeout(() => {
-        if (pointerHeld || hasInteractionInProgress()) schedule();
-        else start();
-      }, SCREENSAVER_IDLE_MS);
+      timer = setTimeout(
+        () => {
+          if (pointerHeld || hasInteractionInProgress()) schedule();
+          else start();
+        },
+        idleMinutes * 60 * 1000
+      );
     };
     const activity = (event: Event) => {
       // The modal consumes its own dismissal click. Never remove it on pointerdown:
@@ -76,7 +80,7 @@ export function useScreensaver({ editing = false }: { editing?: boolean } = {}) 
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('blur', stop);
     };
-  }, [enabled, blocked, active]);
+  }, [enabled, idleMinutes, blocked, active]);
 
   useEffect(() => () => useScreensaverStore.getState().stop(), []);
   return enabled && !blocked && active;

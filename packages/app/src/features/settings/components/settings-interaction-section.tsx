@@ -1,7 +1,6 @@
 import { InteractionPreviewCard } from '@navet/app/components/patterns/interaction-preview-card';
 import { Button } from '@navet/app/components/primitives/button';
 import { InteractivePill } from '@navet/app/components/primitives/interactive-pill';
-import { useScreensaverStore } from '@navet/app/features/dashboard/screensaver/screensaver-store';
 import { useI18n } from '@navet/app/hooks';
 import {
   activateKeepDeviceAwakeFallback,
@@ -39,7 +38,6 @@ export function SettingsInteractionSection({ controller }: SettingsInteractionSe
     headerCustomText,
     headerTitleMode,
     keepDeviceAwake,
-    screensaverEnabled,
     companionEnabled,
     kioskMode,
     kioskSwipeRooms,
@@ -233,33 +231,6 @@ export function SettingsInteractionSection({ controller }: SettingsInteractionSe
             />
           </SettingsItem>
         ) : null}
-
-        <SettingsItem
-          title={t('screensaver.title')}
-          description={t('settings.dashboard.screensaver.description')}
-          styles={styles}
-        >
-          <div className="space-y-3">
-            <OnOffPillToggle
-              value={screensaverEnabled}
-              onChange={(checked) =>
-                controller.updateScopedSettings({ screensaverEnabled: checked }, [
-                  'screensaverEnabled',
-                ])
-              }
-              ariaLabel={t('screensaver.title')}
-            />
-            {screensaverEnabled ? (
-              <Button
-                data-screensaver-preview
-                variant="secondary"
-                onClick={() => useScreensaverStore.getState().start()}
-              >
-                {t('screensaver.preview')}
-              </Button>
-            ) : null}
-          </div>
-        </SettingsItem>
 
         <SettingsItem
           title={t('settings.dashboard.keepAwake.title')}

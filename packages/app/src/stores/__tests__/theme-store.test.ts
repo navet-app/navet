@@ -22,6 +22,20 @@ describe('useThemeStore', () => {
     expect(useThemeStore.getState().wallpaper).toBe('/wallpapers/sunrise.jpg');
   });
 
+  it('retains a solid wallpaper across persistence and imported themes', async () => {
+    useThemeStore.getState().setWallpaper('solid:mint');
+    expect(useThemeStore.getState().wallpaper).toBe('solid:mint');
+    await useThemeStore.persist.rehydrate();
+    expect(useThemeStore.getState().wallpaper).toBe('solid:mint');
+    useThemeStore.getState().applyImportedTheme({
+      theme: 'dark',
+      primaryColor: 'orange',
+      customPrimaryColor: null,
+      wallpaper: 'solid:sky',
+    });
+    expect(useThemeStore.getState().wallpaper).toBe('solid:sky');
+  });
+
   it('normalizes same-origin wallpaper URLs when set directly', () => {
     useThemeStore.getState().setWallpaper(`${window.location.origin}/wallpapers/aurora.jpg`);
 

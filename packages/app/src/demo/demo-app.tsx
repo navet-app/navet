@@ -964,6 +964,8 @@ function useDemoDisplayDefaults() {
     useSettingsStore.getState().updateSettings({
       ...defaultSettings,
       screensaverEnabled: useSettingsStore.getState().screensaverEnabled,
+      screensaverIdleMinutes: useSettingsStore.getState().screensaverIdleMinutes,
+      screensaverBackground: useSettingsStore.getState().screensaverBackground,
       companionEnabled: useSettingsStore.getState().companionEnabled,
       companionCollapsed: useSettingsStore.getState().companionCollapsed,
       username: 'Navet',

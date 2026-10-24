@@ -162,9 +162,10 @@ const SETTINGS: SearchSettingDefinition[] = [
     descriptionKey: 'settings.dashboard.chores.description',
   },
   {
-    id: 'interaction-screensaver',
-    sectionId: 'interaction',
+    id: 'appearance-screensaver',
+    sectionId: 'appearance',
     labelKey: 'screensaver.title',
+    targetLabelKey: 'settings.appearance.wallpaper.title',
     descriptionKey: 'settings.dashboard.screensaver.description',
   },
   {

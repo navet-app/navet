@@ -1,0 +1,3 @@
+type: new
+summary: Customize screensaver timing and backgrounds in Appearance with built-in wallpapers, solid colors, or your dashboard wallpaper.
+audiences: [standalone, home-assistant, hacs, docs]

@@ -80,7 +80,7 @@ limits. It uses provider history services; numeric energy statistics remain owne
 
 Settings owns `standard`/`wall_display` presets: scoped changes to spacing, header title,
 keep-awake, kiosk and Home summary. It also owns device preferences for side-panel visibility,
-collapse state and screensaver enablement.
+collapse state and screensaver enablement, idle delay and background selection.
 Dashboard's `companion/` owns panel composition and room overrides; `screensaver/` owns the idle
 gate and overlay. Panel content belongs to each saved dashboard; see
 [profile ownership](../architecture/dashboard-profile-ownership.md#shared-profile).
