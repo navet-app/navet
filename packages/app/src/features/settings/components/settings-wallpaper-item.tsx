@@ -1,4 +1,4 @@
-import { Button } from '@navet/app/components/primitives/button';
+import { InteractivePill } from '@navet/app/components/primitives/interactive-pill';
 import {
   isBuiltInWallpaperToken,
   resolveBuiltInWallpaperDescriptor,
@@ -47,12 +47,12 @@ export function AppearanceWallpaperItem({ controller }: { controller: SettingsSe
       <div className="space-y-3">
         <AppearanceWallpaperPreview wallpaper={wallpaper} styles={styles} />
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={(event) => open('wallpaper', event)}>
+          <InteractivePill size="small" onClick={(event) => open('wallpaper', event)}>
             {t('wallpaper.change')}
-          </Button>
-          <Button variant="secondary" onClick={(event) => open('screensaver', event)}>
+          </InteractivePill>
+          <InteractivePill size="small" onClick={(event) => open('screensaver', event)}>
             {t('screensaver.title')}
-          </Button>
+          </InteractivePill>
         </div>
         <p className={`text-sm ${styles.subtleColor}`} aria-live="polite">
           {t('screensaver.title')} · {status}
