@@ -45,7 +45,9 @@ export function AppearanceWallpaperItem({ controller }: { controller: SettingsSe
       styles={styles}
     >
       <div className="space-y-3">
-        <AppearanceWallpaperPreview wallpaper={wallpaper} styles={styles} />
+        <div className="max-w-xs">
+          <AppearanceWallpaperPreview wallpaper={wallpaper} styles={styles} />
+        </div>
         <div className="flex flex-wrap gap-2">
           <InteractivePill size="small" onClick={(event) => open('wallpaper', event)}>
             {t('wallpaper.change')}
