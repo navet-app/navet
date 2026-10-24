@@ -1,3 +1,4 @@
+import { CardDialogHeader } from '@navet/app/components/patterns/card-dialog';
 import { Button } from '@navet/app/components/primitives/button';
 import { BaseCardDialog } from '@navet/app/components/primitives/Cards/BaseCardDialog';
 import {
@@ -22,7 +23,6 @@ import {
 import { useScreensaverStore } from '@navet/app/features/dashboard/screensaver/screensaver-store';
 import { ScreensaverThumbnail } from '@navet/app/features/dashboard/screensaver/screensaver-thumbnail';
 import { useI18n } from '@navet/app/hooks';
-import { Title as DialogTitle } from '@radix-ui/react-dialog';
 import { Check, Upload, X } from 'lucide-react';
 import { type MouseEvent, type RefObject, useId, useRef, useState } from 'react';
 import type { SettingsSectionController } from '../hooks/use-settings-section-controller';
@@ -113,9 +113,13 @@ export function AppearanceBackgroundDialog({
       }}
     >
       <header className={`${coverSheetHeaderClassName} shrink-0 ${styles.textColor}`}>
-        <DialogTitle className="text-lg font-semibold">
-          {t(screensaver ? 'screensaver.title' : 'settings.appearance.wallpaper.title')}
-        </DialogTitle>
+        <CardDialogHeader
+          title={t(screensaver ? 'screensaver.title' : 'settings.appearance.wallpaper.title')}
+          theme={theme}
+          editableTitle={false}
+          showRoomSelector={false}
+          className="mb-0"
+        />
       </header>
       <CustomScrollbar isOn={theme !== 'light'} className="min-h-0 flex-1">
         <div className={`space-y-4 px-5 pb-5 ${styles.textColor}`}>
