@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.1
+
+## New features
+
+- Customize screensaver timing and backgrounds in Appearance with built-in wallpapers, solid colors, or your dashboard wallpaper.
+
 ## 0.19.0
 
 ## New features
