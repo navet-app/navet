@@ -31,7 +31,7 @@ Use **Done editing** to return to normal room browsing.
 - Mark a room as a favorite to keep it prominent.
 - Turn off **Show in room navigation** to keep the room available without listing it.
 
-![Rooms grouped into Upstairs and Downstairs with a favorite room identified.](/docs/how-to/rooms/organized-room-navigation.webp)
+![The Rooms workspace with grouped rooms and the selected room's devices.](/docs/how-to/rooms/organized-room-navigation.webp)
 
 ## Review and save
 

@@ -32,7 +32,7 @@ The first two routes continue through language, formats, and appearance. Import 
 Navet YAML configuration directly. See
 [Complete the startup wizard](/guide/quick-start/first-15-minutes/#complete-the-startup-wizard).
 
-![The confirmation for restoring entities or restarting onboarding.](/docs/how-to/dashboards/entity-visibility-confirmation.webp)
+![The confirmation shown before restarting onboarding.](/docs/how-to/dashboards/entity-visibility-confirmation.webp)
 
 Restarting alone reopens setup; it does not reset provider credentials or clear your layout.
 Finishing the **blank** route clears the Home layout and custom cards and hides the loaded entities.

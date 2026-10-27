@@ -7,8 +7,6 @@ editUrl: https://github.com/navet-app/navet/edit/main/docs/how-to/dashboards/lay
 Layout packs provide a starting arrangement. They remain ordinary editable Home layouts after
 being applied.
 
-![The Home personalization choices including curated packs and a custom layout.](/docs/how-to/dashboards/layout-pack-chooser.webp)
-
 ## Before applying a pack
 
 Export a backup if the current layout matters. A pack can replace or substantially rearrange the
@@ -18,13 +16,12 @@ active Home dashboard.
 
 1. Open the target Home dashboard.
 2. Choose **Customize**.
-3. Open the Home layout or personalization choices.
-4. Preview a pack such as **Command center**, **Security monitor**, or **Energy wall**.
-5. Apply the pack.
+3. Open **Presets** in the editing bar, or under **More actions** on a smaller screen.
+4. Choose **Command center**, **Security monitor**, or **Energy wall**.
+5. Read the confirmation, then choose **Apply preset** to rearrange the active Home dashboard.
 
-Choose **Custom** when you want to create sections and columns without a curated starting layout.
-
-![A pack preview beside the applied Home result.](/docs/how-to/dashboards/layout-pack-result.webp)
+To arrange cards yourself, use the editing bar's layout and section controls instead of applying
+a preset.
 
 ## Refine the result
 

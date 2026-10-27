@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 import { chromium } from 'playwright';
@@ -20,6 +20,36 @@ const WALKTHROUGH_OUTPUT_DIR = resolve(
   assetPaths.marketingRoot,
   'campaigns/live-product-tutorials/recordings/final'
 );
+
+// Public guides share the exact capture, rather than a separately maintained copy.
+const DOCS_SCREENSHOTS = {
+  'navet-ipad-landscape-home': ['quick-start/first-15-minutes-overview'],
+  'navet-mobile-pwa-home': ['quick-start/mobile-home', 'quick-start/pwa-installed'],
+  'navet-ipad-landscape-energy-day': ['everyday-control/energy-dashboard'],
+  'navet-ipad-landscape-climate': ['everyday-control/climate-dashboard'],
+  'navet-ipad-landscape-lights': ['everyday-control/lights-dashboard'],
+  'navet-ipad-landscape-security': ['everyday-control/security-dashboard'],
+  'navet-ipad-pro-landscape-media': ['everyday-control/media-dashboard'],
+  'navet-ipad-landscape-household': ['everyday-control/household-today'],
+  'navet-ipad-landscape-routines': ['everyday-control/tasks-dashboard'],
+  'navet-ipad-landscape-appearance': ['settings/theme-accent'],
+  'navet-ipad-landscape-provider-management': ['settings/provider-management'],
+  'navet-ipad-landscape-authorized-devices': ['dashboards/authorized-devices'],
+  'navet-ipad-landscape-device-approval': ['dashboards/device-approval'],
+  'navet-iphone-add-card-library': ['dashboards/add-card-library'],
+  'navet-iphone-add-card-custom': [
+    'dashboards/add-card-custom',
+    'everyday-control/content-widget-chooser',
+    'everyday-control/utility-widget-chooser',
+  ],
+  'navet-iphone-add-card-search': ['dashboards/add-card-search'],
+  'navet-ipad-landscape-home-edit': [
+    'dashboards/customize-home-edit-mode',
+    'dashboards/customize-home-layout-edit-mode',
+  ],
+  'navet-ipad-landscape-chore-library': ['everyday-control/household-chore-library'],
+  'navet-ipad-landscape-add-chore': ['everyday-control/household-add-chore'],
+};
 
 const SCREENSHOT_SCENARIOS = [
   {
@@ -216,7 +246,7 @@ const SCREENSHOT_SCENARIOS = [
     viewport: { width: 1366, height: 1024 },
     prepare: async (page) => {
       await page.getByRole('button', { name: 'Customize', exact: true }).click();
-      await page.getByRole('button', { name: 'Done', exact: true }).waitFor();
+      await page.getByRole('button', { name: 'Done', exact: true }).first().waitFor();
       await page.evaluate(() => window.scrollTo(0, 100));
     },
   },
@@ -273,14 +303,15 @@ function getScreenshotScenarios() {
     return SCREENSHOT_SCENARIOS;
   }
 
-  const scenario = SCREENSHOT_SCENARIOS.find(({ name }) => name === requestedScenario);
-  if (!scenario) {
+  const names = requestedScenario.split(',');
+  const scenarios = names.map((name) => SCREENSHOT_SCENARIOS.find((scenario) => scenario.name === name));
+  if (scenarios.some((scenario) => !scenario)) {
     throw new Error(
       `Unsupported screenshot scenario "${requestedScenario}". Use one of: ${SCREENSHOT_SCENARIOS.map(({ name }) => name).join(', ')}.`
     );
   }
 
-  return [scenario];
+  return scenarios;
 }
 
 function getBaseUrl() {
@@ -446,6 +477,11 @@ async function captureScreenshots(browser, baseUrl) {
     });
     await context.close();
     await writeScreenshotVariants(pngPath, outputBasePath);
+    for (const name of DOCS_SCREENSHOTS[scenario.name] ?? []) {
+      const destination = resolve(assetPaths.public, 'docs/how-to', `${name}.webp`);
+      await mkdir(resolve(destination, '..'), { recursive: true });
+      await copyFile(`${outputBasePath}.webp`, destination);
+    }
     process.stdout.write(
       `Captured ${scenario.name} (${scenario.viewport.width}x${scenario.viewport.height}).\n`
     );

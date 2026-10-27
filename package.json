@@ -34,6 +34,7 @@
     "docs:dev": "pnpm --filter @navet/docs dev",
     "docs:build": "pnpm --filter @navet/docs build",
     "docs:preview": "pnpm --filter @navet/docs preview",
+    "docs:capture": "node scripts/capture-docs-media.mjs",
     "marketing:capture": "node scripts/capture-marketing-media.mjs",
     "marketing:capture:screenshots": "node scripts/capture-marketing-media.mjs --mode=screenshots",
     "marketing:capture:videos": "node scripts/capture-marketing-media.mjs --mode=videos",

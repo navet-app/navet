@@ -30,7 +30,7 @@
   </p>
 </div>
 
-![Navet dashboard running on an iPad](https://raw.githubusercontent.com/navet-app/navet/main/assets/reference/marketing/use-cases/navet-ipad-frame-dashboard.jpg)
+![Navet Home dashboard in a tablet landscape layout](https://raw.githubusercontent.com/navet-app/navet/main/assets/reference/marketing/screenshots/navet-ipad-landscape-home.jpg)
 
 ## Everyday control without admin-screen clutter
 

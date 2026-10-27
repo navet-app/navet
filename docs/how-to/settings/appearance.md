@@ -1,11 +1,11 @@
 ---
 title: Change themes, accents, and wallpapers
-description: Personalize Navet while keeping cards readable across household screens.
+description: Choose a theme, accent, wallpaper, or solid background for Navet.
 editUrl: https://github.com/navet-app/navet/edit/main/docs/how-to/settings/appearance.md
 ---
 
 Navet supports Liquid Glass, dark, light, and black theme families, built-in accent choices, a
-custom accent, and built-in or uploaded wallpapers.
+custom accent, built-in or uploaded wallpapers, and solid backgrounds.
 
 ![Appearance settings with the theme and accent controls.](/docs/how-to/settings/theme-accent.webp)
 
@@ -25,15 +25,25 @@ does not replace semantic colors for warnings, security, or device state.
 
 ## Choose a wallpaper
 
-1. Select a built-in wallpaper, or choose **Upload wallpaper**. If a wallpaper is already set,
-   use **Replace wallpaper** to choose a different file.
-2. For an upload, use a PNG or JPG up to the size shown in Settings.
-3. The selection applies immediately; review it in the preview and on your dashboard.
+1. Open **Settings → Appearance → Wallpaper → Change wallpaper**.
+2. Choose **Wallpaper** for built-in images or **Solid color** for a plain background.
+3. Select an image or color. The selection applies immediately and appears in the preview.
+4. To use your own image, choose **Wallpaper → Upload wallpaper** and select an image up to
+   5 MB. Use the same action to replace an uploaded image.
 
 Choose **Remove wallpaper** to return to the theme background.
 
+![The Wallpaper dialog with a landscape preview, background choices, and upload controls.](/docs/how-to/settings/wallpaper-dialog.webp)
+
 During first-run onboarding, only the built-in wallpaper choices are available. Upload,
-replacement, removal, and **Auto** appearance are available here in Settings after setup.
+removal, solid colors, and **Auto** appearance are available here in Settings after setup.
+
+## Choose an idle background
+
+Choose **Screensaver** beside **Change wallpaper** to enable an idle display and choose its delay
+and background. Its **Automatic** option follows the dashboard wallpaper; a separate wallpaper or
+solid color applies only to the screensaver. See
+[Screensaver mode](/guide/dashboards/customize-home/#screensaver-mode) for preview and dismissal.
 
 ## Light card ambience
 

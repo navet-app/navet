@@ -13,7 +13,7 @@ Energy, Climate, Security, Lights, Media, Household, or Settings sections.
 
 1. Open the dashboard switcher from Home or the room navigation.
 2. Choose the dashboard you want to preview.
-3. Choose **Use on this device** if it should become the default for the current browser.
+3. Choose **Use on this display** if it should become the default for the current browser.
 
 Opening a dashboard temporarily and assigning it to a device are different actions.
 

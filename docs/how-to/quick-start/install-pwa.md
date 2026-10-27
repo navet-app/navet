@@ -29,7 +29,7 @@ browser controls. It continues to use your self-hosted Navet installation.
 3. Choose **Install app** or **Add to Home screen**.
 4. Confirm the installation.
 
-![Navet opened from a phone's Home Screen without browser controls.](/docs/how-to/quick-start/pwa-installed.webp)
+![Navet Home in a phone layout.](/docs/how-to/quick-start/pwa-installed.webp)
 
 ## Apply an update
 
