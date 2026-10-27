@@ -7,7 +7,7 @@ editUrl: https://github.com/navet-app/navet/edit/main/docs/how-to/dashboards/cus
 Home edit mode changes the active dashboard layout. It does not reconfigure the underlying device
 unless a separate dialog explicitly describes a provider change.
 
-![Home in edit mode with card controls, layout choices, undo, redo, Add Card, and Done visible.](/docs/how-to/dashboards/customize-home-layout-edit-mode.webp)
+![Home in edit mode with card controls, Undo, Redo, Add Card, and Done.](/docs/how-to/dashboards/customize-home-layout-edit-mode.webp)
 
 ## Watch the dashboard tutorial
 
@@ -93,6 +93,8 @@ inactivity; the default is 5 minutes. **Automatic** follows your dashboard wallp
 bundled wallpaper as the fallback. Choose **Wallpaper** or **Solid color** to use a separate
 screensaver background. The chooser includes all built-in wallpapers and 24 solid colors.
 
+![Screensaver settings with On selected, a preview, the idle delay, and background choices.](/docs/how-to/wall-displays/screensaver-settings.webp)
+
 The dialog shows a landscape preview. Choose **Preview screensaver** to open the screensaver on
 your display. Tap anywhere or press a key to return; dismissal does not activate a control
 underneath. Your dashboard stays open behind it. Turning the screensaver off keeps its delay and
@@ -109,6 +111,8 @@ Automatic entry waits while you are editing, using a form, viewing a dialog or m
 an embedded custom page. Hidden tabs pause the idle timer and start a fresh interval using your selected delay when
 you return. The mode uses the browser’s existing display area; **Keep device awake** remains a
 separate setting for preventing the display from sleeping.
+
+![The screensaver preview with a clock, date, weather, and household status.](/docs/how-to/wall-displays/screensaver-preview.webp)
 
 ## Arrange cards
 

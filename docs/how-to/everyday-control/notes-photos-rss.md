@@ -7,7 +7,7 @@ editUrl: https://github.com/navet-app/navet/edit/main/docs/how-to/everyday-contr
 Notes, photo frames, and RSS feeds are Navet widgets. They are saved with the dashboard profile and
 included in configuration export.
 
-![The widget chooser with Note, Photo, and RSS selected.](/docs/how-to/everyday-control/content-widget-chooser.webp)
+![The Custom cards library with note, photo, and feed widgets.](/docs/how-to/everyday-control/content-widget-chooser.webp)
 
 ## Add a note
 
@@ -40,8 +40,6 @@ article count. **Edit room** and **Customize** are available in the same menu. S
 Live feeds require a public HTTPS address and a signed-in Navet session. The Home Assistant add-on
 uses your authenticated Ingress session. If feed loading stops after signing out, reconnect your
 provider or reopen Navet through Home Assistant.
-
-![A note, photo frame, and RSS card together on Home.](/docs/how-to/everyday-control/content-widgets-result.webp)
 
 ## If an external source fails
 

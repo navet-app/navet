@@ -30,8 +30,6 @@ the connected provider.
 - **Energy now** shows a live energy snapshot.
 - **Info** can present a compact grouped summary.
 
-![Action, map, and battery summary widgets on a dashboard.](/docs/how-to/everyday-control/utility-widgets-result.webp)
-
 ## Keep actions safe
 
 Use clear labels and avoid creating ambiguous shortcuts for locks, alarms, or other risky commands.

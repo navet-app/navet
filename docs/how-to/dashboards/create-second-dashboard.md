@@ -25,10 +25,11 @@ Enter a short household name such as **Upstairs**, **Kitchen**, or **Wall panel*
 - **Copy current** to duplicate the active dashboard before editing it.
 - **Blank** to start without cards.
 
-![The current Create dashboard phone cover sheet on Start with, showing room groups, content choices, Back, Next, and Cancel.](/docs/how-to/dashboards/create-dashboard-dialog.webp)
+![Step 2 of Create dashboard on a phone, with starting content, room choices, Back, Next, and Cancel.](/docs/how-to/dashboards/create-dashboard-dialog.webp)
 
-On phones, the flow opens as a full-height cover sheet. **Name**, **Start with**, and **Use on**
-remain visible as progress steps while Back and Next stay anchored at the bottom.
+On phones, the flow opens as a cover sheet with a step count and a heading for the current task.
+Choose a name, choose what to include, then decide where it opens. **Back**, **Next**, and **Cancel**
+stay at the bottom.
 
 When choosing rooms, select the content you want:
 
@@ -49,8 +50,6 @@ Choose **Create dashboard**.
 
 Navet opens the new dashboard and enters edit mode so you can finish the layout. The original
 dashboard remains available in the switcher.
-
-![Upstairs lights open in edit mode, with Home and Upstairs lights visible in the Room Nav dashboard switcher.](/docs/how-to/dashboards/second-dashboard-result.webp)
 
 ## If you do not see New dashboard
 

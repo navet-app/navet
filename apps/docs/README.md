@@ -55,6 +55,12 @@ The docs workspace requires Node.js 22.12 or newer, matching the supported Astro
 
 Astro telemetry is disabled in all three commands.
 
+Screenshots use public-safe demo and Storybook fixtures. `pnpm marketing:capture:screenshots`
+refreshes canonical dashboard views and their docs copies; `pnpm docs:capture` refreshes focused
+task and dialog images from running local servers. See the
+[capture guide](../../assets/reference/marketing/README.md#public-docs-reuse) for ports and scenario
+selection. Rendered comparisons remain a manual maintainer review.
+
 ## Cloudflare Pages
 
 Create a separate Pages project for the documentation site with:

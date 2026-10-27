@@ -7,7 +7,7 @@ editUrl: https://github.com/navet-app/navet/edit/main/docs/how-to/troubleshootin
 When live playback fails, Navet shows a snapshot or an error. Start by checking the camera in
 your smart-home provider, then review its playback settings in Navet.
 
-![A camera card showing an unavailable live stream while retaining its snapshot.](/docs/how-to/troubleshooting/camera-error.webp)
+![A camera card using a snapshot when live streaming is unavailable.](/docs/how-to/troubleshooting/camera-error.webp)
 
 ## Check the basics
 

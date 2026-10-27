@@ -12,7 +12,7 @@ touch-friendly sheets on smaller screens.
 ## Move between sections
 
 1. Use the **Home** control to return to the Home overview.
-2. Open the section menu to choose **Energy**, **Climate**, **Security**, **Lights**, **Media**,
+2. Choose **More** to open the section menu, then choose **Energy**, **Climate**, **Security**, **Lights**, **Media**,
    **Household**, or **Settings**.
 3. Recently used sections remain easy to reach.
 
@@ -21,7 +21,7 @@ touch-friendly sheets on smaller screens.
 Open the room selector in the header, then choose a room or **All rooms**. Room groups can be
 expanded when your home has a deeper structure.
 
-![The mobile section menu and room selector open side by side.](/docs/how-to/quick-start/mobile-navigation-sheets.webp)
+![The phone section menu opened with More.](/docs/how-to/quick-start/mobile-navigation-sheets.webp)
 
 ## Search
 
