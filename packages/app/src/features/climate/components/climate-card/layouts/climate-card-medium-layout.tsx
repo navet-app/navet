@@ -59,7 +59,7 @@ export const ClimateCardMediumLayout = memo(function ClimateCardMediumLayout({
                   targetTemp={controller.controlDisplayTargetTemp}
                   onTempChange={controller.setDisplayTargetTemp}
                   onTempCommit={controller.commitDisplayTargetTemp}
-                  isOn={controller.isOn}
+                  isOn={controller.isOn && controller.canSetTemperature}
                   size="medium"
                   minTemp={controller.controlDisplayMinTemp}
                   maxTemp={controller.controlDisplayMaxTemp}
@@ -68,6 +68,7 @@ export const ClimateCardMediumLayout = memo(function ClimateCardMediumLayout({
                 <ClimateModeControls
                   mode={controller.mode}
                   isOn={controller.isOn}
+                  disabled={!controller.available}
                   onModeChange={controller.setMode}
                   supportedClimateModes={controller.supportedClimateModes}
                   size="medium"

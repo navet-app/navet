@@ -12,7 +12,7 @@ import type { DeviceWithType } from '@navet/app/types/device.types';
 import { getDeviceRoomLabel } from '@navet/app/utils/device-location';
 import { groupByRoomName } from '@navet/app/utils/room-name';
 import type { TemperatureUnit } from '@navet/app/utils/temperature';
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo } from 'react';
 import type { ClimateDashboardSection } from '../types/climate-dashboard';
 import { buildClimateDashboardOverview } from '../utils/climate-dashboard-overview';
 import { ClimateComfortBanner } from './climate-comfort-banner';
@@ -52,18 +52,7 @@ function getGroupPriority(
   return hasAttention ? 'attention' : null;
 }
 
-function sortIdsByAttention(
-  orderedIds: string[],
-  attentionByDeviceId: ReadonlyMap<string, Exclude<ClimateGroupPriority, null>>
-) {
-  const rank = (id: string) => {
-    const priority = attentionByDeviceId.get(id);
-    if (priority === 'critical') return 0;
-    if (priority === 'attention') return 1;
-    return 2;
-  };
-  return [...orderedIds].sort((left, right) => rank(left) - rank(right));
-}
+const DEFAULT_NAVIGATION = { mode: 'type' as ClimateGroupingMode, type: '', room: '' };
 
 export const ClimateDashboard = memo(function ClimateDashboard({
   deviceMap,
@@ -103,11 +92,11 @@ export const ClimateDashboard = memo(function ClimateDashboard({
       ),
     [deviceMap, t, temperatureUnit, resolvedWeatherSourceId]
   );
-  const [groupingMode, setGroupingMode] = useState<ClimateGroupingMode>('type');
-  const [selectedGroupIds, setSelectedGroupIds] = useState<Record<ClimateGroupingMode, string>>({
-    type: '',
-    room: '',
-  });
+  const [navigation, setNavigation] = usePersistedState(
+    STORAGE_KEYS.climateNavigation,
+    DEFAULT_NAVIGATION
+  );
+  const groupingMode: ClimateGroupingMode = navigation?.mode === 'room' ? 'room' : 'type';
   const attentionByDeviceId = useMemo(
     () => new Map(overview.attentionItems.map((item) => [item.deviceId, item.priority] as const)),
     [overview.attentionItems]
@@ -121,13 +110,12 @@ export const ClimateDashboard = memo(function ClimateDashboard({
         return true;
       });
       if (orderedIds.length === 0) return [];
-      const sortedIds = sortIdsByAttention(orderedIds, attentionByDeviceId);
       return [
         {
           id: `type-${section.key}`,
           label: t(section.titleKey),
-          orderedIds: sortedIds,
-          priority: getGroupPriority(sortedIds, attentionByDeviceId),
+          orderedIds,
+          priority: getGroupPriority(orderedIds, attentionByDeviceId),
         },
       ];
     });
@@ -143,17 +131,16 @@ export const ClimateDashboard = memo(function ClimateDashboard({
       .sort((left, right) => left.room.localeCompare(right.room))
       .map(({ room, items }) => {
         const orderedIds = items.map((device) => device.id);
-        const sortedIds = sortIdsByAttention(orderedIds, attentionByDeviceId);
         return {
           id: `room-${encodeURIComponent(room)}`,
           label: room,
-          orderedIds: sortedIds,
-          priority: getGroupPriority(sortedIds, attentionByDeviceId),
+          orderedIds,
+          priority: getGroupPriority(orderedIds, attentionByDeviceId),
         };
       });
   }, [attentionByDeviceId, deviceMap, sections]);
   const groups = groupingMode === 'type' ? typeGroups : roomGroups;
-  const requestedGroupId = selectedGroupIds[groupingMode];
+  const requestedGroupId = navigation?.[groupingMode] ?? '';
   const selectedGroup = groups.find((group) => group.id === requestedGroupId) ?? groups[0] ?? null;
   const cardDeviceMap = useMemo(() => {
     if (!['type-temperature', 'type-humidity', 'type-pressure'].includes(selectedGroup?.id ?? '')) {
@@ -169,10 +156,10 @@ export const ClimateDashboard = memo(function ClimateDashboard({
     );
   }, [deviceMap, selectedGroup?.id]);
   const handleGroupingModeChange = (mode: ClimateGroupingMode) => {
-    setGroupingMode(mode);
+    setNavigation((current) => ({ ...DEFAULT_NAVIGATION, ...current, mode }));
   };
   const handleGroupChange = (groupId: string) => {
-    setSelectedGroupIds((current) => ({ ...current, [groupingMode]: groupId }));
+    setNavigation((current) => ({ ...DEFAULT_NAVIGATION, ...current, [groupingMode]: groupId }));
   };
   const renderGrid = (orderedIds: string[]) => (
     <DeviceGrid
@@ -203,6 +190,7 @@ export const ClimateDashboard = memo(function ClimateDashboard({
       {selectedGroup ? (
         <div className="space-y-4">
           <DashboardGroupingNavigation
+            keyboardNavigation
             ariaLabel={t('homeSummary.climate')}
             groupingLabel={t('dashboard.roomNav.grouping.label')}
             idPrefix="climate-group"

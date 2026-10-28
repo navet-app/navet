@@ -65,11 +65,16 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
   onOpenChange,
   onCloseAutoFocus,
   name,
+  commandFeedback,
+  writable = true,
+  canSetTemperature = true,
   isOn,
   mode,
   action,
   targetTemp,
   currentTemp,
+  targetRange,
+  onRangeCommit,
   sourceTemperatureUnit,
   minTemp = 16,
   maxTemp = 30,
@@ -87,6 +92,7 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
   const entityType = getEntityTypeLabel(entityId);
   const visualMode = useClimateVisualMode({
     action,
+    preferExplicitAction: true,
     currentTemp,
     isOn,
     mode,
@@ -181,11 +187,9 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
     sourceTemperatureUnit,
     temperatureUnit
   );
-  const currentReading = formatTemperatureFromSourceUnit(
-    currentTemp,
-    sourceTemperatureUnit,
-    temperatureUnit
-  );
+  const currentReading = !Number.isFinite(currentTemp)
+    ? '—'
+    : formatTemperatureFromSourceUnit(currentTemp, sourceTemperatureUnit, temperatureUnit);
   const activity = action?.toLowerCase() || visualMode;
   const activityLabel = t(
     !isOn || activity === 'off'
@@ -198,32 +202,104 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
             ? 'climate.activity.drying'
             : activity.includes('fan')
               ? 'climate.mode.fan'
-              : 'climate.idle'
+              : activity === 'unknown'
+                ? 'widgets.generic.unknown'
+                : 'climate.idle'
   );
   const climateTabContent = (
     <div className="space-y-4">
-      <DeviceTargetControl
-        label={t('climate.target')}
-        value={targetReading}
-        currentReading={t('climate.currentTemperature', { temp: currentReading })}
-        status={activityLabel}
-        readableTokens={dialogTextTokens}
-        renderControls={(value) => (
-          <ClimateTempControls
-            targetTemp={controlDisplayTargetTemp}
-            onTempChange={handleDisplayTargetTempChange}
-            onTempCommit={handleDisplayTargetTempCommit}
-            isOn={isOn}
-            size="medium"
-            controlSize="sm"
-            minTemp={controlDisplayMinTemp}
-            maxTemp={controlDisplayMaxTemp}
-            step={controlDisplayStep}
-          >
-            {value}
-          </ClimateTempControls>
-        )}
-      />
+      {commandFeedback}
+      {targetRange && onRangeCommit ? (
+        (['low', 'high'] as const).map((endpoint) => {
+          const current = targetRange[endpoint];
+          const display = convertTemperatureUnitValue(
+            current,
+            effectiveSourceTemperatureUnit,
+            temperatureUnit
+          );
+          return (
+            <fieldset
+              key={endpoint}
+              aria-label={t(endpoint === 'low' ? 'climate.rangeLow' : 'climate.rangeHigh')}
+              className="min-w-0"
+            >
+              <DeviceTargetControl
+                label={t(endpoint === 'low' ? 'climate.rangeLow' : 'climate.rangeHigh')}
+                value={formatTemperatureFromSourceUnit(
+                  current,
+                  sourceTemperatureUnit,
+                  temperatureUnit
+                )}
+                currentReading={
+                  endpoint === 'low'
+                    ? t('climate.currentTemperature', { temp: currentReading })
+                    : undefined
+                }
+                status={endpoint === 'low' ? activityLabel : undefined}
+                readableTokens={dialogTextTokens}
+                renderControls={(value) => (
+                  <ClimateTempControls
+                    targetTemp={display}
+                    onTempChange={(next) =>
+                      onRangeCommit(endpoint, toSnappedSourceTemperature(next))
+                    }
+                    onTempCommit={(next) =>
+                      onRangeCommit(endpoint, toSnappedSourceTemperature(next))
+                    }
+                    isOn={isOn && canSetTemperature}
+                    size="medium"
+                    controlSize="sm"
+                    minTemp={
+                      endpoint === 'high'
+                        ? convertTemperatureUnitValue(
+                            targetRange.low,
+                            effectiveSourceTemperatureUnit,
+                            temperatureUnit
+                          )
+                        : controlDisplayMinTemp
+                    }
+                    maxTemp={
+                      endpoint === 'low'
+                        ? convertTemperatureUnitValue(
+                            targetRange.high,
+                            effectiveSourceTemperatureUnit,
+                            temperatureUnit
+                          )
+                        : controlDisplayMaxTemp
+                    }
+                    step={controlDisplayStep}
+                  >
+                    {value}
+                  </ClimateTempControls>
+                )}
+              />
+            </fieldset>
+          );
+        })
+      ) : (
+        <DeviceTargetControl
+          label={t('climate.target')}
+          value={targetReading}
+          currentReading={t('climate.currentTemperature', { temp: currentReading })}
+          status={activityLabel}
+          readableTokens={dialogTextTokens}
+          renderControls={(value) => (
+            <ClimateTempControls
+              targetTemp={controlDisplayTargetTemp}
+              onTempChange={handleDisplayTargetTempChange}
+              onTempCommit={handleDisplayTargetTempCommit}
+              isOn={isOn && canSetTemperature}
+              size="medium"
+              controlSize="sm"
+              minTemp={controlDisplayMinTemp}
+              maxTemp={controlDisplayMaxTemp}
+              step={controlDisplayStep}
+            >
+              {value}
+            </ClimateTempControls>
+          )}
+        />
+      )}
 
       {modeOptions.length > 1 ? (
         <DeviceControlOptions
@@ -243,12 +319,13 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
               icon: <Icon className="h-4 w-4" />,
             };
           })}
+          disabled={!writable}
           onValueChange={onModeChange}
         />
       ) : null}
 
       <div>
-        {temperaturePresets.length > 0 ? (
+        {!targetRange && temperaturePresets.length > 0 ? (
           <DeviceControlRow
             kind="disclosure"
             theme="dark"

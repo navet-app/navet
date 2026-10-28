@@ -11,6 +11,9 @@ import type { ReactNode } from 'react';
 
 export function FanSettingsDialog(props: {
   entityId: string;
+  commandFeedback?: ReactNode;
+  writable?: boolean;
+  canToggle?: boolean;
   excludeHelperEntityIds?: string[];
   name: string;
   room: string;
@@ -18,6 +21,10 @@ export function FanSettingsDialog(props: {
   onOpenChange: (open: boolean) => void;
   isOn: boolean;
   percentage: number;
+  percentageStep?: number;
+  presetModes?: string[];
+  presetMode?: string;
+  onPresetChange?: (preset: string) => void;
   supportsSpeed: boolean;
   onPowerChange: (on: boolean) => void;
   onSpeedPreview: (percentage: number) => void;
@@ -37,13 +44,16 @@ export function FanSettingsDialog(props: {
   const surface = getThemeSurfaceTokens(theme);
   const oscillationLabel = t('lighting.fanOscillationLabel');
   const directionLabel = t('lighting.fanDirectionLabel');
-  const selectedSpeed = !props.isOn
-    ? null
-    : props.percentage <= 45
-      ? '33'
-      : props.percentage <= 80
-        ? '66'
-        : '100';
+  const speedStep = props.percentageStep ?? 1;
+  const discreteSpeeds =
+    speedStep >= 100 / 6
+      ? Array.from({ length: Math.round(100 / speedStep) }, (_, index) =>
+          index === Math.round(100 / speedStep) - 1
+            ? 100
+            : Number(Math.min(100, (index + 1) * speedStep).toFixed(3))
+        )
+      : null;
+  const selectedSpeed = props.isOn ? String(props.percentage) : null;
   return (
     <DeviceControlsDialog
       entityId={props.entityId}
@@ -56,6 +66,7 @@ export function FanSettingsDialog(props: {
       tintColor={props.tintColor}
       controls={
         <div className={`space-y-6 ${surface.textPrimary}`}>
+          {props.commandFeedback}
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-3xl font-semibold tracking-tight tabular-nums">
@@ -77,6 +88,7 @@ export function FanSettingsDialog(props: {
                 props.isOn ? 'lighting.dashboard.turnOff' : 'lighting.dashboard.turnOn'
               )}
               aria-pressed={props.isOn}
+              disabled={props.writable === false || props.canToggle === false}
               onClick={() => props.onPowerChange(!props.isOn)}
             >
               <Power className="h-5 w-5" />
@@ -84,32 +96,49 @@ export function FanSettingsDialog(props: {
           </div>
           {props.supportsSpeed && (
             <div className="space-y-4">
-              <Slider
-                min={1}
-                max={100}
-                step={1}
-                value={Math.max(1, props.percentage)}
-                onValueChange={(value) => props.onSpeedPreview(value)}
-                onValueCommit={(value) => props.onSpeedCommit(value)}
-                ariaLabel={t('lighting.fanSpeed')}
-                trackClassName={`relative h-2 grow rounded-full ${surface.iconBg}`}
-                rangeClassName={`absolute h-full rounded-full ${surface.textPrimary} bg-current opacity-40`}
-                thumbClassName={`block h-5 w-5 rounded-full border ${surface.borderStrong} bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2`}
-                rootClassName="relative flex h-10 w-full touch-none select-none items-center"
-              />
+              {!discreteSpeeds ? (
+                <Slider
+                  min={speedStep}
+                  max={100}
+                  step={speedStep}
+                  value={Math.max(1, props.percentage)}
+                  disabled={props.writable === false}
+                  onValueChange={(value) => props.onSpeedPreview(value)}
+                  onValueCommit={(value) => props.onSpeedCommit(value)}
+                  ariaLabel={t('lighting.fanSpeed')}
+                  trackClassName={`relative h-2 grow rounded-full ${surface.iconBg}`}
+                  rangeClassName={`absolute h-full rounded-full ${surface.textPrimary} bg-current opacity-40`}
+                  thumbClassName={`block h-5 w-5 rounded-full border ${surface.borderStrong} bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2`}
+                  rootClassName="relative flex h-10 w-full touch-none select-none items-center"
+                />
+              ) : null}
               <DeviceControlOptions
                 variant="segmented"
-                label={t('lighting.fanPresets')}
+                label={t('lighting.fanSpeed')}
+                disabled={props.writable === false}
                 value={selectedSpeed}
-                options={[
-                  { value: '33', label: t('lighting.fanSpeed.low') },
-                  { value: '66', label: t('lighting.fanSpeed.medium') },
-                  { value: '100', label: t('lighting.fanSpeed.high') },
-                ]}
+                options={
+                  discreteSpeeds
+                    ? discreteSpeeds.map((value) => ({ value: String(value), label: `${value}%` }))
+                    : [
+                        { value: '33', label: t('lighting.fanSpeed.low') },
+                        { value: '66', label: t('lighting.fanSpeed.medium') },
+                        { value: '100', label: t('lighting.fanSpeed.high') },
+                      ]
+                }
                 onValueChange={(value) => props.onSpeedCommit(Number(value))}
               />
             </div>
           )}
+          {(props.presetModes?.length ?? 0) > 0 ? (
+            <DeviceControlOptions
+              label={t('lighting.fanPresets')}
+              value={props.presetMode ?? null}
+              options={(props.presetModes ?? []).map((value) => ({ value, label: value }))}
+              disabled={props.writable === false}
+              onValueChange={(value) => props.onPresetChange?.(value)}
+            />
+          ) : null}
           {(props.oscillating !== undefined || props.direction !== undefined) && (
             <div>
               {props.oscillating !== undefined && (
@@ -139,6 +168,7 @@ export function FanSettingsDialog(props: {
                       value,
                       label: t(`lighting.fanDirection.${value}`),
                     }))}
+                    disabled={props.writable === false}
                     onValueChange={(value) => {
                       if (value !== props.direction) props.onDirectionChange();
                     }}

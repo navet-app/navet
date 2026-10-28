@@ -1,0 +1,5 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+summary: Keep climate readings truthful, respect device limits, prevent accidental adjustments, and remember room navigation.

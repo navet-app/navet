@@ -257,4 +257,34 @@ describe('ClimateDashboard', () => {
     expect(screen.getByTestId('device-grid')).toHaveTextContent('sensor.office_air_quality');
     expect(screen.getByTestId('device-grid')).not.toHaveTextContent('sensor.living_temperature');
   });
+  it('remembers explicit room navigation on reload and supports keyboard tab selection', () => {
+    const devices = [
+      climateDevice(),
+      sensor({
+        id: 'sensor.living_temperature',
+        name: 'Living temperature',
+        room: 'Living room',
+        deviceClass: 'temperature',
+      }),
+      sensor({
+        id: 'sensor.office_air_quality',
+        name: 'Office air',
+        deviceClass: 'carbon_dioxide',
+      }),
+    ];
+    const { unmount } = renderDashboard(devices);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Group cards by: Type' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Room' }));
+    const living = screen.getByRole('tab', { name: 'Living room' });
+    living.focus();
+    fireEvent.keyDown(living, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Office' })).toHaveAttribute('aria-selected', 'true');
+    unmount();
+    renderDashboard(devices);
+    expect(screen.getByRole('button', { name: 'Group cards by: Room' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Office' })).toHaveAttribute('aria-selected', 'true');
+  });
 });

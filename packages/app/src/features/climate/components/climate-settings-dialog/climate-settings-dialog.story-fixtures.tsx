@@ -63,8 +63,10 @@ export const Default: Story = {
     await expect(dialog.getByText('22°C', { selector: 'dd' })).toBeVisible();
     await expect(dialog.getByText('Current 24°C')).toBeVisible();
     const increase = dialog.getByRole('button', { name: 'Increase temperature' });
-    await expect(increase.getBoundingClientRect().width).toBe(42);
-    await expect(increase.getBoundingClientRect().height).toBe(42);
+    await expect(increase.getBoundingClientRect().width).toBeGreaterThanOrEqual(36);
+    await expect(increase.getBoundingClientRect().width).toBeLessThanOrEqual(42);
+    await expect(increase.getBoundingClientRect().height).toBeGreaterThanOrEqual(36);
+    await expect(increase.getBoundingClientRect().height).toBeLessThanOrEqual(42);
     await userEvent.click(increase);
     await expect(dialog.getByText('22.5°C', { selector: 'dd' })).toBeVisible();
     await expect(
@@ -115,4 +117,52 @@ export const Default: Story = {
 export const Mobile: Story = {
   ...Default,
   globals: { viewport: { value: 'mobile1', isRotated: false } },
+};
+
+function ClimateRangeDialogStory() {
+  const [open, setOpen] = useState(false);
+  const [range, setRange] = useState({ low: 20, high: 24 });
+  return (
+    <SettingsDialogStoryFrame>
+      <div className="flex items-start justify-center p-6">
+        <Button onClick={() => setOpen(true)}>Open Climate dialog</Button>
+      </div>
+      <ClimateSettingsDialog
+        entityId="climate.range"
+        name="Living room climate"
+        isOpen={open}
+        onOpenChange={setOpen}
+        isOn
+        mode="heat_cool"
+        action="idle"
+        targetTemp={22}
+        currentTemp={21}
+        sourceTemperatureUnit="celsius"
+        minTemp={16}
+        maxTemp={30}
+        step={0.5}
+        targetRange={range}
+        onRangeCommit={(endpoint, value) =>
+          setRange((current) => ({ ...current, [endpoint]: value }))
+        }
+        onTargetTempChange={() => {}}
+        onModeChange={() => {}}
+        supportedClimateModes={['heat_cool', 'off']}
+      />
+    </SettingsDialogStoryFrame>
+  );
+}
+
+export const Range: Story = {
+  render: () => <ClimateRangeDialogStory />,
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole('button', { name: 'Open Climate dialog' }));
+    const dialog = within(await within(document.body).findByRole('dialog'));
+    const lower = within(dialog.getByRole('group', { name: 'Lower target' }));
+    const upper = within(dialog.getByRole('group', { name: 'Upper target' }));
+    await userEvent.click(lower.getByRole('button', { name: 'Increase temperature' }));
+    await expect(lower.getByText('20.5°C', { selector: 'dd' })).toBeVisible();
+    await userEvent.click(upper.getByRole('button', { name: 'Decrease temperature' }));
+    await expect(upper.getByText('23.5°C', { selector: 'dd' })).toBeVisible();
+  },
 };

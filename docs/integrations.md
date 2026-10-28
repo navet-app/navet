@@ -104,7 +104,14 @@ work in standalone, Ingress, and custom panel installations.
 
 Climate dialogs offer thermostat presets, climate fan modes, vertical and horizontal swing,
 and target humidity when the owning device advertises them. These controls use the climate
-device's options and limits.
+device's options and limits. Supported temperature ranges have separate lower and upper targets.
+Current measurements remain separate from targets, and missing readings stay unknown. Pending changes
+show the reported and requested values; a device echo confirms the change. Failed or unconfirmed
+changes retain an explicit retry. Unavailable and unsupported controls cannot send commands.
+
+Fan dialogs distinguish advertised presets from speed controls. Fixed-speed fans use their reported
+speed steps; continuous-speed fans retain a slider. Climate remembers this browser's explicit
+Type/Room choice and selected group, while keeping card positions stable as attention changes.
 
 Home Assistant supplies shopping and to-do lists under **Household → Routines → Lists**. Each list declares
 its supported item actions and fields. Follow [Manage shopping and to-do lists](/guide/everyday-control/shared-lists/)

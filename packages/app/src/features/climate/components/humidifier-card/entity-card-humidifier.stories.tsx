@@ -3,7 +3,7 @@ import { getStoryDocsDescription } from '@navet/app/storybook/story-docs';
 import { EntityCardStoryFrame, noopCardSizeChange } from '@navet/app/storybook/story-frames';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { ComponentProps } from 'react';
-import { expect, within } from 'storybook/test';
+import { expect, waitFor, within } from 'storybook/test';
 
 function HumidifierCardStory(args: Omit<ComponentProps<typeof HumidifierCard>, 'onSizeChange'>) {
   return (
@@ -121,7 +121,7 @@ export const DialogControls: Story = {
     await expect(modeOption.getBoundingClientRect().height).toBe(36);
 
     await expect(dialog.getByText('52%', { selector: 'dd' })).toBeVisible();
-    await expect(dialog.getByText('Current 52%')).toBeVisible();
+    await expect(dialog.getByText('Current —')).toBeVisible();
     const increase = dialog.getByRole('button', { name: 'Increase target humidity' });
     await expect(increase.getBoundingClientRect().width).toBe(42);
     await expect(increase.getBoundingClientRect().height).toBe(42);
@@ -139,12 +139,17 @@ export const DialogControls: Story = {
         .getAllByRole('button', { name: label })
         .find((element) => element.getBoundingClientRect().width > 0);
       if (!button) throw new Error(`No visible ${label} button`);
-      const bounds = button.getBoundingClientRect();
-      const hit = document.elementFromPoint(
-        bounds.x + bounds.width / 2,
-        bounds.y + bounds.height / 2
-      );
-      await expect(button.contains(hit)).toBe(true);
+      button.scrollIntoView({ block: 'nearest' });
+      await waitFor(() => {
+        const bounds = button.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          bounds.x + bounds.width / 2,
+          bounds.y + bounds.height / 2
+        );
+        expect(button.contains(hit), `${label} must be reachable after the dialog settles`).toBe(
+          true
+        );
+      });
       await userEvent.click(button);
       await expect(within(document.body).queryByRole('dialog')).not.toBeInTheDocument();
       if (label === 'Close') await userEvent.click(open);

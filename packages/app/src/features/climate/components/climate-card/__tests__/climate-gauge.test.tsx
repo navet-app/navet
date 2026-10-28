@@ -33,4 +33,19 @@ describe('ClimateGauge', () => {
       })
     );
   });
+  it('keeps an absent current reading unknown in the detailed gauge', () => {
+    renderWithProviders(
+      <ClimateGauge
+        id="climate.hallway"
+        mode="unknown"
+        targetTemp={21}
+        currentTemp={Number.NaN}
+        isOn
+        variant="immersive"
+      />
+    );
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('Current —')).toBeInTheDocument();
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+  });
 });

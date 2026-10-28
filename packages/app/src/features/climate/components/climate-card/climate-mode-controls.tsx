@@ -21,6 +21,7 @@ interface ClimateModeControlsProps {
   onModeChange: (mode: string) => void;
   supportedClimateModes?: string[];
   size?: CardSize;
+  disabled?: boolean;
 }
 
 export const ClimateModeControls = memo(function ClimateModeControls({
@@ -29,6 +30,7 @@ export const ClimateModeControls = memo(function ClimateModeControls({
   onModeChange,
   supportedClimateModes,
   size = 'medium',
+  disabled,
 }: ClimateModeControlsProps) {
   const { theme } = useTheme();
   const { t } = useI18n();
@@ -54,6 +56,7 @@ export const ClimateModeControls = memo(function ClimateModeControls({
             theme={theme as ThemeType}
             size={primitiveSize}
             variant="soft"
+            disabled={disabled}
             onClick={(e) => {
               e.stopPropagation();
               onModeChange(option.mode);

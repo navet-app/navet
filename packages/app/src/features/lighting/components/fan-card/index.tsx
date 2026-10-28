@@ -9,6 +9,7 @@ import { CardControlNumberBadge } from '@navet/app/components/shared/card-contro
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
 import type { CompanionRowPresentation } from '@navet/app/components/shared/companion-row-presentation';
+import { DeviceCommandFeedback } from '@navet/app/components/shared/device-command-feedback';
 import { BrightnessSlider } from '@navet/app/components/shared/device-editor';
 import { getBrightnessPresetSelectedStyle } from '@navet/app/components/shared/device-editor/brightness-preset-styles';
 import { selectRelatedHelpers } from '@navet/app/components/shared/device-editor/entity-helper-controls';
@@ -27,6 +28,7 @@ import {
   useServiceActionHandler,
   useTheme,
 } from '@navet/app/hooks';
+import { useDeviceCommand } from '@navet/app/hooks/use-device-command';
 import { useProviderEntityModel } from '@navet/app/hooks/use-provider-device';
 import type { TranslationKey } from '@navet/app/i18n';
 import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
@@ -151,6 +153,8 @@ export const FanCard = memo(function FanCard({
     providerId: resolvedProviderId,
     enabled: resolvedProviderId === 'home_assistant' && siblingEntityIds.length > 0,
   });
+  const writable = !providerEntity || providerEntity.availability === 'available';
+  const canToggle = writable && (!providerEntity || providerEntity.capabilities.includes('toggle'));
   const runAction = useServiceActionHandler();
   const resolvedSize = resolveFanCardSize(size);
   const [isOn, setIsOn] = useState(initialState);
@@ -166,10 +170,21 @@ export const FanCard = memo(function FanCard({
       defaultIconName: 'Fan',
     });
   const isSmall = isCompactCardSize(resolvedSize);
-  const supportsFanSpeed =
-    providerEntity?.capabilities.includes('fan_speed') === true ||
-    typeof rawAttributes?.percentage === 'number' ||
-    typeof rawAttributes?.percentage_step === 'number';
+  const supportsFanSpeed = providerEntity
+    ? providerEntity.capabilities.includes('fan_speed')
+    : typeof rawAttributes?.percentage === 'number' ||
+      typeof rawAttributes?.percentage_step === 'number';
+  const percentageStep =
+    typeof providerState?.percentageStep === 'number' &&
+    providerState.percentageStep > 0 &&
+    providerState.percentageStep <= 100
+      ? providerState.percentageStep
+      : 1;
+  const presetModes = Array.isArray(providerState?.presetModes)
+    ? providerState.presetModes.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+  const presetMode =
+    typeof providerState?.presetMode === 'string' ? providerState.presetMode : undefined;
   const fanDirection = readFanDirection(rawAttributes?.direction);
   const fanOscillating = supportsOscillation(rawAttributes?.oscillating)
     ? rawAttributes.oscillating
@@ -188,6 +203,31 @@ export const FanCard = memo(function FanCard({
       : rawEntity?.state === 'off'
         ? false
         : providerState?.value === 'on' || providerState?.on === true;
+  const commandOwner = `${resolvedProviderId}:${id}`;
+  const powerCommand = useDeviceCommand(
+    commandOwner,
+    rawEntity || providerEntity ? liveIsOn : initialState,
+    canToggle
+  );
+  const presetCommand = useDeviceCommand(
+    commandOwner,
+    presetMode,
+    writable && presetModes.length > 0
+  );
+  const speedCommand = useDeviceCommand(
+    commandOwner,
+    livePercentage ?? initialPercentage,
+    writable && supportsFanSpeed
+  );
+
+  useEffect(() => {
+    if (powerCommand.failed) setIsOn(powerCommand.reported ?? initialState);
+  }, [powerCommand.failed, powerCommand.reported, initialState]);
+  useEffect(() => {
+    if (speedCommand.failed)
+      setPercentage(clampPercentage(speedCommand.reported ?? initialPercentage));
+  }, [speedCommand.failed, speedCommand.reported, initialPercentage]);
+
   const hasAdvancedFanControls = fanDirection !== undefined || fanOscillating !== undefined;
   const siblingEntities = siblingEntityIds
     .map((entityId) => {
@@ -205,6 +245,7 @@ export const FanCard = memo(function FanCard({
   const showsSettingsButton =
     Boolean(companion) ||
     supportsFanSpeed ||
+    presetModes.length > 0 ||
     hasAdvancedFanControls ||
     siblingEntities.length > 0 ||
     hasRelatedHelpers ||
@@ -232,6 +273,7 @@ export const FanCard = memo(function FanCard({
 
   const updatePower = useCallback(
     (nextIsOn: boolean) => {
+      if (!canToggle) return;
       setIsOn(nextIsOn);
       if (nextIsOn) {
         setPercentage((currentPercentage) =>
@@ -241,12 +283,14 @@ export const FanCard = memo(function FanCard({
 
       void runAction(
         async () => {
-          await dispatchEntityCommand(
-            {
-              type: nextIsOn ? 'turn_on' : 'turn_off',
-              entityId: id,
-            },
-            providerId
+          await powerCommand.send(nextIsOn, () =>
+            dispatchEntityCommand(
+              {
+                type: nextIsOn ? 'turn_on' : 'turn_off',
+                entityId: id,
+              },
+              resolvedProviderId
+            )
           );
         },
         t('lighting.feedback.updateSwitchFailed'),
@@ -255,25 +299,38 @@ export const FanCard = memo(function FanCard({
         }
       );
     },
-    [id, providerId, rememberedPercentage, runAction, t]
+    [canToggle, id, resolvedProviderId, rememberedPercentage, runAction, t, powerCommand.send]
   );
 
   const updateSpeed = useCallback(
     (nextPercentage: number) => {
-      const clampedPercentage = Math.max(1, clampPercentage(nextPercentage));
+      if (!writable || !supportsFanSpeed || !Number.isFinite(nextPercentage)) return;
+      const clampedPercentage = Number(
+        Math.min(
+          100,
+          Math.max(
+            percentageStep,
+            nextPercentage >= 100 - percentageStep / 2
+              ? 100
+              : Math.round(nextPercentage / percentageStep) * percentageStep
+          )
+        ).toFixed(3)
+      );
       const previousIsOn = isOn;
       setIsOn(true);
       setPercentage(clampedPercentage);
       setRememberedPercentage(clampedPercentage);
       void runAction(
         async () => {
-          await dispatchEntityCommand(
-            {
-              type: 'set_fan_speed',
-              entityId: id,
-              percentage: clampedPercentage,
-            },
-            providerId
+          await speedCommand.send(clampedPercentage, () =>
+            dispatchEntityCommand(
+              {
+                type: 'set_fan_speed',
+                entityId: id,
+                percentage: clampedPercentage,
+              },
+              resolvedProviderId
+            )
           );
         },
         t('lighting.feedback.updateSwitchFailed'),
@@ -285,8 +342,33 @@ export const FanCard = memo(function FanCard({
         }
       );
     },
-    [id, isOn, percentage, providerId, runAction, t]
+    [
+      writable,
+      supportsFanSpeed,
+      percentageStep,
+      speedCommand.send,
+      id,
+      isOn,
+      percentage,
+      resolvedProviderId,
+      runAction,
+      t,
+    ]
   );
+
+  const updatePreset = (preset: string) => {
+    if (!writable || !presetModes.includes(preset)) return;
+    void presetCommand.send(preset, async () => {
+      await invokeIntegrationNativeAction({
+        providerId: resolvedProviderId,
+        entityId: id,
+        domain: 'fan',
+        service: 'set_preset_mode',
+        serviceData: { preset_mode: preset },
+      });
+      return undefined;
+    });
+  };
 
   const updateSpeedPreset = useCallback(
     (speed: FanSpeed) => {
@@ -304,8 +386,8 @@ export const FanCard = memo(function FanCard({
     ariaLabel: name,
     ariaPressed: isOn,
     isEditMode,
-    onToggle: () => updatePower(!isOn),
-    onOpenControls: () => undefined,
+    onToggle: canToggle ? () => updatePower(!isOn) : undefined,
+    onOpenControls: showsSettingsButton ? () => setIsSettingsOpen(true) : undefined,
     onOpenSettings: showsSettingsButton ? () => setIsSettingsOpen(true) : undefined,
   });
   useEditModeSettingsRequest(
@@ -348,26 +430,30 @@ export const FanCard = memo(function FanCard({
 
   const setFanDirection = useCallback(
     async (direction: 'forward' | 'reverse') => {
+      if (!writable) return;
       await invokeIntegrationNativeAction({
         entityId: id,
+        providerId: resolvedProviderId,
         domain: 'fan',
         service: 'set_direction',
         serviceData: { direction },
       });
     },
-    [id]
+    [id, writable, resolvedProviderId]
   );
 
   const setFanOscillation = useCallback(
     async (oscillating: boolean) => {
+      if (!writable) return;
       await invokeIntegrationNativeAction({
         entityId: id,
+        providerId: resolvedProviderId,
         domain: 'fan',
         service: 'oscillate',
         serviceData: { oscillating },
       });
     },
-    [id]
+    [id, writable, resolvedProviderId]
   );
 
   return (
@@ -424,7 +510,15 @@ export const FanCard = memo(function FanCard({
           <div className="relative h-full flex flex-col">
             <EntityCardHeader
               title={name}
-              subtitle={t('climate.mode.fan')}
+              subtitle={
+                !writable
+                  ? t('common.unavailable')
+                  : speedCommand.failed || powerCommand.failed || presetCommand.failed
+                    ? t('deviceControls.failed')
+                    : speedCommand.pending || powerCommand.pending || presetCommand.pending
+                      ? t('climate.advanced.updating')
+                      : t('climate.mode.fan')
+              }
               layout="eyebrow-first"
               size={isSmall ? resolvedSize : 'medium'}
               compact={isExtraSmall}
@@ -458,7 +552,7 @@ export const FanCard = memo(function FanCard({
                         value={displayedPercentage}
                         onChange={previewSpeed}
                         onCommit={updateSpeed}
-                        isOn={isOn}
+                        isOn={isOn && writable}
                         min={0}
                         size="extra-small"
                         showLabel={false}
@@ -483,7 +577,7 @@ export const FanCard = memo(function FanCard({
                       value={displayedPercentage}
                       onChange={previewSpeed}
                       onCommit={updateSpeed}
-                      isOn={isOn}
+                      isOn={isOn && writable}
                       min={0}
                       size={sliderSize}
                       showLabel
@@ -503,7 +597,7 @@ export const FanCard = memo(function FanCard({
                                   direction: directionLabel,
                                 })}
                                 aria-pressed={isOn && directionIsReverse}
-                                disabled={!isOn}
+                                disabled={!isOn || !writable}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   void setFanDirection(directionIsReverse ? 'forward' : 'reverse');
@@ -541,7 +635,7 @@ export const FanCard = memo(function FanCard({
                                   state: t(fanOscillating ? 'common.on' : 'common.off'),
                                 })}
                                 aria-pressed={isOn && fanOscillating}
-                                disabled={!isOn}
+                                disabled={!isOn || !writable}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   void setFanOscillation(!fanOscillating);
@@ -578,7 +672,7 @@ export const FanCard = memo(function FanCard({
                                       type="button"
                                       aria-label={t('lighting.fanPreset', { preset: t(labelKey) })}
                                       aria-pressed={active}
-                                      disabled={!isOn}
+                                      disabled={!isOn || !writable}
                                       onClick={(event) => {
                                         event.stopPropagation();
                                         updateSpeedPreset(speed);
@@ -610,7 +704,7 @@ export const FanCard = memo(function FanCard({
                             {showSpeedCycle ? (
                               <button
                                 type="button"
-                                disabled={!isOn}
+                                disabled={!isOn || !writable}
                                 aria-label={`${t('lighting.fanSpeed')}: ${
                                   activeSpeed
                                     ? t(`lighting.fanSpeed.${activeSpeed}`)
@@ -697,6 +791,39 @@ export const FanCard = memo(function FanCard({
           isOn={isOn}
           percentage={displayedPercentage}
           supportsSpeed={supportsFanSpeed}
+          percentageStep={percentageStep}
+          presetModes={presetModes}
+          presetMode={presetMode}
+          onPresetChange={updatePreset}
+          writable={writable}
+          canToggle={canToggle}
+          commandFeedback={
+            <>
+              <DeviceCommandFeedback
+                label={t('lighting.fanPresets')}
+                {...presetCommand}
+                reported={presetCommand.reported ?? t('widgets.generic.unknown')}
+              />
+              <DeviceCommandFeedback
+                label={t('lighting.fanSpeed')}
+                {...speedCommand}
+                reported={`${speedCommand.reported ?? 0}%`}
+                requested={
+                  speedCommand.requested === undefined ? undefined : `${speedCommand.requested}%`
+                }
+              />
+              <DeviceCommandFeedback
+                label={t('common.controls')}
+                {...powerCommand}
+                reported={t(powerCommand.reported ? 'common.on' : 'common.off')}
+                requested={
+                  powerCommand.requested === undefined
+                    ? undefined
+                    : t(powerCommand.requested ? 'common.on' : 'common.off')
+                }
+              />
+            </>
+          }
           onPowerChange={updatePower}
           onSpeedPreview={previewSpeed}
           onSpeedCommit={updateSpeed}
