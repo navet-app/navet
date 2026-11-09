@@ -64,6 +64,7 @@ export const ClimateCardLargeLayout = memo(function ClimateCardLargeLayout({
               return (
                 <button
                   type="button"
+                  disabled={!controller.canSetTemperature}
                   key={preset}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -103,7 +104,7 @@ export const ClimateCardLargeLayout = memo(function ClimateCardLargeLayout({
                   targetTemp={controller.controlDisplayTargetTemp}
                   onTempChange={controller.setDisplayTargetTemp}
                   onTempCommit={controller.commitDisplayTargetTemp}
-                  isOn={controller.isOn}
+                  isOn={controller.isOn && controller.canSetTemperature}
                   size="medium"
                   minTemp={controller.controlDisplayMinTemp}
                   maxTemp={controller.controlDisplayMaxTemp}
@@ -112,6 +113,7 @@ export const ClimateCardLargeLayout = memo(function ClimateCardLargeLayout({
                 <ClimateModeControls
                   mode={controller.mode}
                   isOn={controller.isOn}
+                  disabled={!controller.available}
                   onModeChange={controller.setMode}
                   supportedClimateModes={controller.supportedClimateModes}
                   size="medium"

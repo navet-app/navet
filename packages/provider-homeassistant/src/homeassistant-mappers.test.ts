@@ -889,7 +889,7 @@ describe('homeassistant-mappers', () => {
     expect(entities.find((entity) => entity.externalId === 'climate.living_room')).toEqual(
       expect.objectContaining({
         attributes: expect.objectContaining({
-          currentTemperature: 15,
+          currentTemperature: undefined,
           hasCurrentTemperature: false,
           temperature: 15,
           temperatureUnit: 'celsius',
@@ -1332,5 +1332,25 @@ describe('homeassistant-mappers', () => {
         binLevel: expect.anything(),
       })
     );
+  });
+  it('does not advertise temperature writes when the climate device explicitly lacks that feature', () => {
+    const entities = mapHomeAssistantEntitiesToNavetEntities({
+      entities: {
+        'climate.fan_only': makeEntity('climate.fan_only', 'fan_only', {
+          supported_features: 8,
+          hvac_modes: ['fan_only', 'off'],
+          fan_modes: ['low', 'high'],
+          current_temperature: 21,
+        }),
+      },
+      areas: [],
+      deviceRegistry: [],
+      entityRegistry: [],
+    });
+    const entity = entities.find((entry) => entry.externalId === 'climate.fan_only');
+    expect(entity?.capabilities).not.toContain('temperature_setpoint');
+    expect(entity?.capabilities).toContain('climate_fan_mode');
+    expect(entity?.attributes.temperature).toBeUndefined();
+    expect(entity?.attributes.currentTemperature).toBe(21);
   });
 });

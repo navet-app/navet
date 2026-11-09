@@ -35,6 +35,7 @@ on the capabilities of your devices.
 | Energy configuration and statistics | Yes | No | No |
 | Entity state history | Yes | Supported Insights logs | No |
 | Recorded activity | Yes | No | No |
+| Map zones, geolocation and recorded locations | Yes | No | No |
 | Calendar and weather data | Yes | No | No |
 | Calendar event creation (writable calendars) | Yes | No | No |
 | Notifications | Yes | Read and hide locally | No |
@@ -59,6 +60,27 @@ Follow [Explore history and activity](/guide/everyday-control/history-and-activi
 entity, load a date range, and understand empty results or record limits. Energy statistics remain
 in the [Energy dashboard](/guide/everyday-control/energy/).
 
+### Map context and recorded locations
+
+The map shows available people, device trackers, non-passive zones and geolocation entities from
+supported selected sources. Home Assistant zones include their radius and people count;
+geolocation markers show the source's distance value. Invalid or unavailable coordinates are omitted.
+Marker pictures and recorded-location requests use the marker's owning provider.
+
+Choose **Location history** on the map, select a person or tracker and a 6-hour or 24-hour period,
+then **Load records** → **Show on map**. This requests retained coordinate attributes through the
+existing authenticated transport in Docker, Ingress and custom panel. The overlay shows when
+its data was recorded through; **Clear history** removes it.
+
+Lines connect recorded samples rather than describe a travelled route. Missing coordinates,
+unavailable states, gaps over an hour and antimeridian crossings break the line. A single location
+or repeated identical locations cannot establish a path. Empty/expired/excluded history explains
+why no path is shown; unsupported readers and failed requests have separate feedback.
+
+Home Assistant floors and labels are not imported into Navet's room organization. Floors group
+areas, while labels can span rooms and entity types. Adopting them requires a separately selected
+product and provider-contract scope that preserves existing room identities.
+
 ### Home Assistant
 
 Navet maps Home Assistant rooms and realtime entities for lights, switches, sensors, climate,
@@ -82,7 +104,18 @@ work in standalone, Ingress, and custom panel installations.
 
 Climate dialogs offer thermostat presets, climate fan modes, vertical and horizontal swing,
 and target humidity when the owning device advertises them. These controls use the climate
-device's options and limits.
+device's options and limits. Supported temperature ranges have separate lower and upper targets.
+Current measurements remain separate from targets, and missing readings stay unknown. Pending changes
+show the reported and requested values; a device echo confirms the change. Failed or unconfirmed
+changes retain an explicit retry. Unavailable and unsupported controls cannot send commands.
+
+Fan dialogs distinguish advertised presets from speed controls. Fixed-speed fans use their reported
+speed steps; continuous-speed fans retain a slider. Climate remembers this browser's explicit
+Type/Room choice and selected group, while keeping card positions stable as attention changes.
+In Climate's Room view, customization lets the household select a temperature sensor and a humidity
+sensor for each room. These choices are shared with the household dashboard configuration. Readings
+name their source; missing or unavailable sensors remain explicit and never switch automatically to
+another source. These context readings do not change the thermostat's own measurement or target.
 
 Home Assistant supplies shopping and to-do lists under **Household → Routines → Lists**. Each list declares
 its supported item actions and fields. Follow [Manage shopping and to-do lists](/guide/everyday-control/shared-lists/)

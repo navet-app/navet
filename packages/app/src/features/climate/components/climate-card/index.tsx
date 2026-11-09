@@ -1,5 +1,6 @@
 import { EntityCardHeader } from '@navet/app/components/primitives/entity-card-header';
 import { EntityCardHeaderIcon } from '@navet/app/components/primitives/entity-card-header-icon';
+import { DeviceCommandFeedback } from '@navet/app/components/shared/device-command-feedback';
 import { getCardReadableTextTokens } from '@navet/app/components/shared/theme/card-readable-text-tokens';
 import { getCardShellSurfaceTokens } from '@navet/app/components/shared/theme/card-shell-surface-tokens';
 import {
@@ -30,7 +31,7 @@ export const ClimateCard = memo(function ClimateCard({
   room: _room,
   headerSubtitle,
   initialTemp = 21,
-  initialCurrentTemp = 22,
+  initialCurrentTemp = Number.NaN,
   temperatureUnit,
   initialMode = 'cool',
   initialAction,
@@ -59,10 +60,13 @@ export const ClimateCard = memo(function ClimateCard({
     size: resolvedSize,
   });
   const isSurfaceActive =
-    controller.isOn && controller.visualMode !== 'idle' && controller.visualMode !== 'off';
+    controller.isOn &&
+    controller.visualMode !== 'idle' &&
+    controller.visualMode !== 'off' &&
+    controller.visualMode !== 'unknown';
   const cardShell = getCardShellSurfaceTokens(controller.theme);
   const stateSurface = getCardStateSurfaceTokens(controller.theme, isSurfaceActive);
-  const targetTemperatureLabel = getClimateTemperatureStatusLabel(
+  const reportedTemperatureLabel = getClimateTemperatureStatusLabel(
     t,
     controller.formatTemperature(controller.targetTemp),
     controller.formatTemperature(controller.currentTemp),
@@ -71,6 +75,17 @@ export const ClimateCard = memo(function ClimateCard({
     controller.currentTemp,
     controller.hasTargetTemperature
   );
+  const targetTemperatureLabel = !controller.available
+    ? t('common.unavailable')
+    : controller.temperatureCommand.failed ||
+        controller.modeCommand.failed ||
+        controller.rangeCommand.failed
+      ? t('deviceControls.failed')
+      : controller.temperatureCommand.pending ||
+          controller.modeCommand.pending ||
+          controller.rangeCommand.pending
+        ? t('climate.advanced.updating')
+        : reportedTemperatureLabel;
   const tone =
     !controller.isOn || controller.visualMode === 'idle'
       ? 'neutral'
@@ -235,8 +250,12 @@ export const ClimateCard = memo(function ClimateCard({
                     maxTemp={controller.displayMaxTemp}
                     step={controller.displayStep}
                     temperatureUnit={controller.temperatureUnit}
-                    onTargetTempChange={controller.setDisplayTargetTemp}
-                    onTargetTempCommit={controller.commitDisplayTargetTemp}
+                    onTargetTempChange={
+                      controller.canSetTemperature ? controller.setDisplayTargetTemp : undefined
+                    }
+                    onTargetTempCommit={
+                      controller.canSetTemperature ? controller.commitDisplayTargetTemp : undefined
+                    }
                     variant="docked-card-small"
                     className="pointer-events-auto absolute right-[-4rem] top-1/2 z-[2] -translate-y-1/2"
                   />
@@ -260,8 +279,12 @@ export const ClimateCard = memo(function ClimateCard({
                     maxTemp={controller.displayMaxTemp}
                     step={controller.displayStep}
                     temperatureUnit={controller.temperatureUnit}
-                    onTargetTempChange={controller.setDisplayTargetTemp}
-                    onTargetTempCommit={controller.commitDisplayTargetTemp}
+                    onTargetTempChange={
+                      controller.canSetTemperature ? controller.setDisplayTargetTemp : undefined
+                    }
+                    onTargetTempCommit={
+                      controller.canSetTemperature ? controller.commitDisplayTargetTemp : undefined
+                    }
                     variant="docked-card-small"
                     className="pointer-events-auto absolute right-[-0.25rem] top-1/2 z-[2] -translate-y-1/2"
                   />
@@ -285,8 +308,12 @@ export const ClimateCard = memo(function ClimateCard({
                     maxTemp={controller.displayMaxTemp}
                     step={controller.displayStep}
                     temperatureUnit={controller.temperatureUnit}
-                    onTargetTempChange={controller.setDisplayTargetTemp}
-                    onTargetTempCommit={controller.commitDisplayTargetTemp}
+                    onTargetTempChange={
+                      controller.canSetTemperature ? controller.setDisplayTargetTemp : undefined
+                    }
+                    onTargetTempCommit={
+                      controller.canSetTemperature ? controller.commitDisplayTargetTemp : undefined
+                    }
                     variant="docked-card"
                     className="pointer-events-auto absolute right-[-3.4rem] top-1/2 z-[2] -translate-y-1/2"
                   />
@@ -311,6 +338,45 @@ export const ClimateCard = memo(function ClimateCard({
           onOpenChange={dialog?.onOpenChange ?? controller.setIsSettingsOpen}
           onCloseAutoFocus={dialog?.onCloseAutoFocus}
           name={name}
+          writable={controller.available}
+          canSetTemperature={controller.canSetTemperature}
+          targetRange={controller.targetRange}
+          onRangeCommit={controller.commitRangeEndpoint}
+          commandFeedback={
+            <>
+              <DeviceCommandFeedback
+                label={`${t('climate.rangeLow')} / ${t('climate.rangeHigh')}`}
+                {...controller.rangeCommand}
+                reported={
+                  controller.rangeCommand.reported
+                    ?.split(':')
+                    .map((part) => controller.formatTemperature(Number(part)))
+                    .join(' – ') ?? '—'
+                }
+                requested={controller.rangeCommand.requested
+                  ?.split(':')
+                  .map((part) => controller.formatTemperature(Number(part)))
+                  .join(' – ')}
+              />
+              <DeviceCommandFeedback
+                label={t('climate.target')}
+                {...controller.temperatureCommand}
+                reported={controller.formatTemperature(
+                  controller.temperatureCommand.reported ?? Number.NaN
+                )}
+                requested={
+                  controller.temperatureCommand.requested === undefined
+                    ? undefined
+                    : controller.formatTemperature(controller.temperatureCommand.requested)
+                }
+              />
+              <DeviceCommandFeedback
+                label={t('climate.mode')}
+                {...controller.modeCommand}
+                reported={controller.modeCommand.reported ?? t('widgets.generic.unknown')}
+              />
+            </>
+          }
           isOn={controller.isOn}
           mode={controller.mode}
           action={controller.action}

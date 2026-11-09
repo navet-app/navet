@@ -13,6 +13,7 @@ import { homeAssistantEnergyFeatureService } from './homeassistant-energy-featur
 import { homeAssistantEntityRuntimeService } from './homeassistant-entity-runtime.service';
 import { lazyHomeAssistantHistoryFeatureService } from './homeassistant-history-feature.service.lazy';
 import { homeAssistantLightFeatureService } from './homeassistant-light-feature.service';
+import { homeAssistantMapFeatureService } from './homeassistant-map-feature.service';
 import { homeAssistantMediaFeatureService } from './homeassistant-media-feature.service';
 import { homeAssistantNativeActionFeatureService } from './homeassistant-native-action-feature.service';
 import { lazyHomeAssistantNotificationFeatureService } from './homeassistant-notification-feature.service.lazy';
@@ -86,6 +87,7 @@ export function createHomeAssistantRuntimeRegistration(
     energyFeatureService: homeAssistantEnergyFeatureService,
     entityRuntimeService: homeAssistantEntityRuntimeService,
     historyFeatureService: lazyHomeAssistantHistoryFeatureService,
+    mapFeatureService: homeAssistantMapFeatureService,
     lightFeatureService: homeAssistantLightFeatureService,
     mediaFeatureService: homeAssistantMediaFeatureService,
     nativeActionFeatureService: homeAssistantNativeActionFeatureService,

@@ -33,6 +33,43 @@ describe('settings profile scope', () => {
     });
   });
 
+  // Keep existing scope contracts; extend shared-profile round-trip coverage.
+  it('round-trips sanitized room sensor choices only through the household profile', () => {
+    const selections = {
+      'room-1': { temperature: 'openhab:living_temp', humidity: 'homey:humidity' },
+    };
+    const shared = projectSettingsPreferenceLayer(
+      { ...defaultSettings, climateRoomSources: selections },
+      'shared'
+    );
+    expect(shared.settings.climateRoomSources).toEqual(selections);
+    for (const layer of ['device', 'account'] as const) {
+      expect(
+        projectSettingsPreferenceLayer(
+          { ...defaultSettings, climateRoomSources: selections },
+          layer
+        ).settings
+      ).not.toHaveProperty('climateRoomSources');
+    }
+    applySettingsPreferenceLayerToStore(shared, 'shared');
+    expect(useSettingsStore.getState().climateRoomSources).toEqual(selections);
+    expect(
+      migrateSettingsPreferenceLayer(
+        {
+          climateRoomSources: {
+            'room-1': { temperature: 'sensor.temperature', humidity: 5, token: 'ignored' },
+            broken: [],
+            empty: null,
+          },
+        },
+        'shared'
+      ).settings.climateRoomSources
+    ).toEqual({ 'room-1': { temperature: 'home_assistant:sensor.temperature' } });
+    expect(
+      applySettingsPreferenceLayer(defaultSettings, { settings: {} }, 'shared').climateRoomSources
+    ).toEqual({});
+  });
+
   it('round-trips screensaver opt-in only through device preferences', () => {
     const settings = {
       ...defaultSettings,

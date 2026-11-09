@@ -66,6 +66,10 @@ the common panel update that panel everywhere it is used. Item configuration use
 The panel’s enabled and collapsed states are device preferences; enabling, disabling, opening or collapsing it never writes
 the shared dashboard profile. Screensaver enablement is also a device preference; its active
 state and idle timer are runtime-only.
+Climate room temperature/humidity sensor selections are shared settings keyed by the stable workspace
+room ID when available. Label-only room adapters use the existing normalized-name compatibility seam.
+Selected sensor references remain provider-scoped; live readings and browser-local climate navigation
+are not part of these selections.
 Theme, room organization, weather presentation defaults, and shared custom actions that pass export
 security filtering remain workspace-wide. Camera transport and presentation preferences remain
 device-owned because panel capabilities differ.

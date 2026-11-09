@@ -200,6 +200,7 @@ const allowedIdenticalValuesByLanguage = {
     'System', 'Auto', 'Standard', 'Celsius', 'Fahrenheit', 'Medium', 'Version', 'Status',
     'Media', 'Receiver', 'Soundbar', 'Sensor', 'Max', 'Live', 'tv', 'Radio', 'Person',
     'Widget', 'Normal', 'Album', 'Orange', 'Neutral', 'Gas', 'period',
+    'Sand', 'Mint',
   ]),
   de: new Set([
     // Native household-control terms shared with English.
@@ -208,6 +209,7 @@ const allowedIdenticalValuesByLanguage = {
     'Widgets', 'Details', 'Wind', 'Shuffle', 'Soundbar', 'Sensor', 'Max', 'Live', 'Radio',
     'Administrator', 'Person', 'Widget', 'Info', 'Optional', 'Name', 'Link', 'Normal',
     'Streams', 'Album', 'Alarm', 'Feeds', 'Orange', 'Neutral', 'Solar', 'Gas', 'In Navet',
+    'Sand',
   ]),
   fr: new Set([
     // Native household-control terms shared with English.
@@ -218,16 +220,17 @@ const allowedIdenticalValuesByLanguage = {
     'Notifications', 'Important', 'Sections', 'Routines', 'Scripts', 'scripts', 'Total',
     'Sources', 'Radio', 'Conditions', 'Widget', 'Photos', 'pagination', 'Modes', 'charge',
     'Usage', 'source', 'Menu', 'Destination', 'Attention', 'Album', 'Orange', 'Type', 'Actions',
+    'Rose', 'Note', '{count} minute', '{count} minutes',
   ]),
   es: new Set([
     'Experimental', 'Auto', 'Manual', 'Celsius', 'Fahrenheit', 'Error', 'Total', 'Radio',
-    'Sensor', 'Normal', 'Solar', 'Gas',
+    'Sensor', 'Normal', 'Solar', 'Gas', 'Coral',
   ]),
   it: new Set([
     // Native household-control terms shared with English.
     'Timer',
     'Auto', 'Standard', 'Fahrenheit', 'Routine', 'Volume', 'Media', 'Radio', 'Menu',
-    'Eco', 'Album', 'Comfort', 'Relax', 'Gas', 'In Navet',
+    'Eco', 'Album', 'Comfort', 'Relax', 'Gas', 'In Navet', 'Terracotta',
   ]),
   nl: new Set([
     // Native household-control terms shared with English.
@@ -239,7 +242,7 @@ const allowedIdenticalValuesByLanguage = {
     'Later', 'Updates', 'camera', 'Routines', 'Scripts', 'scripts', 'Recent', 'Fans',
     'Radio', 'Script', 'Helper', 'Camera', 'Triggers', 'Stop', 'Open {name}', 'Widget',
     'Info', 'Week', 'Eco', '{count} live', 'Album', 'Alarm', 'Comfort', 'Feeds', 'Gas',
-    'kW import', 'In Navet',
+    'kW import', 'In Navet', 'Mint', 'Terracotta',
   ]),
   pl: new Set([
     'System',
@@ -254,7 +257,7 @@ const allowedIdenticalValuesByLanguage = {
   ]),
   pt: new Set([
     'Experimental', 'Auto', 'Manual', 'Celsius', 'Fahrenheit', 'Status', 'Widgets',
-    'Volume', 'Sensor', 'Total', 'Radio', 'Widget', 'Link', 'Menu', 'Normal', 'Solar',
+    'Volume', 'Sensor', 'Total', 'Radio', 'Widget', 'Link', 'Menu', 'Normal', 'Solar', 'Coral',
   ]),
   no: new Set([
     // Native household-control terms shared with English.
@@ -263,7 +266,7 @@ const allowedIdenticalValuesByLanguage = {
     'Widgets', 'Media', 'Soundbar', 'Sensor', 'Live', 'tv', 'Radio', 'Administrator',
     'Scene', 'Person', 'Widget', 'Home Assistant Media', 'Home Assistant media', 'Info',
     'Fit', 'info', 'Normal', 'Album', 'Alarm', 'Dim', '{value} kW import', '{count} live',
-    'kW live', 'kW import',
+    'kW live', 'kW import', 'Sand',
   ]),
   da: new Set([
     // Native household-control terms shared with English.
@@ -275,6 +278,7 @@ const allowedIdenticalValuesByLanguage = {
     'Live stream', 'Stream', 'Snapshot fallback', 'info', 'Menu', 'Link', 'Peak', 'Normal',
     'Snapshots', 'Album', 'Alarm', 'Feeds', 'Orange', 'Neutral', 'Dim', 'Solar', 'Gas',
     '{value} kW import', '{count} live', '{count} normal', 'kW live', 'kW import',
+    'Sand', 'Note',
   ]),
   fi: new Set([
     'Auto', 'Celsius', 'Fahrenheit', 'Media', 'Soundbar', 'Max', 'tv', 'Radio', 'Widget',

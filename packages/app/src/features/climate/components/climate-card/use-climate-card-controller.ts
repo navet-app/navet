@@ -19,6 +19,7 @@ import {
   resolveClimateTargetTemperature,
   resolveClimateTemperatureUnit,
 } from '@navet/app/hooks/entity-utils';
+import { useDeviceCommand } from '@navet/app/hooks/use-device-command';
 import { useIntegrationStore } from '@navet/app/hooks/use-integration-store';
 import { useProviderEntityModel } from '@navet/app/hooks/use-provider-device';
 import type { PlatformEntitySnapshot } from '@navet/app/platform/provider-feature-models';
@@ -87,13 +88,17 @@ function resolveDefaultTemperatureRange(sourceTemperatureUnit: TemperatureUnit |
 
 function resolveClimateTemperatureRange(
   liveEntity: PlatformEntitySnapshot | undefined,
-  sourceTemperatureUnit: TemperatureUnit | undefined
+  sourceTemperatureUnit: TemperatureUnit | undefined,
+  normalized?: Record<string, unknown>
 ) {
   const attrs = liveEntity?.attributes;
   const fallbackRange = resolveDefaultTemperatureRange(sourceTemperatureUnit);
-  const minTemp = parseNumberish(attrs?.min_temp) ?? fallbackRange.minTemp;
-  const maxTemp = parseNumberish(attrs?.max_temp) ?? fallbackRange.maxTemp;
-  const step = parseNumberish(attrs?.target_temp_step) ?? fallbackRange.step;
+  const minTemp =
+    parseNumberish(attrs?.min_temp ?? normalized?.minTemperature) ?? fallbackRange.minTemp;
+  const maxTemp =
+    parseNumberish(attrs?.max_temp ?? normalized?.maxTemperature) ?? fallbackRange.maxTemp;
+  const step =
+    parseNumberish(attrs?.target_temp_step ?? normalized?.temperatureStep) ?? fallbackRange.step;
 
   return {
     minTemp,
@@ -114,7 +119,8 @@ function resolveClimateTemperatureServiceData(
   operatingState?: {
     mode?: string;
     action?: string;
-  }
+  },
+  range?: { minTemp: number; maxTemp: number; step: number }
 ): {
   serviceDomain: 'climate' | 'water_heater';
   temperature?: number;
@@ -154,16 +160,25 @@ function resolveClimateTemperatureServiceData(
         : '';
 
   if ((action.includes('cool') || mode === 'cool') && targetHigh !== null) {
-    return { serviceDomain: 'climate', targetTemperatureHigh: nextTemp };
+    return {
+      serviceDomain: 'climate',
+      targetTemperatureHigh: Math.max(targetLow ?? range?.minTemp ?? nextTemp, nextTemp),
+    };
   }
 
   if ((action.includes('heat') || mode === 'heat') && targetLow !== null) {
-    return { serviceDomain: 'climate', targetTemperatureLow: nextTemp };
+    return {
+      serviceDomain: 'climate',
+      targetTemperatureLow: Math.min(targetHigh ?? range?.maxTemp ?? nextTemp, nextTemp),
+    };
   }
 
   const currentTarget = resolveClimateTargetTemperature(liveEntity);
   if (currentTarget !== null && targetLow !== null && targetHigh !== null) {
-    const delta = nextTemp - currentTarget;
+    const requestedDelta = nextTemp - currentTarget;
+    const delta = range
+      ? Math.min(range.maxTemp - targetHigh, Math.max(range.minTemp - targetLow, requestedDelta))
+      : requestedDelta;
     return {
       serviceDomain: 'climate',
       targetTemperatureLow: Number((targetLow + delta).toFixed(3)),
@@ -172,8 +187,14 @@ function resolveClimateTemperatureServiceData(
   }
 
   return targetHigh !== null
-    ? { serviceDomain: 'climate', targetTemperatureHigh: nextTemp }
-    : { serviceDomain: 'climate', targetTemperatureLow: nextTemp };
+    ? {
+        serviceDomain: 'climate',
+        targetTemperatureHigh: Math.max(targetLow ?? range?.minTemp ?? nextTemp, nextTemp),
+      }
+    : {
+        serviceDomain: 'climate',
+        targetTemperatureLow: Math.min(targetHigh ?? range?.maxTemp ?? nextTemp, nextTemp),
+      };
 }
 
 export function useClimateCardController({
@@ -181,7 +202,7 @@ export function useClimateCardController({
   name,
   providerId,
   initialTemp = 21,
-  initialCurrentTemp = 22,
+  initialCurrentTemp = Number.NaN,
   sourceTemperatureUnit,
   initialMode = 'cool',
   initialAction,
@@ -241,8 +262,13 @@ export function useClimateCardController({
     ]
   );
   const temperatureRange = useMemo(
-    () => resolveClimateTemperatureRange(liveEntity, effectiveSourceTemperatureUnit),
-    [effectiveSourceTemperatureUnit, liveEntity]
+    () =>
+      resolveClimateTemperatureRange(
+        liveEntity,
+        effectiveSourceTemperatureUnit,
+        providerEntity?.attributes
+      ),
+    [effectiveSourceTemperatureUnit, liveEntity, providerEntity?.attributes]
   );
   const { siblingIds: siblingEntityIds } = useProviderClimateTopology(id);
   const initial = useMemo(
@@ -288,6 +314,47 @@ export function useClimateCardController({
         : initialSupportedClimateModes?.find((entry) => entry !== 'off');
   }, [id, resolvedProviderId]);
 
+  const available = providerEntity
+    ? providerEntity.availability === 'available'
+    : liveEntity
+      ? !['unknown', 'unavailable'].includes(liveEntity.state)
+      : true;
+  const canSetTemperature =
+    available && (!providerEntity || providerEntity.capabilities.includes('temperature_setpoint'));
+
+  const observed = resolveClimateEntityState({ liveEntity, providerState, initial });
+  const rangeLow = parseNumberish(
+    liveEntity?.attributes.target_temp_low ?? providerEntity?.attributes.targetTemperatureLow
+  );
+  const rangeHigh = parseNumberish(
+    liveEntity?.attributes.target_temp_high ?? providerEntity?.attributes.targetTemperatureHigh
+  );
+  const targetRange =
+    rangeLow !== null && rangeHigh !== null && rangeLow <= rangeHigh
+      ? { low: rangeLow, high: rangeHigh }
+      : undefined;
+  const rangeCommand = useDeviceCommand(
+    owner,
+    targetRange ? `${rangeLow}:${rangeHigh}` : undefined,
+    canSetTemperature
+  );
+  const temperatureCommand = useDeviceCommand(owner, observed.targetTemp, canSetTemperature);
+  const modeCommand = useDeviceCommand(owner, observed.mode, available);
+
+  useEffect(() => {
+    if (temperatureCommand.failed || modeCommand.failed || rangeCommand.failed) {
+      reconciliation.observe(resolveClimateEntityState({ liveEntity, providerState, initial }));
+    }
+  }, [
+    temperatureCommand.failed,
+    modeCommand.failed,
+    rangeCommand.failed,
+    reconciliation,
+    liveEntity,
+    providerState,
+    initial,
+  ]);
+
   const runTemperatureAction = useServiceActionHandler();
   const runModeAction = useServiceActionHandler();
   const { queue: queueTargetTempSync, cancel: cancelTargetTempSync } = useHaCommandQueue(
@@ -298,40 +365,102 @@ export function useClimateCardController({
   );
   useEffect(() => cancelTargetTempSync, [reconciliation, cancelTargetTempSync]);
 
+  useEffect(() => {
+    if (!available) {
+      cancelTargetTempSync();
+      reconciliation.dispose();
+    }
+  }, [available, cancelTargetTempSync, reconciliation]);
+
   const updateTargetTemp = useCallback(
     (nextTemp: number, immediate = false) => {
+      if (!canSetTemperature || !Number.isFinite(nextTemp)) return;
       const temperature = snapClimateTemperature(
         nextTemp,
         temperatureRange.minTemp,
         temperatureRange.maxTemp,
         temperatureRange.step
       );
-      const rollback = reconciliation.requestTemperature(temperature);
+      const pendingState = reconciliation.getSnapshot();
+      const temperatureUpdate = resolveClimateTemperatureServiceData(
+        id,
+        liveEntity,
+        temperature,
+        { mode: pendingState.mode, action: pendingState.action },
+        temperatureRange
+      );
+      const expectedTemperature =
+        temperatureUpdate.temperature ??
+        (temperatureUpdate.targetTemperatureLow !== undefined &&
+        temperatureUpdate.targetTemperatureHigh !== undefined
+          ? (temperatureUpdate.targetTemperatureLow + temperatureUpdate.targetTemperatureHigh) / 2
+          : (temperatureUpdate.targetTemperatureLow ??
+            temperatureUpdate.targetTemperatureHigh ??
+            temperature));
+      const rollback = reconciliation.requestTemperature(expectedTemperature);
       queueTargetTempSync(
         {
           rollback,
           send: async () => {
-            const pendingState = reconciliation.getSnapshot();
-            const temperatureUpdate = resolveClimateTemperatureServiceData(
-              id,
-              liveEntity,
-              temperature,
-              {
-                mode: pendingState.mode,
-                action: pendingState.action,
+            if (!canSetTemperature) return;
+            await temperatureCommand.send(expectedTemperature, async () => {
+              try {
+                await integrationClimateFeatureService.setTargetTemperature(
+                  id,
+                  temperatureUpdate,
+                  resolvedProviderId
+                );
+              } catch (error) {
+                rollback();
+                throw error;
               }
-            );
-            await integrationClimateFeatureService.setTargetTemperature(id, temperatureUpdate);
+              return undefined;
+            });
           },
         },
         immediate
       );
     },
-    [id, liveEntity, reconciliation, queueTargetTempSync, temperatureRange]
+    [
+      canSetTemperature,
+      id,
+      resolvedProviderId,
+      liveEntity,
+      reconciliation,
+      queueTargetTempSync,
+      temperatureCommand.send,
+      temperatureRange,
+    ]
   );
+
+  const commitRangeEndpoint = (endpoint: 'low' | 'high', next: number) => {
+    if (!canSetTemperature || !targetRange || !Number.isFinite(next)) return;
+    const snapped = snapClimateTemperature(
+      next,
+      temperatureRange.minTemp,
+      temperatureRange.maxTemp,
+      temperatureRange.step
+    );
+    const low = endpoint === 'low' ? Math.min(snapped, targetRange.high) : targetRange.low;
+    const high = endpoint === 'high' ? Math.max(snapped, targetRange.low) : targetRange.high;
+    void rangeCommand.send(`${low}:${high}`, async () => {
+      await integrationClimateFeatureService.setTargetTemperature(
+        id,
+        {
+          serviceDomain: 'climate',
+          targetTemperatureLow: low,
+          targetTemperatureHigh: high,
+        },
+        resolvedProviderId
+      );
+      return undefined;
+    });
+  };
 
   const updateMode = useCallback(
     (nextMode: string) => {
+      if (!available || (supportedClimateModes && !supportedClimateModes.includes(nextMode)))
+        return;
       if (nextMode !== 'off') lastActiveModeRef.current = nextMode;
       const rollback = reconciliation.requestOperatingState({
         mode: nextMode,
@@ -341,16 +470,34 @@ export function useClimateCardController({
       });
       void runModeAction(
         async () => {
-          await dispatchEntityCommand(
-            { type: 'set_climate_mode', entityId: id, mode: nextMode },
-            resolvedProviderId
-          );
+          await modeCommand.send(nextMode, async () => {
+            try {
+              const result = await dispatchEntityCommand(
+                { type: 'set_climate_mode', entityId: id, mode: nextMode },
+                resolvedProviderId
+              );
+              if (!result.accepted) rollback();
+              return result;
+            } catch (error) {
+              rollback();
+              throw error;
+            }
+          });
         },
         t('climate.feedback.updateModeFailed'),
         { onError: rollback }
       );
     },
-    [id, resolvedProviderId, reconciliation, runModeAction, t]
+    [
+      available,
+      supportedClimateModes,
+      id,
+      resolvedProviderId,
+      reconciliation,
+      runModeAction,
+      modeCommand.send,
+      t,
+    ]
   );
 
   const togglePower = useCallback(() => {
@@ -418,7 +565,7 @@ export function useClimateCardController({
   const secondaryTextColor = surface.textSecondary;
 
   const canTogglePower =
-    supportedClimateModes === undefined || supportedClimateModes.includes('off');
+    available && (supportedClimateModes === undefined || supportedClimateModes.includes('off'));
   const interaction = useEntityCardInteractionController({
     ariaLabel: `${name} ${t('climate.subtitle').toLowerCase()}`,
     ariaPressed: canTogglePower ? isOn : undefined,
@@ -490,6 +637,13 @@ export function useClimateCardController({
 
   return {
     action,
+    available,
+    canSetTemperature,
+    temperatureCommand,
+    rangeCommand,
+    targetRange,
+    commitRangeEndpoint,
+    modeCommand,
     cardColors,
     cardInteraction,
     currentTemp,
@@ -503,17 +657,21 @@ export function useClimateCardController({
     displayStep,
     displayTargetTemp,
     formatTemperature: (value: number) =>
-      effectiveSourceTemperatureUnit
-        ? formatTemperatureFromSourceUnit(value, effectiveSourceTemperatureUnit, temperatureUnit)
-        : formatTemperature(value, temperatureUnit),
+      !Number.isFinite(value)
+        ? '—'
+        : effectiveSourceTemperatureUnit
+          ? formatTemperatureFromSourceUnit(value, effectiveSourceTemperatureUnit, temperatureUnit)
+          : formatTemperature(value, temperatureUnit),
     formatTemperatureValue: (value: number) =>
-      effectiveSourceTemperatureUnit
-        ? formatTemperatureValueFromSourceUnit(
-            value,
-            effectiveSourceTemperatureUnit,
-            temperatureUnit
-          )
-        : formatTemperatureValue(value, temperatureUnit),
+      !Number.isFinite(value)
+        ? '—'
+        : effectiveSourceTemperatureUnit
+          ? formatTemperatureValueFromSourceUnit(
+              value,
+              effectiveSourceTemperatureUnit,
+              temperatureUnit
+            )
+          : formatTemperatureValue(value, temperatureUnit),
     hasTargetTemperature: liveEntity
       ? resolveClimateTargetTemperature(liveEntity) !== null
       : providerState

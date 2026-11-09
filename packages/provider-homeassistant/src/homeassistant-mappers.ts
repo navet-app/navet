@@ -1077,7 +1077,10 @@ function inferHomeAssistantCapabilities(
   if (domain === 'climate' || domain === 'water_heater') {
     const controls = mapHomeAssistantClimateControls(entity);
     return [
-      'temperature_setpoint',
+      ...(typeof entity.attributes.supported_features !== 'number' ||
+      (entity.attributes.supported_features & (domain === 'water_heater' ? 1 : 3)) !== 0
+        ? ['temperature_setpoint' as const]
+        : []),
       ...(controls ? getHomeAssistantClimateControlCapabilities(controls) : []),
     ];
   }
@@ -1137,14 +1140,15 @@ function createHomeAssistantState(
     const targetTemperature =
       readNumberish(entity.attributes?.temperature) ??
       readNumberish(entity.attributes?.target_temp_low) ??
-      readNumberish(entity.attributes?.target_temp_high) ??
-      currentTemperature;
+      readNumberish(entity.attributes?.target_temp_high);
 
     return {
       ...commonState,
       value: entity.state,
-      temperature: targetTemperature ?? 0,
-      currentTemperature: currentTemperature ?? targetTemperature ?? 0,
+      targetTemperatureLow: readNumberish(entity.attributes?.target_temp_low),
+      targetTemperatureHigh: readNumberish(entity.attributes?.target_temp_high),
+      temperature: targetTemperature,
+      currentTemperature,
       hasCurrentTemperature: currentTemperature !== undefined,
       temperatureUnit:
         normalizeTemperatureUnit(
@@ -1503,6 +1507,8 @@ function createHomeAssistantState(
         : undefined,
     colorTemperatureKelvin: entity.attributes?.color_temp_kelvin,
     percentage: entity.attributes?.percentage,
+    percentageStep:
+      domain === 'fan' ? readNumberish(entity.attributes?.percentage_step) : undefined,
     presetMode:
       typeof entity.attributes?.preset_mode === 'string'
         ? entity.attributes.preset_mode

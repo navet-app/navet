@@ -44,6 +44,19 @@ describe('dashboard-config import hardening', () => {
     useThemeStore.setState(useThemeStore.getInitialState(), true);
   });
 
+  // Keep existing import/export safety contracts; cover the additive shared setting.
+  it('exports and restores provider-scoped household climate room sensor choices', () => {
+    const sources = {
+      'room-1': { temperature: 'openhab:living_temp', humidity: 'homey:humidity' },
+    };
+    useSettingsStore.getState().updateSettings({ climateRoomSources: sources });
+    const exported = exportDashboardConfig();
+    expect(exported.settings.climateRoomSources).toEqual(sources);
+    useSettingsStore.getState().updateSettings({ climateRoomSources: {} });
+    importDashboardConfig(exported);
+    expect(useSettingsStore.getState().climateRoomSources).toEqual(sources);
+  });
+
   it('drops unsafe custom card URLs and service calls', () => {
     importDashboardConfig({
       ...baseConfig,

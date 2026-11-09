@@ -249,21 +249,16 @@ describe('FanCard', () => {
     expect(screen.getAllByText('Ceiling Fan').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
     const dialog = within(screen.getByRole('dialog'));
-    expect(dialog.getByRole('slider', { name: 'Fan Speed' })).toHaveAttribute(
-      'aria-valuenow',
-      '66'
-    );
-    fireEvent.click(dialog.getByRole('radio', { name: 'High' }));
+    expect(dialog.queryByRole('slider')).not.toBeInTheDocument();
+    expect(dialog.getByRole('radio', { name: '66%' })).toBeChecked();
+    fireEvent.click(dialog.getByRole('radio', { name: '100%' }));
     expect(serviceMock.callService).toHaveBeenCalledWith(
       'fan',
       'set_percentage',
       { percentage: 100 },
       { entity_id: 'fan.ceiling_fan' }
     );
-    expect(dialog.getByRole('slider', { name: 'Fan Speed' })).toHaveAttribute(
-      'aria-valuenow',
-      '100'
-    );
+    expect(dialog.getByRole('radio', { name: '100%' })).toBeChecked();
     fireEvent.click(dialog.getByRole('button', { name: 'Turn off' }));
     expect(serviceMock.callService).toHaveBeenCalledWith(
       'fan',
@@ -631,5 +626,44 @@ describe('FanCard', () => {
       'false'
     );
     expect(screen.getByRole('slider', { name: 'Fan Speed' })).toHaveAttribute('aria-valuenow', '0');
+  });
+  it('uses advertised discrete speeds and keeps actual provider presets separate', () => {
+    setFanProviderEntity(['toggle', 'fan_speed']);
+    updateFanProviderEntity({
+      value: 'on',
+      percentage: 25,
+      percentageStep: 25,
+      presetMode: 'auto',
+      presetModes: ['auto', 'sleep'],
+    });
+    renderWithProviders(
+      <FanCard
+        id="fan.ceiling_fan"
+        name="Ceiling Fan"
+        room="Bedroom"
+        initialState
+        initialPercentage={25}
+        size="small"
+        onSizeChange={vi.fn()}
+        isEditMode={false}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings for Ceiling Fan' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.queryByRole('slider')).not.toBeInTheDocument();
+    fireEvent.click(dialog.getByRole('radio', { name: '50%' }));
+    expect(serviceMock.callService).toHaveBeenCalledWith(
+      'fan',
+      'set_percentage',
+      { percentage: 50 },
+      { entity_id: 'fan.ceiling_fan' }
+    );
+    fireEvent.click(dialog.getByRole('radio', { name: 'sleep' }));
+    expect(serviceMock.callService).toHaveBeenCalledWith(
+      'fan',
+      'set_preset_mode',
+      { preset_mode: 'sleep' },
+      { entity_id: 'fan.ceiling_fan' }
+    );
   });
 });

@@ -49,8 +49,8 @@ describe('MapWidget', () => {
   it('renders the placeholder immediately before mounting the live map', () => {
     renderWithProviders(<MapWidget markers={MARKERS} />);
 
-    expect(screen.getByText('Trackers')).toBeInTheDocument();
-    expect(screen.getByText('1 tracked')).toBeInTheDocument();
+    expect(screen.getByText('Map')).toBeInTheDocument();
+    expect(screen.getByText('Locations: 1')).toBeInTheDocument();
     expect(screen.getByTestId('map-widget-viewport').className).toContain('rounded-[inherit]');
     expect(screen.getByRole('link', { name: '© OpenMapTiles' })).toHaveAttribute(
       'href',
