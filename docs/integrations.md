@@ -112,6 +112,10 @@ changes retain an explicit retry. Unavailable and unsupported controls cannot se
 Fan dialogs distinguish advertised presets from speed controls. Fixed-speed fans use their reported
 speed steps; continuous-speed fans retain a slider. Climate remembers this browser's explicit
 Type/Room choice and selected group, while keeping card positions stable as attention changes.
+In Climate's Room view, customization lets the household select a temperature sensor and a humidity
+sensor for each room. These choices are shared with the household dashboard configuration. Readings
+name their source; missing or unavailable sensors remain explicit and never switch automatically to
+another source. These context readings do not change the thermostat's own measurement or target.
 
 Home Assistant supplies shopping and to-do lists under **Household → Routines → Lists**. Each list declares
 its supported item actions and fields. Follow [Manage shopping and to-do lists](/guide/everyday-control/shared-lists/)

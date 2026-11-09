@@ -2,6 +2,7 @@ import { DashboardGroupingNavigation } from '@navet/app/components/patterns';
 import type { CardSize } from '@navet/app/components/shared/card-size-selector';
 import { STORAGE_KEYS } from '@navet/app/constants/storage-keys';
 import { DeviceGrid } from '@navet/app/features/dashboard/device-grid';
+import { useRoomWorkspaceStore } from '@navet/app/features/dashboard/rooms/room-workspace-store';
 import {
   SummaryBar,
   SummaryBarStack,
@@ -10,12 +11,13 @@ import { useI18n } from '@navet/app/hooks';
 import { usePersistedState } from '@navet/app/hooks/use-persisted-state';
 import type { DeviceWithType } from '@navet/app/types/device.types';
 import { getDeviceRoomLabel } from '@navet/app/utils/device-location';
-import { groupByRoomName } from '@navet/app/utils/room-name';
+import { groupByRoomName, normalizeRoomName } from '@navet/app/utils/room-name';
 import type { TemperatureUnit } from '@navet/app/utils/temperature';
 import { memo, useMemo } from 'react';
 import type { ClimateDashboardSection } from '../types/climate-dashboard';
 import { buildClimateDashboardOverview } from '../utils/climate-dashboard-overview';
 import { ClimateComfortBanner } from './climate-comfort-banner';
+import { ClimateRoomContext, getClimateRoomContextKey } from './climate-room-context';
 
 interface ClimateDashboardProps {
   deviceMap: Map<string, DeviceWithType>;
@@ -37,6 +39,7 @@ interface ClimateCardGroup {
   label: string;
   orderedIds: string[];
   priority: ClimateGroupPriority;
+  roomContextKey?: string;
 }
 
 function getGroupPriority(
@@ -66,6 +69,7 @@ export const ClimateDashboard = memo(function ClimateDashboard({
   optimizeOffscreenPaint,
 }: ClimateDashboardProps) {
   const { t } = useI18n();
+  const roomWorkspace = useRoomWorkspaceStore((state) => state.workspace);
   const [weatherSourceId] = usePersistedState<string | null>(
     STORAGE_KEYS.climateWeatherSource,
     null
@@ -133,12 +137,16 @@ export const ClimateDashboard = memo(function ClimateDashboard({
         const orderedIds = items.map((device) => device.id);
         return {
           id: `room-${encodeURIComponent(room)}`,
+          roomContextKey:
+            roomWorkspace?.rooms.find(
+              (entry) => normalizeRoomName(entry.displayName) === normalizeRoomName(room)
+            )?.id ?? getClimateRoomContextKey(room, items),
           label: room,
           orderedIds,
           priority: getGroupPriority(orderedIds, attentionByDeviceId),
         };
       });
-  }, [attentionByDeviceId, deviceMap, sections]);
+  }, [attentionByDeviceId, deviceMap, sections, roomWorkspace]);
   const groups = groupingMode === 'type' ? typeGroups : roomGroups;
   const requestedGroupId = navigation?.[groupingMode] ?? '';
   const selectedGroup = groups.find((group) => group.id === requestedGroupId) ?? groups[0] ?? null;
@@ -211,11 +219,22 @@ export const ClimateDashboard = memo(function ClimateDashboard({
             onItemChange={handleGroupChange}
           />
           <section
+            className="space-y-4"
             role="tabpanel"
             id={`climate-group-panel-${selectedGroup.id}`}
             aria-labelledby={`climate-group-tab-${selectedGroup.id}`}
             data-climate-group-panel={selectedGroup.id}
           >
+            {groupingMode === 'room' && selectedGroup.roomContextKey ? (
+              <ClimateRoomContext
+                key={selectedGroup.roomContextKey}
+                room={selectedGroup.label}
+                roomKey={selectedGroup.roomContextKey}
+                deviceMap={deviceMap}
+                temperatureUnit={temperatureUnit}
+                isEditMode={isEditMode}
+              />
+            ) : null}
             {renderGrid(selectedGroup.orderedIds)}
           </section>
         </div>

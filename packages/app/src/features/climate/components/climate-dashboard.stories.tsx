@@ -1,4 +1,5 @@
 import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-surface-tokens';
+import { STORAGE_KEYS } from '@navet/app/constants/storage-keys';
 import type {
   PlatformEntitySnapshotMap,
   PlatformMessageClient,
@@ -9,6 +10,7 @@ import type {
 } from '@navet/app/platform/provider-feature-services';
 import { getProviderRuntimeRegistration } from '@navet/app/provider-runtime-registry';
 import { integrationStore } from '@navet/app/stores/integration-store';
+import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { useThemeStore } from '@navet/app/stores/theme-store';
 import type { DeviceWithType } from '@navet/app/types/device.types';
 import type { NavetEntity } from '@navet/core/types';
@@ -491,3 +493,31 @@ export const Phone: Story = {
 export const LightTheme: Story = { globals: { theme: 'light' } };
 export const DarkTheme: Story = { globals: { theme: 'dark' } };
 export const BlackTheme: Story = { globals: { theme: 'black' } };
+
+export const RoomSensorSelection: Story = {
+  args: { isEditMode: true },
+  beforeEach: () => {
+    const previousNavigation = localStorage.getItem(STORAGE_KEYS.climateNavigation);
+    const previousSources = useSettingsStore.getState().climateRoomSources;
+    localStorage.setItem(
+      STORAGE_KEYS.climateNavigation,
+      JSON.stringify({ mode: 'room', type: '', room: 'room-Living%20room' })
+    );
+    useSettingsStore.getState().updateSettings({ climateRoomSources: {} });
+    return () => {
+      if (previousNavigation === null) localStorage.removeItem(STORAGE_KEYS.climateNavigation);
+      else localStorage.setItem(STORAGE_KEYS.climateNavigation, previousNavigation);
+      useSettingsStore.getState().updateSettings({ climateRoomSources: previousSources });
+    };
+  },
+  play: async ({ canvas }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Room temperature' }));
+    await userEvent.click(
+      canvas.getByRole('radio', { name: 'Living room temperature · Living room' })
+    );
+    await expect(canvas.getByText('21.4 °C · Living room temperature')).toBeVisible();
+    await userEvent.click(canvas.getByRole('button', { name: 'Room humidity' }));
+    await userEvent.click(canvas.getByRole('radio', { name: 'Bedroom humidity · Bedroom' }));
+    await expect(canvas.getByText('46 % · Bedroom humidity')).toBeVisible();
+  },
+};

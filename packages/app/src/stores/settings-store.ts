@@ -8,6 +8,10 @@ import { STORE_STORAGE_KEYS } from '@navet/app/constants/storage-keys';
 import { type AppLanguage, getNavigatorLanguage } from '@navet/app/i18n/config';
 import type { PlatformCameraTransport } from '@navet/app/platform/provider-feature-models';
 import {
+  type ClimateRoomSourceSelections,
+  normalizeClimateRoomSources,
+} from '@navet/app/utils/climate-room-sources';
+import {
   type CustomSidebarAction,
   type CustomSummaryPill,
   normalizeCustomSidebarActions,
@@ -94,6 +98,7 @@ export interface UserSettings {
   ambientLightBleed: boolean;
   weatherForecastMode: WeatherForecastMode;
   weatherMetricIds: WeatherMetricId[];
+  climateRoomSources: ClimateRoomSourceSelections;
   advancedCustomizationEnabled: boolean;
   customSidebarActions: CustomSidebarAction[];
   customSummaryPills: CustomSummaryPill[];
@@ -161,6 +166,7 @@ export const defaultSettings: UserSettings = {
   ambientLightBleed: true,
   weatherForecastMode: 'weekly',
   weatherMetricIds: ['precipitation', 'humidity', 'wind'],
+  climateRoomSources: {},
   advancedCustomizationEnabled: false,
   customSidebarActions: [],
   customSummaryPills: [],
@@ -397,6 +403,10 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           ...state,
           ...newSettings,
+          climateRoomSources:
+            newSettings.climateRoomSources === undefined
+              ? state.climateRoomSources
+              : normalizeClimateRoomSources(newSettings.climateRoomSources),
           screensaverIdleMinutes: isScreensaverIdleMinutes(newSettings.screensaverIdleMinutes)
             ? newSettings.screensaverIdleMinutes
             : state.screensaverIdleMinutes,
@@ -558,6 +568,7 @@ export const useSettingsStore = create<SettingsState>()(
         return set(() => ({
           ...defaultSettings,
           ...supportedSettings,
+          climateRoomSources: normalizeClimateRoomSources(supportedSettings.climateRoomSources),
           screensaverIdleMinutes: isScreensaverIdleMinutes(supportedSettings.screensaverIdleMinutes)
             ? supportedSettings.screensaverIdleMinutes
             : defaultSettings.screensaverIdleMinutes,
@@ -637,6 +648,7 @@ export const useSettingsStore = create<SettingsState>()(
         return {
           ...current,
           ...next,
+          climateRoomSources: normalizeClimateRoomSources(next.climateRoomSources),
           screensaverIdleMinutes: isScreensaverIdleMinutes(next.screensaverIdleMinutes)
             ? next.screensaverIdleMinutes
             : current.screensaverIdleMinutes,

@@ -1,0 +1,5 @@
+type: new
+audiences:
+  - standalone
+  - home-assistant
+summary: Choose shared temperature and humidity sensors for climate room readings with explicit source attribution.
