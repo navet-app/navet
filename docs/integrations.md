@@ -129,6 +129,10 @@ Advanced Flows, and Moods are available as shared scene cards. People appear in 
 and matching Insights logs provide entity history for the last 31 days. Availability depends on
 Homey's version and granted permissions. See the capability matrix above for supported features.
 
+Homey zones keep their hierarchy in the Home room navigation. Select a parent zone to see its
+devices followed by devices in its visible child zones. Open the dropdown to reach deeper zones.
+If zones share a name, Navet includes their paths to distinguish them.
+
 ### openHAB
 
 Navet maps openHAB rooms and realtime items for lights, switches, fans, climate setpoints, speaker

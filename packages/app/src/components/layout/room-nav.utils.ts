@@ -1,4 +1,5 @@
 import { ALL_ROOMS_ID, isAllRooms } from '@navet/app/constants/rooms';
+import type { RoomNavigationNode } from '@navet/app/features/dashboard/rooms/room-hierarchy';
 import { normalizeRoomName } from '@navet/app/utils/room-name';
 
 export interface RoomNavigationGroup {
@@ -6,6 +7,7 @@ export interface RoomNavigationGroup {
   name: string;
   rooms: string[];
   symbol?: string;
+  hierarchy?: RoomNavigationNode;
 }
 
 export function getVisibleRoomNavRooms(rooms: string[]): string[] {

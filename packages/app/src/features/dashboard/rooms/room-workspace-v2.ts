@@ -85,6 +85,7 @@ export interface RoomWorkspaceV2 {
 
 export interface RoomWorkspaceDiscoveredRoom {
   displayName: string;
+  distinctZone?: boolean;
   sourceRef: RoomWorkspaceSourceRefV2;
 }
 
@@ -290,7 +291,7 @@ function sanitizeDiscoveredRooms(
     }
 
     seenCanonicalIds.add(sourceRef.canonicalId);
-    sanitized.push({ displayName, sourceRef });
+    sanitized.push({ displayName, sourceRef, distinctZone: discoveredRoom.distinctZone });
   }
 
   return sanitized;
@@ -908,7 +909,39 @@ export function reconcileRoomWorkspaceV2(
   }
 
   const rooms = [...current.rooms];
-  for (const discoveredRoom of sanitizeDiscoveredRooms(discoveredRooms)) {
+  const discovered = sanitizeDiscoveredRooms(discoveredRooms);
+  const discoveredById = new Map(discovered.map((room) => [room.sourceRef.canonicalId, room]));
+  // Older workspaces may already have consolidated two zones with the same name.
+  for (const [index, room] of rooms.entries()) {
+    if (room.sourceRefs.length < 2) continue;
+    const [primary, ...others] = room.sourceRefs;
+    const primaryName = discoveredById.get(primary.canonicalId)?.displayName;
+    const detached = others.filter((source) => {
+      const match = discoveredById.get(source.canonicalId);
+      return (
+        match?.distinctZone &&
+        normalizeRoomName(match.displayName) !== normalizeRoomName(primaryName ?? room.displayName)
+      );
+    });
+    if (!detached.length) continue;
+    rooms[index] = {
+      ...room,
+      sourceRefs: room.sourceRefs.filter((source) => !detached.includes(source)),
+    };
+    for (const source of detached) {
+      const id = createUniqueId('room', usedIds, idFactory) as RoomWorkspaceRoomId;
+      const split = {
+        ...room,
+        id,
+        displayName: discoveredById.get(source.canonicalId)?.displayName ?? room.displayName,
+        sourceRefs: [source],
+        metadata: { ...room.metadata, nameMode: 'provider' as const, order: rooms.length },
+      };
+      rooms.push(split);
+      roomBySourceCanonicalId.set(source.canonicalId, split);
+    }
+  }
+  for (const discoveredRoom of discovered) {
     const existingRoom = roomBySourceCanonicalId.get(discoveredRoom.sourceRef.canonicalId);
     if (existingRoom) {
       const index = rooms.findIndex((room) => room.id === existingRoom.id);

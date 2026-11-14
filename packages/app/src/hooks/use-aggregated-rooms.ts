@@ -1,3 +1,4 @@
+import { getProviderRoomNames } from '@navet/app/features/dashboard/rooms/room-hierarchy';
 import type { PlatformRoom } from '@navet/app/platform/types';
 import { integrationSelectors } from '@navet/app/stores/selectors';
 import { normalizeRoomName } from '@navet/app/utils/room-name';
@@ -12,8 +13,10 @@ export function useAggregatedRooms(): PlatformRoom[] {
   return useMemo<PlatformRoom[]>(() => {
     const roomsByKey = new Map<string, PlatformRoom>();
 
+    const names = getProviderRoomNames(normalizedRoomsByCanonicalId);
     for (const room of Object.values(normalizedRoomsByCanonicalId)) {
-      const roomKey = normalizeRoomName(room.name);
+      const name = names.get(room.canonicalId) ?? room.name;
+      const roomKey = normalizeRoomName(name);
       const existing = roomsByKey.get(roomKey);
       if (existing) {
         if (!existing.providerIds.includes(room.providerId)) {
@@ -30,7 +33,7 @@ export function useAggregatedRooms(): PlatformRoom[] {
       roomsByKey.set(roomKey, {
         id: roomKey,
         key: roomKey,
-        name: room.name,
+        name,
         providerIds: [room.providerId],
         canonicalMemberIds: [...room.memberIds],
       });

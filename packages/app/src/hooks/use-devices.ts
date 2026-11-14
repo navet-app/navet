@@ -2,6 +2,7 @@ import {
   createEmptyDeviceCollection,
   mapNavetEntitiesToDeviceCollection,
 } from '@navet/app/core/navet-device-collections';
+import { getProviderRoomNames } from '@navet/app/features/dashboard/rooms/room-hierarchy';
 import { useRoomWorkspaceStore } from '@navet/app/features/dashboard/rooms/room-workspace-store';
 import {
   buildRoomWorkspaceIndexV2,
@@ -75,11 +76,13 @@ function buildRoomPlacementLookup(
   const workspaceRoomIdsBySourceCanonicalId: Record<string, string> = {};
   const displayNamesByNormalizedName = new Map<string, string>();
 
+  const names = getProviderRoomNames(normalizedRoomsByCanonicalId);
   Object.values(normalizedRoomsByCanonicalId).forEach((room) => {
     // Match the display name chosen by useAggregatedRooms for shared provider rooms.
     // Otherwise differently capitalized source labels produce invisible room card orders.
-    const roomKey = normalizeRoomName(room.name);
-    const displayName = displayNamesByNormalizedName.get(roomKey) ?? room.name;
+    const name = names.get(room.canonicalId) ?? room.name;
+    const roomKey = normalizeRoomName(name);
+    const displayName = displayNamesByNormalizedName.get(roomKey) ?? name;
     displayNamesByNormalizedName.set(roomKey, displayName);
     roomNamesById[roomKey] = displayName;
     roomNamesById[room.canonicalId] = displayName;
