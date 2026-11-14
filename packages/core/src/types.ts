@@ -75,6 +75,7 @@ export interface NavetProviderRoom {
   name: string;
   normalizedName: string;
   alias?: string;
+  parentCanonicalId?: string;
   memberIds: string[];
   sourceType: 'provider_managed' | 'derived';
   supportsOrdering: boolean;

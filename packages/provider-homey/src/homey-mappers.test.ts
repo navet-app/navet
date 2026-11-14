@@ -190,6 +190,36 @@ describe('homey-mappers room identity', () => {
     ).toEqual([]);
   });
 
+  it('keeps zone identity and direct membership while normalizing parent references', () => {
+    const snapshot = createSnapshot('Hall');
+    snapshot.zones = {
+      ...snapshot.zones,
+      zone_kitchen: { id: 'zone_kitchen', name: 'Hall', parent: 'upstairs' },
+      upstairs: { id: 'upstairs', name: 'Upstairs' },
+      downstairs: { id: 'downstairs', name: 'Downstairs' },
+      other_hall: { id: 'other_hall', name: 'Hall', parent: 'downstairs' },
+      orphan: { id: 'orphan', name: 'Orphan', parent: 'missing' },
+      self: { id: 'self', name: 'Self', parent: 'self' },
+      cycle_a: { id: 'cycle_a', name: 'Cycle A', parent: 'cycle_b' },
+      cycle_b: { id: 'cycle_b', name: 'Cycle B', parent: 'cycle_a' },
+    };
+    const rooms = new Map(buildHomeyProviderRooms(snapshot).map((room) => [room.externalId, room]));
+
+    expect(rooms.get('zone_kitchen')).toMatchObject({
+      name: 'Hall',
+      parentCanonicalId: 'homey:upstairs',
+      memberIds: ['homey:kitchen_light'],
+    });
+    expect(rooms.get('other_hall')).toMatchObject({
+      name: 'Hall',
+      parentCanonicalId: 'homey:downstairs',
+    });
+    expect(rooms.get('upstairs')?.memberIds).toEqual([]);
+    for (const id of ['orphan', 'self', 'cycle_a', 'cycle_b']) {
+      expect(rooms.get(id)?.parentCanonicalId).toBeUndefined();
+    }
+  });
+
   it('keeps membership stable when a zone display name changes', () => {
     const snapshot = createSnapshot('Cooking space');
     const entities = mapHomeySnapshotToNavetEntities(snapshot);
