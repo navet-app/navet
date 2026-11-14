@@ -14,7 +14,9 @@ vi.mock('@navet/app/services/integration-resource.service', () => ({
 }));
 
 describe('provider display URLs', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Complete the lazy module load before starting the assertions' polling window.
+    await import('@navet/app/services/resource-url-observer');
     resolveUrl.mockReset();
   });
 
