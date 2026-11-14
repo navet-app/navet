@@ -330,13 +330,23 @@ export function useClimateCardController({
     liveEntity?.attributes.target_temp_high ?? providerEntity?.attributes.targetTemperatureHigh
   );
   const targetRange =
-    rangeLow !== null && rangeHigh !== null && rangeLow <= rangeHigh
+    (mode === 'heat_cool' || (mode === 'off' && observed.mode === 'off')) &&
+    rangeLow !== null &&
+    rangeHigh !== null &&
+    rangeLow <= rangeHigh
       ? { low: rangeLow, high: rangeHigh }
       : undefined;
+  const canSetRange =
+    !!targetRange &&
+    canSetTemperature &&
+    mode === 'heat_cool' &&
+    observed.mode === 'heat_cool' &&
+    providerEntity?.attributes.supportsTemperatureRange !== false;
   const rangeCommand = useDeviceCommand(
-    owner,
+    `${owner}:${mode}:${observed.mode}`,
     targetRange ? `${rangeLow}:${rangeHigh}` : undefined,
-    canSetTemperature
+    canSetRange,
+    true
   );
   const temperatureCommand = useDeviceCommand(owner, observed.targetTemp, canSetTemperature);
   const modeCommand = useDeviceCommand(owner, observed.mode, available);
@@ -434,15 +444,16 @@ export function useClimateCardController({
   );
 
   const commitRangeEndpoint = (endpoint: 'low' | 'high', next: number) => {
-    if (!canSetTemperature || !targetRange || !Number.isFinite(next)) return;
+    if (!canSetRange || !targetRange || !Number.isFinite(next)) return;
     const snapped = snapClimateTemperature(
       next,
       temperatureRange.minTemp,
       temperatureRange.maxTemp,
       temperatureRange.step
     );
-    const low = endpoint === 'low' ? Math.min(snapped, targetRange.high) : targetRange.low;
-    const high = endpoint === 'high' ? Math.max(snapped, targetRange.low) : targetRange.high;
+    const low = endpoint === 'low' ? snapped : targetRange.low;
+    const high = endpoint === 'high' ? snapped : targetRange.high;
+    if (low > high || (low === targetRange.low && high === targetRange.high)) return;
     void rangeCommand.send(`${low}:${high}`, async () => {
       await integrationClimateFeatureService.setTargetTemperature(
         id,
@@ -641,6 +652,7 @@ export function useClimateCardController({
     canSetTemperature,
     temperatureCommand,
     rangeCommand,
+    canSetRange,
     targetRange,
     commitRangeEndpoint,
     modeCommand,

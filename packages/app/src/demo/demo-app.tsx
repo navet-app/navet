@@ -963,7 +963,6 @@ function useDemoDisplayDefaults() {
     useThemeStore.getState().setWallpaper(null);
     useSettingsStore.getState().updateSettings({
       ...defaultSettings,
-      climateRoomSources: useSettingsStore.getState().climateRoomSources,
       screensaverEnabled: useSettingsStore.getState().screensaverEnabled,
       screensaverIdleMinutes: useSettingsStore.getState().screensaverIdleMinutes,
       screensaverBackground: useSettingsStore.getState().screensaverBackground,
@@ -1523,7 +1522,6 @@ function DemoWidgetCard({ card }: { card: CustomCard }) {
 }
 
 function ClimateShot() {
-  const isEditMode = useEditModeStore((state) => state.isEditMode);
   const hiddenEntityIds = useDashboardEntitiesStore((state) => state.hiddenEntityIds);
   const sections = demoClimateSections.map((section) => ({
     ...section,
@@ -1545,7 +1543,7 @@ function ClimateShot() {
       temperatureUnit="celsius"
       cardSizes={demoClimateCardSizes}
       updateCardSize={noopCardSizeChange}
-      isEditMode={isEditMode}
+      isEditMode={false}
       onRemoveEntity={noopRemoveEntity}
       densePerformanceMode={reduceRenderingWork}
       optimizeOffscreenPaint={reduceRenderingWork}

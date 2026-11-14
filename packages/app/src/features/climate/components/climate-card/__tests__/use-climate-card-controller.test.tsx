@@ -209,13 +209,14 @@ describe('useClimateCardController', () => {
     );
   });
 
-  it('uses the live entity temperature unit when the initial card props omit it', async () => {
+  it('prefers the reported temperature unit over legacy unit attributes', async () => {
     homeAssistantStore.setState({
       entities: {
         'climate.hallway': createClimateEntity({
           temperature: 72,
           current_temperature: 70,
           temperature_unit: '°F',
+          unit_of_measurement: '°C',
         }),
       },
     });
@@ -978,6 +979,69 @@ describe('useClimateCardController', () => {
       { entity_id: 'climate.hallway' }
     );
     expect(result.current.targetTemp).toBe(28);
+  });
+
+  it('waits for a range echo before accepting an edit to the other endpoint', async () => {
+    const publishRange = (low: number, mode = 'heat_cool') =>
+      homeAssistantStore.setState({
+        entities: {
+          'climate.hallway': createClimateEntity(
+            {
+              target_temp_low: low,
+              target_temp_high: 24,
+              min_temp: 16,
+              max_temp: 30,
+              target_temp_step: 0.5,
+              current_temperature: 21,
+              hvac_modes: ['heat', 'heat_cool', 'off'],
+              supported_features: 3,
+            },
+            mode
+          ),
+        },
+      });
+    publishRange(20);
+
+    const { result } = renderHookWithProviders(() =>
+      useClimateCardController({
+        id: 'climate.hallway',
+        name: 'Hallway',
+        initialMode: 'heat_cool',
+        isEditMode: false,
+        size: 'medium',
+      })
+    );
+
+    await act(async () => {
+      result.current.commitRangeEndpoint('low', 24.5);
+      result.current.commitRangeEndpoint('low', 20);
+      result.current.commitRangeEndpoint('low', 20.5);
+      result.current.commitRangeEndpoint('high', 23.5);
+    });
+    expect(result.current.rangeCommand.pending).toBe(true);
+    expect(serviceMock.callService).toHaveBeenCalledTimes(1);
+    expect(serviceMock.callService).toHaveBeenLastCalledWith(
+      'climate',
+      'set_temperature',
+      { target_temp_low: 20.5, target_temp_high: 24 },
+      { entity_id: 'climate.hallway' }
+    );
+
+    act(() => publishRange(20.5));
+    expect(result.current.rangeCommand.pending).toBe(false);
+    await act(async () => result.current.commitRangeEndpoint('high', 23.5));
+    expect(serviceMock.callService).toHaveBeenLastCalledWith(
+      'climate',
+      'set_temperature',
+      { target_temp_low: 20.5, target_temp_high: 23.5 },
+      { entity_id: 'climate.hallway' }
+    );
+
+    act(() => publishRange(20.5, 'heat'));
+    expect(result.current.targetRange).toBeUndefined();
+    expect(result.current.canSetRange).toBe(false);
+    await act(async () => result.current.commitRangeEndpoint('high', 23));
+    expect(serviceMock.callService).toHaveBeenCalledTimes(2);
   });
 
   it('shows a missing current temperature as unknown and cannot command an unavailable device', async () => {

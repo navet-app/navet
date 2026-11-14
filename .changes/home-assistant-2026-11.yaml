@@ -1,0 +1,5 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+summary: Support Home Assistant 2026.11 entity names, inherited room assignments for child devices, and reported climate temperature units.

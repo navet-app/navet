@@ -16,7 +16,7 @@ export function DeviceCommandFeedback({
   pending: boolean;
   failed: boolean;
   unconfirmed?: boolean;
-  retry: () => void;
+  retry?: () => void;
 }) {
   const { t } = useI18n();
   if (!pending && !failed) return null;
@@ -38,7 +38,7 @@ export function DeviceCommandFeedback({
                 : 'climate.advanced.updating'
           )}
         </span>
-        {failed ? (
+        {failed && retry ? (
           <Button size="small" variant="soft" onClick={retry}>
             {t('household.retry')}
           </Button>

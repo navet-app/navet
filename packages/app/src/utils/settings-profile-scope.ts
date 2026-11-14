@@ -17,7 +17,6 @@ import {
 } from '@navet/app/utils/custom-extensions';
 import { detectDeviceTier } from '@navet/app/utils/detect-device-tier';
 import { normalizePersistedEntityRecord } from '@navet/app/utils/provider-entity-id';
-import { normalizeClimateRoomSources } from './climate-room-sources';
 
 export const SETTINGS_PROFILE_SCHEMA_VERSION = 1 as const;
 
@@ -74,7 +73,6 @@ export const SETTINGS_PROFILE_CLASSIFICATION = {
   ambientLightBleed: 'device',
   weatherForecastMode: 'shared',
   weatherMetricIds: 'shared',
-  climateRoomSources: 'shared',
   advancedCustomizationEnabled: 'shared',
   customSidebarActions: 'shared',
   customSummaryPills: 'shared',
@@ -200,8 +198,6 @@ function sanitizeSettingValue(key: keyof UserSettings, value: unknown): unknown 
   if (key === 'temperatureUnit') {
     return value === 'celsius' || value === 'fahrenheit' ? value : undefined;
   }
-  if (key === 'climateRoomSources')
-    return isRecord(value) ? normalizeClimateRoomSources(value) : undefined;
   if (key === 'weatherMetricIds') {
     return Array.isArray(value)
       ? value.filter(

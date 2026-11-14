@@ -2796,23 +2796,24 @@ function applyChoreWorkspaceActionWithoutRecurrence(
     }
     const occurrencesById = { ...workspace.occurrencesById };
     const additionalActivities: ChoreActivity[] = [];
-    const selected = action.occurrenceIds
-      .map((id) => {
-        const occurrence = occurrencesById[id];
-        if (
-          occurrence?.status !== 'available' ||
-          occurrence.claimedAt ||
-          occurrence.carriedForwardTo ||
-          !occurrence.assigneeIds.includes(participant.id) ||
-          Date.parse(occurrence.scheduledAt) < Date.parse(participant.pausedAt as string) ||
-          Date.parse(occurrence.scheduledAt) >= Date.parse(participant.resumeAt as string)
-        ) {
-          throw new Error('A selected chore can no longer be moved');
-        }
-        return occurrence;
-      })
+    const requestedIds = new Set(action.occurrenceIds);
+    const selected = Object.values(occurrencesById)
+      .filter((occurrence) => requestedIds.has(occurrence.id))
       .sort((left, right) => left.scheduledAt.localeCompare(right.scheduledAt));
+    if (selected.length !== requestedIds.size) {
+      throw new Error('A selected chore can no longer be moved');
+    }
     for (const [index, occurrence] of selected.entries()) {
+      if (
+        occurrence.status !== 'available' ||
+        occurrence.claimedAt ||
+        occurrence.carriedForwardTo ||
+        !occurrence.assigneeIds.includes(participant.id) ||
+        Date.parse(occurrence.scheduledAt) < Date.parse(participant.pausedAt as string) ||
+        Date.parse(occurrence.scheduledAt) >= Date.parse(participant.resumeAt as string)
+      ) {
+        throw new Error('A selected chore can no longer be moved');
+      }
       const definition = workspace.definitionsById[occurrence.definitionId];
       if (!definition) throw new Error('Chore definition is no longer available');
       const parts = getTimeZoneParts(

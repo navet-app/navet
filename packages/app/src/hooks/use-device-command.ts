@@ -9,7 +9,8 @@ type Phase = 'idle' | 'pending' | 'failed' | 'unconfirmed';
 export function useDeviceCommand<T extends Value>(
   owner: string,
   reported: T | undefined,
-  writable: boolean
+  writable: boolean,
+  lockWhilePending = false
 ) {
   const [state, setState] = useState<{ owner: string; requested?: T; phase: Phase }>({
     owner,
@@ -65,7 +66,11 @@ export function useDeviceCommand<T extends Value>(
 
   const send = useCallback(
     async (requested: T, action: () => Promise<CommandResult | undefined>) => {
-      if (!writable || (pending.current !== undefined && Object.is(pending.current, requested)))
+      if (
+        !writable ||
+        (pending.current !== undefined &&
+          (lockWhilePending || Object.is(pending.current, requested)))
+      )
         return;
       clear();
       const request = ++generation.current;
@@ -97,7 +102,7 @@ export function useDeviceCommand<T extends Value>(
         fail();
       }
     },
-    [owner, identity, writable, clear]
+    [owner, identity, writable, clear, lockWhilePending]
   );
 
   return {

@@ -158,11 +158,10 @@ export const Range: Story = {
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole('button', { name: 'Open Climate dialog' }));
     const dialog = within(await within(document.body).findByRole('dialog'));
-    const lower = within(dialog.getByRole('group', { name: 'Lower target' }));
-    const upper = within(dialog.getByRole('group', { name: 'Upper target' }));
-    await userEvent.click(lower.getByRole('button', { name: 'Increase temperature' }));
-    await expect(lower.getByText('20.5°C', { selector: 'dd' })).toBeVisible();
-    await userEvent.click(upper.getByRole('button', { name: 'Decrease temperature' }));
-    await expect(upper.getByText('23.5°C', { selector: 'dd' })).toBeVisible();
+    const range = within(dialog.getByRole('group', { name: 'Target range' }));
+    await userEvent.click(range.getByRole('button', { name: 'Increase temperature · Heat to' }));
+    await expect(range.getByText('20.5°C')).toBeVisible();
+    await userEvent.click(range.getByRole('button', { name: 'Decrease temperature · Cool to' }));
+    await expect(range.getByText('23.5°C')).toBeVisible();
   },
 };

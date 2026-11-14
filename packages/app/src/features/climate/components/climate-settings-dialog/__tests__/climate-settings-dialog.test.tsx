@@ -88,7 +88,7 @@ describe('ClimateSettingsDialog', () => {
     });
     expect(screen.getByRole('radio', { name: 'Heat' })).toBeChecked();
     expect(screen.queryByRole('radio', { name: 'Cool' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('radio', { name: 'Auto' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Heat/Cool' }));
     expect(props.onModeChange).toHaveBeenCalledWith('heat_cool');
   });
 
@@ -339,6 +339,7 @@ describe('ClimateSettingsDialog', () => {
     useSettingsStore.setState({ temperatureUnit: 'celsius' });
     const onRangeCommit = vi.fn();
     renderDialog({
+      mode: 'heat_cool',
       targetRange: { low: 20, high: 24 },
       onRangeCommit,
       sourceTemperatureUnit: 'celsius',
@@ -346,12 +347,43 @@ describe('ClimateSettingsDialog', () => {
       maxTemp: 30,
       step: 0.5,
     });
-    const lower = within(screen.getByRole('group', { name: 'Lower target' }));
-    const upper = within(screen.getByRole('group', { name: 'Upper target' }));
-    fireEvent.click(lower.getByRole('button', { name: 'Increase temperature' }));
+    const range = within(screen.getByRole('group', { name: 'Target range' }));
+    expect(range.getByText('Heat to')).toBeVisible();
+    expect(range.getByText('Cool to')).toBeVisible();
+    fireEvent.click(range.getByRole('button', { name: 'Increase temperature · Heat to' }));
     expect(onRangeCommit).toHaveBeenCalledWith('low', 20.5);
-    fireEvent.click(upper.getByRole('button', { name: 'Decrease temperature' }));
+    fireEvent.click(range.getByRole('button', { name: 'Decrease temperature · Cool to' }));
     expect(onRangeCommit).toHaveBeenCalledWith('high', 23.5);
     expect(screen.queryByRole('button', { name: 'Temperature presets' })).not.toBeInTheDocument();
+  });
+
+  it('disables directions that cannot move by a full step in the device unit', () => {
+    useSettingsStore.setState({ temperatureUnit: 'celsius' });
+    const onRangeCommit = vi.fn();
+    renderDialog({
+      mode: 'heat_cool',
+      targetRange: { low: 60, high: 61 },
+      minTemp: 60,
+      step: 2,
+      onRangeCommit,
+    });
+    const range = within(screen.getByRole('group', { name: 'Target range' }));
+    expect(range.getByRole('button', { name: 'Decrease temperature · Heat to' })).toBeDisabled();
+    expect(range.getByRole('button', { name: 'Increase temperature · Heat to' })).toBeDisabled();
+    expect(range.getByRole('button', { name: 'Decrease temperature · Cool to' })).toBeDisabled();
+    expect(onRangeCommit).not.toHaveBeenCalled();
+  });
+
+  it('locks both endpoints while waiting for confirmation', () => {
+    renderDialog({
+      mode: 'heat_cool',
+      targetRange: { low: 68, high: 74 },
+      rangePending: true,
+      onRangeCommit: vi.fn(),
+    });
+    const range = within(screen.getByRole('group', { name: 'Target range' }));
+    for (const button of range.getAllByRole('button')) {
+      expect(button).toBeDisabled();
+    }
   });
 });

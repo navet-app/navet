@@ -8,6 +8,7 @@ COPY packages/provider-homeassistant/package.json packages/provider-homeassistan
 COPY packages/provider-homey/package.json packages/provider-homey/package.json
 COPY packages/provider-openhab/package.json packages/provider-openhab/package.json
 COPY packages/ui/package.json packages/ui/package.json
+COPY testing/provider-lab/homey-fixture-app/security/deepmerge testing/provider-lab/homey-fixture-app/security/deepmerge
 RUN corepack enable && pnpm install --frozen-lockfile
 
 COPY tsconfig.json tsconfig.node.json postcss.config.mjs vite.config.ts ./

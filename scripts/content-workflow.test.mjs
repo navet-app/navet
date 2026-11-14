@@ -114,7 +114,10 @@ it('generates all three transports from one master without rewriting wording or 
   expect(result.pack.drafts).toEqual(drafts);
   const masterPath = path.join(outputRoot, 'master.json');
   fs.writeFileSync(masterPath, JSON.stringify(master));
-  expect(execFileSync(process.execPath, [path.join(repoRoot, 'scripts/content-cli.mjs'),
+  const clockPath = path.join(outputRoot, 'clock.mjs');
+  fs.writeFileSync(clockPath, `import { mock } from 'node:test';
+mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-05T12:00:00Z') });`);
+  expect(execFileSync(process.execPath, ['--import', clockPath, path.join(repoRoot, 'scripts/content-cli.mjs'),
     'generate', '--brief', briefPath, '--master', masterPath, '--output', outputRoot],
     { encoding: 'utf8' })).toContain('Content checks: passed');
 });

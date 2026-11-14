@@ -22,6 +22,7 @@ export interface ClimateSettingsDialogProps {
   targetTemp: number;
   currentTemp: number;
   targetRange?: { low: number; high: number };
+  rangePending?: boolean;
   onRangeCommit?: (endpoint: 'low' | 'high', value: number) => void;
   sourceTemperatureUnit?: TemperatureUnit;
   minTemp?: number;

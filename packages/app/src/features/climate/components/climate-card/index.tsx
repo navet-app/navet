@@ -341,12 +341,14 @@ export const ClimateCard = memo(function ClimateCard({
           writable={controller.available}
           canSetTemperature={controller.canSetTemperature}
           targetRange={controller.targetRange}
-          onRangeCommit={controller.commitRangeEndpoint}
+          rangePending={controller.rangeCommand.pending}
+          onRangeCommit={controller.canSetRange ? controller.commitRangeEndpoint : undefined}
           commandFeedback={
             <>
               <DeviceCommandFeedback
-                label={`${t('climate.rangeLow')} / ${t('climate.rangeHigh')}`}
+                label={t('climate.targetRange')}
                 {...controller.rangeCommand}
+                retry={controller.canSetRange ? controller.rangeCommand.retry : undefined}
                 reported={
                   controller.rangeCommand.reported
                     ?.split(':')

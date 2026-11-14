@@ -54,6 +54,12 @@ must reach that same Home Assistant installation.
 - **Home Assistant returned an invalid sign-in response** means the response was incomplete or
   malformed. Start a fresh sign-in rather than reusing the old return URL.
 
+- **Invalid client id** can occur when the standalone Navet browser URL uses a public, global IPv6,
+  or Tailscale IP. Use a hostname for Navet. If Home Assistant itself rejects sign-in through a
+  reverse proxy, check that Home Assistant sees the forwarded scheme, host, and port and that the
+  proxy is configured in Home Assistant’s trusted proxies.
+  [Home Assistant 2026.11 sign-in changes](https://www.home-assistant.io/blog/2026/11/04/release-202611/#backward-incompatible-changes)
+
 ### Change the Home Assistant address
 
 Enter the replacement address in Navet and sign in with Home Assistant. If `NAVET_HASS_URL` is set

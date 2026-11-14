@@ -61,7 +61,9 @@ export const ClimateModeControls = memo(function ClimateModeControls({
               e.stopPropagation();
               onModeChange(option.mode);
             }}
-            aria-label={labelByMode[option.key]}
+            aria-label={
+              option.mode === 'heat_cool' ? t('climate.mode.heatCool') : labelByMode[option.key]
+            }
             className={`disabled:opacity-50 ${getClimateModeButtonColor(option.key, mode, isOn, theme as ThemeType)}`}
           >
             <Icon className={controlSizes.icon} />

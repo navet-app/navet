@@ -6,6 +6,7 @@ import type {
 import type { ProviderEntityRuntimeService } from '@navet/core/provider-feature-services';
 import { areDataEqual } from '@navet/core/structural-equality';
 import type { HassConfig, HassEntities } from 'home-assistant-js-websocket';
+import { resolveDeviceAreaId } from './homeassistant-mapper-support';
 import {
   addHomeAssistantListener,
   getHomeAssistantConfig,
@@ -65,7 +66,8 @@ function toPlatformEntityRegistryEntry(
     originalName?: string | null;
     platform?: string | null;
   },
-  deviceEntry?: HomeAssistantDeviceRegistryEntry
+  deviceEntry?: HomeAssistantDeviceRegistryEntry,
+  deviceAreaId?: string
 ): PlatformEntityRegistryEntry {
   return {
     entityId: entry.entity_id ?? entry.entityId ?? '',
@@ -73,7 +75,7 @@ function toPlatformEntityRegistryEntry(
     deviceName: deviceEntry?.name_by_user ?? deviceEntry?.name ?? null,
     manufacturer: deviceEntry?.manufacturer ?? null,
     model: deviceEntry?.model ?? null,
-    areaId: entry.area_id ?? entry.areaId ?? null,
+    areaId: entry.area_id ?? entry.areaId ?? deviceAreaId ?? null,
     name: entry.name ?? entry.original_name ?? entry.originalName ?? null,
     platform: entry.platform ?? null,
   };
@@ -170,6 +172,10 @@ function toPlatformEntityRegistryEntries(
       ? previousDeviceRegistryById.get(entry.device_id)
       : undefined;
     const deviceEntry = entry.device_id ? deviceRegistryById.get(entry.device_id) : undefined;
+    const parentEntry = deviceEntry?.parent_device_id
+      ? deviceRegistryById.get(deviceEntry.parent_device_id)
+      : undefined;
+    const deviceAreaId = resolveDeviceAreaId(deviceEntry, parentEntry);
 
     if (
       previousEntry &&
@@ -179,12 +185,13 @@ function toPlatformEntityRegistryEntries(
       previousEntry.name === entry.name &&
       previousEntry.original_name === entry.original_name &&
       previousEntry.platform === entry.platform &&
+      previousPlatformEntry.areaId === (entry.area_id ?? deviceAreaId ?? null) &&
       areDataEqual(previousDeviceEntry ?? null, deviceEntry ?? null)
     ) {
       return previousPlatformEntry;
     }
 
-    return toPlatformEntityRegistryEntry(entry, deviceEntry);
+    return toPlatformEntityRegistryEntry(entry, deviceEntry, deviceAreaId);
   });
   cachedPlatformRegistryById = Object.fromEntries(
     cachedPlatformRegistry.map((entry) => [entry.entityId, entry])

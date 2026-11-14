@@ -11,10 +11,12 @@
   },
   "devDependencies": {
     "homey": "4.4.2",
+    "deepmerge": "file:security/deepmerge",
     "image-size": "file:security/image-size",
     "parseuri": "file:security/parseuri"
   },
   "overrides": {
+    "deepmerge": "$deepmerge",
     "image-size": "$image-size",
     "parseuri": "$parseuri",
     "package-json": "7.0.0",
@@ -22,7 +24,7 @@
     "sharp": "0.35.5",
     "tmp": "0.2.7",
     "uuid": "11.1.1",
-    "qs": "6.16.0"
+    "qs": "6.16.1"
   },
   "engines": {
     "node": ">=24"

@@ -38,8 +38,8 @@ export function resolveClimateTemperatureUnit(
   }
 
   return (
-    normalizeTemperatureUnit(entity.attributes?.unit_of_measurement) ??
     normalizeTemperatureUnit(entity.attributes?.temperature_unit) ??
+    normalizeTemperatureUnit(entity.attributes?.unit_of_measurement) ??
     normalizeTemperatureUnit(entity.attributes?.native_temperature_unit) ??
     normalizeTemperatureUnit(entity.attributes?.native_unit_of_measurement) ??
     normalizeTemperatureUnit(fallbackUnit)

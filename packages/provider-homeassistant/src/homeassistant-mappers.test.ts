@@ -1,4 +1,5 @@
 import { actionHelperEntities } from '@navet/app/test/fixtures/home-assistant/entities/action-helper';
+import { homeAssistant202611Registry } from '@navet/app/test/fixtures/home-assistant/registry-2026-11';
 import { describe, expect, it } from 'vitest';
 import {
   buildHomeAssistantProviderRooms,
@@ -461,6 +462,49 @@ describe('homeassistant-mappers', () => {
         entityType: 'Media Player',
       })
     );
+  });
+
+  it('composes current names and inherits the parent area for child devices', () => {
+    const mapper = createHomeAssistantEntityMapper();
+    const input = {
+      ...homeAssistant202611Registry,
+      entities: {
+        'switch.outlet': makeEntity('switch.outlet', 'on', { friendly_name: 'Old outlet name' }),
+        'sensor.outlet_power': makeEntity('sensor.outlet_power', '20', {
+          device_class: 'power',
+          unit_of_measurement: 'W',
+        }),
+      },
+    };
+
+    expect(mapper.map(input)).toEqual([
+      expect.objectContaining({
+        externalId: 'switch.outlet',
+        name: 'Power strip Outlet 1',
+        roomId: 'home_assistant:kitchen',
+        room: 'Kitchen',
+      }),
+      expect.objectContaining({
+        externalId: 'sensor.outlet_power',
+        name: 'Power',
+        roomId: 'home_assistant:office',
+      }),
+    ]);
+
+    const [parent, child] = input.deviceRegistry;
+    expect(
+      mapper.map({
+        ...input,
+        deviceRegistry: [{ ...parent, area_id: 'office', name_by_user: 'Desk strip' }, child],
+      })[0]
+    ).toMatchObject({ name: 'Desk strip Outlet 1', roomId: 'home_assistant:office' });
+
+    expect(
+      mapper.map({
+        ...input,
+        deviceRegistry: [parent, { ...child, area_id: 'office', next_name_part: 'area' }],
+      })[0]
+    ).toMatchObject({ name: 'Outlet 1', roomId: 'home_assistant:office' });
   });
 
   it('uses Home Assistant registry user names when friendly_name is missing', () => {

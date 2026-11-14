@@ -19,6 +19,8 @@ export interface HomeAssistantAreaRegistryEntry {
 export interface HomeAssistantDeviceRegistryEntry {
   id: string;
   area_id?: string | null;
+  parent_device_id?: string | null;
+  next_name_part?: string | null;
   manufacturer?: string | null;
   model?: string | null;
   name?: string | null;
@@ -32,6 +34,7 @@ export interface HomeAssistantEntityRegistryEntry {
   device_id?: string | null;
   categories?: Record<string, string>;
   name?: string | null;
+  next_name_part?: string | null;
   original_name?: string | null;
   platform?: string | null;
   entity_category?: 'config' | 'diagnostic' | null;

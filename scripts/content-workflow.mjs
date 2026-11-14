@@ -314,7 +314,9 @@ export function validateBrief(brief, channelConfig, options = {}) {
 
   const selectedChannels = [];
   for (const channelId of brief?.channels ?? []) {
-    const profile = channelConfig.channels[channelId];
+    const profile = Object.hasOwn(channelConfig.channels, channelId)
+      ? channelConfig.channels[channelId]
+      : undefined;
     if (!profile) {
       errors.push(`Unknown channel "${channelId}".`);
       continue;
@@ -430,7 +432,9 @@ export function validateDrafts(drafts, brief, channelConfig) {
 
   for (const draft of drafts) {
     const channelId = draft?.channelId;
-    const profile = channelConfig.channels[channelId];
+    const profile = Object.hasOwn(channelConfig.channels, channelId)
+      ? channelConfig.channels[channelId]
+      : undefined;
     if (!selected.has(channelId)) errors.push(`Generated unexpected channel "${channelId}".`);
     if (seenChannels.has(channelId)) errors.push(`Generated duplicate channel "${channelId}".`);
     seenChannels.add(channelId);
@@ -807,9 +811,20 @@ function packReadme(pack) {
   return `# ${pack.brief.title}\n\n**Pack ID:** \`${pack.id}\`\n\n**Generation mode:** ${pack.generator.mode}\n\n**Content checks:** ${pack.publishEligible ? 'passed' : 'blocked'}\n\nReview [review.md](review.md), verify [evidence.md](evidence.md), and inspect the final copy and product proof. Publication requires the requested channel scope and review evidence. Publication records belong in the ignored local deliverables workspace.\n\n## Files\n\n- [Evidence ledger](evidence.md)\n- [Docs and update angle](content-angle.md)\n- [Product-proof plan](product-proof.md)\n- [Quality review](review.md)\n${pack.drafts.map((draft) => `- [${draft.channelId}](channels/${draft.channelId}.md)`).join('\n')}\n`;
 }
 
+const channelDraftFiles = new Map([
+  ['navet-subreddit', 'navet-subreddit.md'],
+  ['navet-discord', 'navet-discord.md'],
+  ['youtube', 'youtube.md'],
+  ['homeassistant-reddit', 'homeassistant-reddit.md'],
+  ['homeassistant-community', 'homeassistant-community.md'],
+  ['homey-reddit', 'homey-reddit.md'],
+  ['openhab-reddit', 'openhab-reddit.md'],
+  ['selfhosted-reddit', 'selfhosted-reddit.md'],
+]);
+
 export function writePack(pack, outputRoot) {
   for (const draft of pack.drafts) {
-    if (!/^[a-z][a-z0-9-]*$/.test(draft.channelId) ||
+    if (!channelDraftFiles.has(draft.channelId) ||
         !pack.channels.some((channel) => channel.id === draft.channelId)) {
       throw new Error('Draft channel must match a configured channel.');
     }
@@ -830,7 +845,7 @@ export function writePack(pack, outputRoot) {
   for (const draft of pack.drafts) {
     const profile = pack.channels.find((channel) => channel.id === draft.channelId);
     fs.writeFileSync(
-      path.join(outputRoot, 'channels', `${draft.channelId}.md`),
+      path.join(outputRoot, 'channels', channelDraftFiles.get(draft.channelId)),
       markdownDraft(draft, profile)
     );
   }
@@ -916,6 +931,9 @@ export async function generateContentPack({
     warnings: [...new Set([...briefValidation.warnings, ...draftValidation.warnings])],
   };
 
+  if (!hasText(brief.id) || !/^[a-z0-9][a-z0-9-]*$/.test(brief.id)) {
+    throw new Error('Brief id must use lowercase letters, numbers, and hyphens.');
+  }
   const resolvedOutput = outputPath
     ? path.resolve(repoRoot, outputPath)
     : path.join(communityWipRoot, brief.id);
