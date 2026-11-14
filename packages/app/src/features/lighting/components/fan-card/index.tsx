@@ -40,6 +40,7 @@ import { getLightCardSurfaceTokens } from '../light-card/light-card-surface-toke
 import { useSwitchCardAppearance } from '../use-switch-card-appearance';
 import type { SwitchSiblingEntity } from '../use-switch-card-controller';
 import { FanSettingsDialog } from './fan-settings-dialog';
+import { formatFanStepPercentage } from './fan-speed';
 
 interface FanCardProps {
   id: string;
@@ -214,9 +215,11 @@ export const FanCard = memo(function FanCard({
     presetMode,
     writable && presetModes.length > 0
   );
+  const discreteSpeed = percentageStep >= 100 / 6;
+  const reportedSpeed = livePercentage ?? initialPercentage;
   const speedCommand = useDeviceCommand(
     commandOwner,
-    livePercentage ?? initialPercentage,
+    discreteSpeed ? Math.round(reportedSpeed / percentageStep) : reportedSpeed,
     writable && supportsFanSpeed
   );
 
@@ -224,9 +227,11 @@ export const FanCard = memo(function FanCard({
     if (powerCommand.failed) setIsOn(powerCommand.reported ?? initialState);
   }, [powerCommand.failed, powerCommand.reported, initialState]);
   useEffect(() => {
-    if (speedCommand.failed)
-      setPercentage(clampPercentage(speedCommand.reported ?? initialPercentage));
-  }, [speedCommand.failed, speedCommand.reported, initialPercentage]);
+    if (speedCommand.failed) {
+      setIsOn(powerCommand.reported ?? initialState);
+      setPercentage(clampPercentage(reportedSpeed));
+    }
+  }, [speedCommand.failed, powerCommand.reported, initialState, reportedSpeed]);
 
   const hasAdvancedFanControls = fanDirection !== undefined || fanOscillating !== undefined;
   const siblingEntities = siblingEntityIds
@@ -305,7 +310,7 @@ export const FanCard = memo(function FanCard({
   const updateSpeed = useCallback(
     (nextPercentage: number) => {
       if (!writable || !supportsFanSpeed || !Number.isFinite(nextPercentage)) return;
-      const clampedPercentage = Number(
+      const steppedPercentage = Number(
         Math.min(
           100,
           Math.max(
@@ -316,13 +321,24 @@ export const FanCard = memo(function FanCard({
           )
         ).toFixed(3)
       );
+      const clampedPercentage = discreteSpeed
+        ? formatFanStepPercentage(
+            Math.round(steppedPercentage / percentageStep),
+            percentageStep,
+            resolvedProviderId === 'home_assistant'
+          )
+        : resolvedProviderId === 'home_assistant'
+          ? Math.round(steppedPercentage)
+          : steppedPercentage;
       const previousIsOn = isOn;
       setIsOn(true);
       setPercentage(clampedPercentage);
-      setRememberedPercentage(clampedPercentage);
       void runAction(
         async () => {
-          await speedCommand.send(clampedPercentage, () =>
+          const expectedSpeed = discreteSpeed
+            ? Math.round(clampedPercentage / percentageStep)
+            : clampedPercentage;
+          await speedCommand.send(expectedSpeed, () =>
             dispatchEntityCommand(
               {
                 type: 'set_fan_speed',
@@ -346,6 +362,7 @@ export const FanCard = memo(function FanCard({
       writable,
       supportsFanSpeed,
       percentageStep,
+      discreteSpeed,
       speedCommand.send,
       id,
       isOn,
@@ -792,6 +809,7 @@ export const FanCard = memo(function FanCard({
           percentage={displayedPercentage}
           supportsSpeed={supportsFanSpeed}
           percentageStep={percentageStep}
+          wholePercentage={resolvedProviderId === 'home_assistant'}
           presetModes={presetModes}
           presetMode={presetMode}
           onPresetChange={updatePreset}
@@ -807,9 +825,19 @@ export const FanCard = memo(function FanCard({
               <DeviceCommandFeedback
                 label={t('lighting.fanSpeed')}
                 {...speedCommand}
-                reported={`${speedCommand.reported ?? 0}%`}
+                reported={`${reportedSpeed}%`}
                 requested={
-                  speedCommand.requested === undefined ? undefined : `${speedCommand.requested}%`
+                  speedCommand.requested === undefined
+                    ? undefined
+                    : `${
+                        discreteSpeed
+                          ? formatFanStepPercentage(
+                              speedCommand.requested,
+                              percentageStep,
+                              resolvedProviderId === 'home_assistant'
+                            )
+                          : speedCommand.requested
+                      }%`
                 }
               />
               <DeviceCommandFeedback

@@ -8,6 +8,7 @@ import { getThemeSurfaceTokens } from '@navet/app/components/shared/theme/theme-
 import { useI18n, useTheme } from '@navet/app/hooks';
 import { Power, RotateCw, Wind } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { formatFanStepPercentage } from './fan-speed';
 
 export function FanSettingsDialog(props: {
   entityId: string;
@@ -22,6 +23,7 @@ export function FanSettingsDialog(props: {
   isOn: boolean;
   percentage: number;
   percentageStep?: number;
+  wholePercentage?: boolean;
   presetModes?: string[];
   presetMode?: string;
   onPresetChange?: (preset: string) => void;
@@ -48,12 +50,20 @@ export function FanSettingsDialog(props: {
   const discreteSpeeds =
     speedStep >= 100 / 6
       ? Array.from({ length: Math.round(100 / speedStep) }, (_, index) =>
-          index === Math.round(100 / speedStep) - 1
-            ? 100
-            : Number(Math.min(100, (index + 1) * speedStep).toFixed(3))
+          formatFanStepPercentage(index + 1, speedStep, props.wholePercentage)
         )
       : null;
-  const selectedSpeed = props.isOn ? String(props.percentage) : null;
+  const selectedSpeed = props.isOn
+    ? String(
+        discreteSpeeds
+          ? formatFanStepPercentage(
+              Math.round(props.percentage / speedStep),
+              speedStep,
+              props.wholePercentage
+            )
+          : props.percentage
+      )
+    : null;
   return (
     <DeviceControlsDialog
       entityId={props.entityId}
