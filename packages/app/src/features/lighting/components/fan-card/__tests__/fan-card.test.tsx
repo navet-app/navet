@@ -687,7 +687,7 @@ describe('FanCard', () => {
     const dialog = within(screen.getByRole('dialog'));
     fireEvent.click(dialog.getByRole('radio', { name: '50%' }));
     expect(await dialog.findByText('Could not update this device. Try again.')).toBeVisible();
-    expect(dialog.getByRole('button', { pressed: false, name: /turn on/i })).toBeVisible();
+    expect(await dialog.findByRole('button', { pressed: false, name: /turn on/i })).toBeVisible();
     expect(dialog.getByText('0%')).toBeVisible();
   });
 
