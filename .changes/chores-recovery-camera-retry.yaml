@@ -1,0 +1,5 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+summary: Recover chores from damaged storage, show recovery errors, and retry live camera cards after temporary playback failures.

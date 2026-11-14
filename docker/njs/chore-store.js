@@ -3299,7 +3299,7 @@ function readManagementSecurity(tenantId) {
   return security;
 }
 
-function rebindManagementSecurityToAuthorizedTenant(tenantId, allowMalformedJson = false) {
+function rebindManagementSecurityToAuthorizedTenant(tenantId, allowMalformedJson) {
   let security;
   try {
     security = readJson(
