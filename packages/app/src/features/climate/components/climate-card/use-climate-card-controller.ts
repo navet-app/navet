@@ -346,7 +346,7 @@ export function useClimateCardController({
     `${owner}:${mode}:${observed.mode}`,
     targetRange ? `${rangeLow}:${rangeHigh}` : undefined,
     canSetRange,
-    true
+    { lockWhilePending: true }
   );
   const temperatureCommand = useDeviceCommand(owner, observed.targetTemp, canSetTemperature);
   const modeCommand = useDeviceCommand(owner, observed.mode, available);

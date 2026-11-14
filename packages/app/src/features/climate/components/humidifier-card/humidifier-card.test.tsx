@@ -1,3 +1,4 @@
+import { Toaster } from '@navet/app/components/ui/sonner';
 import { homeAssistantStore } from '@navet/app/stores/home-assistant-store';
 import { useThemeStore } from '@navet/app/stores/theme-store';
 import { humidifierEntityFactory } from '@navet/app/test/fixtures/home-assistant/entities/humidifier';
@@ -115,6 +116,42 @@ describe('HumidifierCard', () => {
       },
       undefined
     );
+  });
+
+  it('shows rejected humidity, mode, and power commands without opening settings', async () => {
+    renderWithProviders(
+      <>
+        <Toaster />
+        <HumidifierCard
+          id="humidifier.bedroom"
+          name="Bedroom Humidifier"
+          room="Bedroom"
+          initialState
+          initialTargetHumidity={46}
+          initialMode="auto"
+          availableModes={['auto', 'sleep']}
+          size="small"
+          onSizeChange={vi.fn()}
+          isEditMode={false}
+        />
+      </>
+    );
+
+    invokeIntegrationNativeActionMock.mockRejectedValueOnce(new Error('Humidity rejected'));
+    fireEvent.click(screen.getByRole('button', { name: 'Increase target humidity' }));
+    expect(await screen.findByText('Failed to update humidity')).toBeVisible();
+
+    invokeIntegrationNativeActionMock.mockRejectedValueOnce(new Error('Mode rejected'));
+    fireEvent.click(screen.getByRole('button', { name: 'Sleep' }));
+    expect(await screen.findByText('Failed to update humidifier mode')).toBeVisible();
+
+    dispatchEntityCommandMock.mockResolvedValueOnce({
+      accepted: false,
+      requiresEventConfirmation: false,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Bedroom Humidifier' }));
+    expect(await screen.findByText('Failed to update switch')).toBeVisible();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('omits the dialog mode chooser when there is only one mode', () => {

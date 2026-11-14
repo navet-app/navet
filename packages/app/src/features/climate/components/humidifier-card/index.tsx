@@ -26,12 +26,7 @@ import {
 } from '@navet/app/components/shared/theme/card-state-surface-tokens';
 import { CardWrapper } from '@navet/app/components/ui/card-wrapper';
 import { useSwitchCardAppearance } from '@navet/app/features/lighting/components/use-switch-card-appearance';
-import {
-  useI18n,
-  useProviderEntityModel,
-  useServiceActionHandler,
-  useTheme,
-} from '@navet/app/hooks';
+import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
 import { useDeviceCommand } from '@navet/app/hooks/use-device-command';
 import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
@@ -48,6 +43,7 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 interface HumidifierCardProps {
   dialog?: EntityCardDialogControl;
@@ -613,7 +609,6 @@ export const HumidifierCard = memo(function HumidifierCard({
 }: HumidifierCardProps) {
   const { t } = useI18n();
   const { theme } = useTheme();
-  const runAction = useServiceActionHandler();
   const providerEntity = useProviderEntityModel(id);
   const providerState = providerEntity?.attributes as Record<string, unknown> | undefined;
   const writable =
@@ -690,17 +685,20 @@ export const HumidifierCard = memo(function HumidifierCard({
     typeof providerState?.targetHumidity === 'number'
       ? providerState.targetHumidity
       : initialTargetHumidity,
-    writable
+    writable,
+    { onRejected: () => toast.error(t('humidifier.feedback.updateHumidityFailed')) }
   );
   const modeCommand = useDeviceCommand(
     commandOwner,
     typeof providerState?.mode === 'string' ? providerState.mode : initialMode,
-    writable
+    writable,
+    { onRejected: () => toast.error(t('humidifier.feedback.updateModeFailed')) }
   );
   const powerCommand = useDeviceCommand(
     commandOwner,
     providerEntity ? providerEntity.primaryState === 'on' : initialState,
-    writable
+    writable,
+    { onRejected: () => toast.error(t('lighting.feedback.updateSwitchFailed')) }
   );
 
   useEffect(() => {
@@ -774,97 +772,56 @@ export const HumidifierCard = memo(function HumidifierCard({
     (nextIsOn: boolean) => {
       if (!writable) return;
       setIsOn(nextIsOn);
-      void runAction(
-        async () => {
-          await powerCommand.send(nextIsOn, () =>
-            dispatchEntityCommand(
-              {
-                type: nextIsOn ? 'turn_on' : 'turn_off',
-                entityId: id,
-              },
-              ownerProviderId
-            )
-          );
-        },
-        t('lighting.feedback.updateSwitchFailed'),
-        {
-          onError: () => setIsOn(!nextIsOn),
-        }
+      void powerCommand.send(nextIsOn, () =>
+        dispatchEntityCommand(
+          {
+            type: nextIsOn ? 'turn_on' : 'turn_off',
+            entityId: id,
+          },
+          ownerProviderId
+        )
       );
     },
-    [id, ownerProviderId, writable, runAction, t, powerCommand.send]
+    [id, ownerProviderId, writable, powerCommand.send]
   );
 
   const updateHumidity = useCallback(
     (nextHumidity: number) => {
       if (!writable || !Number.isFinite(nextHumidity)) return;
       const clampedHumidity = clampHumidity(nextHumidity, resolvedMinHumidity, resolvedMaxHumidity);
-      const previousHumidity = targetHumidity;
-      const previousIsOn = isOn;
       setTargetHumidity(clampedHumidity);
       setIsOn(true);
-      void runAction(
-        async () => {
-          await humidityCommand.send(clampedHumidity, async () => {
-            await invokeIntegrationNativeAction({
-              providerId: ownerProviderId,
-              entityId: id,
-              domain: 'humidifier',
-              service: 'set_humidity',
-              serviceData: { humidity: clampedHumidity },
-            });
-            return undefined;
-          });
-        },
-        t('humidifier.feedback.updateHumidityFailed'),
-        {
-          onError: () => {
-            setTargetHumidity(previousHumidity);
-            setIsOn(previousIsOn);
-          },
-        }
-      );
+      void humidityCommand.send(clampedHumidity, async () => {
+        await invokeIntegrationNativeAction({
+          providerId: ownerProviderId,
+          entityId: id,
+          domain: 'humidifier',
+          service: 'set_humidity',
+          serviceData: { humidity: clampedHumidity },
+        });
+        return undefined;
+      });
     },
-    [
-      id,
-      isOn,
-      ownerProviderId,
-      writable,
-      resolvedMaxHumidity,
-      resolvedMinHumidity,
-      runAction,
-      t,
-      targetHumidity,
-      humidityCommand.send,
-    ]
+    [id, ownerProviderId, writable, resolvedMaxHumidity, resolvedMinHumidity, humidityCommand.send]
   );
 
   const updateMode = useCallback(
     (nextMode: string) => {
       if (!writable || !resolvedAvailableModes.includes(nextMode)) return;
-      const previousMode = mode;
       setMode(nextMode);
       setIsOn(true);
-      void runAction(
-        async () => {
-          await modeCommand.send(nextMode, async () => {
-            await invokeIntegrationNativeAction({
-              providerId: ownerProviderId,
-              entityId: id,
-              domain: 'humidifier',
-              service: 'set_mode',
-              serviceData: { mode: nextMode },
-            });
-            return undefined;
-          });
-        },
-        t('humidifier.feedback.updateModeFailed'),
-        {
-          onError: () => setMode(previousMode),
-        }
-      );
+      void modeCommand.send(nextMode, async () => {
+        await invokeIntegrationNativeAction({
+          providerId: ownerProviderId,
+          entityId: id,
+          domain: 'humidifier',
+          service: 'set_mode',
+          serviceData: { mode: nextMode },
+        });
+        return undefined;
+      });
     },
-    [id, mode, ownerProviderId, writable, resolvedAvailableModes, runAction, t, modeCommand.send]
+    [id, ownerProviderId, writable, resolvedAvailableModes, modeCommand.send]
   );
 
   const cardInteraction = useEntityCardInteractionController({

@@ -5,12 +5,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 type Value = string | number | boolean;
 type Phase = 'idle' | 'pending' | 'failed' | 'unconfirmed';
 
+interface DeviceCommandOptions {
+  lockWhilePending?: boolean;
+  onRejected?: () => void;
+}
+
 /** One command lane: retain requested drafts until the owning adapter confirms completion. */
 export function useDeviceCommand<T extends Value>(
   owner: string,
   reported: T | undefined,
   writable: boolean,
-  lockWhilePending = false
+  { lockWhilePending = false, onRejected }: DeviceCommandOptions = {}
 ) {
   const [state, setState] = useState<{ owner: string; requested?: T; phase: Phase }>({
     owner,
@@ -84,25 +89,26 @@ export function useDeviceCommand<T extends Value>(
         pending.current = undefined;
         clear();
         setState({ owner, requested, phase: unconfirmed ? 'unconfirmed' : 'failed' });
+        if (!unconfirmed) onRejected?.();
       };
       timer.current = setTimeout(() => fail(true), HA_PENDING_ECHO_WINDOW_MS);
+      let result: CommandResult | undefined;
       try {
-        const result = await action();
-        if (!stillCurrent()) return;
-        if (result && !result.accepted) {
-          fail();
-          return;
-        }
-        if (result && !result.requiresEventConfirmation) {
-          pending.current = undefined;
-          clear();
-          setState({ owner, phase: 'idle' });
-        }
+        result = await action();
       } catch {
         fail();
+        return;
+      }
+      if (!stillCurrent()) return;
+      if (result && !result.accepted) {
+        fail();
+      } else if (result && !result.requiresEventConfirmation) {
+        pending.current = undefined;
+        clear();
+        setState({ owner, phase: 'idle' });
       }
     },
-    [owner, identity, writable, clear, lockWhilePending]
+    [owner, identity, writable, clear, lockWhilePending, onRejected]
   );
 
   return {
