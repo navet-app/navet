@@ -1,6 +1,6 @@
 ---
 title: Home Assistant
-description: Install Navet with HACS, as a Home Assistant App, or with Docker.
+description: Install Navet as a custom panel, a Home Assistant App, or with Docker.
 editUrl: https://github.com/navet-app/navet/edit/main/docs/HOME_ASSISTANT.md
 ---
 
@@ -15,21 +15,24 @@ You only need to choose **one** installation method.
 
 | Choose this | Use it when |
 |---|---|
-| **HACS custom panel** | You already use HACS and want Navet in the Home Assistant sidebar. This is the easiest choice for most HACS users. |
+| **Custom panel** | You want Navet in the Home Assistant sidebar. Use Marketplace on Home Assistant 2026.11 or later, or HACS on earlier versions. |
 | **Home Assistant App** | You use Home Assistant OS and want Home Assistant to run Navet for you. |
 | **Standalone Docker** | You already manage Docker and want Navet to run as a separate website. |
 
-Not sure which one to choose? Use the **HACS custom panel** if you already have HACS. Otherwise,
-use the **Home Assistant App**.
+## Option 1: Install the custom panel
 
-## Option 1: Install with HACS
+### Home Assistant 2026.11 or later
 
-### What you need
+1. Open **Settings → Marketplace**.
+2. Choose **Add from link** and enter `https://github.com/navet-app/navet-home-assistant`.
+3. Connect GitHub if Home Assistant prompts you.
+4. Open the Navet repository, choose **Install**, and follow the restart and setup prompts.
+5. Open **Navet** from the Home Assistant sidebar.
 
-- Home Assistant
-- HACS
+Home Assistant carries existing HACS installations and custom repositories into Marketplace.
+[Home Assistant Marketplace documentation](https://www.home-assistant.io/integrations/marketplace/)
 
-### Install Navet
+### Earlier Home Assistant versions with HACS
 
 1. Open **HACS** in Home Assistant.
 2. Open **Integrations**.
@@ -181,10 +184,10 @@ The new screen connects automatically with its own revocable session.
 
 ## Optional: let Navet hide the Home Assistant bars
 
-The HACS integration includes a small Home Assistant module that lets Navet hide the Home Assistant
+The Navet custom integration includes a small Home Assistant module that lets Navet hide the Home Assistant
 header and sidebar in kiosk mode.
 
-1. Make sure the Navet HACS integration is installed.
+1. Make sure the Navet custom integration is installed.
 2. Open your Home Assistant `configuration.yaml` file.
 3. Add:
 
@@ -203,7 +206,7 @@ create a second `frontend:` section.
 
 ## If something does not work
 
-### Navet is missing from the sidebar after a HACS install
+### Navet is missing from the sidebar after installing the custom integration
 
 1. Make sure Home Assistant was restarted after the download.
 2. Go to **Settings → Devices & services**.

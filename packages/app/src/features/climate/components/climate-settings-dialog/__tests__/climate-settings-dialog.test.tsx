@@ -1,6 +1,6 @@
 import { useSettingsStore } from '@navet/app/stores/settings-store';
 import { renderWithProviders } from '@navet/app/test/render';
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClimateSettingsDialog } from '../index';
 import type { ClimateSettingsDialogProps } from '../types';
@@ -88,7 +88,7 @@ describe('ClimateSettingsDialog', () => {
     });
     expect(screen.getByRole('radio', { name: 'Heat' })).toBeChecked();
     expect(screen.queryByRole('radio', { name: 'Cool' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('radio', { name: 'Auto' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Heat/Cool' }));
     expect(props.onModeChange).toHaveBeenCalledWith('heat_cool');
   });
 
@@ -130,7 +130,7 @@ describe('ClimateSettingsDialog', () => {
     expect(props.onTargetTempCommit).toHaveBeenCalledWith(73);
   });
 
-  it('uses cooling visuals when target is below current even if the climate action says heat', () => {
+  it('uses reported heating activity without inferring cooling from target and current values', () => {
     useSettingsStore.setState({ temperatureUnit: 'celsius' });
     renderDialog({
       mode: 'heat',
@@ -143,7 +143,7 @@ describe('ClimateSettingsDialog', () => {
       step: 1,
     });
 
-    expect(screen.getByRole('dialog')).toHaveClass('from-blue-900/95');
+    expect(screen.getByRole('dialog')).toHaveClass('from-orange-900/95');
     expect(screen.getByText('20°C', { selector: 'dd' })).toBeInTheDocument();
     expect(screen.getByText('Current 25°C')).toBeInTheDocument();
     expect(screen.getByText('Heating')).toBeInTheDocument();
@@ -334,5 +334,56 @@ describe('ClimateSettingsDialog', () => {
       {},
       { entity_id: 'script.goodnight' }
     );
+  });
+  it('labels range endpoints and adjusts each without crossing the other endpoint', () => {
+    useSettingsStore.setState({ temperatureUnit: 'celsius' });
+    const onRangeCommit = vi.fn();
+    renderDialog({
+      mode: 'heat_cool',
+      targetRange: { low: 20, high: 24 },
+      onRangeCommit,
+      sourceTemperatureUnit: 'celsius',
+      minTemp: 16,
+      maxTemp: 30,
+      step: 0.5,
+    });
+    const range = within(screen.getByRole('group', { name: 'Target range' }));
+    expect(range.getByText('Heat to')).toBeVisible();
+    expect(range.getByText('Cool to')).toBeVisible();
+    fireEvent.click(range.getByRole('button', { name: 'Increase temperature · Heat to' }));
+    expect(onRangeCommit).toHaveBeenCalledWith('low', 20.5);
+    fireEvent.click(range.getByRole('button', { name: 'Decrease temperature · Cool to' }));
+    expect(onRangeCommit).toHaveBeenCalledWith('high', 23.5);
+    expect(screen.queryByRole('button', { name: 'Temperature presets' })).not.toBeInTheDocument();
+  });
+
+  it('disables directions that cannot move by a full step in the device unit', () => {
+    useSettingsStore.setState({ temperatureUnit: 'celsius' });
+    const onRangeCommit = vi.fn();
+    renderDialog({
+      mode: 'heat_cool',
+      targetRange: { low: 60, high: 61 },
+      minTemp: 60,
+      step: 2,
+      onRangeCommit,
+    });
+    const range = within(screen.getByRole('group', { name: 'Target range' }));
+    expect(range.getByRole('button', { name: 'Decrease temperature · Heat to' })).toBeDisabled();
+    expect(range.getByRole('button', { name: 'Increase temperature · Heat to' })).toBeDisabled();
+    expect(range.getByRole('button', { name: 'Decrease temperature · Cool to' })).toBeDisabled();
+    expect(onRangeCommit).not.toHaveBeenCalled();
+  });
+
+  it('locks both endpoints while waiting for confirmation', () => {
+    renderDialog({
+      mode: 'heat_cool',
+      targetRange: { low: 68, high: 74 },
+      rangePending: true,
+      onRangeCommit: vi.fn(),
+    });
+    const range = within(screen.getByRole('group', { name: 'Target range' }));
+    for (const button of range.getAllByRole('button')) {
+      expect(button).toBeDisabled();
+    }
   });
 });

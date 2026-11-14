@@ -134,13 +134,22 @@ export const useCardOrdering = (
         if (!allRooms.has(roomKey)) allRooms.set(roomKey, room);
       }
 
+      const previousPositions = new Map<string, number>();
+      for (const ids of Object.values(prev)) {
+        for (const [index, id] of ids.entries()) {
+          if (!previousPositions.has(id)) previousPositions.set(id, index);
+        }
+      }
       allRooms.forEach((room) => {
         const savedOrders = Object.entries(prev).filter(([name]) => roomNamesMatch(name, room));
         const order = Array.from(
           new Set(savedOrders.flatMap(([, ids]) => (Array.isArray(ids) ? ids : [])))
         );
         if (savedOrders.length === 0) {
-          mergedOrders[room] = next[room] ?? [];
+          mergedOrders[room] = [...(next[room] ?? [])].sort(
+            (left, right) =>
+              (previousPositions.get(left) ?? Infinity) - (previousPositions.get(right) ?? Infinity)
+          );
           return;
         }
 

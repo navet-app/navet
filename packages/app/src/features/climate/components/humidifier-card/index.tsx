@@ -7,6 +7,7 @@ import { RoundControlButton } from '@navet/app/components/primitives/round-contr
 import { getCardActionControlSizes } from '@navet/app/components/shared/card-action-control-sizes';
 import { CardSettingsActionButton } from '@navet/app/components/shared/card-settings-action-button';
 import { type CardSize, isCompactCardSize } from '@navet/app/components/shared/card-size-selector';
+import { DeviceCommandFeedback } from '@navet/app/components/shared/device-command-feedback';
 import {
   DeviceControlOptions,
   DeviceTargetControl,
@@ -25,12 +26,8 @@ import {
 } from '@navet/app/components/shared/theme/card-state-surface-tokens';
 import { CardWrapper } from '@navet/app/components/ui/card-wrapper';
 import { useSwitchCardAppearance } from '@navet/app/features/lighting/components/use-switch-card-appearance';
-import {
-  useI18n,
-  useProviderEntityModel,
-  useServiceActionHandler,
-  useTheme,
-} from '@navet/app/hooks';
+import { useI18n, useProviderEntityModel, useTheme } from '@navet/app/hooks';
+import { useDeviceCommand } from '@navet/app/hooks/use-device-command';
 import { invokeIntegrationNativeAction } from '@navet/app/services/integration-native-action.service';
 import type { IntegrationProviderId } from '@navet/app/types/provider';
 import {
@@ -44,7 +41,9 @@ import {
   ThermometerSun,
   Wind,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 interface HumidifierCardProps {
   dialog?: EntityCardDialogControl;
@@ -223,7 +222,7 @@ function getHumidityCardTone(
 }
 
 function formatHumidityValue(value: number) {
-  return `${Math.round(value)}%`;
+  return Number.isFinite(value) ? `${Math.round(value)}%` : '—';
 }
 
 function getHumidifierModeIcon(mode: string) {
@@ -400,12 +399,14 @@ function HumidifierModeControls({
   isOn,
   size,
   onModeChange,
+  disabled,
 }: {
   availableModes: string[];
   currentMode: string | undefined;
   isOn: boolean;
   size: 'small' | 'medium';
   onModeChange: (mode: string) => void;
+  disabled?: boolean;
 }) {
   const { theme } = useTheme();
   const actionSize = getCardActionControlSizes(size);
@@ -425,6 +426,7 @@ function HumidifierModeControls({
               variant="soft"
               aria-label={normalizeModeLabel(availableMode)}
               aria-pressed={active}
+              disabled={disabled}
               onClick={(event) => {
                 event.stopPropagation();
                 onModeChange(availableMode);
@@ -447,6 +449,7 @@ function HumidifierModeControls({
             type="button"
             aria-label={normalizeModeLabel(availableMode)}
             aria-pressed={active}
+            disabled={disabled}
             onClick={(event) => {
               event.stopPropagation();
               onModeChange(availableMode);
@@ -485,7 +488,11 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
   readableTokens,
   onTargetHumidityCommit,
   onModeChange,
+  commandFeedback,
+  writable = true,
 }: {
+  commandFeedback?: ReactNode;
+  writable?: boolean;
   entityId: string;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -513,10 +520,15 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
   const { t } = useI18n();
   const controls = (
     <div className="space-y-4">
+      {commandFeedback}
       <DeviceTargetControl
         label={t('humidifier.targetHumidity')}
         value={formatHumidityValue(targetHumidity)}
-        currentReading={t('humidifier.currentHumidity', { humidity: currentHumidity })}
+        currentReading={
+          Number.isFinite(currentHumidity)
+            ? t('humidifier.currentHumidity', { humidity: currentHumidity })
+            : t('climate.currentTemperature', { temp: '—' })
+        }
         status={statusLabel}
         readableTokens={readableTokens}
         controls={
@@ -525,7 +537,7 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
             minHumidity={minHumidity}
             maxHumidity={maxHumidity}
             step={step}
-            isOn={isOn}
+            isOn={isOn && writable}
             size="medium"
             controlSize="lg"
             onCommit={onTargetHumidityCommit}
@@ -547,6 +559,7 @@ const HumidifierSettingsDialog = memo(function HumidifierSettingsDialog({
               icon: Icon ? <Icon className="h-4 w-4" /> : undefined,
             };
           })}
+          disabled={!writable}
           onValueChange={onModeChange}
         />
       ) : null}
@@ -596,9 +609,12 @@ export const HumidifierCard = memo(function HumidifierCard({
 }: HumidifierCardProps) {
   const { t } = useI18n();
   const { theme } = useTheme();
-  const runAction = useServiceActionHandler();
   const providerEntity = useProviderEntityModel(id);
   const providerState = providerEntity?.attributes as Record<string, unknown> | undefined;
+  const writable =
+    !providerEntity ||
+    (providerEntity.availability === 'available' && providerEntity.capabilities.includes('toggle'));
+  const ownerProviderId = providerEntity?.providerId ?? providerId;
   const resolvedSize = resolveCardSize(size);
   const isSmall = isCompactCardSize(resolvedSize);
   const resolvedMinHumidity = typeof minHumidity === 'number' ? minHumidity : 0;
@@ -663,6 +679,39 @@ export const HumidifierCard = memo(function HumidifierCard({
     return availableModes;
   }, [availableModes, providerState]);
 
+  const commandOwner = `${ownerProviderId ?? 'home_assistant'}:${id}`;
+  const humidityCommand = useDeviceCommand(
+    commandOwner,
+    typeof providerState?.targetHumidity === 'number'
+      ? providerState.targetHumidity
+      : initialTargetHumidity,
+    writable,
+    { onRejected: () => toast.error(t('humidifier.feedback.updateHumidityFailed')) }
+  );
+  const modeCommand = useDeviceCommand(
+    commandOwner,
+    typeof providerState?.mode === 'string' ? providerState.mode : initialMode,
+    writable,
+    { onRejected: () => toast.error(t('humidifier.feedback.updateModeFailed')) }
+  );
+  const powerCommand = useDeviceCommand(
+    commandOwner,
+    providerEntity ? providerEntity.primaryState === 'on' : initialState,
+    writable,
+    { onRejected: () => toast.error(t('lighting.feedback.updateSwitchFailed')) }
+  );
+
+  useEffect(() => {
+    if (powerCommand.failed) setIsOn(powerCommand.reported ?? initialState);
+  }, [powerCommand.failed, powerCommand.reported, initialState]);
+  useEffect(() => {
+    if (humidityCommand.failed)
+      setTargetHumidity(humidityCommand.reported ?? initialTargetHumidity);
+  }, [humidityCommand.failed, humidityCommand.reported, initialTargetHumidity]);
+  useEffect(() => {
+    if (modeCommand.failed) setMode(modeCommand.reported ?? initialMode);
+  }, [modeCommand.failed, modeCommand.reported, initialMode]);
+
   const subtitle =
     entityType ??
     (deviceClass === 'dehumidifier'
@@ -695,16 +744,21 @@ export const HumidifierCard = memo(function HumidifierCard({
     resolvedMaxHumidity
   );
   const currentHumidityValue =
-    typeof currentHumidity === 'number'
-      ? clampHumidity(currentHumidity, resolvedMinHumidity, resolvedMaxHumidity)
-      : undefined;
+    typeof currentHumidity === 'number' ? clampHumidity(currentHumidity, 0, 100) : undefined;
   const visibleModes = isSmall
     ? resolvedAvailableModes.slice(0, 2)
     : resolvedAvailableModes.slice(0, 3);
-  const statusLabel =
-    deviceClass === 'dehumidifier'
-      ? t('humidifier.status.dryingTo', { humidity: targetHumidityValue })
-      : t('humidifier.status.humidifyingTo', { humidity: targetHumidityValue });
+  const reportedAction =
+    typeof providerState?.action === 'string' ? providerState.action : undefined;
+  const statusLabel = !writable
+    ? t('common.unavailable')
+    : !isOn
+      ? t('common.off')
+      : !['humidifying', 'drying'].includes(reportedAction ?? '')
+        ? `${t('climate.target')} ${targetHumidityValue}%`
+        : deviceClass === 'dehumidifier'
+          ? t('humidifier.status.dryingTo', { humidity: targetHumidityValue })
+          : t('humidifier.status.humidifyingTo', { humidity: targetHumidityValue });
   const lightOverlay =
     theme === 'light'
       ? isOn
@@ -716,85 +770,66 @@ export const HumidifierCard = memo(function HumidifierCard({
 
   const updatePower = useCallback(
     (nextIsOn: boolean) => {
+      if (!writable) return;
       setIsOn(nextIsOn);
-      void runAction(
-        async () => {
-          await dispatchEntityCommand(
-            {
-              type: nextIsOn ? 'turn_on' : 'turn_off',
-              entityId: id,
-            },
-            providerId
-          );
-        },
-        t('lighting.feedback.updateSwitchFailed'),
-        {
-          onError: () => setIsOn(!nextIsOn),
-        }
+      void powerCommand.send(nextIsOn, () =>
+        dispatchEntityCommand(
+          {
+            type: nextIsOn ? 'turn_on' : 'turn_off',
+            entityId: id,
+          },
+          ownerProviderId
+        )
       );
     },
-    [id, providerId, runAction, t]
+    [id, ownerProviderId, writable, powerCommand.send]
   );
 
   const updateHumidity = useCallback(
     (nextHumidity: number) => {
+      if (!writable || !Number.isFinite(nextHumidity)) return;
       const clampedHumidity = clampHumidity(nextHumidity, resolvedMinHumidity, resolvedMaxHumidity);
-      const previousHumidity = targetHumidity;
-      const previousIsOn = isOn;
       setTargetHumidity(clampedHumidity);
       setIsOn(true);
-      void runAction(
-        async () => {
-          await invokeIntegrationNativeAction({
-            providerId,
-            entityId: id,
-            domain: 'humidifier',
-            service: 'set_humidity',
-            serviceData: { humidity: clampedHumidity },
-          });
-        },
-        t('humidifier.feedback.updateHumidityFailed'),
-        {
-          onError: () => {
-            setTargetHumidity(previousHumidity);
-            setIsOn(previousIsOn);
-          },
-        }
-      );
+      void humidityCommand.send(clampedHumidity, async () => {
+        await invokeIntegrationNativeAction({
+          providerId: ownerProviderId,
+          entityId: id,
+          domain: 'humidifier',
+          service: 'set_humidity',
+          serviceData: { humidity: clampedHumidity },
+        });
+        return undefined;
+      });
     },
-    [id, isOn, providerId, resolvedMaxHumidity, resolvedMinHumidity, runAction, t, targetHumidity]
+    [id, ownerProviderId, writable, resolvedMaxHumidity, resolvedMinHumidity, humidityCommand.send]
   );
 
   const updateMode = useCallback(
     (nextMode: string) => {
-      const previousMode = mode;
+      if (!writable || !resolvedAvailableModes.includes(nextMode)) return;
       setMode(nextMode);
       setIsOn(true);
-      void runAction(
-        async () => {
-          await invokeIntegrationNativeAction({
-            providerId,
-            entityId: id,
-            domain: 'humidifier',
-            service: 'set_mode',
-            serviceData: { mode: nextMode },
-          });
-        },
-        t('humidifier.feedback.updateModeFailed'),
-        {
-          onError: () => setMode(previousMode),
-        }
-      );
+      void modeCommand.send(nextMode, async () => {
+        await invokeIntegrationNativeAction({
+          providerId: ownerProviderId,
+          entityId: id,
+          domain: 'humidifier',
+          service: 'set_mode',
+          serviceData: { mode: nextMode },
+        });
+        return undefined;
+      });
     },
-    [id, mode, providerId, runAction, t]
+    [id, ownerProviderId, writable, resolvedAvailableModes, modeCommand.send]
   );
 
   const cardInteraction = useEntityCardInteractionController({
     ariaLabel: name,
     ariaPressed: isOn,
     isEditMode,
-    onToggle: () => updatePower(!isOn),
-    onOpenControls: () => undefined,
+    onToggle: writable ? () => updatePower(!isOn) : undefined,
+    onOpenControls: () => setIsSettingsOpen(true),
     onOpenSettings: () => setIsSettingsOpen(true),
   });
   useEditModeSettingsRequest(id, () => setIsSettingsOpen(true), isEditMode);
@@ -857,7 +892,7 @@ export const HumidifierCard = memo(function HumidifierCard({
 
             <HumidifierGauge
               id={`${id}-humidity`}
-              isOn={isOn}
+              isOn={isOn && writable}
               targetHumidity={targetHumidityValue}
               minHumidity={resolvedMinHumidity}
               maxHumidity={resolvedMaxHumidity}
@@ -879,7 +914,7 @@ export const HumidifierCard = memo(function HumidifierCard({
                       className={`mb-1 text-3xl font-bold leading-none transition-colors duration-500 ${stateSurface.primaryTextClassName}`}
                       style={{ color: readableTokens.titleColor }}
                     >
-                      {formatHumidityValue(currentHumidityValue ?? targetHumidityValue)}
+                      {formatHumidityValue(currentHumidityValue ?? Number.NaN)}
                     </div>
                     <div
                       className={`text-xs ${stateSurface.secondaryTextClassName}`}
@@ -902,14 +937,15 @@ export const HumidifierCard = memo(function HumidifierCard({
                             minHumidity={resolvedMinHumidity}
                             maxHumidity={resolvedMaxHumidity}
                             step={sliderStep}
-                            isOn={isOn}
+                            isOn={isOn && writable}
                             size={isSmall ? 'small' : 'medium'}
                             onCommit={updateHumidity}
                           />
                           <HumidifierModeControls
+                            disabled={!writable}
                             availableModes={visibleModes}
                             currentMode={mode}
-                            isOn={isOn}
+                            isOn={isOn && writable}
                             size={isSmall ? 'small' : 'medium'}
                             onModeChange={updateMode}
                           />
@@ -944,13 +980,49 @@ export const HumidifierCard = memo(function HumidifierCard({
         entityType={subtitle}
         isOn={isOn}
         targetHumidity={targetHumidityValue}
-        currentHumidity={currentHumidityValue ?? targetHumidityValue}
+        currentHumidity={currentHumidityValue ?? Number.NaN}
+        writable={writable}
+        commandFeedback={
+          <>
+            <DeviceCommandFeedback
+              label={t('humidifier.targetHumidity')}
+              {...humidityCommand}
+              reported={formatHumidityValue(humidityCommand.reported ?? Number.NaN)}
+              requested={
+                humidityCommand.requested === undefined
+                  ? undefined
+                  : formatHumidityValue(humidityCommand.requested)
+              }
+            />
+            <DeviceCommandFeedback
+              label={t('climate.mode')}
+              {...modeCommand}
+              reported={modeCommand.reported ?? t('widgets.generic.unknown')}
+            />
+            <DeviceCommandFeedback
+              label={t('common.controls')}
+              {...powerCommand}
+              reported={t(powerCommand.reported ? 'common.on' : 'common.off')}
+              requested={
+                powerCommand.requested === undefined
+                  ? undefined
+                  : t(powerCommand.requested ? 'common.on' : 'common.off')
+              }
+            />
+          </>
+        }
         minHumidity={resolvedMinHumidity}
         maxHumidity={resolvedMaxHumidity}
         step={sliderStep}
         mode={mode}
         availableModes={resolvedAvailableModes}
-        statusLabel={statusLabel}
+        statusLabel={
+          humidityCommand.failed || modeCommand.failed || powerCommand.failed
+            ? t('deviceControls.failed')
+            : humidityCommand.pending || modeCommand.pending || powerCommand.pending
+              ? t('climate.advanced.updating')
+              : statusLabel
+        }
         contentSurface={getHumidifierDialogSurface(isOn, deviceClass, theme)}
         readableTokens={readableTokens}
         onTargetHumidityCommit={updateHumidity}

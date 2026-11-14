@@ -156,3 +156,9 @@ export const DialogBlack: StoryObj<typeof dialogMeta> = {
   ...Dialog,
   globals: { theme: 'black' },
 };
+
+export const RangeDialog: StoryObj<typeof dialogMeta> = {
+  ...dialogStories.Range,
+  render: dialogStories.Range.render,
+  tags: ['!autodocs'],
+};

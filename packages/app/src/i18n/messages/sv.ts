@@ -1,4 +1,17 @@
 export const svMessages = {
+  'widgets.map.historyUntil': 'Registrerat till {time}',
+  'widgets.map.history': 'Platshistorik',
+  'widgets.map.period': 'Tidsperiod',
+  'widgets.map.lastHours': 'Senaste {hours} timmarna',
+  'widgets.map.samples':
+    'Linjer förbinder registrerade platser, inte en färdväg. Saknade data lämnar luckor.',
+  'widgets.map.historyUnavailable': 'Platshistorik är inte tillgänglig för denna källa.',
+  'widgets.map.noHistory':
+    'Det finns för få registrerade platser för att rita en linje. Källan kan utesluta entiteten eller ha raderat data.',
+  'widgets.map.pointCount': '{count} registrerade platser',
+  'widgets.map.showHistory': 'Visa på kartan',
+  'widgets.map.clearHistory': 'Rensa historik',
+  'widgets.map.zonePeople': 'Personer: {count}',
   'history.title': 'Historik och aktivitet',
   'history.userAction': 'Användaråtgärd',
   'history.entity': 'Entitet',
@@ -56,6 +69,10 @@ export const svMessages = {
   'counter.value': 'Värde',
   'counter.setValue': 'Ange värde',
   'counter.stepError': 'Använd en multipel av {step}.',
+  'deviceControls.unconfirmed':
+    'Ingen bekräftelse från enheten. Kontrollera dess status innan du försöker igen.',
+  'deviceControls.reported': 'Rapporterat: {value}',
+  'deviceControls.requested': 'Begärt: {value}',
   'deviceControls.failed': 'Kunde inte uppdatera enheten. Försök igen.',
   'valve.position': 'Position',
   'valve.state.open': 'Öppen',
@@ -2066,6 +2083,10 @@ export const svMessages = {
   'climate.advanced.updateFailed': 'Det gick inte att uppdatera klimatkontrollen. Försök igen.',
   'climate.presets': 'Förval',
   'climate.temperature': 'Temperatur',
+  'climate.rangeLow': 'Värm till',
+  'climate.rangeHigh': 'Kyl till',
+  'climate.targetRange': 'Målintervall',
+  'climate.mode.heatCool': 'Värme/kyla',
   'climate.target': 'Mål',
   'climate.current': 'Nuvarande',
   'climate.currentTemperature': 'Nuvarande {temp}',
@@ -2799,10 +2820,10 @@ export const svMessages = {
   'dashboard.addCard.templates.scene.name': 'Scen',
   'dashboard.addCard.templates.scene.description':
     'Skapa en scenutlösare med ett tryck där scene.turn_on redan är ifyllt.',
-  'widgets.map.title': 'Spårare',
+  'widgets.map.title': 'Karta',
   'widgets.map.eyebrow': 'Live',
-  'widgets.map.noTrackers': 'Ingen GPS-data',
-  'widgets.map.trackerCount': '{count} spårade',
+  'widgets.map.noTrackers': 'Inga platser tillgängliga',
+  'widgets.map.trackerCount': 'Platser: {count}',
   'dashboard.addCard.templates.map.name': 'Karta',
   'dashboard.addCard.templates.map.description':
     'Livekarta som visar person- och device_tracker-entiteter med GPS-koordinater.',

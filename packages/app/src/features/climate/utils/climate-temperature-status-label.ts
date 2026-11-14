@@ -9,6 +9,11 @@ export function getClimateTemperatureStatusLabel(
   comparisonCurrentTemp = Number(currentTemp),
   hasTargetTemperature = true
 ) {
+  if (visualMode === 'unknown')
+    return hasTargetTemperature
+      ? `${t('climate.target')} ${targetTemp}`
+      : t('widgets.generic.unknown');
+
   if (visualMode === 'cool') {
     return t('climate.coolingDownTo', { temp: targetTemp });
   }

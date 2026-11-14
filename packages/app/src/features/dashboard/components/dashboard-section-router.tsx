@@ -31,6 +31,7 @@ import { lazy, type ReactNode, Suspense, useCallback, useEffect, useMemo, useSta
 import { DeviceGrid } from '../device-grid';
 import type { DashboardSectionModel } from '../hooks/use-dashboard-controller.types';
 import { getRoomScopedDashboardEntityIds } from '../hooks/use-dashboard-derived-state';
+import { buildRoomNavigationTree, flattenRoomNavigation } from '../rooms/room-hierarchy';
 import { DashboardLayout } from '../shell';
 import { DashboardLightsSection } from './dashboard-lights-section';
 import { EmbeddedSidebarPage } from './embedded-sidebar-page';
@@ -105,6 +106,7 @@ function DashboardSectionRouterComponent({ controller }: DashboardSectionRouterP
   const roomWorkspace = useRoomWorkspaceStore((state) =>
     controller.activeSection === 'home' || kioskMode ? state.workspace : null
   );
+  const providerRooms = useIntegrationStore(integrationSelectors.normalizedRoomsByCanonicalId);
   const showSummaryBar = useSettingsStore(settingsSelectors.showHomeSummaryBar);
   const choresEnabled = useSettingsStore(settingsSelectors.choresEnabled);
   const choreWorkspace = useChoreWorkspaceStore((state) =>
@@ -197,18 +199,50 @@ function DashboardSectionRouterComponent({ controller }: DashboardSectionRouterP
     [availableDeviceMap]
   );
   const dashboardVisibleEntityIds = useMemo(() => Array.from(deviceMap.keys()), [deviceMap]);
+  const roomHierarchy = useMemo(() => {
+    const workspaceNames = new Map(
+      roomWorkspace?.rooms.flatMap((room) =>
+        room.sourceRefs.map((source) => [source.canonicalId, room.displayName] as const)
+      )
+    );
+    const hidden = new Set((controller.hiddenRoomNames ?? []).map(normalizeRoomName));
+    return buildRoomNavigationTree(
+      providerRooms,
+      dashboardRooms.filter((room) => !hidden.has(normalizeRoomName(room))),
+      workspaceNames
+    );
+  }, [providerRooms, dashboardRooms, controller.hiddenRoomNames, roomWorkspace]);
+  const descendantRooms = useMemo(() => {
+    const find = (nodes: typeof roomHierarchy): string[] => {
+      for (const node of nodes) {
+        if (roomNamesMatch(node.room, activeRoom))
+          return node.children.flatMap(flattenRoomNavigation);
+        const descendants = find(node.children);
+        if (descendants.length) return descendants;
+      }
+      return [];
+    };
+    return find(roomHierarchy);
+  }, [activeRoom, roomHierarchy]);
   const roomNavigationGroups = useMemo<RoomNavigationGroup[]>(() => {
     const availableRoomNames = new Map(
       dashboardRooms.map((room) => [normalizeRoomName(room), room])
     );
 
-    return getRoomWorkspaceSectionsV2(roomWorkspace).flatMap((section) => {
+    const providerGroups = roomHierarchy.map((node) => ({
+      id: `provider:${node.room}`,
+      name: node.room,
+      rooms: flattenRoomNavigation(node),
+      hierarchy: node,
+    }));
+    const assigned = new Set(providerGroups.flatMap((group) => group.rooms.map(normalizeRoomName)));
+    const customGroups = getRoomWorkspaceSectionsV2(roomWorkspace).flatMap((section) => {
       if (!section.group) {
         return [];
       }
       const groupedRoomNames = section.rooms.flatMap((room) => {
         const name = availableRoomNames.get(normalizeRoomName(room.displayName));
-        return name ? [name] : [];
+        return name && !assigned.has(normalizeRoomName(name)) ? [name] : [];
       });
 
       return groupedRoomNames.length > 0
@@ -222,7 +256,8 @@ function DashboardSectionRouterComponent({ controller }: DashboardSectionRouterP
           ]
         : [];
     });
-  }, [dashboardRooms, roomWorkspace]);
+    return [...providerGroups, ...customGroups];
+  }, [dashboardRooms, roomHierarchy, roomWorkspace]);
   const roomManagement =
     activeSection === 'home' && manageableRooms.length > 0
       ? {
@@ -603,22 +638,35 @@ function DashboardSectionRouterComponent({ controller }: DashboardSectionRouterP
                 onNavigate={controller.setActiveSection}
                 ariaLabel={t('settings.dashboard.homeSummaryBar.title')}
               />
-              <DeviceGrid
-                key={`room-grid-${activeRoom}`}
-                orderedCardIds={orderedCardIds}
-                deviceMap={deviceMap}
-                isEditMode={isEditMode}
-                cardSizes={cardSizes}
-                updateCardSize={updateCardSize}
-                customCards={customCards}
-                onDeleteCard={handleDeleteCard}
-                onUpdateCard={handleUpdateCard}
-                onRemoveEntity={handleRemoveEntity}
-                allowEntityRemoval
-                usesHideAction
-                densePerformanceMode={controller.densePerformanceMode}
-                optimizeOffscreenPaint={controller.optimizeOffscreenPaint}
-              />
+              {[activeRoom, ...descendantRooms].map((room) => {
+                const ids =
+                  room === activeRoom
+                    ? orderedCardIds
+                    : (cardOrders[room] ?? []).filter((id) => deviceMap.has(id));
+                if (descendantRooms.length && !ids.length) return null;
+                return (
+                  <div key={room} className="space-y-2">
+                    {descendantRooms.length && ids.length ? (
+                      <h2 className="text-base font-semibold">{room}</h2>
+                    ) : null}
+                    <DeviceGrid
+                      orderedCardIds={ids}
+                      deviceMap={deviceMap}
+                      isEditMode={isEditMode}
+                      cardSizes={cardSizes}
+                      updateCardSize={updateCardSize}
+                      customCards={room === activeRoom ? customCards : []}
+                      onDeleteCard={handleDeleteCard}
+                      onUpdateCard={handleUpdateCard}
+                      onRemoveEntity={handleRemoveEntity}
+                      allowEntityRemoval
+                      usesHideAction
+                      densePerformanceMode={controller.densePerformanceMode}
+                      optimizeOffscreenPaint={controller.optimizeOffscreenPaint}
+                    />
+                  </div>
+                );
+              })}
             </SummaryBarStack>
           </RenderProfiler>
         )}

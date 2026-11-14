@@ -179,6 +179,58 @@ export const GroupedRooms: Story = {
   },
 };
 
+export const NestedProviderZones: Story = {
+  args: {
+    rooms: [
+      'Home zones',
+      'Upstairs',
+      'Home zones / Upstairs / Hall',
+      'Downstairs',
+      'Home zones / Downstairs / Hall',
+    ],
+    groups: [
+      {
+        id: 'homey:home',
+        name: 'Home zones',
+        rooms: [
+          'Home zones',
+          'Upstairs',
+          'Home zones / Upstairs / Hall',
+          'Downstairs',
+          'Home zones / Downstairs / Hall',
+        ],
+        hierarchy: {
+          room: 'Home zones',
+          children: [
+            {
+              room: 'Upstairs',
+              children: [{ room: 'Home zones / Upstairs / Hall', children: [] }],
+            },
+            {
+              room: 'Downstairs',
+              children: [{ room: 'Home zones / Downstairs / Hall', children: [] }],
+            },
+          ],
+        },
+      },
+    ],
+    initialActiveRoom: 'Home zones',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const home = canvas.getByRole('button', { name: 'Home zones', current: 'page' });
+    await userEvent.click(home);
+    const upstairs = await page.findByRole('menuitem', { name: 'Upstairs' });
+    await userEvent.hover(upstairs);
+    await userEvent.click(
+      await page.findByRole('menuitem', { name: 'Home zones / Upstairs / Hall' })
+    );
+    await expect(home).toHaveAttribute('aria-current', 'page');
+    await expect(page.queryByRole('menu')).toBeNull();
+  },
+};
+
 export const EditMode: Story = {
   args: {
     isEditMode: true,

@@ -1,4 +1,7 @@
+import { Toaster } from '@navet/app/components/ui/sonner';
+import { homeAssistantStore } from '@navet/app/stores/home-assistant-store';
 import { useThemeStore } from '@navet/app/stores/theme-store';
+import { humidifierEntityFactory } from '@navet/app/test/fixtures/home-assistant/entities/humidifier';
 import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import { fireEvent, screen, within } from '@testing-library/react';
@@ -52,7 +55,7 @@ describe('HumidifierCard', () => {
       'aria-valuenow',
       '46'
     );
-    expect(screen.getByText('46%')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Auto' })).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: 'Sleep' }));
@@ -81,7 +84,7 @@ describe('HumidifierCard', () => {
     const dialog = within(screen.getByRole('dialog'));
     expect(dialog.queryByRole('slider')).not.toBeInTheDocument();
     expect(dialog.getByText('51%', { selector: 'dd' })).toBeInTheDocument();
-    expect(dialog.getByText('Current 51%')).toBeInTheDocument();
+    expect(dialog.getByText('Current —')).toBeInTheDocument();
     expect(dialog.getByRole('radio', { name: 'Sleep' })).toBeChecked();
     fireEvent.click(dialog.getByRole('radio', { name: 'Auto' }));
     expect(invokeIntegrationNativeActionMock).toHaveBeenLastCalledWith({
@@ -99,7 +102,7 @@ describe('HumidifierCard', () => {
       service: 'set_humidity',
       serviceData: { humidity: 46 },
     });
-    expect(screen.getAllByText('Drying to 46%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Target 46%').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Customize' })).not.toBeInTheDocument();
     expect(screen.queryByText('Card color')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
@@ -113,6 +116,42 @@ describe('HumidifierCard', () => {
       },
       undefined
     );
+  });
+
+  it('shows rejected humidity, mode, and power commands without opening settings', async () => {
+    renderWithProviders(
+      <>
+        <Toaster />
+        <HumidifierCard
+          id="humidifier.bedroom"
+          name="Bedroom Humidifier"
+          room="Bedroom"
+          initialState
+          initialTargetHumidity={46}
+          initialMode="auto"
+          availableModes={['auto', 'sleep']}
+          size="small"
+          onSizeChange={vi.fn()}
+          isEditMode={false}
+        />
+      </>
+    );
+
+    invokeIntegrationNativeActionMock.mockRejectedValueOnce(new Error('Humidity rejected'));
+    fireEvent.click(screen.getByRole('button', { name: 'Increase target humidity' }));
+    expect(await screen.findByText('Failed to update humidity')).toBeVisible();
+
+    invokeIntegrationNativeActionMock.mockRejectedValueOnce(new Error('Mode rejected'));
+    fireEvent.click(screen.getByRole('button', { name: 'Sleep' }));
+    expect(await screen.findByText('Failed to update humidifier mode')).toBeVisible();
+
+    dispatchEntityCommandMock.mockResolvedValueOnce({
+      accepted: false,
+      requiresEventConfirmation: false,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Bedroom Humidifier' }));
+    expect(await screen.findByText('Failed to update switch')).toBeVisible();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('omits the dialog mode chooser when there is only one mode', () => {
@@ -171,5 +210,31 @@ describe('HumidifierCard', () => {
     expect(dialog.getByRole('button', { name: 'Increase target humidity' })).toBeDisabled();
     expect(dialog.getByRole('button', { name: 'Decrease target humidity' })).toBeDisabled();
     expect(dialog.getByRole('radio', { name: 'Eco' })).toBeEnabled();
+  });
+  it('shows measured humidity below actuator limits and does not claim activity while off', () => {
+    const entity = humidifierEntityFactory({
+      current_humidity: 20,
+      humidity: 45,
+      min_humidity: 35,
+      max_humidity: 70,
+    });
+    entity.entity_id = 'humidifier.basement';
+    entity.state = 'off';
+    homeAssistantStore.setState({ entities: { [entity.entity_id]: entity } });
+    renderWithProviders(
+      <HumidifierCard
+        id={entity.entity_id}
+        name="Basement"
+        room="Basement"
+        minHumidity={35}
+        maxHumidity={70}
+        initialTargetHumidity={45}
+        size="small"
+        onSizeChange={vi.fn()}
+        isEditMode={false}
+      />
+    );
+    expect(screen.getByText('20%')).toBeInTheDocument();
+    expect(screen.queryByText(/Humidifying to|Drying to/)).not.toBeInTheDocument();
   });
 });

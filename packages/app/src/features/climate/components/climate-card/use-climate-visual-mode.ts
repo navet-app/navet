@@ -48,6 +48,13 @@ export function useClimateVisualMode({
       return 'off';
     }
 
+    if (
+      preferExplicitAction &&
+      !['heat', 'cool', 'dry', 'fan', 'idle'].some((entry) => normalizedAction.includes(entry))
+    ) {
+      return 'unknown';
+    }
+
     if (normalizedAction.includes('fan')) {
       return 'fan';
     }

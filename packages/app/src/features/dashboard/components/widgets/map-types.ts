@@ -1,9 +1,5 @@
-export interface MapMarker {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  entityPicture?: string;
-  state: string;
-  gpsAccuracy?: number;
+import type { IntegrationProviderId } from '@navet/core/integration-providers';
+import type { PlatformMapMarker } from '@navet/core/provider-feature-models';
+export interface MapMarker extends PlatformMapMarker {
+  providerId?: IntegrationProviderId;
 }

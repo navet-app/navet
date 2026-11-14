@@ -1,7 +1,6 @@
 export { normalizeTemperatureUnit } from '@navet/core/temperature';
 export { normalizeVacuumStatus } from '@navet/core/vacuum-status';
 
-import { createProviderScopedId } from '@navet/core/ids';
 import type {
   HomeAssistantAreaRegistryEntry,
   HomeAssistantDeviceRegistryEntry,
@@ -90,9 +89,19 @@ export function getName(
     name_by_user?: string | null;
     original_name?: string | null;
     originalName?: string | null;
-  }
+    next_name_part?: string | null;
+  },
+  device?: HomeAssistantDeviceRegistryEntry,
+  parent?: HomeAssistantDeviceRegistryEntry
 ): string {
   const registryName = readRegistryName(registryEntry);
+  if (registryEntry?.next_name_part === 'device') {
+    const deviceName = readRegistryName(device);
+    const parentName =
+      device?.next_name_part === 'parent_device' ? readRegistryName(parent) : undefined;
+    const composedName = [parentName, deviceName, registryName].filter(Boolean).join(' ');
+    if (composedName) return composedName;
+  }
   if (registryName) {
     return registryName;
   }
@@ -105,62 +114,21 @@ export function getName(
   );
 }
 
-export function resolveEntityRoom(
-  entityId: string,
-  entity: NamedEntityLike,
-  areaMap: Map<string, string>,
-  entityRegistryMap: Map<
-    string,
-    {
-      area_id?: string | null;
-      device_id?: string | null;
-      areaId?: string | null;
-      deviceId?: string | null;
-    }
-  >,
-  deviceRegistryMap: Map<string, { area_id?: string | null; areaId?: string | null }>
-): string {
-  const entityEntry = entityRegistryMap.get(entityId);
-  const deviceId = entityEntry?.device_id ?? entityEntry?.deviceId;
-  const deviceEntry = deviceId ? deviceRegistryMap.get(deviceId) : undefined;
-  const areaId =
-    entityEntry?.area_id ?? entityEntry?.areaId ?? deviceEntry?.area_id ?? deviceEntry?.areaId;
+export function resolveDeviceAreaId(
+  device: HomeAssistantDeviceRegistryEntry | undefined,
+  parent: HomeAssistantDeviceRegistryEntry | undefined
+) {
+  return device?.area_id ?? parent?.area_id ?? undefined;
+}
 
-  if (areaId) {
-    const areaName = areaMap.get(areaId);
-    if (areaName) {
-      return areaName;
-    }
-  }
-
+export function resolveEntityRoom(entity: NamedEntityLike, areaName: string | undefined): string {
   return (
+    areaName ||
     (typeof entity.attributes?.room === 'string' ? entity.attributes.room : null) ||
     (typeof entity.attributes?.area === 'string' ? entity.attributes.area : null) ||
     (typeof entity.attributes?.zone === 'string' ? entity.attributes.zone : null) ||
     UNKNOWN_ROOM_LABEL
   );
-}
-
-export function resolveEntityRoomId(
-  entityId: string,
-  entityRegistryMap: Map<
-    string,
-    {
-      area_id?: string | null;
-      device_id?: string | null;
-      areaId?: string | null;
-      deviceId?: string | null;
-    }
-  >,
-  deviceRegistryMap: Map<string, { area_id?: string | null; areaId?: string | null }>
-): string | undefined {
-  const entityEntry = entityRegistryMap.get(entityId);
-  const deviceId = entityEntry?.device_id ?? entityEntry?.deviceId;
-  const deviceEntry = deviceId ? deviceRegistryMap.get(deviceId) : undefined;
-  const areaId =
-    entityEntry?.area_id ?? entityEntry?.areaId ?? deviceEntry?.area_id ?? deviceEntry?.areaId;
-
-  return areaId ? createProviderScopedId('home_assistant', areaId) : undefined;
 }
 
 function hasMediaPlayerFeature(supportedFeatures: number, feature: number): boolean {

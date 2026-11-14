@@ -301,8 +301,22 @@ export function buildHomeyProviderRooms(snapshot: HomeySnapshot): NavetProviderR
     }
   }
 
-  return Object.values(snapshot.zones)
+  const zones = Object.values(snapshot.zones);
+  const zonesById = new Map(zones.map((zone) => [zone.id, zone]));
+  return zones
     .map((zone) => {
+      const visited = new Set([zone.id]);
+      let ancestor = zone.parent;
+      let validParent = Boolean(ancestor);
+      while (ancestor) {
+        const ancestorZone = zonesById.get(ancestor);
+        if (!ancestorZone || visited.has(ancestor)) {
+          validParent = false;
+          break;
+        }
+        visited.add(ancestor);
+        ancestor = ancestorZone.parent;
+      }
       const canonicalId = createProviderScopedId('homey', zone.id);
       return {
         id: canonicalId,
@@ -311,6 +325,9 @@ export function buildHomeyProviderRooms(snapshot: HomeySnapshot): NavetProviderR
         externalId: zone.id,
         name: zone.name,
         normalizedName: normalizeRoomName(zone.name),
+        ...(validParent && zone.parent
+          ? { parentCanonicalId: createProviderScopedId('homey', zone.parent) }
+          : {}),
         memberIds: memberIdsByRoomId.get(canonicalId) ?? [],
         sourceType: 'provider_managed' as const,
         supportsOrdering: true,

@@ -7,7 +7,7 @@ import { renderWithProviders } from '@navet/app/test/render';
 import { resetAppStores } from '@navet/app/test/store-reset';
 import type { NavetCapabilityId } from '@navet/core/capabilities';
 import type { NavetEntity } from '@navet/core/types';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FanCard } from '..';
 
@@ -249,21 +249,16 @@ describe('FanCard', () => {
     expect(screen.getAllByText('Ceiling Fan').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
     const dialog = within(screen.getByRole('dialog'));
-    expect(dialog.getByRole('slider', { name: 'Fan Speed' })).toHaveAttribute(
-      'aria-valuenow',
-      '66'
-    );
-    fireEvent.click(dialog.getByRole('radio', { name: 'High' }));
+    expect(dialog.queryByRole('slider')).not.toBeInTheDocument();
+    expect(dialog.getByRole('radio', { name: '66%' })).toBeChecked();
+    fireEvent.click(dialog.getByRole('radio', { name: '100%' }));
     expect(serviceMock.callService).toHaveBeenCalledWith(
       'fan',
       'set_percentage',
       { percentage: 100 },
       { entity_id: 'fan.ceiling_fan' }
     );
-    expect(dialog.getByRole('slider', { name: 'Fan Speed' })).toHaveAttribute(
-      'aria-valuenow',
-      '100'
-    );
+    expect(dialog.getByRole('radio', { name: '100%' })).toBeChecked();
     fireEvent.click(dialog.getByRole('button', { name: 'Turn off' }));
     expect(serviceMock.callService).toHaveBeenCalledWith(
       'fan',
@@ -631,5 +626,102 @@ describe('FanCard', () => {
       'false'
     );
     expect(screen.getByRole('slider', { name: 'Fan Speed' })).toHaveAttribute('aria-valuenow', '0');
+  });
+  it('uses advertised discrete speeds and keeps actual provider presets separate', () => {
+    setFanProviderEntity(['toggle', 'fan_speed']);
+    updateFanProviderEntity({
+      value: 'on',
+      percentage: 25,
+      percentageStep: 25,
+      presetMode: 'auto',
+      presetModes: ['auto', 'sleep'],
+    });
+    renderWithProviders(
+      <FanCard
+        id="fan.ceiling_fan"
+        name="Ceiling Fan"
+        room="Bedroom"
+        initialState
+        initialPercentage={25}
+        size="small"
+        onSizeChange={vi.fn()}
+        isEditMode={false}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings for Ceiling Fan' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.queryByRole('slider')).not.toBeInTheDocument();
+    fireEvent.click(dialog.getByRole('radio', { name: '50%' }));
+    expect(serviceMock.callService).toHaveBeenCalledWith(
+      'fan',
+      'set_percentage',
+      { percentage: 50 },
+      { entity_id: 'fan.ceiling_fan' }
+    );
+    fireEvent.click(dialog.getByRole('radio', { name: 'sleep' }));
+    expect(serviceMock.callService).toHaveBeenCalledWith(
+      'fan',
+      'set_preset_mode',
+      { preset_mode: 'sleep' },
+      { entity_id: 'fan.ceiling_fan' }
+    );
+  });
+  it('restores reported power and speed when a speed change fails while off', async () => {
+    setFanProviderEntity(['toggle', 'fan_speed']);
+    updateFanProviderEntity({ value: 'off', percentage: 0, percentageStep: 25 });
+    serviceMock.callService.mockRejectedValueOnce(new Error('Speed rejected'));
+    renderWithProviders(
+      <FanCard
+        id="fan.ceiling_fan"
+        name="Ceiling Fan"
+        room="Bedroom"
+        initialState={false}
+        initialPercentage={0}
+        size="small"
+        onSizeChange={vi.fn()}
+        isEditMode={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings for Ceiling Fan' }));
+    const dialog = within(screen.getByRole('dialog'));
+    fireEvent.click(dialog.getByRole('radio', { name: '50%' }));
+    expect(await dialog.findByText('Could not update this device. Try again.')).toBeVisible();
+    expect(await dialog.findByRole('button', { pressed: false, name: /turn on/i })).toBeVisible();
+    expect(dialog.getByText('0%')).toBeVisible();
+  });
+
+  it('confirms a three-speed fan when the device reports the integer speed', async () => {
+    setFanProviderEntity(['toggle', 'fan_speed']);
+    const percentageStep = 100 / 3;
+    updateFanProviderEntity({ value: 'on', percentage: 33, percentageStep });
+    renderWithProviders(
+      <FanCard
+        id="fan.ceiling_fan"
+        name="Ceiling Fan"
+        room="Bedroom"
+        initialState
+        initialPercentage={33}
+        size="small"
+        onSizeChange={vi.fn()}
+        isEditMode={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings for Ceiling Fan' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByRole('radio', { name: '33%', checked: true })).toBeVisible();
+    fireEvent.click(dialog.getByRole('radio', { name: '66%' }));
+    expect(dialog.getByText('Requested: 66%')).toBeVisible();
+    expect(serviceMock.callService).toHaveBeenCalledWith(
+      'fan',
+      'set_percentage',
+      { percentage: 66 },
+      { entity_id: 'fan.ceiling_fan' }
+    );
+
+    act(() => updateFanProviderEntity({ value: 'on', percentage: 67, percentageStep }));
+    await waitFor(() => expect(dialog.queryByText('Requested: 66%')).not.toBeInTheDocument());
+    expect(dialog.getByRole('radio', { name: '66%', checked: true })).toBeVisible();
   });
 });

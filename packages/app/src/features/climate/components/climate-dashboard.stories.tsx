@@ -13,7 +13,7 @@ import { useThemeStore } from '@navet/app/stores/theme-store';
 import type { DeviceWithType } from '@navet/app/types/device.types';
 import type { NavetEntity } from '@navet/core/types';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { type ComponentProps, type ReactNode, useEffect, useMemo } from 'react';
+import { type ComponentProps, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { ClimateDashboard } from './climate-dashboard';
 
@@ -190,8 +190,13 @@ function toEntity(device: DeviceWithType): NavetEntity {
       device.type === 'sensors' && device.availability === 'unavailable'
         ? 'unavailable'
         : 'available',
-    attributes: {},
-    capabilities: [],
+    attributes: { ...device },
+    capabilities:
+      device.type === 'climate'
+        ? ['temperature_setpoint']
+        : device.type === 'fans'
+          ? ['toggle', 'fan_speed']
+          : [],
   };
 }
 
@@ -204,6 +209,7 @@ function createDeviceMap(
 function ClimateFixture({ devices, children }: { devices: DeviceWithType[]; children: ReactNode }) {
   const theme = useThemeStore((state) => state.theme);
   const surface = getThemeSurfaceTokens(theme);
+  const [ready, setReady] = useState(false);
   const entitySnapshots = useMemo<PlatformEntitySnapshotMap>(
     () =>
       Object.fromEntries(
@@ -273,8 +279,32 @@ function ClimateFixture({ devices, children }: { devices: DeviceWithType[]; chil
     const previousHistoryFeatureService = registration.historyFeatureService;
     registration.entityRuntimeService = entityRuntimeService;
     registration.historyFeatureService = historyFeatureService;
+    setReady(true);
     integrationStore.setState({
       ...previousIntegration,
+      currentProviderId: 'home_assistant',
+      selectedProviderIds: ['home_assistant'],
+      providerEntitiesByProviderId: {
+        ...previousIntegration.providerEntitiesByProviderId,
+        home_assistant: Object.fromEntries(
+          devices.map((device) => {
+            const entity = toEntity(device);
+            return [entity.canonicalId, entity];
+          })
+        ),
+      },
+      providerEntityLookupByProviderId: {
+        ...previousIntegration.providerEntityLookupByProviderId,
+        home_assistant: Object.fromEntries(
+          devices.flatMap((device) => {
+            const entity = toEntity(device);
+            return [
+              [entity.id, entity.canonicalId],
+              [entity.canonicalId, entity.canonicalId],
+            ];
+          })
+        ),
+      },
       providerEntitiesByCanonicalId: Object.fromEntries(
         devices.map((device) => {
           const entity = toEntity(device);
@@ -289,7 +319,9 @@ function ClimateFixture({ devices, children }: { devices: DeviceWithType[]; chil
     };
   }, [devices, entityRuntimeService, historyFeatureService]);
 
-  return <div className={`min-h-screen p-3 md:p-6 ${surface.appBg}`}>{children}</div>;
+  return (
+    <div className={`min-h-screen p-3 md:p-6 ${surface.appBg}`}>{ready ? children : null}</div>
+  );
 }
 
 function ClimateDashboardStory(props: ComponentProps<typeof ClimateDashboard>) {
@@ -326,11 +358,9 @@ export const Comfortable: Story = {
     const canvas = within(canvasElement);
 
     await userEvent.click(canvas.getByRole('tab', { name: /Temperature/ }));
-    await waitFor(() => {
-      expect(canvas.getByTestId('sensor-history-sparkline')).toBeInTheDocument();
-    });
-    const sparkline = canvas.getByTestId('sensor-history-sparkline').querySelector('svg');
-    expect(sparkline?.getBoundingClientRect().height).toBeGreaterThan(0);
+    // Rewrite: dashboard sensor cards support compact sizes; inline history belongs to larger standalone sensor examples.
+    await expect(await canvas.findByTitle('21.4 °C')).toBeVisible();
+    await expect(canvas.queryByTestId('sensor-history-sparkline')).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole('tab', { name: /Humidity/ }));
     await waitFor(() => {

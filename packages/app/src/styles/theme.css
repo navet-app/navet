@@ -410,8 +410,8 @@
 @layer utilities {
   .navet-card-header-control,
   .navet-card-action-control {
-    height: 2rem;
-    width: 2rem;
+    height: 2.25rem;
+    width: 2.25rem;
   }
 
   @media (any-pointer: coarse) {

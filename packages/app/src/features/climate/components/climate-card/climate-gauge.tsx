@@ -95,6 +95,9 @@ export const ClimateGauge = memo(function ClimateGauge({
   const textTokens = getCardReadableTextTokens({ theme, tone, accentColor });
   const hvacGaugeSurface = getClimateGaugeSurfaceTokens(theme, textTokens.titleColor);
   const temperatureUnitSymbol = getTemperatureUnitSymbol(temperatureUnit);
+  const currentTemperatureLabel = Number.isFinite(currentTemp)
+    ? `${formatDisplayTemperature(currentTemp)}${temperatureUnitSymbol}`
+    : '—';
   const gaugeLabel = t('climate.gaugeLabel', {
     mode,
     temp: `${formatDisplayTemperature(targetTemp)}${temperatureUnitSymbol}`,
@@ -194,14 +197,13 @@ export const ClimateGauge = memo(function ClimateGauge({
                   : 'none',
             }}
           >
-            {formatDisplayTemperature(currentTemp)}
-            {temperatureUnitSymbol}
+            {currentTemperatureLabel}
           </div>
 
           <div className="mt-0.5 text-xs" style={{ color: textTokens.subtitleColor }}>
             {helperText ??
               t('climate.currentTemperature', {
-                temp: `${formatDisplayTemperature(currentTemp)}${temperatureUnitSymbol}`,
+                temp: currentTemperatureLabel,
               })}
           </div>
         </div>
@@ -338,7 +340,7 @@ export const ClimateGauge = memo(function ClimateGauge({
           style={{ color: textTokens.subtitleColor }}
         >
           {t('climate.currentTemperature', {
-            temp: `${formatDisplayTemperature(currentTemp)}${temperatureUnitSymbol}`,
+            temp: currentTemperatureLabel,
           })}
         </div>
       </div>

@@ -123,7 +123,7 @@ function snapToStep(value: number, min: number, max: number, step: number) {
 
 export const RotaryKnob = memo(function RotaryKnob({
   id,
-  value,
+  value: reportedValue,
   min = 0,
   max = 100,
   step = 1,
@@ -143,6 +143,9 @@ export const RotaryKnob = memo(function RotaryKnob({
   onValueCommit,
 }: RotaryKnobProps) {
   const { theme } = useTheme();
+  const [dragValue, setDragValue] = useState<number | null>(null);
+  const value = dragValue ?? reportedValue;
+
   const knobRef = useRef<HTMLDivElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const dragStartValueRef = useRef<number>(value);
@@ -177,6 +180,21 @@ export const RotaryKnob = memo(function RotaryKnob({
     [max, min, onValueChange, safeStep]
   );
 
+  const finishDrag = useCallback(
+    (cancelled: boolean) => {
+      if (activePointerIdRef.current === null) return;
+      const next = lastIssuedValueRef.current;
+      const changed = next !== dragStartValueRef.current;
+      resetDragState();
+      setDragValue(null);
+      if (!cancelled && changed) {
+        onValueChange?.(next);
+        onValueCommit?.(next);
+      }
+    },
+    [onValueChange, onValueCommit, resetDragState]
+  );
+
   useEffect(() => {
     if (isDragging) {
       return;
@@ -207,7 +225,9 @@ export const RotaryKnob = memo(function RotaryKnob({
 
       const nextValue =
         dragStartValueRef.current + (dragAccumulatedAngleRef.current / 18) * safeStep;
-      commitValueChange(nextValue);
+      const snapped = snapToStep(nextValue, min, max, safeStep);
+      lastIssuedValueRef.current = snapped;
+      setDragValue(snapped);
     };
 
     const handleWindowPointerMove = (event: PointerEvent) => {
@@ -223,7 +243,7 @@ export const RotaryKnob = memo(function RotaryKnob({
         return;
       }
 
-      resetDragState();
+      finishDrag(event.type === 'pointercancel');
     };
 
     window.addEventListener('pointermove', handleWindowPointerMove);
@@ -235,7 +255,7 @@ export const RotaryKnob = memo(function RotaryKnob({
       window.removeEventListener('pointerup', handleWindowPointerEnd);
       window.removeEventListener('pointercancel', handleWindowPointerEnd);
     };
-  }, [commitValueChange, isDragging, onValueChange, resetDragState, safeStep]);
+  }, [finishDrag, isDragging, max, min, onValueChange, safeStep]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!isOn || !onValueChange) {
@@ -243,6 +263,7 @@ export const RotaryKnob = memo(function RotaryKnob({
     }
 
     event.preventDefault();
+    event.currentTarget.focus();
     event.currentTarget.setPointerCapture(event.pointerId);
     activePointerIdRef.current = event.pointerId;
     dragStartValueRef.current = value;
@@ -257,8 +278,7 @@ export const RotaryKnob = memo(function RotaryKnob({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
-    resetDragState();
-    onValueCommit?.(lastIssuedValueRef.current);
+    finishDrag(event.type === 'pointercancel');
   };
 
   useEffect(() => {
@@ -268,6 +288,12 @@ export const RotaryKnob = memo(function RotaryKnob({
     }
 
     const handleWheel = (event: WheelEvent) => {
+      if (
+        document.activeElement !== knob ||
+        event.deltaY === 0 ||
+        activePointerIdRef.current !== null
+      )
+        return;
       event.preventDefault();
       const direction = event.deltaY > 0 ? -1 : 1;
       const nextValue = value + direction * safeStep;

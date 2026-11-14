@@ -41,6 +41,7 @@ import {
   useState,
 } from 'react';
 import { getManageableRoomOrder } from './mobile-layout-helpers';
+import { RoomHierarchyMenu } from './room-hierarchy-menu';
 import {
   getVisibleRoomNavRooms,
   type RoomNavigationGroup,
@@ -217,6 +218,7 @@ function getRoomGroupTriggerLabel(
   activeRoom: string,
   rememberedRoom: string | undefined
 ) {
+  if (group.hierarchy) return group.name;
   const activeDisplayName = group.rooms.find((room) => roomNamesMatch(room, activeRoom));
   if (activeDisplayName) return activeDisplayName;
   const rememberedDisplayName = rememberedRoom
@@ -669,7 +671,15 @@ export const RoomNav = memo(function RoomNav({
                       )}
                     >
                       {overflowEntries.map((entry) =>
-                        entry.kind === 'group' ? (
+                        entry.kind === 'group' && entry.group.hierarchy ? (
+                          <RoomHierarchyMenu
+                            key={entry.id}
+                            node={entry.group.hierarchy}
+                            activeRoom={activeRoom}
+                            onRoomChange={onRoomChange}
+                            itemClassName={dropdownItemClassName}
+                          />
+                        ) : entry.kind === 'group' ? (
                           <div key={entry.id} className="col-span-full">
                             <DropdownMenuLabel className="flex items-center gap-2 pb-1 pt-2 text-xs font-semibold">
                               {entry.group.symbol ? (
@@ -957,16 +967,36 @@ const RoomNavGroupItem = memo(function RoomNavGroupItem({
           )}
           <span className="truncate">{group.name}</span>
         </DropdownMenuLabel>
-        {group.rooms.map((room) => (
-          <DropdownMenuItem
-            key={room}
-            className={dropdownItemClassName}
-            onClick={() => onRoomChange(room)}
-          >
-            <span className="min-w-0 flex-1 truncate">{room}</span>
-            {roomNamesMatch(activeRoom, room) ? <Check className="h-4 w-4" /> : null}
-          </DropdownMenuItem>
-        ))}
+        {group.hierarchy ? (
+          <>
+            <DropdownMenuItem
+              className={dropdownItemClassName}
+              onSelect={() => onRoomChange(group.hierarchy?.room ?? group.name)}
+            >
+              {group.name}
+            </DropdownMenuItem>
+            {group.hierarchy.children.map((node) => (
+              <RoomHierarchyMenu
+                key={node.room}
+                node={node}
+                activeRoom={activeRoom}
+                onRoomChange={onRoomChange}
+                itemClassName={dropdownItemClassName}
+              />
+            ))}
+          </>
+        ) : (
+          group.rooms.map((room) => (
+            <DropdownMenuItem
+              key={room}
+              className={dropdownItemClassName}
+              onClick={() => onRoomChange(room)}
+            >
+              <span className="min-w-0 flex-1 truncate">{room}</span>
+              {roomNamesMatch(activeRoom, room) ? <Check className="h-4 w-4" /> : null}
+            </DropdownMenuItem>
+          ))
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

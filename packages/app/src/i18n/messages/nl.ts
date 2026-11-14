@@ -1,4 +1,17 @@
 export const nlMessages = {
+  'widgets.map.historyUntil': 'Vastgelegd tot {time}',
+  'widgets.map.history': 'Locatiegeschiedenis',
+  'widgets.map.period': 'Periode',
+  'widgets.map.lastHours': 'Laatste {hours} uur',
+  'widgets.map.samples':
+    'Lijnen verbinden vastgelegde locaties en tonen geen afgelegde route. Ontbrekende gegevens laten gaten.',
+  'widgets.map.historyUnavailable': 'Locatiegeschiedenis is niet beschikbaar voor deze bron.',
+  'widgets.map.noHistory':
+    'Er zijn te weinig vastgelegde locaties voor een pad. De bron kan deze entiteit uitsluiten of de gegevens hebben verwijderd.',
+  'widgets.map.pointCount': '{count} vastgelegde locaties',
+  'widgets.map.showHistory': 'Op kaart tonen',
+  'widgets.map.clearHistory': 'Geschiedenis wissen',
+  'widgets.map.zonePeople': 'Personen: {count}',
   'history.title': 'Geschiedenis en activiteit',
   'history.userAction': 'Gebruikersactie',
   'history.entity': 'Entiteit',
@@ -58,6 +71,10 @@ export const nlMessages = {
   'counter.value': 'Waarde',
   'counter.setValue': 'Waarde instellen',
   'counter.stepError': 'Gebruik een veelvoud van {step}.',
+  'deviceControls.unconfirmed':
+    'Geen bevestiging van het apparaat. Controleer de status voordat je opnieuw probeert.',
+  'deviceControls.reported': 'Gemeld: {value}',
+  'deviceControls.requested': 'Aangevraagd: {value}',
   'deviceControls.failed': 'Dit apparaat kon niet worden bijgewerkt. Probeer opnieuw.',
   'valve.position': 'Positie',
   'valve.state.open': 'Open',
@@ -2087,6 +2104,10 @@ export const nlMessages = {
     'De klimaatregeling kon niet worden bijgewerkt. Probeer het opnieuw.',
   'climate.presets': 'Voorinstellingen',
   'climate.temperature': 'Temperatuur',
+  'climate.rangeLow': 'Verwarmen tot',
+  'climate.rangeHigh': 'Koelen tot',
+  'climate.targetRange': 'Doelbereik',
+  'climate.mode.heatCool': 'Verwarmen/koelen',
   'climate.target': 'Doel',
   'climate.current': 'Huidig',
   'climate.currentTemperature': 'Huidige {temp}',
@@ -2837,10 +2858,10 @@ export const nlMessages = {
   'dashboard.addCard.templates.scene.name': 'Scène',
   'dashboard.addCard.templates.scene.description':
     'Maak een scènetrigger met één tik, waarbij scene.turn_on vooraf is ingevuld.',
-  'widgets.map.title': 'Volgers',
+  'widgets.map.title': 'Kaart',
   'widgets.map.eyebrow': 'Leef',
-  'widgets.map.noTrackers': 'Geen GPS-gegevens',
-  'widgets.map.trackerCount': '{count} bijgehouden',
+  'widgets.map.noTrackers': 'Geen locaties beschikbaar',
+  'widgets.map.trackerCount': 'Locaties: {count}',
   'dashboard.addCard.templates.map.name': 'Kaart',
   'dashboard.addCard.templates.map.description':
     'Live kaart met persoons- en device_tracker-entiteiten met GPS-coördinaten.',

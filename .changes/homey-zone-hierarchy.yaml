@@ -1,0 +1,5 @@
+type: fixed
+audiences:
+  - standalone
+  - home-assistant
+summary: Browse nested Homey zones, distinguish rooms with the same name, and see descendant devices from a parent zone.

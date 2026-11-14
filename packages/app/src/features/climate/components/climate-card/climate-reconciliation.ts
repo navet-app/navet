@@ -33,7 +33,7 @@ export function createClimateReconciliation(initial: ClimateControlState) {
         ));
     if (
       next.targetTemp === state.targetTemp &&
-      next.currentTemp === state.currentTemp &&
+      Object.is(next.currentTemp, state.currentTemp) &&
       next.mode === state.mode &&
       next.isOn === state.isOn &&
       next.action === state.action &&

@@ -21,8 +21,8 @@ import {
   getName,
   normalizeTemperatureUnit,
   normalizeVacuumStatus,
+  resolveDeviceAreaId,
   resolveEntityRoom,
-  resolveEntityRoomId,
   UNKNOWN_ROOM_LABEL,
 } from './homeassistant-mapper-support';
 import {
@@ -198,9 +198,10 @@ function resolveSecurityEntityName(
   entity: HassEntity,
   entityEntry: HomeAssistantEntityRegistryEntry | undefined,
   deviceEntry: HomeAssistantDeviceRegistryEntry | undefined,
-  securityKind: SecurityEntityKind | null
+  securityKind: SecurityEntityKind | null,
+  parentDeviceEntry: HomeAssistantDeviceRegistryEntry | undefined
 ): string {
-  const mappedName = getName(entity, entityEntry);
+  const mappedName = getName(entity, entityEntry, deviceEntry, parentDeviceEntry);
   if (!securityKind) {
     return mappedName;
   }
@@ -1077,7 +1078,10 @@ function inferHomeAssistantCapabilities(
   if (domain === 'climate' || domain === 'water_heater') {
     const controls = mapHomeAssistantClimateControls(entity);
     return [
-      'temperature_setpoint',
+      ...(typeof entity.attributes.supported_features !== 'number' ||
+      (entity.attributes.supported_features & (domain === 'water_heater' ? 1 : 3)) !== 0
+        ? ['temperature_setpoint' as const]
+        : []),
       ...(controls ? getHomeAssistantClimateControlCapabilities(controls) : []),
     ];
   }
@@ -1104,7 +1108,8 @@ function inferHomeAssistantCapabilities(
 function createHomeAssistantState(
   entityId: string,
   entity: HassEntity,
-  entityEntry?: HomeAssistantEntityRegistryEntry,
+  name: string,
+  entityEntry: HomeAssistantEntityRegistryEntry | undefined,
   areaMap: Map<string, string> = new Map(),
   switchMetricsByDeviceId?: Map<string, SwitchMetricState[]>
 ): Record<string, unknown> {
@@ -1137,14 +1142,19 @@ function createHomeAssistantState(
     const targetTemperature =
       readNumberish(entity.attributes?.temperature) ??
       readNumberish(entity.attributes?.target_temp_low) ??
-      readNumberish(entity.attributes?.target_temp_high) ??
-      currentTemperature;
+      readNumberish(entity.attributes?.target_temp_high);
 
     return {
       ...commonState,
       value: entity.state,
-      temperature: targetTemperature ?? 0,
-      currentTemperature: currentTemperature ?? targetTemperature ?? 0,
+      supportsTemperatureRange:
+        typeof entity.attributes.supported_features === 'number'
+          ? domain === 'climate' && (entity.attributes.supported_features & 2) !== 0
+          : undefined,
+      targetTemperatureLow: readNumberish(entity.attributes?.target_temp_low),
+      targetTemperatureHigh: readNumberish(entity.attributes?.target_temp_high),
+      temperature: targetTemperature,
+      currentTemperature,
       hasCurrentTemperature: currentTemperature !== undefined,
       temperatureUnit:
         normalizeTemperatureUnit(
@@ -1195,7 +1205,7 @@ function createHomeAssistantState(
         (typeof entity.attributes?.media_title === 'string' && entity.attributes.media_title) ||
         (typeof entity.attributes?.app_name === 'string' && entity.attributes.app_name) ||
         (typeof entity.attributes?.media_channel === 'string' && entity.attributes.media_channel) ||
-        getName(entity, entityEntry),
+        name,
       artist:
         (typeof entity.attributes?.media_artist === 'string' && entity.attributes.media_artist) ||
         (typeof entity.attributes?.media_album_name === 'string' &&
@@ -1380,7 +1390,7 @@ function createHomeAssistantState(
   if (domain === 'alarm_control_panel' && security) {
     const alarm = mapHomeAssistantHassAlarmEntity(entity, {
       id: entity.entity_id,
-      name: getName(entity, entityEntry),
+      name: name,
       availability:
         entity.state === 'unavailable'
           ? 'unavailable'
@@ -1503,6 +1513,8 @@ function createHomeAssistantState(
         : undefined,
     colorTemperatureKelvin: entity.attributes?.color_temp_kelvin,
     percentage: entity.attributes?.percentage,
+    percentageStep:
+      domain === 'fan' ? readNumberish(entity.attributes?.percentage_step) : undefined,
     presetMode:
       typeof entity.attributes?.preset_mode === 'string'
         ? entity.attributes.preset_mode
@@ -1596,6 +1608,7 @@ interface CachedHomeAssistantEntity {
   areaMapDependency: Map<string, string> | undefined;
   deviceEntry: HomeAssistantDeviceRegistryEntry | undefined;
   entityEntry: HomeAssistantEntityRegistryEntry | undefined;
+  parentDeviceEntry: HomeAssistantDeviceRegistryEntry | undefined;
   mapped: NavetEntity | null;
   mappedIndex: number | null;
   metrics: SwitchMetricState[] | undefined;
@@ -1647,15 +1660,6 @@ function createCachedRegistryMapResolver() {
   };
 }
 
-function resolveEntityAreaNameDependency(
-  entityEntry: HomeAssistantEntityRegistryEntry | undefined,
-  deviceEntry: HomeAssistantDeviceRegistryEntry | undefined,
-  areaMap: Map<string, string>
-) {
-  const areaId = entityEntry?.area_id ?? deviceEntry?.area_id ?? undefined;
-  return areaId ? areaMap.get(areaId) : undefined;
-}
-
 function mapHomeAssistantEntity(
   entityId: string,
   entity: HassEntity,
@@ -1685,10 +1689,14 @@ function mapHomeAssistantEntity(
 
   const deviceId = entityEntry?.device_id ?? undefined;
   const deviceEntry = deviceId ? deviceRegistryMap.get(deviceId) : undefined;
+  const parent = deviceEntry?.parent_device_id
+    ? deviceRegistryMap.get(deviceEntry.parent_device_id)
+    : undefined;
+  const areaId = entityEntry?.area_id ?? resolveDeviceAreaId(deviceEntry, parent);
+  const room = resolveEntityRoom(entity, areaId ? areaMap.get(areaId) : undefined);
+  const roomId = areaId ? createProviderScopedId('home_assistant', areaId) : undefined;
   const securityKind = classifySecurityEntity(entity);
-  const room = resolveEntityRoom(entityId, entity, areaMap, entityRegistryMap, deviceRegistryMap);
-  const roomId = resolveEntityRoomId(entityId, entityRegistryMap, deviceRegistryMap);
-  const name = resolveSecurityEntityName(entity, entityEntry, deviceEntry, securityKind);
+  const name = resolveSecurityEntityName(entity, entityEntry, deviceEntry, securityKind, parent);
   const helper = mapHomeAssistantHelper(entity);
   const household = mapHomeAssistantHouseholdControls(entity);
   const capabilities: NavetEntity['capabilities'] = helper
@@ -1770,7 +1778,14 @@ function mapHomeAssistantEntity(
     room || UNKNOWN_ROOM_LABEL,
     capabilities,
     {
-      ...createHomeAssistantState(entityId, entity, entityEntry, areaMap, switchMetricsByDeviceId),
+      ...createHomeAssistantState(
+        entityId,
+        entity,
+        name,
+        entityEntry,
+        areaMap,
+        switchMetricsByDeviceId
+      ),
       ...(helper ? { ...helper, size: 'small' } : {}),
       ...(household ? { ...household.attributes, size: 'small' } : {}),
     },
@@ -1809,11 +1824,11 @@ export function createHomeAssistantEntityMapper(): HomeAssistantEntityMapper {
     const entityEntry = registryMaps.entityRegistryMap.get(entityId);
     const deviceId = entityEntry?.device_id ?? undefined;
     const deviceEntry = deviceId ? registryMaps.deviceRegistryMap.get(deviceId) : undefined;
-    const areaName = resolveEntityAreaNameDependency(
-      entityEntry,
-      deviceEntry,
-      registryMaps.areaMap
-    );
+    const parentDeviceEntry = deviceEntry?.parent_device_id
+      ? registryMaps.deviceRegistryMap.get(deviceEntry.parent_device_id)
+      : undefined;
+    const areaId = entityEntry?.area_id ?? resolveDeviceAreaId(deviceEntry, parentDeviceEntry);
+    const areaName = areaId ? registryMaps.areaMap.get(areaId) : undefined;
     const areaMapDependency = domain === 'vacuum' ? registryMaps.areaMap : undefined;
     const metrics =
       (domain === 'switch' || domain === 'input_boolean') && deviceId
@@ -1824,6 +1839,7 @@ export function createHomeAssistantEntityMapper(): HomeAssistantEntityMapper {
       previousEntry?.source === source &&
       previousEntry.entityEntry === entityEntry &&
       previousEntry.deviceEntry === deviceEntry &&
+      previousEntry.parentDeviceEntry === parentDeviceEntry &&
       previousEntry.areaName === areaName &&
       previousEntry.areaMapDependency === areaMapDependency &&
       previousEntry.metrics === metrics;
@@ -1837,6 +1853,7 @@ export function createHomeAssistantEntityMapper(): HomeAssistantEntityMapper {
         ? previousEntry.mapped
         : mapHomeAssistantEntity(entityId, source, registryMaps, metricCache.metricsByDeviceId),
       mappedIndex,
+      parentDeviceEntry,
       metrics,
       source,
     };

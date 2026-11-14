@@ -27,7 +27,7 @@ describe('RotaryKnob', () => {
     });
   });
 
-  it('cancels page scrolling while adjusting and committing the current value with the wheel', () => {
+  it('allows browsing scroll until focused, then commits deliberate wheel adjustments', () => {
     const onValueChange = vi.fn();
     const onValueCommit = vi.fn();
     const props = {
@@ -52,6 +52,9 @@ describe('RotaryKnob', () => {
       throw new Error('Expected the rotary knob dash ring interaction surface');
     }
 
+    expect(fireEvent.wheel(dashRingSurface, { deltaY: -100 })).toBe(true);
+    expect(onValueChange).not.toHaveBeenCalled();
+    slider.focus();
     expect(fireEvent.wheel(dashRingSurface, { deltaY: -100 })).toBe(false);
     expect(onValueChange).toHaveBeenLastCalledWith(21.5);
     expect(onValueCommit).toHaveBeenCalledOnce();
@@ -90,6 +93,7 @@ describe('RotaryKnob', () => {
 
     rerender(<RotaryKnob {...props} onValueChange={onValueChange} />);
     const slider = screen.getByRole('slider');
+    slider.focus();
     expect(fireEvent.wheel(slider, { deltaY: -100 })).toBe(false);
     expect(onValueChange).toHaveBeenCalledExactlyOnceWith(22);
 
@@ -102,79 +106,84 @@ describe('RotaryKnob', () => {
     expect(onValueChange).toHaveBeenCalledOnce();
   });
 
-  it('drags from the compact dash ring without handing the gesture to page scrolling', () => {
-    const onValueChange = vi.fn();
-    const onValueCommit = vi.fn();
+  it.each(['pointerup', 'pointercancel'])(
+    'previews a drag locally and settles only a deliberate release: %s',
+    (endEvent) => {
+      const onValueChange = vi.fn();
+      const onValueCommit = vi.fn();
 
-    render(
-      <RotaryKnob
-        id="climate-medium"
-        value={21}
-        min={16}
-        max={30}
-        step={0.5}
-        ariaLabel="Heat temperature gauge"
-        className="h-[11.5rem] w-[11.5rem]"
-        tickOffsetRem={7.9}
-        bandPrimaryColor="#ff6b00"
-        bandSecondaryColor="#ff9a3d"
-        bandGlowColor="rgba(255, 107, 0, 0.45)"
-        onValueChange={onValueChange}
-        onValueCommit={onValueCommit}
-      />
-    );
+      render(
+        <RotaryKnob
+          id="climate-medium"
+          value={21}
+          min={16}
+          max={30}
+          step={0.5}
+          ariaLabel="Heat temperature gauge"
+          className="h-[11.5rem] w-[11.5rem]"
+          tickOffsetRem={7.9}
+          bandPrimaryColor="#ff6b00"
+          bandSecondaryColor="#ff9a3d"
+          bandGlowColor="rgba(255, 107, 0, 0.45)"
+          onValueChange={onValueChange}
+          onValueCommit={onValueCommit}
+        />
+      );
 
-    const slider = screen.getByRole('slider', { name: 'Heat temperature gauge' });
-    const dashRingSurface = slider.querySelector<HTMLElement>(
-      '[data-rotary-knob-hit-surface="true"]'
-    );
+      const slider = screen.getByRole('slider', { name: 'Heat temperature gauge' });
+      const dashRingSurface = slider.querySelector<HTMLElement>(
+        '[data-rotary-knob-hit-surface="true"]'
+      );
 
-    expect(dashRingSurface).not.toBeNull();
-    if (!dashRingSurface) {
-      throw new Error('Expected the rotary knob dash ring interaction surface');
+      expect(dashRingSurface).not.toBeNull();
+      if (!dashRingSurface) {
+        throw new Error('Expected the rotary knob dash ring interaction surface');
+      }
+
+      expect(dashRingSurface).toHaveClass('rounded-full', 'touch-none');
+      expect(dashRingSurface.style.height).toBe('17.8rem');
+      expect(dashRingSurface.style.minHeight).toBe('100%');
+      expect(dashRingSurface.style.minWidth).toBe('100%');
+      expect(dashRingSurface.style.width).toBe('17.8rem');
+
+      vi.spyOn(slider, 'getBoundingClientRect').mockReturnValue({
+        bottom: 184,
+        height: 184,
+        left: 0,
+        right: 184,
+        toJSON: () => ({}),
+        top: 0,
+        width: 184,
+        x: 0,
+        y: 0,
+      });
+
+      const pointerDownAcceptedByPage = fireEvent.pointerDown(dashRingSurface, {
+        clientX: -34,
+        clientY: 92,
+        pointerId: 7,
+      });
+
+      expect(pointerDownAcceptedByPage).toBe(false);
+      expect(setPointerCapture).toHaveBeenCalledWith(7);
+
+      fireEvent.pointerMove(window, {
+        clientX: 92,
+        clientY: -34,
+        pointerId: 7,
+      });
+      expect(onValueChange).not.toHaveBeenCalled();
+      expect(onValueCommit).not.toHaveBeenCalled();
+      const finish = endEvent === 'pointercancel' ? fireEvent.pointerCancel : fireEvent.pointerUp;
+      finish(dashRingSurface, { clientX: 92, clientY: -34, pointerId: 7 });
+      if (endEvent === 'pointercancel') {
+        expect(onValueChange).not.toHaveBeenCalled();
+        expect(onValueCommit).not.toHaveBeenCalled();
+      } else {
+        expect(onValueChange).toHaveBeenLastCalledWith(23.5);
+        expect(onValueCommit).toHaveBeenCalledExactlyOnceWith(23.5);
+      }
+      expect(releasePointerCapture).toHaveBeenCalledWith(7);
     }
-
-    expect(dashRingSurface).toHaveClass('rounded-full', 'touch-none');
-    expect(dashRingSurface.style.height).toBe('17.8rem');
-    expect(dashRingSurface.style.minHeight).toBe('100%');
-    expect(dashRingSurface.style.minWidth).toBe('100%');
-    expect(dashRingSurface.style.width).toBe('17.8rem');
-
-    vi.spyOn(slider, 'getBoundingClientRect').mockReturnValue({
-      bottom: 184,
-      height: 184,
-      left: 0,
-      right: 184,
-      toJSON: () => ({}),
-      top: 0,
-      width: 184,
-      x: 0,
-      y: 0,
-    });
-
-    const pointerDownAcceptedByPage = fireEvent.pointerDown(dashRingSurface, {
-      clientX: -34,
-      clientY: 92,
-      pointerId: 7,
-    });
-
-    expect(pointerDownAcceptedByPage).toBe(false);
-    expect(setPointerCapture).toHaveBeenCalledWith(7);
-
-    fireEvent.pointerMove(window, {
-      clientX: 92,
-      clientY: -34,
-      pointerId: 7,
-    });
-    fireEvent.pointerUp(dashRingSurface, {
-      clientX: 92,
-      clientY: -34,
-      pointerId: 7,
-    });
-
-    expect(onValueChange).toHaveBeenLastCalledWith(23.5);
-    expect(onValueCommit).toHaveBeenCalledOnce();
-    expect(onValueCommit).toHaveBeenCalledWith(23.5);
-    expect(releasePointerCapture).toHaveBeenCalledWith(7);
-  });
+  );
 });

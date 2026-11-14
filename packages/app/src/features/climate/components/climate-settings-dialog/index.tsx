@@ -65,11 +65,17 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
   onOpenChange,
   onCloseAutoFocus,
   name,
+  commandFeedback,
+  writable = true,
+  canSetTemperature = true,
   isOn,
   mode,
   action,
   targetTemp,
   currentTemp,
+  targetRange,
+  rangePending = false,
+  onRangeCommit,
   sourceTemperatureUnit,
   minTemp = 16,
   maxTemp = 30,
@@ -87,6 +93,7 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
   const entityType = getEntityTypeLabel(entityId);
   const visualMode = useClimateVisualMode({
     action,
+    preferExplicitAction: true,
     currentTemp,
     isOn,
     mode,
@@ -181,11 +188,9 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
     sourceTemperatureUnit,
     temperatureUnit
   );
-  const currentReading = formatTemperatureFromSourceUnit(
-    currentTemp,
-    sourceTemperatureUnit,
-    temperatureUnit
-  );
+  const currentReading = !Number.isFinite(currentTemp)
+    ? '—'
+    : formatTemperatureFromSourceUnit(currentTemp, sourceTemperatureUnit, temperatureUnit);
   const activity = action?.toLowerCase() || visualMode;
   const activityLabel = t(
     !isOn || activity === 'off'
@@ -198,32 +203,91 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
             ? 'climate.activity.drying'
             : activity.includes('fan')
               ? 'climate.mode.fan'
-              : 'climate.idle'
+              : activity === 'unknown'
+                ? 'widgets.generic.unknown'
+                : 'climate.idle'
   );
   const climateTabContent = (
     <div className="space-y-4">
-      <DeviceTargetControl
-        label={t('climate.target')}
-        value={targetReading}
-        currentReading={t('climate.currentTemperature', { temp: currentReading })}
-        status={activityLabel}
-        readableTokens={dialogTextTokens}
-        renderControls={(value) => (
-          <ClimateTempControls
-            targetTemp={controlDisplayTargetTemp}
-            onTempChange={handleDisplayTargetTempChange}
-            onTempCommit={handleDisplayTargetTempCommit}
-            isOn={isOn}
-            size="medium"
-            controlSize="sm"
-            minTemp={controlDisplayMinTemp}
-            maxTemp={controlDisplayMaxTemp}
-            step={controlDisplayStep}
-          >
-            {value}
-          </ClimateTempControls>
-        )}
-      />
+      {commandFeedback}
+      {targetRange ? (
+        <div className="space-y-3">
+          <p className="text-sm" style={{ color: dialogTextTokens.subtitleColor }}>
+            {t('climate.currentTemperature', { temp: currentReading })} · {activityLabel}
+          </p>
+          <fieldset className="min-w-0">
+            <legend
+              className="text-sm font-semibold"
+              style={{ color: dialogTextTokens.titleColor }}
+            >
+              {t('climate.targetRange')}
+            </legend>
+            <div className="mt-2 space-y-2">
+              {(['low', 'high'] as const).map((endpoint) => {
+                const label = t(endpoint === 'low' ? 'climate.rangeLow' : 'climate.rangeHigh');
+                const current = targetRange[endpoint];
+                return (
+                  <div key={endpoint} className="flex items-center justify-between gap-2">
+                    <span
+                      className="min-w-0 text-sm"
+                      style={{ color: dialogTextTokens.subtitleColor }}
+                    >
+                      {label}
+                    </span>
+                    <ClimateTempControls
+                      targetTemp={current}
+                      onTempChange={(next) => onRangeCommit?.(endpoint, next)}
+                      isOn={isOn && !rangePending && !!onRangeCommit}
+                      size="medium"
+                      controlSize="md"
+                      minTemp={minTemp}
+                      maxTemp={maxTemp}
+                      step={step}
+                      targetLabel={label}
+                      lowerLimit={endpoint === 'high' ? targetRange.low : minTemp}
+                      upperLimit={endpoint === 'low' ? targetRange.high : maxTemp}
+                    >
+                      <span
+                        className="min-w-[5ch] whitespace-nowrap text-center text-lg font-semibold tabular-nums"
+                        style={{ color: dialogTextTokens.titleColor }}
+                      >
+                        {formatTemperatureFromSourceUnit(
+                          current,
+                          sourceTemperatureUnit,
+                          temperatureUnit
+                        )}
+                      </span>
+                    </ClimateTempControls>
+                  </div>
+                );
+              })}
+            </div>
+          </fieldset>
+        </div>
+      ) : (
+        <DeviceTargetControl
+          label={t('climate.target')}
+          value={targetReading}
+          currentReading={t('climate.currentTemperature', { temp: currentReading })}
+          status={activityLabel}
+          readableTokens={dialogTextTokens}
+          renderControls={(value) => (
+            <ClimateTempControls
+              targetTemp={controlDisplayTargetTemp}
+              onTempChange={handleDisplayTargetTempChange}
+              onTempCommit={handleDisplayTargetTempCommit}
+              isOn={isOn && canSetTemperature && mode !== 'heat_cool'}
+              size="medium"
+              controlSize="sm"
+              minTemp={controlDisplayMinTemp}
+              maxTemp={controlDisplayMaxTemp}
+              step={controlDisplayStep}
+            >
+              {value}
+            </ClimateTempControls>
+          )}
+        />
+      )}
 
       {modeOptions.length > 1 ? (
         <DeviceControlOptions
@@ -237,18 +301,21 @@ export const ClimateSettingsDialog = memo(function ClimateSettingsDialog({
             return {
               value: option.mode,
               label:
-                option.key === 'auto'
-                  ? t('settings.appearance.systemTheme.auto')
-                  : t(`climate.mode.${option.key}`),
+                option.mode === 'heat_cool'
+                  ? t('climate.mode.heatCool')
+                  : option.key === 'auto'
+                    ? t('settings.appearance.systemTheme.auto')
+                    : t(`climate.mode.${option.key}`),
               icon: <Icon className="h-4 w-4" />,
             };
           })}
+          disabled={!writable || rangePending}
           onValueChange={onModeChange}
         />
       ) : null}
 
       <div>
-        {temperaturePresets.length > 0 ? (
+        {!targetRange && mode !== 'heat_cool' && temperaturePresets.length > 0 ? (
           <DeviceControlRow
             kind="disclosure"
             theme="dark"

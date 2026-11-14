@@ -49,10 +49,19 @@ export function resolveClimateEntityState({
     return {
       mode: resolveMode(liveEntity, attrs, initial.mode),
       isOn: liveEntity.state !== 'off',
-      action: typeof attrs.hvac_action === 'string' ? attrs.hvac_action : initial.action,
-      supportedClimateModes: resolveSupportedModes(liveEntity, attrs),
+      action: typeof attrs.hvac_action === 'string' ? attrs.hvac_action : providerState?.action,
+      supportedClimateModes:
+        resolveSupportedModes(liveEntity, attrs) ??
+        providerState?.supportedClimateModes ??
+        providerState?.supportedHvacModes ??
+        initial.supportedClimateModes,
       targetTemp: resolveClimateTargetTemperature(liveEntity) ?? undefined,
-      currentTemp: parseNumberish(attrs.current_temperature) ?? undefined,
+      currentTemp:
+        parseNumberish(attrs.current_temperature) ??
+        (providerState?.hasCurrentTemperature !== false &&
+        typeof providerState?.currentTemperature === 'number'
+          ? providerState.currentTemperature
+          : Number.NaN),
     };
   }
   if (providerState) {
@@ -62,11 +71,12 @@ export function resolveClimateEntityState({
           ? providerState.temperature
           : initial.targetTemp,
       currentTemp:
+        providerState.hasCurrentTemperature !== false &&
         typeof providerState.currentTemperature === 'number'
           ? providerState.currentTemperature
-          : initial.currentTemp,
+          : Number.NaN,
       mode: typeof providerState.mode === 'string' ? providerState.mode : initial.mode,
-      action: typeof providerState.action === 'string' ? providerState.action : initial.action,
+      action: typeof providerState.action === 'string' ? providerState.action : undefined,
       supportedClimateModes: providerState.supportedClimateModes ?? initial.supportedClimateModes,
       isOn:
         (providerState.mode ?? initial.mode) !== 'off' && (providerState.value ?? 'off') !== 'off',

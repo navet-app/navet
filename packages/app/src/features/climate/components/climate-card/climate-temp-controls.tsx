@@ -17,6 +17,9 @@ interface ClimateTempControlsProps {
   minTemp?: number;
   maxTemp?: number;
   step?: number;
+  targetLabel?: string;
+  lowerLimit?: number;
+  upperLimit?: number;
 }
 
 function snapTemperature(value: number, minTemp: number, maxTemp: number, step: number) {
@@ -35,6 +38,9 @@ export const ClimateTempControls = memo(function ClimateTempControls({
   minTemp = 16,
   maxTemp = 30,
   step = 0.5,
+  targetLabel,
+  lowerLimit,
+  upperLimit,
   children,
 }: ClimateTempControlsProps) {
   const { theme } = useTheme();
@@ -43,6 +49,11 @@ export const ClimateTempControls = memo(function ClimateTempControls({
   const primitiveSize = isCompact ? 'small' : size === 'large' ? 'large' : 'medium';
   const controlSizes = getCardActionControlSizes(primitiveSize);
   const hoverScale = isCompact ? 'hover:scale-105' : '';
+
+  const decrease = snapTemperature(targetTemp - step, minTemp, maxTemp, step);
+  const increase = snapTemperature(targetTemp + step, minTemp, maxTemp, step);
+  const decreaseLabel = t('climate.decreaseTemperature');
+  const increaseLabel = t('climate.increaseTemperature');
 
   return (
     <div className={`flex items-center ${children ? 'gap-4' : navetSpacingTokens.inline.xs}`}>
@@ -53,11 +64,16 @@ export const ClimateTempControls = memo(function ClimateTempControls({
         variant="soft"
         onClick={(e) => {
           e.stopPropagation();
-          const nextTemp = snapTemperature(targetTemp - step, minTemp, maxTemp, step);
-          (onTempCommit ?? onTempChange)(nextTemp);
+          (onTempCommit ?? onTempChange)(decrease);
         }}
-        aria-label={t('climate.decreaseTemperature')}
-        disabled={!isOn}
+        aria-label={targetLabel ? `${decreaseLabel} · ${targetLabel}` : decreaseLabel}
+        disabled={
+          !isOn ||
+          (lowerLimit !== undefined &&
+            (targetTemp - step < lowerLimit - 0.000001 ||
+              decrease >= targetTemp ||
+              decrease < lowerLimit))
+        }
         className={`${hoverScale} disabled:opacity-50`}
       >
         <Minus className={controlSize === 'lg' ? 'h-5 w-5' : controlSizes.icon} />
@@ -70,11 +86,16 @@ export const ClimateTempControls = memo(function ClimateTempControls({
         variant="soft"
         onClick={(e) => {
           e.stopPropagation();
-          const nextTemp = snapTemperature(targetTemp + step, minTemp, maxTemp, step);
-          (onTempCommit ?? onTempChange)(nextTemp);
+          (onTempCommit ?? onTempChange)(increase);
         }}
-        aria-label={t('climate.increaseTemperature')}
-        disabled={!isOn}
+        aria-label={targetLabel ? `${increaseLabel} · ${targetLabel}` : increaseLabel}
+        disabled={
+          !isOn ||
+          (upperLimit !== undefined &&
+            (targetTemp + step > upperLimit + 0.000001 ||
+              increase <= targetTemp ||
+              increase > upperLimit))
+        }
         className={`${hoverScale} disabled:opacity-50`}
       >
         <Plus className={controlSize === 'lg' ? 'h-5 w-5' : controlSizes.icon} />

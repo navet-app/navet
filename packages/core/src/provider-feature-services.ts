@@ -24,6 +24,9 @@ import type {
   PlatformEntityHistorySeries,
   PlatformEntityRegistryEntry,
   PlatformEntitySnapshotMap,
+  PlatformLocationHistoryRequest,
+  PlatformLocationPoint,
+  PlatformMapMarker,
   PlatformMediaBrowseResult,
   PlatformMessageClient,
   PlatformNotificationDeliveryRequest,
@@ -320,4 +323,13 @@ export interface ProviderTodoListFeatureService {
     expectedSessionKey?: string
   ) => Promise<void>;
   removeItem: (listId: string, uid: string, expectedSessionKey?: string) => Promise<void>;
+}
+
+/** Map payload mapping and recorded coordinate reads belong to the owning adapter. */
+export interface ProviderMapFeatureService {
+  entityPrefixes: readonly string[];
+  mapEntities: (entities: PlatformEntitySnapshotMap | null) => PlatformMapMarker[];
+  getLocationHistory?: (
+    request: PlatformLocationHistoryRequest
+  ) => Promise<PlatformLocationPoint[][]>;
 }

@@ -170,6 +170,30 @@ export interface PlatformEntityHistorySeries {
   points: PlatformEntityHistoryPoint[];
 }
 
+export interface PlatformMapMarker {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  state: string;
+  kind?: 'person' | 'tracker' | 'zone' | 'geolocation';
+  entityPicture?: string;
+  gpsAccuracy?: number;
+  radiusMeters?: number;
+  canShowHistory?: boolean;
+}
+export interface PlatformLocationPoint {
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+}
+export interface PlatformLocationHistoryRequest {
+  entityId: string;
+  startTime: string;
+  endTime: string;
+  signal?: AbortSignal;
+}
+
 export interface PlatformActivityRequest {
   entityIds: string[];
   startTime: string;

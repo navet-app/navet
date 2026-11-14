@@ -1,7 +1,7 @@
 # Navet for Home Assistant
 
-Navet has been downloaded through HACS. Complete the Home Assistant setup once, then open your
-dashboard directly from the sidebar.
+Install the Navet custom integration from Marketplace on Home Assistant 2026.11 or later, or
+through HACS on earlier versions. Complete setup once, then open Navet from the sidebar.
 
 ## Open Your Dashboard
 
@@ -28,7 +28,7 @@ integration.
 
 ## If Navet Does Not Appear
 
-1. Confirm Home Assistant was restarted after the HACS download.
+1. Confirm Home Assistant was restarted after downloading Navet.
 2. Check that **Navet** appears under **Settings -> Devices & services**.
 3. If it is missing, add the integration manually and confirm the empty setup form.
 4. Hard-refresh your browser if the sidebar still shows an older panel bundle.
