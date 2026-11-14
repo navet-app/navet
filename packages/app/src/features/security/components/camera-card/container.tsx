@@ -214,6 +214,7 @@ export const CameraCardContainer = memo(function CameraCardContainer({
     return host;
   });
   const streamRetryTimeoutRef = useRef<number | null>(null);
+  const snapshotRetryUsedRef = useRef(false);
   const { cardRef, isVisible } = useCameraCardVisibility();
   const isStreamVisibilityRetained = useRetainedCameraStreamVisibility(isVisible);
   const now = useCameraClock(isVisible || isViewerOpen);
@@ -323,6 +324,11 @@ export const CameraCardContainer = memo(function CameraCardContainer({
   }, [isVisible]);
 
   useEffect(() => {
+    if (streamRetryTimeoutRef.current !== null) {
+      window.clearTimeout(streamRetryTimeoutRef.current);
+      streamRetryTimeoutRef.current = null;
+    }
+    snapshotRetryUsedRef.current = false;
     setFailedStreamTypes([]);
     setDirectStreamFailed(false);
     setIsStreamReady(false);
@@ -508,7 +514,7 @@ export const CameraCardContainer = memo(function CameraCardContainer({
         setFailedStreamTypes((current) => (current.includes(kind) ? current : [...current, kind]));
       }
 
-      if (options?.retryable === false || hasSnapshot) {
+      if (options?.retryable === false || (hasSnapshot && snapshotRetryUsedRef.current)) {
         return;
       }
 
@@ -522,6 +528,8 @@ export const CameraCardContainer = memo(function CameraCardContainer({
 
       streamRetryTimeoutRef.current = window.setTimeout(() => {
         streamRetryTimeoutRef.current = null;
+        if (document.visibilityState !== 'visible') return;
+        snapshotRetryUsedRef.current = hasSnapshot;
         setFailedStreamTypes([]);
         setDirectStreamFailed(false);
         setRefreshKey((key) => key + 1);
@@ -572,7 +580,14 @@ export const CameraCardContainer = memo(function CameraCardContainer({
     Boolean(shouldRenderLiveStream) && isStreamReadinessOpaque;
   const loadingLabel = t('camera.loadingFeed');
   const webRtcTitle = t('camera.webRtcStreamTitle');
-  const handleStreamLoad = useCallback(() => setIsStreamReady(true), []);
+  const handleStreamLoad = useCallback(() => {
+    if (streamRetryTimeoutRef.current !== null) {
+      window.clearTimeout(streamRetryTimeoutRef.current);
+      streamRetryTimeoutRef.current = null;
+    }
+    snapshotRetryUsedRef.current = false;
+    setIsStreamReady(true);
+  }, []);
 
   useEffect(() => {
     if (!shouldRenderLiveStream) {

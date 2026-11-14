@@ -103,8 +103,16 @@ vi.mock('../camera-settings-dialog', () => ({
 }));
 
 vi.mock('../camera-stream-player', () => ({
-  CameraStreamPlayer: ({ entityId, kind }: { entityId: string; kind: 'hls' | 'web_rtc' }) => {
-    cameraStreamPlayerRenderMock(`${entityId}:${kind}`);
+  CameraStreamPlayer: ({
+    entityId,
+    kind,
+    onError,
+  }: {
+    entityId: string;
+    kind: 'hls' | 'mse' | 'web_rtc';
+    onError: (kind: string) => void;
+  }) => {
+    cameraStreamPlayerRenderMock(`${entityId}:${kind}`, onError);
     return <div data-testid="camera-stream-player">{`${entityId}:${kind}`}</div>;
   },
 }));
@@ -397,6 +405,39 @@ describe('CameraCardContainer', () => {
     act(() => {
       vi.advanceTimersByTime(CAMERA_STREAM_OFFSCREEN_GRACE_MS);
     });
+    expect(screen.queryByTestId('camera-stream-player')).not.toBeInTheDocument();
+  });
+
+  it('retries a transient live failure once while a snapshot is available', () => {
+    vi.useFakeTimers();
+    const initialPlan = useCameraPlaybackPlanMock();
+    useCameraPlaybackPlanMock.mockImplementation(({ failedTransports }) => ({
+      ...initialPlan,
+      selectedTransport: failedTransports.has('mse') ? null : 'mse',
+    }));
+    renderWithProviders(
+      <CameraCardContainer
+        id="home_assistant:camera.front"
+        name="Front Door"
+        room="Entrance"
+        entityPicture="/api/camera_proxy/camera.front"
+        isStreamCapable
+        size="large"
+        onSizeChange={vi.fn()}
+        isEditMode={false}
+      />
+    );
+    act(() => MockIntersectionObserver.instances[0]?.emit(true));
+
+    const failStream = () => act(() => cameraStreamPlayerRenderMock.mock.lastCall?.[1]('mse'));
+    expect(screen.getByTestId('camera-stream-player')).toHaveTextContent(':mse');
+    failStream();
+    expect(screen.queryByTestId('camera-stream-player')).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(screen.getByTestId('camera-stream-player')).toHaveTextContent(':mse');
+
+    failStream();
+    act(() => vi.advanceTimersByTime(10_000));
     expect(screen.queryByTestId('camera-stream-player')).not.toBeInTheDocument();
   });
 

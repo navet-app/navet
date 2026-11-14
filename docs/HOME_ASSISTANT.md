@@ -81,8 +81,12 @@ The App opens inside Home Assistant through Ingress by default. If you also need
 dashboard URL, open the App's **Network** settings and assign any available host port to the
 optional direct Navet web interface. Direct access uses its own Home Assistant sign-in.
 
-Ingress is available to non-admin Home Assistant users and reuses their existing Home Assistant
-session. Media requests use short-lived URLs signed through that user's connection and load
+When **Show in sidebar** is enabled, Home Assistant users can open Navet from their sidebar,
+including users without administrator access. If Navet is missing for one user, check whether
+they hid it in their Home Assistant sidebar settings.
+
+Ingress reuses the signed-in user's Home Assistant session.
+Media requests use short-lived URLs signed through that user's connection and load
 directly from Home Assistant. The App does not proxy browser requests with its Supervisor token.
 
 ## Option 3: Install with Docker

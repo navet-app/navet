@@ -160,7 +160,7 @@ function HouseholdUnavailable({
         }
         description={
           recovery
-            ? t('household.recovery.description')
+            ? error || t('household.recovery.description')
             : unavailable
               ? t('household.unavailable.description')
               : unauthorized
@@ -239,8 +239,8 @@ function HouseholdUnavailable({
             <Button
               variant="destructive"
               onClick={async () => {
-                const recovered = await recover('reset');
-                if (recovered) setResetOpen(false);
+                await recover('reset');
+                setResetOpen(false);
               }}
             >
               {t('household.recovery.startOver')}

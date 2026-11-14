@@ -232,6 +232,7 @@ function HouseholdEdgeCaseStory() {
 
 function HouseholdRecoveryStory() {
   useEffect(() => {
+    const { recover } = useChoreWorkspaceStore.getState();
     useChoreWorkspaceStore.setState({
       data: null,
       error: 'Chore data could not be read. The saved file was left unchanged.',
@@ -242,8 +243,17 @@ function HouseholdRecoveryStory() {
       },
       revision: null,
       status: 'unavailable',
+      recover: async () => {
+        useChoreWorkspaceStore.setState({
+          error: 'Chore storage could not finish the request.',
+        });
+        return false;
+      },
     });
-    return () => useChoreWorkspaceStore.getState().reset();
+    return () => {
+      useChoreWorkspaceStore.getState().reset();
+      useChoreWorkspaceStore.setState({ recover });
+    };
   }, []);
   return <HouseholdSection syncEnabled={false} />;
 }
@@ -664,11 +674,12 @@ export const DamagedWorkspaceRecovery: Story = {
       recoverySurface.getByRole('button', { name: 'Repair chores' })
     ).toBeInTheDocument();
     await userEvent.click(recoverySurface.getByRole('button', { name: 'Start over' }));
-    await expect(
-      within(canvasElement.ownerDocument.body).getByRole('alertdialog', {
-        name: 'Start chores over?',
-      })
-    ).toBeInTheDocument();
+    const dialog = within(canvasElement.ownerDocument.body).getByRole('alertdialog', {
+      name: 'Start chores over?',
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Start over' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    await expect(canvas.getByText('Chore storage could not finish the request.')).toBeVisible();
   },
 };
 

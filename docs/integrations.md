@@ -35,7 +35,7 @@ on the capabilities of your devices.
 | Energy configuration and statistics | Yes | No | No |
 | Entity state history | Yes | Supported Insights logs | No |
 | Recorded activity | Yes | No | No |
-| Map zones, geolocation and recorded locations | Yes | No | No |
+| Map zones, geolocation and recorded locations | Navet Dev | No | No |
 | Calendar and weather data | Yes | No | No |
 | Calendar event creation (writable calendars) | Yes | No | No |
 | Notifications | Yes | Read and hide locally | No |
@@ -61,6 +61,8 @@ entity, load a date range, and understand empty results or record limits. Energy
 in the [Energy dashboard](/guide/everyday-control/energy/).
 
 ### Map context and recorded locations
+
+Home Assistant map zones, geolocation markers, and recorded paths are available in Navet Dev.
 
 The map shows available people, device trackers, non-passive zones and geolocation entities from
 supported selected sources. Home Assistant zones include their radius and people count;
@@ -129,8 +131,8 @@ Advanced Flows, and Moods are available as shared scene cards. People appear in 
 and matching Insights logs provide entity history for the last 31 days. Availability depends on
 Homey's version and granted permissions. See the capability matrix above for supported features.
 
-Homey zones keep their hierarchy in the Home room navigation. Select a parent zone to see its
-devices followed by devices in its visible child zones. Open the dropdown to reach deeper zones.
+In Navet Dev, Homey zones keep their hierarchy in the Home room navigation. Select a parent zone
+to see its devices followed by devices in its visible child zones. Open the dropdown to reach deeper zones.
 If zones share a name, Navet includes their paths to distinguish them.
 
 ### openHAB
