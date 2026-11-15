@@ -224,6 +224,7 @@ describe('CameraCardContainer', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     resetCameraLiveStreamBudgetForTests();
     vi.unstubAllGlobals();
   });
@@ -408,38 +409,48 @@ describe('CameraCardContainer', () => {
     expect(screen.queryByTestId('camera-stream-player')).not.toBeInTheDocument();
   });
 
-  it('retries a transient live failure once while a snapshot is available', () => {
-    vi.useFakeTimers();
-    const initialPlan = useCameraPlaybackPlanMock();
-    useCameraPlaybackPlanMock.mockImplementation(({ failedTransports }) => ({
-      ...initialPlan,
-      selectedTransport: failedTransports.has('mse') ? null : 'mse',
-    }));
-    renderWithProviders(
-      <CameraCardContainer
-        id="home_assistant:camera.front"
-        name="Front Door"
-        room="Entrance"
-        entityPicture="/api/camera_proxy/camera.front"
-        isStreamCapable
-        size="large"
-        onSizeChange={vi.fn()}
-        isEditMode={false}
-      />
-    );
-    act(() => MockIntersectionObserver.instances[0]?.emit(true));
+  it.each(['visible', 'hidden'] as const)(
+    'retries once when the tab is %s at the deadline',
+    (tabState) => {
+      vi.useFakeTimers();
+      const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+      const initialPlan = useCameraPlaybackPlanMock();
+      useCameraPlaybackPlanMock.mockImplementation(({ failedTransports }) => ({
+        ...initialPlan,
+        selectedTransport: failedTransports.has('mse') ? null : 'mse',
+      }));
+      renderWithProviders(
+        <CameraCardContainer
+          id="home_assistant:camera.front"
+          name="Front Door"
+          room="Entrance"
+          entityPicture="/api/camera_proxy/camera.front"
+          isStreamCapable
+          size="large"
+          onSizeChange={vi.fn()}
+          isEditMode={false}
+        />
+      );
+      act(() => MockIntersectionObserver.instances[0]?.emit(true));
 
-    const failStream = () => act(() => cameraStreamPlayerRenderMock.mock.lastCall?.[1]('mse'));
-    expect(screen.getByTestId('camera-stream-player')).toHaveTextContent(':mse');
-    failStream();
-    expect(screen.queryByTestId('camera-stream-player')).not.toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(5_000));
-    expect(screen.getByTestId('camera-stream-player')).toHaveTextContent(':mse');
+      const failStream = () => act(() => cameraStreamPlayerRenderMock.mock.lastCall?.[1]('mse'));
+      expect(screen.getByTestId('camera-stream-player')).toHaveTextContent(':mse');
+      failStream();
+      expect(screen.queryByTestId('camera-stream-player')).not.toBeInTheDocument();
+      visibility.mockReturnValue(tabState);
+      act(() => vi.advanceTimersByTime(5_000));
+      if (tabState === 'hidden') {
+        expect(screen.queryByTestId('camera-stream-player')).not.toBeInTheDocument();
+        visibility.mockReturnValue('visible');
+        act(() => document.dispatchEvent(new Event('visibilitychange')));
+      }
+      expect(screen.getByTestId('camera-stream-player')).toHaveTextContent(':mse');
 
-    failStream();
-    act(() => vi.advanceTimersByTime(10_000));
-    expect(screen.queryByTestId('camera-stream-player')).not.toBeInTheDocument();
-  });
+      failStream();
+      act(() => vi.advanceTimersByTime(10_000));
+      expect(screen.queryByTestId('camera-stream-player')).not.toBeInTheDocument();
+    }
+  );
 
   it('does not start the shared camera clock interval when the card is hidden', () => {
     const setIntervalSpy = vi.spyOn(window, 'setInterval');

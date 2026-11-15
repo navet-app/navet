@@ -213,7 +213,11 @@ export const CameraCardContainer = memo(function CameraCardContainer({
     host.dataset.cameraStreamHost = id;
     return host;
   });
-  const streamRetryTimeoutRef = useRef<number | null>(null);
+  const streamRetryCleanupRef = useRef<(() => void) | null>(null);
+  const cancelStreamRetry = useCallback(() => {
+    streamRetryCleanupRef.current?.();
+    streamRetryCleanupRef.current = null;
+  }, []);
   const snapshotRetryUsedRef = useRef(false);
   const { cardRef, isVisible } = useCameraCardVisibility();
   const isStreamVisibilityRetained = useRetainedCameraStreamVisibility(isVisible);
@@ -302,32 +306,16 @@ export const CameraCardContainer = memo(function CameraCardContainer({
     );
   }, [hasConfiguredDirectStream, hasSnapshot, isStreamCapable, isViewerOpen]);
 
-  useEffect(() => {
-    return () => {
-      if (streamRetryTimeoutRef.current !== null) {
-        window.clearTimeout(streamRetryTimeoutRef.current);
-      }
-    };
-  }, []);
+  useEffect(() => cancelStreamRetry, [cancelStreamRetry]);
 
   useEffect(() => () => streamPortalHost?.remove(), [streamPortalHost]);
 
   useEffect(() => {
-    if (isVisible) {
-      return;
-    }
-
-    if (streamRetryTimeoutRef.current !== null) {
-      window.clearTimeout(streamRetryTimeoutRef.current);
-      streamRetryTimeoutRef.current = null;
-    }
-  }, [isVisible]);
+    if (!isVisible) cancelStreamRetry();
+  }, [cancelStreamRetry, isVisible]);
 
   useEffect(() => {
-    if (streamRetryTimeoutRef.current !== null) {
-      window.clearTimeout(streamRetryTimeoutRef.current);
-      streamRetryTimeoutRef.current = null;
-    }
+    cancelStreamRetry();
     snapshotRetryUsedRef.current = false;
     setFailedStreamTypes([]);
     setDirectStreamFailed(false);
@@ -335,6 +323,7 @@ export const CameraCardContainer = memo(function CameraCardContainer({
   }, [
     cameraDirectStreamUrl,
     cameraWebRtcStreamSource,
+    cancelStreamRetry,
     effectiveCameraStreamPreference,
     effectiveDashboardCameraViewMode,
     id,
@@ -518,24 +507,30 @@ export const CameraCardContainer = memo(function CameraCardContainer({
         return;
       }
 
-      if (streamRetryTimeoutRef.current !== null) {
+      if (streamRetryCleanupRef.current || !isVisible) {
         return;
       }
 
-      if (!isVisible || document.visibilityState !== 'visible') {
-        return;
-      }
-
-      streamRetryTimeoutRef.current = window.setTimeout(() => {
-        streamRetryTimeoutRef.current = null;
+      const retryWhenVisible = () => {
         if (document.visibilityState !== 'visible') return;
+        cancelStreamRetry();
         snapshotRetryUsedRef.current = hasSnapshot;
         setFailedStreamTypes([]);
         setDirectStreamFailed(false);
         setRefreshKey((key) => key + 1);
+      };
+      const timeoutId = window.setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          retryWhenVisible();
+          return;
+        }
+        document.addEventListener('visibilitychange', retryWhenVisible);
+        streamRetryCleanupRef.current = () =>
+          document.removeEventListener('visibilitychange', retryWhenVisible);
       }, CAMERA_STREAM_RETRY_DELAY_MS);
+      streamRetryCleanupRef.current = () => window.clearTimeout(timeoutId);
     },
-    [hasSnapshot, isDirectStreamResource, isVisible]
+    [cancelStreamRetry, hasSnapshot, isDirectStreamResource, isVisible]
   );
 
   const handleToggleMotionDetection = useCallback(() => {
@@ -581,13 +576,10 @@ export const CameraCardContainer = memo(function CameraCardContainer({
   const loadingLabel = t('camera.loadingFeed');
   const webRtcTitle = t('camera.webRtcStreamTitle');
   const handleStreamLoad = useCallback(() => {
-    if (streamRetryTimeoutRef.current !== null) {
-      window.clearTimeout(streamRetryTimeoutRef.current);
-      streamRetryTimeoutRef.current = null;
-    }
+    cancelStreamRetry();
     snapshotRetryUsedRef.current = false;
     setIsStreamReady(true);
-  }, []);
+  }, [cancelStreamRetry]);
 
   useEffect(() => {
     if (!shouldRenderLiveStream) {
