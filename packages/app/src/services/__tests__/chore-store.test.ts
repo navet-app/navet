@@ -1746,6 +1746,55 @@ describe('NJS chore workspace store', () => {
     });
   });
 
+  it('requires the PIN while readable and allows starting over when both files are damaged', () => {
+    const mockFs = createMockFs();
+    const pinPath = '/data/navet-chore-management.json';
+    choreStore.setChoreStoreFsForTests(mockFs);
+    choreStore.setChoreStorePrincipalResolverForTests(() => PRINCIPAL);
+    choreStore.handle(
+      createActionRequest('setup-manager', 0, {
+        type: 'participant_create',
+        participant: managerParticipant(),
+      })
+    );
+    const configure = createRequest({
+      method: 'POST',
+      uri: '/__navet_chores__/management/pin',
+      requestText: JSON.stringify({ actorParticipantId: 'maya', pin: '2468' }),
+    });
+    choreStore.handle(configure);
+    expect(configure.return).toHaveBeenCalledWith(200, expect.any(String));
+
+    const reset = () =>
+      createRequest({
+        method: 'POST',
+        uri: '/__navet_chores__/recovery',
+        requestText: JSON.stringify({ action: 'reset', confirmation: 'RESET CHORES' }),
+      });
+    const locked = reset();
+    choreStore.handle(locked);
+    expect(locked.return).toHaveBeenCalledWith(403, expect.any(String));
+
+    mockFs.writeFileSync(CHORE_PATH, '{');
+    mockFs.writeFileSync(CHORE_LAST_GOOD_PATH, '{');
+    mockFs.writeFileSync(pinPath, '{');
+
+    const unavailable = createRequest();
+    choreStore.handle(unavailable);
+    expect(parseResponse(unavailable)).toMatchObject({
+      recovery: { pinConfigured: false, reason: 'workspace_invalid' },
+    });
+
+    const recovered = reset();
+    choreStore.handle(recovered);
+    expect(recovered.return).toHaveBeenCalledWith(200, expect.any(String));
+    expect(parseResponse(recovered)).toMatchObject({
+      revision: 0,
+      data: { participantsById: {} },
+      management: { pinConfigured: false },
+    });
+  });
+
   it('rejects cross-origin mutations before changing workspace data', () => {
     const mockFs = createMockFs();
     choreStore.setChoreStoreFsForTests(mockFs);

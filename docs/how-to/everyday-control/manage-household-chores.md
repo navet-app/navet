@@ -175,5 +175,7 @@ need attention**.
 3. Use **Start over** only when neither copy can be recovered and the existing data is no longer
    needed.
 
-Starting over requires explicit confirmation and preserves the damaged primary file for diagnosis
-before an empty workspace is created.
+Starting over requires explicit confirmation and creates an empty chores workspace. On the
+Home Assistant App and in Docker, Navet saves the damaged primary file for diagnosis. If recovery
+fails, record the error shown on the recovery screen along with your Navet version and installation
+type.

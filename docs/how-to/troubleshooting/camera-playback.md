@@ -31,6 +31,11 @@ Open the camera settings dialog and check:
 Navet tries the live playback formats supported by your camera, such as WebRTC, MSE, HLS, or
 MJPEG. If one fails, it tries the next available format.
 
+If live video works when you open the camera but the dashboard card shows snapshots, check
+the card's **Camera view** setting. Choose **Live** to request video on the dashboard. Navet limits
+simultaneous dashboard streams when effects quality is set to Low or Medium, so other visible
+cameras can still show snapshots.
+
 ## Deployment checks
 
 - Panel and Ingress paths can require Home Assistant resource rewriting.

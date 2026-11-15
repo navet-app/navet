@@ -3299,12 +3299,18 @@ function readManagementSecurity(tenantId) {
   return security;
 }
 
-function rebindManagementSecurityToAuthorizedTenant(tenantId) {
-  const security = readJson(
-    CHORE_MANAGEMENT_SECURITY_PATH,
-    null,
-    MAX_CHORE_MANAGEMENT_SECURITY_BYTES
-  );
+function rebindManagementSecurityToAuthorizedTenant(tenantId, allowMalformedJson) {
+  let security;
+  try {
+    security = readJson(
+      CHORE_MANAGEMENT_SECURITY_PATH,
+      null,
+      MAX_CHORE_MANAGEMENT_SECURITY_BYTES
+    );
+  } catch (error) {
+    if (allowMalformedJson && error instanceof SyntaxError) return;
+    throw error;
+  }
   if (security === null || security.tenantId === tenantId) return;
   if (
     !isRecord(security) ||
@@ -3394,6 +3400,7 @@ function publicDocument(document, tenantId) {
 
 function loadWorkspace(r, principal) {
   const document = readDocument();
+  rebindManagementSecurityToAuthorizedTenant(principal.tenantId);
   applyRevisionHeader(r, document.revision);
   const clientRevision = Number.parseInt(getHeader(r, HEADERS.revision), 10);
   if (Number.isSafeInteger(clientRevision) && clientRevision === document.revision) {
@@ -3950,9 +3957,18 @@ function dispatchRequest(r, principal, options) {
       .update('navet-chores:' + workspace.installationId + ':' + workspace.workspaceId)
       .digest('hex'),
   });
+  const uri = typeof r.uri === 'string' ? r.uri.replace(/\/+$/, '') : '';
+  if (uri === '/__navet_chores__/workspace' && r.method === 'GET') {
+    loadWorkspace(r, principal);
+    return;
+  }
+  if (uri === '/__navet_chores__/recovery' && r.method === 'POST') {
+    rebindManagementSecurityToAuthorizedTenant(principal.tenantId, true);
+    recoverWorkspace(r, principal);
+    return;
+  }
   rebindManagementSecurityToAuthorizedTenant(principal.tenantId);
 
-  const uri = typeof r.uri === 'string' ? r.uri.replace(/\/+$/, '') : '';
   if (uri === '/__navet_chores__/capabilities' && r.method === 'GET') {
     const document = readDocument();
     sendJson(r, 200, {
@@ -3972,10 +3988,6 @@ function dispatchRequest(r, principal, options) {
       }).length,
       lastDeliveryError,
     });
-    return;
-  }
-  if (uri === '/__navet_chores__/workspace' && r.method === 'GET') {
-    loadWorkspace(r, principal);
     return;
   }
   if (uri === '/__navet_chores__/points' && r.method === 'GET') {
@@ -4026,10 +4038,6 @@ function dispatchRequest(r, principal, options) {
   }
   if (uri === '/__navet_chores__/management/pin' && r.method === 'DELETE') {
     removeManagementPin(r, principal);
-    return;
-  }
-  if (uri === '/__navet_chores__/recovery' && r.method === 'POST') {
-    recoverWorkspace(r, principal);
     return;
   }
   if (
